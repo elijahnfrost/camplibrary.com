@@ -65,6 +65,19 @@ export const CampIcon = {
       <path d="M12 6.5v12.8" />
     </>
   ),
+  BookOpen: svg(
+    <>
+      <path d="M12 6.5C10.5 5 8 4.7 5 5.2V18c3-.5 5.5-.2 7 1.3 1.5-1.5 4-1.8 7-1.3V5.2c-3-.5-5.5-.2-7 1.3z" />
+      <path d="M12 6.5v12.8" />
+      <path d="M7.3 8.5h2.3M7.3 11.5h2.9M14.4 8.5h2.3M14 11.5h2.7" />
+    </>
+  ),
+  Card: svg(
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M7 9h10M7 12h7M7 15h5" />
+    </>
+  ),
   Calendar: svg(
     <>
       <rect x="4" y="5.5" width="16" height="15" />

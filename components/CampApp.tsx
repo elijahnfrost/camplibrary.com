@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Activity,
   ApplyMode,
-  BookViewerMode,
-  BookViewerSize,
+  BookViewerState,
   BlockFill,
   CategoryId,
   ConditionalRule,
@@ -27,7 +26,7 @@ import {
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
-import { type StorageValidator, useLocalStorage } from "@/lib/store";
+import { type StorageValidator, useLocalStorage, useSessionStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
@@ -256,23 +255,28 @@ const savedPlansStorage: StorageValidator<DayTemplate[]> = (value, fallback) => 
 
 const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
-const viewerSizeStorage: StorageValidator<BookViewerSize> = (value, fallback) =>
-  value === "small" || value === "medium" || value === "large" ? value : fallback;
-const viewerModeStorage: StorageValidator<BookViewerMode> = (value, fallback) =>
-  value === "cover" || value === "read" ? value : fallback;
+
+const DEFAULT_BOOK_VIEWER: BookViewerState = {
+  view: "book",
+  width: 760,
+};
+const bookViewerStorage: StorageValidator<BookViewerState> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const view = value.view === "book" || value.view === "card" || value.view === "prep" ? value.view : fallback.view;
+  const width =
+    typeof value.width === "number" && Number.isFinite(value.width)
+      ? Math.max(360, Math.min(960, Math.round(value.width)))
+      : fallback.width;
+  return { view, width };
+};
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
-  const [viewerSize, setViewerSize] = useLocalStorage<BookViewerSize>(
-    "viewerSize",
-    "medium",
-    viewerSizeStorage
-  );
-  const [viewerMode, setViewerMode] = useLocalStorage<BookViewerMode>(
-    "viewerMode",
-    "cover",
-    viewerModeStorage
+  const [bookViewer, setBookViewer] = useSessionStorage<BookViewerState>(
+    "bookViewer",
+    DEFAULT_BOOK_VIEWER,
+    bookViewerStorage
   );
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
@@ -969,10 +973,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             isCustom={isCustomActivity(detail.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
-            viewerSize={viewerSize}
-            viewerMode={viewerMode}
-            onViewerSizeChange={setViewerSize}
-            onViewerModeChange={setViewerMode}
+            viewer={bookViewer}
+            onViewerChange={setBookViewer}
           />
         )}
       </div>
