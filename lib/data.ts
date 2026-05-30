@@ -1,5 +1,5 @@
 // Camp Library — seed data + display helpers.
-// Ported from the Claude Design prototype (camp-data.js). Seed content is preserved verbatim.
+// Ported from the Claude Design prototype (camp-data.js) and tightened for practical camp setup.
 
 import type { Activity, AgeGroup, Category, CategoryId, Place, Schedule, ScheduleBlock, Slot } from "./types";
 
@@ -153,7 +153,8 @@ const SEED: SeedActivity[] = [
     id: "capture-flag", title: "Capture the Flag", type: "Game", place: "Outside",
     ageMin: 8, ageMax: 12, durationMin: 30, groupMin: 10, groupMax: 30, energy: 3, prep: "Low",
     blurb: "Two teams, two flags, one no-man's-land. The camp classic.",
-    materials: ["2 flags or pinnies", "Cones for boundaries", "Team markers"],
+    materials: ["2 flags or pinnies", "8-12 cones for boundaries", "Team identifiers, such as pinnies or bandanas"],
+    materialTags: ["Flags or pinnies", "Cones", "Team identifiers"],
     steps: [
       "Split the field in half and place a flag deep in each team's territory.",
       "Mark a small jail near each flag and explain the safe zones.",
@@ -167,7 +168,8 @@ const SEED: SeedActivity[] = [
     id: "gaga-ball", title: "Gaga Ball", type: "Game", place: "Outside",
     ageMin: 7, ageMax: 14, durationMin: 20, groupMin: 6, groupMax: 20, energy: 3, prep: "None",
     blurb: "Dodgeball's faster, friendlier cousin — played in a pit.",
-    materials: ["Soft foam ball", "Gaga pit or taped octagon"],
+    materials: ["1 soft foam gaga ball or playground ball", "Gaga pit or floor tape for an octagon boundary"],
+    materialTags: ["Soft foam playground ball", "Gaga pit or floor tape"],
     steps: [
       "Everyone starts with a hand on the wall of the pit.",
       "Ball is tossed in; on the third bounce, play begins.",
@@ -181,7 +183,8 @@ const SEED: SeedActivity[] = [
     id: "sharks-minnows", title: "Sharks & Minnows", type: "Game", place: "Both",
     ageMin: 6, ageMax: 12, durationMin: 15, groupMin: 8, groupMax: 30, energy: 2, prep: "None",
     blurb: "A dash across open ground while the sharks try to tag you.",
-    materials: ["Two boundary lines (cones or chalk)"],
+    materials: ["8-12 cones, sidewalk chalk, or floor tape for two boundary lines"],
+    materialTags: ["Boundary markers"],
     steps: [
       "Pick one or two 'sharks' to stand in the middle.",
       "'Minnows' line up on one side and run to the other on 'Go'.",
@@ -195,21 +198,22 @@ const SEED: SeedActivity[] = [
     id: "camouflage", title: "Camouflage", type: "Game", place: "Outside",
     ageMin: 8, ageMax: 14, durationMin: 20, groupMin: 6, groupMax: 20, energy: 2, prep: "None",
     blurb: "Hide-and-seek for the wide outdoors — freeze, hide, and creep closer.",
-    materials: ["A bandana or blindfold (optional)"],
+    materials: [],
     steps: [
       "One leader stands at a base and closes their eyes, counting to thirty.",
       "Everyone hides — but must stay able to see the leader.",
       "Leader opens eyes and calls out anyone they spot.",
       "On the next count, hiders creep closer; first to touch base wins.",
     ],
-    notes: "Great for tree-lined fields. Add rounds where players must move closer each count.",
+    notes: "Great for tree-lined fields. A bandana or blindfold can help the leader keep eyes closed during counting.",
     safety: "Define a clear hiding boundary. No climbing trees or hiding near water.",
   },
   {
     id: "friendship-bracelets", title: "Friendship Bracelets", type: "Craft", place: "Inside",
     ageMin: 6, ageMax: 14, durationMin: 30, groupMin: null, groupMax: null, energy: 1, prep: "Low",
     blurb: "Knotted embroidery floss — the trade currency of every camp.",
-    materials: ["Embroidery floss (3–4 colors each)", "Tape or safety pins", "Scissors"],
+    materials: ["Embroidery floss, 3-4 colors per camper", "Masking tape or safety pins", "Scissors"],
+    materialTags: ["Embroidery floss", "Masking tape or safety pins", "Scissors"],
     steps: [
       "Cut four strands about an arm's length and knot them at the top.",
       "Tape the knot to the table or pin it to a knee.",
@@ -223,7 +227,24 @@ const SEED: SeedActivity[] = [
     id: "tie-dye", title: "Tie-Dye Shirts", type: "Craft", place: "Outside",
     ageMin: 9, ageMax: 14, durationMin: 45, groupMin: null, groupMax: null, energy: 1, prep: "High",
     blurb: "Rubber bands, squeeze bottles, and a spiral of color.",
-    materials: ["White cotton shirts", "Dye in squeeze bottles", "Rubber bands", "Gloves", "Plastic table cover"],
+    materials: [
+      "1 white cotton shirt per camper",
+      "Tie-dye dye in squeeze bottles",
+      "Rubber bands, 6-10 per shirt",
+      "Disposable gloves",
+      "Plastic table covers",
+      "Plastic bags for setting shirts",
+      "Permanent marker for name labels",
+    ],
+    materialTags: [
+      "White cotton shirts",
+      "Tie-dye squeeze bottles",
+      "Rubber bands",
+      "Disposable gloves",
+      "Plastic table covers",
+      "Plastic bags",
+      "Permanent marker",
+    ],
     steps: [
       "Pre-soak shirts and prep dye stations before campers arrive.",
       "Twist and band each shirt into a spiral or stripes.",
@@ -237,7 +258,8 @@ const SEED: SeedActivity[] = [
     id: "leaf-rubbings", title: "Leaf Rubbings", type: "Craft", place: "Both",
     ageMin: 5, ageMax: 10, durationMin: 20, groupMin: null, groupMax: null, energy: 1, prep: "Low",
     blurb: "A nature walk that turns into a gallery of textures.",
-    materials: ["Paper", "Peeled crayons", "Collected leaves"],
+    materials: ["White paper", "Peeled crayons", "Collected leaves"],
+    materialTags: ["Paper", "Crayons", "Leaves"],
     steps: [
       "Take a short walk to collect a few interesting leaves.",
       "Place a leaf vein-side up under a sheet of paper.",
@@ -251,7 +273,8 @@ const SEED: SeedActivity[] = [
     id: "painted-rocks", title: "Painted Rocks", type: "Craft", place: "Both",
     ageMin: 6, ageMax: 12, durationMin: 25, groupMin: null, groupMax: null, energy: 1, prep: "Medium",
     blurb: "Smooth stones become bugs, faces, and trail markers.",
-    materials: ["Smooth rocks", "Acrylic paint", "Brushes", "Newspaper"],
+    materials: ["Smooth rocks", "Acrylic paint", "Paintbrushes", "Newspaper or table cover", "Cups of rinse water"],
+    materialTags: ["Smooth rocks", "Acrylic paint", "Paintbrushes", "Surface cover", "Cups", "Water source"],
     steps: [
       "Wash and dry rocks; set out painting stations on newspaper.",
       "Sketch a design lightly before painting.",
@@ -307,7 +330,8 @@ const SEED: SeedActivity[] = [
     id: "sponge-relay", title: "Sponge Relay", type: "Water", place: "Outside",
     ageMin: 6, ageMax: 14, durationMin: 15, groupMin: 8, groupMax: 24, energy: 3, prep: "Low",
     blurb: "Soak it, sprint it, squeeze it — first bucket full wins.",
-    materials: ["Large sponges", "Buckets (two per team)", "Water source"],
+    materials: ["1 large sponge per team", "2 buckets per team", "Water source"],
+    materialTags: ["Large sponges", "Buckets", "Water source"],
     steps: [
       "Fill a full bucket at the start and an empty one at each team's end.",
       "Soak the sponge, run it down, squeeze it into the empty bucket.",
@@ -321,7 +345,8 @@ const SEED: SeedActivity[] = [
     id: "drip-drip-drop", title: "Drip Drip Drop", type: "Water", place: "Outside",
     ageMin: 6, ageMax: 12, durationMin: 15, groupMin: 8, groupMax: 20, energy: 2, prep: "Low",
     blurb: "Duck-Duck-Goose with a cup of water and a gleeful splash.",
-    materials: ["A cup of water", "A circle of seated campers"],
+    materials: ["1 small cup", "Water source"],
+    materialTags: ["Cups", "Water source"],
     steps: [
       "Everyone sits in a circle; one camper is 'it' with the cup.",
       "They walk around dripping a little water on each head — 'drip'.",
@@ -335,7 +360,8 @@ const SEED: SeedActivity[] = [
     id: "story-circle", title: "Story Circle", type: "Quiet", place: "Both",
     ageMin: 5, ageMax: 12, durationMin: 20, groupMin: null, groupMax: null, energy: 1, prep: "None",
     blurb: "One sentence each, around the circle, until a tale appears.",
-    materials: ["A talking stick or small object (optional)"],
+    materials: ["Talking stick or small object"],
+    materialTags: ["Talking object"],
     steps: [
       "Sit in a circle and set the opening line together.",
       "Each camper adds one sentence when holding the object.",
@@ -349,7 +375,8 @@ const SEED: SeedActivity[] = [
     id: "nature-journaling", title: "Nature Journaling", type: "Quiet", place: "Outside",
     ageMin: 8, ageMax: 14, durationMin: 30, groupMin: null, groupMax: null, energy: 1, prep: "Low",
     blurb: "Find a sit-spot, slow down, and sketch what you notice.",
-    materials: ["Notebooks", "Pencils", "Clipboards (optional)"],
+    materials: ["Notebook or paper per camper", "Pencil per camper", "Clipboards or hard writing surfaces"],
+    materialTags: ["Notebook or paper", "Pencils", "Clipboards"],
     steps: [
       "Hand out journals and walk to a quiet outdoor spot.",
       "Each camper picks a sit-spot a few steps apart.",

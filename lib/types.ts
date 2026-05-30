@@ -35,6 +35,7 @@ export interface Activity {
   prep: Prep;
   blurb: string;
   materials: string[];
+  materialTags?: string[];
   steps: string[];
   notes: string;
   safety: string;

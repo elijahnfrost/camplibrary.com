@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
 import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
+import { materialTagsFromMaterials } from "@/lib/materials";
 import { CampIcon } from "./icons";
 import { RatingPicker, Seg } from "./primitives";
 
@@ -111,6 +112,7 @@ export function AddView({
     const ages = f.ages.length ? f.ages : (["g46"] as AgeGroupId[]);
     const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
     const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const materials = f.materials.split(",").map((x) => x.trim()).filter(Boolean);
     const a: Activity = {
       id: initial ? initial.id : (slug || "custom-activity") + "-" + Date.now().toString(36),
       title: f.title.trim(),
@@ -126,7 +128,8 @@ export function AddView({
       prep: f.prep,
       rating: f.rating,
       blurb: f.blurb.trim() || "A new entry in the library.",
-      materials: f.materials.split(",").map((x) => x.trim()).filter(Boolean),
+      materials,
+      materialTags: materialTagsFromMaterials(materials),
       steps: lines(f.steps),
       notes: f.notes.trim() || "—",
       safety: f.safety.trim() || "—",
