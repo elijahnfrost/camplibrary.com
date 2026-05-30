@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Activity,
   ApplyMode,
@@ -18,6 +18,9 @@ import type {
 import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
 import {
   campMinutes,
+  clampZoomIndex,
+  DAY_START_MIN,
+  DEFAULT_ZOOM,
   MIN_DURATION_MIN,
   minutesToCamp,
   nextFreeStart,
@@ -28,7 +31,9 @@ import { type StorageValidator, useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
-import { ScheduleView, type EventDraft } from "./ScheduleView";
+import { CalendarView } from "./CalendarView";
+import { ScheduleOverview } from "./ScheduleOverview";
+import { type EventDraft } from "./EventComposer";
 import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
@@ -38,7 +43,8 @@ import { AuthButton, AuthRequiredPanel, useAuthLabel, usePreviewAuth } from "./A
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
-  { id: "schedule", label: "Schedule", icon: CampIcon.Calendar },
+  { id: "schedule", label: "Run Sheet", icon: CampIcon.List },
+  { id: "calendar", label: "Planner", icon: CampIcon.Calendar },
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
@@ -248,6 +254,45 @@ const savedPlansStorage: StorageValidator<DayTemplate[]> = (value, fallback) => 
 const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
 
+const zoomStorage: StorageValidator<number> = (value, fallback) =>
+  typeof value === "number" && Number.isFinite(value) ? clampZoomIndex(value) : fallback;
+
+const SCHEDULE_SEED_VERSION = "3";
+
+function isLegacyOneDaySeed(raw: string | null): boolean {
+  if (raw == null) return true;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed)) return false;
+    const populatedDays = Object.entries(parsed).filter(([, value]) => Array.isArray(value) && value.length > 0);
+    if (populatedDays.length !== 1 || populatedDays[0][0] !== "2") return false;
+    const blocks = populatedDays[0][1] as unknown[];
+    const expected = [
+      ["s1", "09:00", "09:30", "boom-chicka-boom"],
+      ["s2", "09:45", "10:45", "gaga-ball"],
+      ["s3", "11:00", "11:45", "tie-dye"],
+      ["lunch", "12:00", "13:15", ""],
+      ["s4", "13:30", "13:45", "sponge-relay"],
+      ["s5", "15:00", "15:30", "capture-flag"],
+    ];
+    return (
+      blocks.length === expected.length &&
+      blocks.every((value, index) => {
+        if (!isRecord(value)) return false;
+        const [id, start, end, activityId] = expected[index];
+        return (
+          value.id === id &&
+          value.start === start &&
+          value.end === end &&
+          (activityId ? value.activityId === activityId : value.kind === "label")
+        );
+      })
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function CampApp() {
   const [tab, setTab] = useState<TabId>("home");
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
@@ -267,8 +312,12 @@ export function CampApp() {
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
+  const [zoomIdx, setZoomIdx] = useLocalStorage<number>("planZoom", DEFAULT_ZOOM, zoomStorage);
+  const focusNonceRef = useRef(0);
+  const [calFocus, setCalFocus] = useState<{ min: number; nonce: number } | null>(null);
 
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [detailMode, setDetailMode] = useState<"library" | "runSheet">("library");
   const [editing, setEditing] = useState<Activity | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
@@ -280,19 +329,30 @@ export function CampApp() {
   const canEdit = auth.signedIn;
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
 
-  // One-time safety snapshot of pre-upgrade schedule data before the read-time
-  // normalizers (zero-padded times, new template fields) write the new shape back.
+  // Safety snapshot + seed migration. If the browser still has the old
+  // one-day demo schedule, upgrade it to the full Monday-Friday draft; leave
+  // counselor-edited schedules alone.
   useEffect(() => {
     try {
-      if (window.localStorage.getItem("camp:scheduleVersion")) return;
+      if (window.localStorage.getItem("camp:scheduleVersion") === SCHEDULE_SEED_VERSION) return;
       const prevSchedule = window.localStorage.getItem("camp:schedule");
       const prevPlans = window.localStorage.getItem("camp:schedulePlans");
-      if (prevSchedule != null) window.localStorage.setItem("camp:schedule.bak", prevSchedule);
-      if (prevPlans != null) window.localStorage.setItem("camp:schedulePlans.bak", prevPlans);
-      window.localStorage.setItem("camp:scheduleVersion", "2");
+      if (prevSchedule != null && window.localStorage.getItem("camp:schedule.bak") == null) {
+        window.localStorage.setItem("camp:schedule.bak", prevSchedule);
+      }
+      if (prevPlans != null && window.localStorage.getItem("camp:schedulePlans.bak") == null) {
+        window.localStorage.setItem("camp:schedulePlans.bak", prevPlans);
+      }
+      if (isLegacyOneDaySeed(prevSchedule)) {
+        window.localStorage.setItem("camp:schedule", JSON.stringify(DEFAULT_SCHEDULE));
+        setSchedule(DEFAULT_SCHEDULE);
+      }
+      window.localStorage.setItem("camp:scheduleVersion", SCHEDULE_SEED_VERSION);
     } catch {
       /* private mode / quota — non-fatal */
     }
+    // The migration intentionally runs once after localStorage hydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const all = useMemo(() => {
@@ -345,6 +405,14 @@ export function CampApp() {
   const openCount = dayBlocks.filter(
     (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
   ).length;
+  const weekPlannedCount = useMemo(
+    () =>
+      Object.values(weekBlocks).reduce(
+        (sum, day) => sum + day.filter((block) => block.kind === "activity" && block.activityId).length,
+        0
+      ),
+    [weekBlocks]
+  );
 
   // Real data for the home dashboard (no more hardcoded picks).
   const todayPlanned = useMemo(
@@ -556,8 +624,17 @@ export function CampApp() {
     setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
-  function changeDay(d: number) {
-    setDayIndex((i) => Math.max(0, Math.min(DAYS.length - 1, i + d)));
+  function selectDay(index: number) {
+    setDayIndex(Math.max(0, Math.min(DAYS.length - 1, index)));
+  }
+
+  // Drill from the overview into the single-day workspace, optionally scrolling
+  // the calendar to a specific time.
+  function openDayInCalendar(day: number, atMin?: number) {
+    selectDay(day);
+    setTab("calendar");
+    focusNonceRef.current += 1;
+    setCalFocus({ min: atMin ?? DAY_START_MIN, nonce: focusNonceRef.current });
   }
 
   function printCurrentView() {
@@ -566,7 +643,16 @@ export function CampApp() {
 
   function openDetail(a: Activity) {
     setJustAdded(null);
+    setDetailMode("library");
     setDetail(a);
+  }
+
+  function openScheduleBlock(day: number, block: ScheduleBlock) {
+    if (block.kind !== "activity" || !block.activityId || !byId[block.activityId]) return;
+    selectDay(day);
+    setJustAdded(null);
+    setDetailMode("runSheet");
+    setDetail(byId[block.activityId]);
   }
 
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
@@ -613,7 +699,13 @@ export function CampApp() {
     },
     schedule: {
       kicker: DAYS[dayIndex] + " · camp week",
-      title: "Schedule",
+      title: "Run Sheet",
+      summary:
+        weekPlannedCount + (weekPlannedCount === 1 ? " activity" : " activities") + " ready to run",
+    },
+    calendar: {
+      kicker: "Build " + DAYS[dayIndex],
+      title: "Planner",
       summary:
         plannedCount +
         " planned" +
@@ -700,7 +792,7 @@ export function CampApp() {
           <div
             className={
               "topbar" +
-              (tab === "schedule" ? " topbar--planner" : "")
+              (tab === "calendar" ? " topbar--planner" : "")
             }
             data-export-scope={tab}
             data-export-format="print-bw"
@@ -813,9 +905,19 @@ export function CampApp() {
               <CatalogView items={filtered} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "schedule" && (
-              <ScheduleView
+              <ScheduleOverview
                 dayIndex={dayIndex}
-                onDayChange={changeDay}
+                onSelectDay={selectDay}
+                weekBlocks={weekBlocks}
+                byId={byId}
+                zoomIdx={zoomIdx}
+                onOpenBlock={openScheduleBlock}
+              />
+            )}
+            {tab === "calendar" && (
+              <CalendarView
+                dayIndex={dayIndex}
+                onSelectDay={selectDay}
                 blocks={dayBlocks}
                 weekBlocks={weekBlocks}
                 activities={filtered}
@@ -844,6 +946,9 @@ export function CampApp() {
                 isFav={isFav}
                 onToggleFav={toggleFav}
                 byId={byId}
+                zoomIdx={zoomIdx}
+                onZoom={(idx) => setZoomIdx(clampZoomIndex(idx))}
+                focus={calFocus}
               />
             )}
             {tab === "saved" && (
@@ -909,6 +1014,8 @@ export function CampApp() {
             isCustom={isCustomActivity(detail.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
+            showScheduleAction={detailMode !== "runSheet"}
+            showOwnerActions={detailMode !== "runSheet"}
           />
         )}
       </div>

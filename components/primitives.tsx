@@ -1,26 +1,8 @@
 "use client";
 
-import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import { CampIcon } from "./icons";
-
-// ---------- keyboard accessibility for div-based buttons ----------
-// The design uses styled <div role="button"> elements; on a real site these
-// must also respond to Enter/Space. This helper supplies the needed props.
-export function clickable(onActivate: () => void) {
-  return {
-    role: "button" as const,
-    tabIndex: 0,
-    onClick: onActivate,
-    onKeyDown: (e: KeyboardEvent) => {
-      if (e.target !== e.currentTarget) return;
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        onActivate();
-      }
-    },
-  };
-}
 
 export function EnergyMeter({ level }: { level: number }) {
   return (

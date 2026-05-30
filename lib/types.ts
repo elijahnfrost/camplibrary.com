@@ -98,4 +98,5 @@ export interface Slot {
 }
 
 export type LibraryView = "shelf" | "deck" | "catalog";
-export type TabId = "home" | "library" | "schedule" | "saved" | "add";
+// "schedule" is the week/agenda overview; "calendar" is the single-day interactive workspace.
+export type TabId = "home" | "library" | "schedule" | "calendar" | "saved" | "add";

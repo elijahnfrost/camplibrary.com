@@ -13,10 +13,12 @@ export function Modal({
   label,
   onClose,
   children,
+  className = "",
 }: {
   label: string;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
@@ -25,7 +27,7 @@ export function Modal({
       <div className="scrim" onClick={onClose} />
       <div
         ref={dialogRef}
-        className="overlay overlay--sheet"
+        className={"overlay overlay--sheet" + (className ? " " + className : "")}
         role="dialog"
         aria-modal="true"
         aria-label={label}

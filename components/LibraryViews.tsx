@@ -12,7 +12,7 @@ import {
   ratingColor,
 } from "@/lib/data";
 import type { CSSProperties } from "react";
-import { clickable, EmptyResults, SaveButton } from "./primitives";
+import { EmptyResults, SaveButton } from "./primitives";
 
 interface ViewProps {
   items: Activity[];
@@ -58,7 +58,8 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
               // the single honey-gold; reserve head & foot room so it clears the title
               const mark = hash(a.id + "spine") % SPINE_MARKS;
               return (
-                <div
+                <button
+                  type="button"
                   className="spine"
                   key={a.id}
                   style={
@@ -71,11 +72,11 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
                   }
                   title={a.title}
                   aria-label={a.title}
-                  {...clickable(() => onOpen(a))}
+                  onClick={() => onOpen(a)}
                 >
                   {saved && <span className="spine__mark" data-mark={mark} aria-hidden="true" />}
                   <span className="spine__title">{a.title}</span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -92,17 +93,12 @@ export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
   return (
     <div className="deck fadein">
       {items.map((a) => (
-        <div className="deck-card" key={a.id} aria-label={a.title} {...clickable(() => onOpen(a))}>
-          <div className="plate" style={{ background: ratingColor(a.rating) }}>
+        <div className="deck-card" key={a.id}>
+          {/* Plain content layer; the stretched button below overlays it as the
+              single primary action, and the star rides above as a sibling. */}
+          <div className="plate" style={{ background: ratingColor(a.rating) }} aria-hidden="true">
             <div className="plate__grid" />
             <span className="plate__cat">{a.type}</span>
-            <span className="plate__star">
-              <SaveButton
-                on={isFav(a.id)}
-                onToggle={() => onToggleFav(a.id)}
-                variant="ribbon"
-              />
-            </span>
             <span className="plate__mono">{monogram(a.title)}</span>
           </div>
           <div className="deck-card__body">
@@ -113,6 +109,19 @@ export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
               {ageLabel(a)} · {ENERGY[a.energy]}
             </div>
           </div>
+          <button
+            type="button"
+            className="deck-card__open stretch"
+            aria-label={a.title}
+            onClick={() => onOpen(a)}
+          />
+          <span className="plate__star">
+            <SaveButton
+              on={isFav(a.id)}
+              onToggle={() => onToggleFav(a.id)}
+              variant="ribbon"
+            />
+          </span>
         </div>
       ))}
     </div>
@@ -141,19 +150,21 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
         </button>
       </div>
       {sorted.map((a) => (
-        <div className="cat-row" key={a.id} aria-label={a.title} {...clickable(() => onOpen(a))}>
-          <div className="cat-code" style={{ background: ratingColor(a.rating) }}>
-            {code(a)}
-          </div>
-          <div className="cat-main">
-            <div className="cat-title">{a.title}</div>
-            <div className="cat-stamps">
-              <span className="stamp">{a.type}</span>
-              <span className="stamp">{a.place}</span>
-              <span className="stamp">{durLabel(a)}</span>
-              <span className="stamp">{ENERGY[a.energy]}</span>
-            </div>
-          </div>
+        <div className="cat-row" key={a.id}>
+          <button type="button" className="cat-row__open stretch" aria-label={a.title} onClick={() => onOpen(a)}>
+            <span className="cat-code" style={{ background: ratingColor(a.rating) }}>
+              {code(a)}
+            </span>
+            <span className="cat-main">
+              <span className="cat-title">{a.title}</span>
+              <span className="cat-stamps">
+                <span className="stamp">{a.type}</span>
+                <span className="stamp">{a.place}</span>
+                <span className="stamp">{durLabel(a)}</span>
+                <span className="stamp">{ENERGY[a.energy]}</span>
+              </span>
+            </span>
+          </button>
           <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} />
         </div>
       ))}

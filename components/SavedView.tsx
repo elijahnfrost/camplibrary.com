@@ -3,7 +3,7 @@
 import type { Activity } from "@/lib/types";
 import { code, durLabel, ENERGY } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { clickable, SaveButton } from "./primitives";
+import { SaveButton } from "./primitives";
 
 export function SavedView({
   items,
@@ -36,17 +36,19 @@ export function SavedView({
       {saved
         .sort((a, b) => a.title.localeCompare(b.title))
         .map((a) => (
-          <div className="cat-row" key={a.id} aria-label={a.title} {...clickable(() => onOpen(a))}>
-            <div className="cat-code">{code(a)}</div>
-            <div className="cat-main">
-              <div className="cat-title">{a.title}</div>
-              <div className="cat-stamps">
-                <span className="stamp">{a.type}</span>
-                <span className="stamp">{a.place}</span>
-                <span className="stamp">{durLabel(a)}</span>
-                <span className="stamp">{ENERGY[a.energy]}</span>
-              </div>
-            </div>
+          <div className="cat-row" key={a.id}>
+            <button type="button" className="cat-row__open stretch" aria-label={a.title} onClick={() => onOpen(a)}>
+              <span className="cat-code">{code(a)}</span>
+              <span className="cat-main">
+                <span className="cat-title">{a.title}</span>
+                <span className="cat-stamps">
+                  <span className="stamp">{a.type}</span>
+                  <span className="stamp">{a.place}</span>
+                  <span className="stamp">{durLabel(a)}</span>
+                  <span className="stamp">{ENERGY[a.energy]}</span>
+                </span>
+              </span>
+            </button>
             <SaveButton on={true} onToggle={() => onToggleFav(a.id)} />
           </div>
         ))}

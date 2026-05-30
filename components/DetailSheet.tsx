@@ -27,6 +27,8 @@ export function DetailSheet({
   isCustom,
   onEdit,
   onDelete,
+  showScheduleAction = true,
+  showOwnerActions = true,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -40,6 +42,8 @@ export function DetailSheet({
   isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
+  showScheduleAction?: boolean;
+  showOwnerActions?: boolean;
 }) {
   return (
     <Modal label={a.title} onClose={onClose}>
@@ -136,36 +140,40 @@ export function DetailSheet({
         </div>
       </div>
 
-      <div className="detail__actions">
-        {isCustom && (
-          <div className="detail__owner">
-            <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
-              <CampIcon.Tool />
-              Edit
-            </button>
+      {(showOwnerActions || showScheduleAction) && (
+        <div className="detail__actions">
+          {showOwnerActions && isCustom && (
+            <div className="detail__owner">
+              <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
+                <CampIcon.Tool />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
+                onClick={() => onDelete(a)}
+              >
+                <CampIcon.Trash />
+                Delete
+              </button>
+            </div>
+          )}
+          {showScheduleAction && (
             <button
               type="button"
-              className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
-              onClick={() => onDelete(a)}
+              className="btn btn--primary btn--block"
+              onClick={() => onAddToSchedule(a)}
             >
-              <CampIcon.Trash />
-              Delete
+              {added === "added" ? <CampIcon.Check /> : <CampIcon.Calendar />}
+              {added === "added"
+                ? "Added to " + dayName
+                : alreadyScheduled
+                  ? "Add another to " + dayName
+                  : "Add to " + dayName}
             </button>
-          </div>
-        )}
-        <button
-          type="button"
-          className="btn btn--primary btn--block"
-          onClick={() => onAddToSchedule(a)}
-        >
-          {added === "added" ? <CampIcon.Check /> : <CampIcon.Calendar />}
-          {added === "added"
-            ? "Added to " + dayName
-            : alreadyScheduled
-              ? "Add another to " + dayName
-              : "Add to " + dayName}
-        </button>
-      </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
