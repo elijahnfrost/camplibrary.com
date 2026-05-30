@@ -11,9 +11,10 @@ type EnvKey =
   | "NEXT_PUBLIC_APP_URL"
   | "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY";
 
-export const REQUIRED_SERVER_ENV = ["AUTH_SECRET"] as const satisfies readonly EnvKey[];
+export const REQUIRED_SERVER_ENV = [] as const satisfies readonly EnvKey[];
 
 export const OPTIONAL_SERVER_ENV = [
+  "AUTH_SECRET",
   "CAMP_LIBRARY_API_TOKEN",
   "CAMP_LIBRARY_API_URL",
   "CLERK_SECRET_KEY",

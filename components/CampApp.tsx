@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type {
   Activity,
   DaySchedule,
@@ -19,7 +19,7 @@ import {
   nextFreeStart,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
-import { useLocalStorage } from "@/lib/store";
+import { type StorageValidator, useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
@@ -118,24 +118,83 @@ function createScheduleBlock({
   };
 }
 
+const stringArrayStorage: StorageValidator<string[]> = (value, fallback) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+
+const ratingsStorage: StorageValidator<Record<string, number>> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      out[key] = Math.max(0, Math.min(5, Math.round(raw)));
+    }
+  }
+  return out;
+};
+
+function isActivity(value: unknown): value is Activity {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.type === "string" &&
+    typeof value.place === "string" &&
+    typeof value.durationMin === "number" &&
+    Number.isFinite(value.durationMin) &&
+    Array.isArray(value.materials) &&
+    Array.isArray(value.steps) &&
+    Array.isArray(value.ages)
+  );
+}
+
+const activitiesStorage: StorageValidator<Activity[]> = (value, fallback) =>
+  Array.isArray(value) ? value.filter(isActivity) : fallback;
+
+const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const out: Schedule = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const day = Number(key);
+    if (Number.isInteger(day) && day >= 0 && day < DAYS.length) {
+      out[day] = normalizeDaySchedule(raw, day);
+    }
+  }
+  return out;
+};
+
+const savedPlansStorage: StorageValidator<SavedDayPlan[]> = (value, fallback) => {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .filter(isRecord)
+    .map((plan, index) => ({
+      id: typeof plan.id === "string" && plan.id ? plan.id : "plan-" + index,
+      name: typeof plan.name === "string" && plan.name.trim() ? plan.name.trim() : "Saved plan",
+      blocks: normalizeDaySchedule(plan.blocks, 0),
+      createdAt: typeof plan.createdAt === "number" && Number.isFinite(plan.createdAt) ? plan.createdAt : 0,
+    }));
+};
+
+const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
+  value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
+
 export function CampApp() {
   const [tab, setTab] = useState<TabId>("home");
-  const [view, setView] = useLocalStorage<LibraryView>("view", "deck");
+  const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const [favs, setFavs] = useLocalStorage<string[]>("favs", []);
-  const [extra, setExtra] = useLocalStorage<Activity[]>("extra", []);
-  const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE);
-  const [schedulePlans, setSchedulePlans] = useLocalStorage<SavedDayPlan[]>("schedulePlans", []);
+  const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
+  const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
+  const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
+  const [schedulePlans, setSchedulePlans] = useLocalStorage<SavedDayPlan[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
 
   const [detail, setDetail] = useState<Activity | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
-  const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {});
+  const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
 
   const all = useMemo(() => {
     const base = [...extra, ...ACTIVITIES];
@@ -148,9 +207,13 @@ export function CampApp() {
     return m;
   }, [all]);
 
-  const isFav = (id: string) => favs.indexOf(id) !== -1;
-  const toggleFav = (id: string) =>
-    setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p]));
+  const favSet = useMemo(() => new Set(favs), [favs]);
+  const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
+  const toggleFav = useCallback(
+    (id: string) =>
+      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p])),
+    [setFavs]
+  );
   const setRating = (id: string, val: number) => setRatings((p) => ({ ...p, [id]: val }));
 
   const filtered = useMemo(() => {
@@ -357,7 +420,7 @@ export function CampApp() {
           </div>
         </nav>
 
-        <div className="app__main">
+        <main className="app__main">
           <div
             className={"topbar" + (tab === "schedule" ? " topbar--planner" : "")}
             data-export-scope={tab}
@@ -366,7 +429,7 @@ export function CampApp() {
           >
             <div className="topbar__brand">
               <span className="topbar__kicker">{page.kicker}</span>
-              <span className="topbar__title">{page.title}</span>
+              <h1 className="topbar__title">{page.title}</h1>
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
@@ -406,6 +469,7 @@ export function CampApp() {
                   <button
                     type="button"
                     className={view === "shelf" ? "is-active" : ""}
+                    aria-pressed={view === "shelf"}
                     onClick={() => setView("shelf")}
                   >
                     <CampIcon.Shelf />
@@ -414,6 +478,7 @@ export function CampApp() {
                   <button
                     type="button"
                     className={view === "deck" ? "is-active" : ""}
+                    aria-pressed={view === "deck"}
                     onClick={() => setView("deck")}
                   >
                     <CampIcon.Deck />
@@ -422,6 +487,7 @@ export function CampApp() {
                   <button
                     type="button"
                     className={view === "catalog" ? "is-active" : ""}
+                    aria-pressed={view === "catalog"}
                     onClick={() => setView("catalog")}
                   >
                     <CampIcon.List />
@@ -530,7 +596,7 @@ export function CampApp() {
               />
             )}
           </div>
-        </div>
+        </main>
 
         <nav className="tabbar" aria-label="Primary">
           {TABS.map((t) => (

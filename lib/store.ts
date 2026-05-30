@@ -19,11 +19,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const PREFIX = "camp:";
 
-function read<T>(key: string, fallback: T): T {
+export type StorageValidator<T> = (value: unknown, fallback: T) => T;
+
+function read<T>(key: string, fallback: T, validate?: StorageValidator<T>): T {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(PREFIX + key);
-    return raw == null ? fallback : (JSON.parse(raw) as T);
+    if (raw == null) return fallback;
+    const parsed = JSON.parse(raw) as unknown;
+    return validate ? validate(parsed, fallback) : (parsed as T);
   } catch {
     return fallback;
   }
@@ -43,13 +47,13 @@ function write<T>(key: string, value: T): void {
  * first paint always uses `initial`; the persisted value is hydrated in an
  * effect immediately after mount.
  */
-export function useLocalStorage<T>(key: string, initial: T) {
+export function useLocalStorage<T>(key: string, initial: T, validate?: StorageValidator<T>) {
   const [value, setValue] = useState<T>(initial);
   const hydrated = useRef(false);
 
   // Hydrate once on the client.
   useEffect(() => {
-    setValue(read<T>(key, initial));
+    setValue(read<T>(key, initial, validate));
     hydrated.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

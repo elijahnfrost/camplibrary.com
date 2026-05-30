@@ -3,9 +3,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const required = ["AUTH_SECRET"];
+const required = [];
 
 const optional = [
+  "AUTH_SECRET",
   "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",

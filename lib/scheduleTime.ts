@@ -18,9 +18,12 @@ export const DEFAULT_PLANNING_START_MIN = 8 * 60;
 function parseCampMinutes(time: string): number | null {
   const match = (time || "").match(/^(\d{1,2})(?::(\d{2}))?/);
   if (!match) return null;
-  let hour = parseInt(match[1], 10);
+  const hourText = match[1];
+  let hour = parseInt(hourText, 10);
   const minute = Math.max(0, Math.min(59, match[2] ? parseInt(match[2], 10) : 0));
-  if (hour > 0 && hour < 6) hour += 12; // Legacy 1-5 o'clock are afternoon at camp.
+  if (hourText.length === 1 && hour > 0 && hour < 6) {
+    hour += 12; // Legacy unpadded 1-5 o'clock are afternoon at camp.
+  }
   if (hour === 24) return minute === 0 ? DAY_END_MIN : DAY_END_MIN - 1;
   hour = Math.max(0, Math.min(23, hour));
   return hour * 60 + minute;

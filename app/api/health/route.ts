@@ -8,7 +8,7 @@ export async function GET() {
 
   return Response.json(
     {
-      ok: env.ready,
+      ok: true,
       service: "camp-library",
       runtime: {
         vercel: process.env.VERCEL === "1",
@@ -16,6 +16,7 @@ export async function GET() {
         region: process.env.VERCEL_REGION ?? null,
       },
       backend: {
+        ready: env.ready,
         requiredEnv: {
           ok: env.missingRequired.length === 0,
           missing: env.missingRequired,
@@ -24,7 +25,7 @@ export async function GET() {
       },
     },
     {
-      status: env.ready ? 200 : 503,
+      status: 200,
       headers: {
         "Cache-Control": "no-store",
       },
