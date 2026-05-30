@@ -103,35 +103,29 @@ export function RibbonMark() {
   );
 }
 
-export function StarButton({
+// One save control, one cozy honey-gold treatment everywhere. Two form factors:
+// an inline `chip` for list rows, and a `ribbon` that hangs over a card/hero
+// top edge. Saved colour comes from --star-gold/--star-ink (no per-item hues).
+export function SaveButton({
   on,
   onToggle,
   stop = true,
   variant = "chip",
-  tone,
 }: {
   on: boolean;
   onToggle: () => void;
   stop?: boolean;
   variant?: "chip" | "ribbon";
-  tone?: { fill: string; edge: string };
 }) {
-  const style = tone
-    ? ({ "--tone-fill": tone.fill, "--tone-edge": tone.edge } as CSSProperties)
-    : undefined;
   return (
     <button
       type="button"
       className={"star star--" + variant + (on ? " is-on" : "")}
       aria-label={on ? "Remove from saved" : "Save"}
       aria-pressed={on}
-      style={style}
       onClick={(e) => {
         if (stop) e.stopPropagation();
         onToggle();
-      }}
-      onKeyDown={(e) => {
-        if (stop) e.stopPropagation();
       }}
     >
       {variant === "ribbon" ? <RibbonMark /> : <CampIcon.Bookmark />}

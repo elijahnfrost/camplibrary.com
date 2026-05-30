@@ -27,7 +27,34 @@ interface FormState {
 }
 
 const ENERGY_MAP: Record<EnergyWord, number> = { Calm: 1, Lively: 2, Rowdy: 3 };
+const ENERGY_WORD: Record<number, EnergyWord> = { 1: "Calm", 2: "Lively", 3: "Rowdy" };
 const DEFAULT_DURATION = 20;
+
+const BLANK_FORM: FormState = {
+  title: "", type: "Game", place: "Outside", ages: ["g46"],
+  durationMin: "20", groupMin: "", groupMax: "", energy: "Lively", prep: "Low", rating: 0,
+  blurb: "", materials: "", steps: "", notes: "", safety: "",
+};
+
+function formFromActivity(a: Activity): FormState {
+  return {
+    title: a.title,
+    type: a.type,
+    place: a.place,
+    ages: a.ages.length ? a.ages : ["g46"],
+    durationMin: String(a.durationMin),
+    groupMin: a.groupMin == null ? "" : String(a.groupMin),
+    groupMax: a.groupMax == null ? "" : String(a.groupMax),
+    energy: ENERGY_WORD[a.energy] ?? "Lively",
+    prep: a.prep,
+    rating: a.rating,
+    blurb: a.blurb,
+    materials: a.materials.join(", "),
+    steps: a.steps.join("\n"),
+    notes: a.notes === "—" ? "" : a.notes,
+    safety: a.safety === "—" ? "" : a.safety,
+  };
+}
 
 function parsePositiveInt(value: string): number | null {
   const trimmed = value.trim();
@@ -40,12 +67,17 @@ function parseOptionalPositiveInt(value: string): number | null {
   return value.trim() ? parsePositiveInt(value) : null;
 }
 
-export function AddView({ onSubmit }: { onSubmit: (a: Activity) => void }) {
-  const [f, setF] = useState<FormState>({
-    title: "", type: "Game", place: "Outside", ages: ["g46"],
-    durationMin: "20", groupMin: "", groupMax: "", energy: "Lively", prep: "Low", rating: 0,
-    blurb: "", materials: "", steps: "", notes: "", safety: "",
-  });
+export function AddView({
+  onSubmit,
+  initial,
+  onCancelEdit,
+}: {
+  onSubmit: (a: Activity) => void;
+  initial?: Activity | null;
+  onCancelEdit?: () => void;
+}) {
+  const isEdit = Boolean(initial);
+  const [f, setF] = useState<FormState>(() => (initial ? formFromActivity(initial) : BLANK_FORM));
 
   const set =
     <K extends keyof FormState>(k: K) =>
@@ -80,7 +112,7 @@ export function AddView({ onSubmit }: { onSubmit: (a: Activity) => void }) {
     const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
     const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const a: Activity = {
-      id: (slug || "custom-activity") + "-" + Date.now().toString(36),
+      id: initial ? initial.id : (slug || "custom-activity") + "-" + Date.now().toString(36),
       title: f.title.trim(),
       type: f.type,
       place: f.place,
@@ -104,6 +136,14 @@ export function AddView({ onSubmit }: { onSubmit: (a: Activity) => void }) {
 
   return (
     <div className="form fadein">
+      {isEdit && (
+        <div className="form__editbar">
+          <span>Editing “{initial?.title}”</span>
+          <button type="button" className="btn btn--ghost" onClick={onCancelEdit}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="form__section">The basics</div>
 
       <div className="field">
@@ -257,8 +297,8 @@ export function AddView({ onSubmit }: { onSubmit: (a: Activity) => void }) {
         <textarea id="activity-safety" className="textarea" style={{ minHeight: 64 }} value={f.safety} onChange={onIn("safety")} />
       </div>
       <button type="button" className="btn btn--primary btn--block" disabled={!valid} onClick={submit}>
-        <CampIcon.Plus />
-        Add to library
+        {isEdit ? <CampIcon.Check /> : <CampIcon.Plus />}
+        {isEdit ? "Save changes" : "Add to library"}
       </button>
       <div style={{ height: 8 }} />
     </div>

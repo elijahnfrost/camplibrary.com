@@ -9,10 +9,9 @@ import {
   groupLabel,
   monogram,
   ratingColor,
-  ribbonTone,
 } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { Block, EnergyMeter, Fact, RatingPicker, StarButton } from "./primitives";
+import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
 import { Modal } from "./Modal";
 
 export function DetailSheet({
@@ -23,14 +22,24 @@ export function DetailSheet({
   onAddToSchedule,
   added,
   onSetRating,
+  dayName,
+  alreadyScheduled,
+  isCustom,
+  onEdit,
+  onDelete,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
   onClose: () => void;
   onAddToSchedule: (a: Activity) => void;
-  added: false | "added" | "full";
+  added: false | "added";
   onSetRating: (id: string, val: number) => void;
+  dayName: string;
+  alreadyScheduled: boolean;
+  isCustom: boolean;
+  onEdit: (a: Activity) => void;
+  onDelete: (a: Activity) => void;
 }) {
   return (
     <Modal label={a.title} onClose={onClose}>
@@ -51,12 +60,11 @@ export function DetailSheet({
           <div className="plate__grid" />
           <span className="detail__mono">{monogram(a.title)}</span>
           <span className="detail__ribbon">
-            <StarButton
+            <SaveButton
               on={isFav(a.id)}
               onToggle={() => onToggleFav(a.id)}
               stop={false}
               variant="ribbon"
-              tone={ribbonTone(a.id)}
             />
           </span>
         </div>
@@ -129,18 +137,33 @@ export function DetailSheet({
       </div>
 
       <div className="detail__actions">
+        {isCustom && (
+          <div className="detail__owner">
+            <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
+              <CampIcon.Tool />
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
+              onClick={() => onDelete(a)}
+            >
+              <CampIcon.Trash />
+              Delete
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="btn btn--primary btn--block"
           onClick={() => onAddToSchedule(a)}
-          disabled={added === "full"}
         >
           {added === "added" ? <CampIcon.Check /> : <CampIcon.Calendar />}
           {added === "added"
-            ? "Added to schedule"
-            : added === "full"
-              ? "Day is full"
-              : "Add to schedule"}
+            ? "Added to " + dayName
+            : alreadyScheduled
+              ? "Add another to " + dayName
+              : "Add to " + dayName}
         </button>
       </div>
     </Modal>

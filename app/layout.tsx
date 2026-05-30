@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Caveat, Patrick_Hand, Patrick_Hand_SC } from "next/font/google";
+import { Caveat, Nunito_Sans, Patrick_Hand, Patrick_Hand_SC } from "next/font/google";
 import "./globals.css";
 
 // The design's three handwriting faces, loaded as CSS variables.
@@ -19,6 +19,15 @@ const patrickHandSc = Patrick_Hand_SC({
   subsets: ["latin"],
   weight: "400",
   variable: "--font-hand-sc",
+  display: "swap",
+});
+// A quiet humanist companion for body copy and dense data (catalog meta,
+// schedule times, blurbs) so the densest text stays legible while the
+// handwriting faces keep their personality on display headings/labels.
+const nunitoSans = Nunito_Sans({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-text",
   display: "swap",
 });
 
@@ -58,7 +67,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f3ecdd",
+  themeColor: "#e9dec6",
   width: "device-width",
   initialScale: 1,
   // Lets the app sit edge-to-edge on phones with notches/home bars.
@@ -69,7 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${caveat.variable} ${patrickHand.variable} ${patrickHandSc.variable}`}
+      className={`${caveat.variable} ${patrickHand.variable} ${patrickHandSc.variable} ${nunitoSans.variable}`}
     >
       <body>
         <ClerkProvider

@@ -9,29 +9,36 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { Activity, DaySchedule, SavedDayPlan, ScheduleBlock } from "@/lib/types";
-import { code, DAYS, durLabel, ENERGY } from "@/lib/data";
+import type {
+  Activity,
+  ApplyMode,
+  BlockFill,
+  CategoryId,
+  ConditionalRule,
+  DaySchedule,
+  DayTemplate,
+  ScheduleBlock,
+} from "@/lib/types";
+import { CATEGORIES, categoryTint, code, DAYS, durLabel, ENERGY } from "@/lib/data";
 import {
   blockEndMin,
   blockStartMin,
   campMinutes,
-  clampStart,
   DAY_END_MIN,
   DAY_START_MIN,
   DEFAULT_DURATION_MIN,
   DURATION_OPTIONS,
+  formatClock,
   formatRange,
-  hourMarks,
   MIN_DURATION_MIN,
   minutesToCamp,
   nextFreeStart,
   snapMinutes,
   startOptions,
-  TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { CampIcon } from "./icons";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
-import { StarButton } from "./primitives";
+import { SaveButton } from "./primitives";
 import { useDialogFocus } from "./useDialogFocus";
 
 export type EventDraft = {
@@ -40,14 +47,21 @@ export type EventDraft = {
   label: string;
   start: string;
   end: string;
+  fill?: BlockFill;
+  category?: CategoryId;
+  rule?: ConditionalRule;
+};
+
+const CAT_LABEL: Record<CategoryId, string> = {
+  Game: "Game",
+  Craft: "Craft",
+  Song: "Song",
+  Water: "Water activity",
+  Quiet: "Quiet activity",
 };
 
 function activityMeta(activity: Activity): string {
   return code(activity) + " · " + durLabel(activity) + " · " + ENERGY[activity.energy];
-}
-
-function pct(min: number): number {
-  return ((min - DAY_START_MIN) / TOTAL_MIN) * 100;
 }
 
 // ---- Overlap layout: assign side-by-side columns to events that share time ----
@@ -60,6 +74,13 @@ type Laid = {
   dragging?: boolean;
   col: number;
   cols: number;
+};
+
+type VisibleRange = {
+  start: number;
+  end: number;
+  total: number;
+  hours: number;
 };
 
 function layoutEvents(items: Omit<Laid, "col" | "cols">[]): Laid[] {
@@ -118,38 +139,60 @@ function EventComposer({
   allActivities: Activity[];
   initial: {
     blockId?: string;
-    tab: "library" | "custom";
+    tab: "library" | "custom" | "open";
     activityId?: string;
     label: string;
     start: string;
     durationMin: number;
+    category?: CategoryId;
+    rule?: ConditionalRule;
   };
   onSubmit: (draft: EventDraft, blockId?: string) => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"library" | "custom">(initial.tab);
+  const initialByDay =
+    initial.rule && initial.rule.mode === "byWeekday" ? initial.rule.map : {};
+  const [tab, setTab] = useState<"library" | "custom" | "open">(initial.tab);
   const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState<CategoryId | "All">(initial.category ?? "All");
   const [activityId, setActivityId] = useState<string | undefined>(initial.activityId);
   const [label, setLabel] = useState(initial.label);
+  const [category, setCategory] = useState<CategoryId>(initial.category ?? "Game");
+  const [varyByDay, setVaryByDay] = useState(Object.keys(initialByDay).length > 0);
+  const [byDay, setByDay] = useState<Partial<Record<number, string>>>(initialByDay);
   const [start, setStart] = useState(initial.start);
   const [durationMin, setDurationMin] = useState(initial.durationMin);
+
+  const categoryActivities = useMemo(
+    () => allActivities.filter((a) => a.type === category),
+    [allActivities, category]
+  );
 
   const isEdit = Boolean(initial.blockId);
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allActivities;
-    return allActivities.filter((a) =>
-      (a.title + " " + a.type + " " + a.blurb).toLowerCase().includes(q)
-    );
-  }, [allActivities, search]);
+    return allActivities.filter((a) => {
+      if (catFilter !== "All" && a.type !== catFilter) return false;
+      if (!q) return true;
+      return (a.title + " " + a.type + " " + a.blurb).toLowerCase().includes(q);
+    });
+  }, [allActivities, search, catFilter]);
 
   const durationChoices = useMemo(() => {
     const set = new Set<number>(DURATION_OPTIONS);
     set.add(durationMin);
     return [...set].sort((a, b) => a - b);
   }, [durationMin]);
+  const startChoices = useMemo(() => {
+    const options = startOptions();
+    if (!options.some((option) => option.value === start)) {
+      options.push({ value: start, label: formatClock(start) });
+      options.sort((a, b) => campMinutes(a.value) - campMinutes(b.value));
+    }
+    return options;
+  }, [start]);
 
   function chooseActivity(activity: Activity) {
     setActivityId(activity.id);
@@ -157,13 +200,16 @@ function EventComposer({
   }
 
   const canSubmit =
-    tab === "library" ? Boolean(activityId) : label.trim().length > 0;
+    tab === "library" ? Boolean(activityId) : tab === "open" ? true : label.trim().length > 0;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!canSubmit) return;
     const startMinutes = campMinutes(start);
-    const endMinutes = Math.min(DAY_END_MIN, startMinutes + durationMin);
+    const endLimit = startMinutes >= DAY_END_MIN ? 24 * 60 : DAY_END_MIN;
+    const endMinutes = Math.min(endLimit, startMinutes + durationMin);
+    const start24 = minutesToCamp(startMinutes);
+    const end24 = minutesToCamp(endMinutes);
     if (tab === "library") {
       const activity = allActivities.find((a) => a.id === activityId);
       onSubmit(
@@ -171,19 +217,35 @@ function EventComposer({
           kind: "activity",
           activityId,
           label: activity ? activity.title : "Activity",
-          start: minutesToCamp(startMinutes),
-          end: minutesToCamp(endMinutes),
+          start: start24,
+          end: end24,
+          fill: "fixed",
+        },
+        initial.blockId
+      );
+    } else if (tab === "open") {
+      const map: Partial<Record<number, string>> = {};
+      if (varyByDay) {
+        for (const [day, id] of Object.entries(byDay)) {
+          if (id) map[Number(day)] = id;
+        }
+      }
+      const hasRule = Object.keys(map).length > 0;
+      onSubmit(
+        {
+          kind: "activity",
+          label: "Choose a " + CAT_LABEL[category],
+          start: start24,
+          end: end24,
+          fill: hasRule ? "conditional" : "open",
+          category,
+          rule: hasRule ? { mode: "byWeekday", map } : undefined,
         },
         initial.blockId
       );
     } else {
       onSubmit(
-        {
-          kind: "label",
-          label: label.trim(),
-          start: minutesToCamp(startMinutes),
-          end: minutesToCamp(endMinutes),
-        },
+        { kind: "label", label: label.trim(), start: start24, end: end24, fill: "fixed" },
         initial.blockId
       );
     }
@@ -217,7 +279,15 @@ function EventComposer({
             className={tab === "library" ? "is-on" : ""}
             onClick={() => setTab("library")}
           >
-            From library
+            Library
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "open"}
+            className={tab === "open" ? "is-on" : ""}
+            onClick={() => setTab("open")}
+          >
+            Open slot
           </button>
           <button
             type="button"
@@ -229,7 +299,7 @@ function EventComposer({
           </button>
         </div>
 
-        {tab === "library" ? (
+        {tab === "library" && (
           <div className="composer__library">
             <label className="schedule-search composer__search">
               <CampIcon.Search />
@@ -241,6 +311,25 @@ function EventComposer({
                 autoFocus
               />
             </label>
+            <div className="composer__catrow" role="group" aria-label="Filter by type">
+              <button
+                type="button"
+                className={"chip" + (catFilter === "All" ? " is-on" : "")}
+                onClick={() => setCatFilter("All")}
+              >
+                All
+              </button>
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={"chip" + (catFilter === c.id ? " is-on" : "")}
+                  onClick={() => setCatFilter(catFilter === c.id ? "All" : c.id)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
             <div className="composer__list" role="listbox" aria-label="Activities">
               {matches.length ? (
                 matches.map((activity) => (
@@ -257,11 +346,83 @@ function EventComposer({
                   </button>
                 ))
               ) : (
-                <div className="composer__empty">No activities match “{search}”.</div>
+                <div className="composer__empty">No activities match.</div>
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {tab === "open" && (
+          <div className="field composer__custom">
+            <span className="field__label" id="composer-open-label">
+              A blank slot to fill per day
+            </span>
+            <p className="composer__hint">
+              Reserve a time for a kind of activity; choose the exact one later, or let a template
+              fill it differently each day.
+            </p>
+            <div className="composer__catrow" role="group" aria-labelledby="composer-open-label">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={"chip" + (category === c.id ? " is-on" : "")}
+                  aria-pressed={category === c.id}
+                  onClick={() => setCategory(c.id)}
+                  style={
+                    category === c.id
+                      ? ({ "--chip-on": categoryTint(c.id) } as CSSProperties)
+                      : undefined
+                  }
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="composer__vary">
+              <input
+                type="checkbox"
+                checked={varyByDay}
+                onChange={(e) => setVaryByDay(e.target.checked)}
+              />
+              <span>Vary by weekday</span>
+              <small>auto-fill a specific activity on chosen days</small>
+            </label>
+
+            {varyByDay && (
+              <div className="vary-grid" role="group" aria-label="Activity by weekday">
+                {DAYS.map((day, i) => (
+                  <div className="vary-row" key={day}>
+                    <span className="vary-row__day">{day.slice(0, 3)}</span>
+                    <select
+                      className="input"
+                      value={byDay[i] ?? ""}
+                      onChange={(e) =>
+                        setByDay((prev) => {
+                          const next = { ...prev };
+                          if (e.target.value) next[i] = e.target.value;
+                          else delete next[i];
+                          return next;
+                        })
+                      }
+                      aria-label={day + " activity"}
+                    >
+                      <option value="">Leave open</option>
+                      {categoryActivities.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "custom" && (
           <div className="field composer__custom">
             <label className="field__label" htmlFor="composer-label">
               Label
@@ -288,7 +449,7 @@ function EventComposer({
               value={start}
               onChange={(event) => setStart(event.target.value)}
             >
-              {startOptions().map((option) => (
+              {startChoices.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -329,6 +490,137 @@ function EventComposer({
 }
 
 // ============================================================
+// Apply-a-template sheet (replaces window.confirm)
+// ============================================================
+
+const APPLY_MODES: { id: ApplyMode; label: string; hint: string }[] = [
+  { id: "replace", label: "Replace each day", hint: "Clear the day, then stamp the template." },
+  { id: "fill", label: "Only empty days", hint: "Skip days that already have activities." },
+  { id: "merge", label: "Add to existing", hint: "Keep what's there; add blocks that don't clash." },
+];
+
+function ApplySheet({
+  template,
+  dayIndex,
+  weekBlocks,
+  onConfirm,
+  onClose,
+}: {
+  template: DayTemplate;
+  dayIndex: number;
+  weekBlocks: Record<number, DaySchedule>;
+  onConfirm: (targetDays: number[], mode: ApplyMode) => void;
+  onClose: () => void;
+}) {
+  const [days, setDays] = useState<number[]>(() => DAYS.map((_, i) => i));
+  const [mode, setMode] = useState<ApplyMode>("replace");
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
+
+  const toggleDay = (i: number) =>
+    setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort((a, b) => a - b)));
+
+  const withPlans = days.filter((i) =>
+    (weekBlocks[i] || []).some((b) => b.kind === "activity" && b.activityId)
+  ).length;
+  const openInTpl = template.blocks.filter(
+    (b) => (b.fill === "open" || b.fill === "conditional") && !b.activityId
+  ).length;
+  const blockCount = template.blocks.length;
+  const canConfirm = days.length > 0;
+
+  return (
+    <div
+      ref={dialogRef}
+      className="composer-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-label={"Apply " + template.name}
+      tabIndex={-1}
+    >
+      <div className="composer-backdrop" onClick={onClose} />
+      <form
+        className="composer fadein"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canConfirm) onConfirm(days, mode);
+        }}
+      >
+        <header className="composer__head">
+          <div>
+            <span className="composer__kicker">Apply template</span>
+            <h2 className="composer__title">{template.name}</h2>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <CampIcon.Close />
+          </button>
+        </header>
+
+        <div className="field">
+          <span className="field__label">Apply to</span>
+          <div className="apply-days" role="group" aria-label="Target days">
+            {DAYS.map((day, i) => (
+              <button
+                key={day}
+                type="button"
+                className={"apply-day" + (days.includes(i) ? " is-on" : "")}
+                aria-pressed={days.includes(i)}
+                onClick={() => toggleDay(i)}
+              >
+                {day.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+          <div className="apply-presets">
+            <button type="button" onClick={() => setDays(DAYS.map((_, i) => i))}>
+              All week
+            </button>
+            <button type="button" onClick={() => setDays([dayIndex])}>
+              This day only
+            </button>
+          </div>
+        </div>
+
+        <div className="field">
+          <span className="field__label">If a day already has a plan</span>
+          <div className="apply-modes" role="radiogroup" aria-label="Conflict handling">
+            {APPLY_MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={mode === m.id}
+                className={"apply-mode" + (mode === m.id ? " is-on" : "")}
+                onClick={() => setMode(m.id)}
+              >
+                <strong>{m.label}</strong>
+                <small>{m.hint}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="apply-preview">
+          Stamps {blockCount} {blockCount === 1 ? "block" : "blocks"} onto {days.length}{" "}
+          {days.length === 1 ? "day" : "days"}
+          {openInTpl ? " · leaves " + openInTpl + " open to fill" : ""}
+          {withPlans ? " · " + withPlans + " already " + (withPlans === 1 ? "has" : "have") + " a plan" : ""}.
+        </p>
+
+        <footer className="composer__foot">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn--primary" disabled={!canConfirm}>
+            <CampIcon.Check />
+            Apply to {days.length} {days.length === 1 ? "day" : "days"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+// ============================================================
 // Activity library (desktop side panel / mobile tray)
 // ============================================================
 
@@ -350,7 +642,7 @@ function ScheduleLibrary({
   onQuickAdd,
   onStartDrag,
   onSavePlan,
-  onApplyPlan,
+  onRequestApply,
   onDeletePlan,
   isFav,
   onToggleFav,
@@ -365,14 +657,14 @@ function ScheduleLibrary({
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
-  plans: SavedDayPlan[];
+  plans: DayTemplate[];
   dayName: string;
   onToggle: () => void;
   onOpenActivity: (activity: Activity) => void;
   onQuickAdd: (activityId: string) => void;
   onStartDrag: (event: ReactPointerEvent, activity: Activity) => void;
   onSavePlan: (name: string) => void;
-  onApplyPlan: (planId: string) => void;
+  onRequestApply: (planId: string) => void;
   onDeletePlan: (planId: string) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
@@ -381,8 +673,19 @@ function ScheduleLibrary({
 
   function submitPlan(event: FormEvent) {
     event.preventDefault();
-    onSavePlan(planName || dayName + " plan");
+    onSavePlan(planName || dayName + " template");
     setPlanName("");
+  }
+
+  function templateSummary(plan: DayTemplate): string {
+    const activities = plan.blocks.filter((b) => b.kind === "activity" && b.activityId && b.fill !== "open").length;
+    const open = plan.blocks.filter((b) => (b.fill === "open" || b.fill === "conditional") && !b.activityId).length;
+    const breaks = plan.blocks.filter((b) => b.kind === "label").length;
+    const parts = [];
+    if (activities) parts.push(activities + " set");
+    if (open) parts.push(open + " open");
+    if (breaks) parts.push(breaks + (breaks === 1 ? " break" : " breaks"));
+    return parts.join(" · ") || "empty";
   }
 
   return (
@@ -424,7 +727,7 @@ function ScheduleLibrary({
                   <span className="schedule-activity__title">{activity.title}</span>
                   <span className="schedule-activity__meta">{activityMeta(activity)}</span>
                 </button>
-                <StarButton on={isFav(activity.id)} onToggle={() => onToggleFav(activity.id)} />
+                <SaveButton on={isFav(activity.id)} onToggle={() => onToggleFav(activity.id)} />
                 <button
                   type="button"
                   className="schedule-activity__add"
@@ -440,26 +743,34 @@ function ScheduleLibrary({
           )}
         </div>
 
-        <section className="saved-plans" aria-label="Saved plans">
-          <div className="saved-plans__head">Saved day plans</div>
+        <section className="saved-plans" aria-label="Day templates">
+          <div className="saved-plans__head">Day templates</div>
           <form className="saved-plans__save" onSubmit={submitPlan}>
             <input
               value={planName}
               onChange={(event) => setPlanName(event.target.value)}
-              placeholder={dayName + " plan"}
-              aria-label="Plan name"
+              placeholder={"Save " + dayName + " as…"}
+              aria-label="Template name"
             />
             <button type="submit" className="btn btn--quiet">
               <CampIcon.Bookmark />
-              Save
+              Save day
             </button>
           </form>
-          <div className="saved-plans__chips">
+          <div className="template-list">
             {plans.length ? (
               plans.map((plan) => (
-                <span className="plan-chip" key={plan.id}>
-                  <button type="button" className="plan-chip__apply" onClick={() => onApplyPlan(plan.id)}>
-                    {plan.name}
+                <div className="template-card" key={plan.id}>
+                  <div className="template-card__body">
+                    <span className="template-card__name">{plan.name}</span>
+                    <span className="template-card__meta">{templateSummary(plan)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn--quiet template-card__apply"
+                    onClick={() => onRequestApply(plan.id)}
+                  >
+                    Apply…
                   </button>
                   <button
                     type="button"
@@ -467,12 +778,14 @@ function ScheduleLibrary({
                     onClick={() => onDeletePlan(plan.id)}
                     aria-label={"Delete " + plan.name}
                   >
-                    <CampIcon.Close />
+                    <CampIcon.Trash />
                   </button>
-                </span>
+                </div>
               ))
             ) : (
-              <span className="saved-plans__none">No saved plans yet.</span>
+              <span className="saved-plans__none">
+                Build a day, then “Save day” to reuse it across the week.
+              </span>
             )}
           </div>
         </section>
@@ -527,13 +840,17 @@ export function ScheduleView({
   onPlace,
   onAge,
   plans,
+  openCount,
   onAddEvent,
   onUpdateEvent,
   onRemoveEvent,
   onQuickAdd,
   onSavePlan,
-  onApplyPlan,
+  onApplyTemplate,
   onDeletePlan,
+  applyToast,
+  onUndoApply,
+  onDismissToast,
   onOpenActivity,
   isFav,
   onToggleFav,
@@ -553,34 +870,49 @@ export function ScheduleView({
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
-  plans: SavedDayPlan[];
+  plans: DayTemplate[];
+  openCount: number;
   onAddEvent: (draft: EventDraft) => void;
   onUpdateEvent: (blockId: string, patch: Partial<ScheduleBlock>) => void;
   onRemoveEvent: (blockId: string) => void;
   onQuickAdd: (activityId: string) => void;
   onSavePlan: (name: string) => void;
-  onApplyPlan: (planId: string) => void;
+  onApplyTemplate: (templateId: string, targetDays: number[], mode: ApplyMode) => void;
   onDeletePlan: (planId: string) => void;
+  applyToast: string | null;
+  onUndoApply: () => void;
+  onDismissToast: () => void;
   onOpenActivity: (activity: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
   byId: Record<string, Activity>;
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [applyTemplateId, setApplyTemplateId] = useState<string | null>(null);
   const [composer, setComposer] = useState<{
     blockId?: string;
-    tab: "library" | "custom";
+    tab: "library" | "custom" | "open";
     activityId?: string;
     label: string;
     start: string;
     durationMin: number;
+    category?: CategoryId;
+    rule?: ConditionalRule;
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const calScrollRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const visibleRangeRef = useRef<VisibleRange>({
+    start: DAY_START_MIN,
+    end: DAY_END_MIN,
+    total: DAY_END_MIN - DAY_START_MIN,
+    hours: (DAY_END_MIN - DAY_START_MIN) / 60,
+  });
   const [drag, setDragInternal] = useState<DragState | null>(null);
   const suppressClickRef = useRef(false);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
+  const autoScrollRaf = useRef<number | null>(null);
 
   // Keep the latest props/handlers reachable from the window listeners without re-binding.
   const handlersRef = useRef({ onAddEvent, onUpdateEvent, onOpenActivity, blocks, byId });
@@ -593,30 +925,49 @@ export function ScheduleView({
 
   const filled = blocks.length;
 
+  // The bounded camp-day window (8:00–17:00) fits without the old 24h-grid
+  // scroll-anchoring hack, so the calendar simply starts at the top of the day.
+  const visibleRange = useMemo<VisibleRange>(() => {
+    const starts = blocks.map(blockStartMin);
+    const ends = blocks.map(blockEndMin);
+    if (drag) {
+      starts.push(drag.startMin);
+      ends.push(drag.endMin);
+    }
+    const start = Math.max(0, Math.floor(Math.min(DAY_START_MIN, ...starts) / 60) * 60);
+    const end = Math.min(24 * 60, Math.ceil(Math.max(DAY_END_MIN, ...ends) / 60) * 60);
+    const total = Math.max(60, end - start);
+    return { start, end, total, hours: total / 60 };
+  }, [blocks, drag]);
+
   useEffect(() => {
-    const scroller = calScrollRef.current;
-    if (!scroller) return;
-    const earliestBlockStart = blocks.length
-      ? Math.min(...blocks.map((block) => blockStartMin(block)))
-      : 8 * 60;
-    const anchorMin = Math.max(DAY_START_MIN, Math.min(earliestBlockStart, 8 * 60));
-    const frame = window.requestAnimationFrame(() => {
-      const scrollable = scroller.scrollHeight - scroller.clientHeight;
-      if (scrollable > 0) {
-        scroller.scrollTop = Math.max(0, (anchorMin / TOTAL_MIN) * scroller.scrollHeight - 18);
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-    // Re-anchor only when the user switches days; adding or moving events should not jump the scroller.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayIndex]);
+    visibleRangeRef.current = visibleRange;
+  }, [visibleRange]);
+
+  const marks = useMemo(() => {
+    const out: { min: number; label: string }[] = [];
+    for (let min = visibleRange.start; min <= visibleRange.end; min += 60) {
+      out.push({ min, label: formatClock(min, true) });
+    }
+    return out;
+  }, [visibleRange]);
+
+  function pctInRange(min: number): number {
+    return ((min - visibleRange.start) / visibleRange.total) * 100;
+  }
+
+  function clampStartToRange(min: number, durationMin: number, range = visibleRangeRef.current): number {
+    const latest = Math.max(range.start, range.end - durationMin);
+    return Math.max(range.start, Math.min(latest, min));
+  }
 
   function clientYToMin(clientY: number): number {
     const el = gridRef.current;
     if (!el) return DAY_START_MIN;
     const rect = el.getBoundingClientRect();
     const ratio = (clientY - rect.top) / rect.height;
-    return DAY_START_MIN + ratio * TOTAL_MIN;
+    const range = visibleRangeRef.current;
+    return range.start + ratio * range.total;
   }
 
   function isOverGrid(x: number, y: number): boolean {
@@ -641,14 +992,16 @@ export function ScheduleView({
 
   // Global pointer listeners drive every drag (move / resize / create from library).
   useEffect(() => {
-    function onMove(event: PointerEvent) {
+    const EDGE = 52; // px from a calendar edge that triggers auto-scroll while dragging
+
+    // Recompute the live drag preview from a pointer position — shared by pointermove
+    // and the auto-scroll loop so dragging near an edge keeps updating as it scrolls.
+    function computeAt(clientX: number, clientY: number) {
       const current = dragRef.current;
       if (!current) return;
-      event.preventDefault();
-
       if (current.type === "move") {
-        const raw = clientYToMin(event.clientY) - current.grabOffsetMin;
-        const startMin = clampStart(snapMinutes(raw), current.durationMin);
+        const raw = clientYToMin(clientY) - current.grabOffsetMin;
+        const startMin = clampStartToRange(snapMinutes(raw), current.durationMin);
         setDrag({
           ...current,
           startMin,
@@ -656,24 +1009,78 @@ export function ScheduleView({
           moved: current.moved || startMin !== current.startMin,
         });
       } else if (current.type === "resize") {
-        const raw = clientYToMin(event.clientY);
+        const raw = clientYToMin(clientY);
+        const range = visibleRangeRef.current;
         const endMin = Math.min(
-          DAY_END_MIN,
+          range.end,
           Math.max(current.startMin + MIN_DURATION_MIN, snapMinutes(raw))
         );
         setDrag({ ...current, endMin });
       } else {
-        const over = isOverGrid(event.clientX, event.clientY);
-        const startMin = clampStart(snapMinutes(clientYToMin(event.clientY)), current.durationMin);
+        const over = isOverGrid(clientX, clientY);
+        const startMin = clampStartToRange(snapMinutes(clientYToMin(clientY)), current.durationMin);
         setDrag({
           ...current,
-          clientX: event.clientX,
-          clientY: event.clientY,
+          clientX,
+          clientY,
           over,
           startMin,
           endMin: startMin + current.durationMin,
         });
       }
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollRaf.current != null) {
+        window.cancelAnimationFrame(autoScrollRaf.current);
+        autoScrollRaf.current = null;
+      }
+    }
+
+    // While a drag is held near the top/bottom of the (scrollable) calendar, scroll
+    // it so off-screen times are reachable on a phone — the key touch fix.
+    function autoScrollStep() {
+      const sc = calScrollRef.current;
+      if (!sc || !dragRef.current) {
+        stopAutoScroll();
+        return;
+      }
+      const rect = sc.getBoundingClientRect();
+      const { x, y } = lastPointerRef.current;
+      let dir = 0;
+      if (y < rect.top + EDGE) dir = -1;
+      else if (y > rect.bottom - EDGE) dir = 1;
+      if (dir === 0) {
+        stopAutoScroll();
+        return;
+      }
+      const before = sc.scrollTop;
+      const max = sc.scrollHeight - sc.clientHeight;
+      sc.scrollTop = Math.max(0, Math.min(max, sc.scrollTop + dir * 12));
+      if (sc.scrollTop !== before) computeAt(x, y);
+      autoScrollRaf.current = window.requestAnimationFrame(autoScrollStep);
+    }
+
+    function maybeAutoScroll() {
+      const sc = calScrollRef.current;
+      if (!sc || !dragRef.current) return;
+      const rect = sc.getBoundingClientRect();
+      const y = lastPointerRef.current.y;
+      const nearEdge = y < rect.top + EDGE || y > rect.bottom - EDGE;
+      if (nearEdge && autoScrollRaf.current == null) {
+        autoScrollRaf.current = window.requestAnimationFrame(autoScrollStep);
+      } else if (!nearEdge) {
+        stopAutoScroll();
+      }
+    }
+
+    function onMove(event: PointerEvent) {
+      const current = dragRef.current;
+      if (!current) return;
+      event.preventDefault();
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      computeAt(event.clientX, event.clientY);
+      maybeAutoScroll();
     }
 
     function onUp() {
@@ -704,6 +1111,7 @@ export function ScheduleView({
           end: minutesToCamp(current.endMin),
         });
       }
+      stopAutoScroll();
       setDrag(null);
     }
 
@@ -714,6 +1122,7 @@ export function ScheduleView({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      stopAutoScroll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -763,7 +1172,7 @@ export function ScheduleView({
     setComposer({
       tab: "library",
       label: "",
-      start: minutesToCamp(clampStart(snapMinutes(start), DEFAULT_DURATION_MIN)),
+      start: minutesToCamp(clampStartToRange(snapMinutes(start), DEFAULT_DURATION_MIN)),
       durationMin: DEFAULT_DURATION_MIN,
     });
   }
@@ -771,13 +1180,20 @@ export function ScheduleView({
   function openEditComposer(block: ScheduleBlock) {
     const startMin = blockStartMin(block);
     const durationMin = blockEndMin(block) - startMin;
+    // A plain open slot opens on Library (pre-filtered) so the dominant action is
+    // "choose the activity that fills it"; a conditional slot opens on Open slot so
+    // its per-weekday rule is editable.
+    const tab: "library" | "custom" | "open" =
+      block.kind === "label" ? "custom" : block.fill === "conditional" ? "open" : "library";
     setComposer({
       blockId: block.id,
-      tab: block.kind === "label" ? "custom" : "library",
+      tab,
       activityId: block.activityId,
       label: block.label,
       start: minutesToCamp(startMin),
       durationMin,
+      category: block.category,
+      rule: block.rule,
     });
   }
 
@@ -798,6 +1214,9 @@ export function ScheduleView({
         start: draft.start,
         end: draft.end,
         activityId: draft.kind === "activity" ? draft.activityId : undefined,
+        fill: draft.fill ?? "fixed",
+        category: draft.category,
+        rule: draft.rule,
       });
     } else {
       onAddEvent(draft);
@@ -819,14 +1238,12 @@ export function ScheduleView({
     return layoutEvents(items);
   }, [blocks, drag]);
 
-  const marks = hourMarks();
-
   return (
     <div className="planner planner--calendar fadein">
       <div className="cal-head">
         <div className="cal-head__copy">
           <span className="cal-head__kicker">Build the day</span>
-          <h1 className="cal-head__title">{DAYS[dayIndex]}</h1>
+          <h2 className="cal-head__title">{DAYS[dayIndex]}</h2>
           <span className="cal-head__sub">
             {filled} {filled === 1 ? "event" : "events"} planned
           </span>
@@ -881,10 +1298,15 @@ export function ScheduleView({
       </div>
 
       <div className="schedule-workbench">
-        <section className="cal" ref={calScrollRef} aria-label={DAYS[dayIndex] + " calendar"}>
+        <section
+          className="cal"
+          ref={calScrollRef}
+          aria-label={DAYS[dayIndex] + " calendar"}
+          style={{ ["--day-hours" as string]: visibleRange.hours }}
+        >
           <div className="cal-axis" aria-hidden="true">
             {marks.map((mark) => (
-              <span key={mark.min} className="cal-axis__mark" style={{ top: pct(mark.min) + "%" }}>
+              <span key={mark.min} className="cal-axis__mark" style={{ top: pctInRange(mark.min) + "%" }}>
                 {mark.label}
               </span>
             ))}
@@ -894,18 +1316,18 @@ export function ScheduleView({
             {marks.map((mark) => (
               <span
                 key={mark.min}
-                className={"cal-line" + (mark.min === DAY_END_MIN ? " cal-line--last" : "")}
-                style={{ top: pct(mark.min) + "%" }}
+                className={"cal-line" + (mark.min === visibleRange.end ? " cal-line--last" : "")}
+                style={{ top: pctInRange(mark.min) + "%" }}
               />
             ))}
             {marks.slice(0, -1).map((mark) => (
-              <span key={"half-" + mark.min} className="cal-line cal-line--half" style={{ top: pct(mark.min + 30) + "%" }} />
+              <span key={"half-" + mark.min} className="cal-line cal-line--half" style={{ top: pctInRange(mark.min + 30) + "%" }} />
             ))}
 
             {positioned.map((item) => {
               const style: CSSProperties = {
-                top: pct(item.startMin) + "%",
-                height: "calc(" + ((item.endMin - item.startMin) / TOTAL_MIN) * 100 + "% - 4px)",
+                top: pctInRange(item.startMin) + "%",
+                height: "calc(" + ((item.endMin - item.startMin) / visibleRange.total) * 100 + "% - 4px)",
                 left: "calc(" + (item.col / item.cols) * 100 + "% + 3px)",
                 width: "calc(" + 100 / item.cols + "% - 6px)",
               };
@@ -921,28 +1343,44 @@ export function ScheduleView({
 
               const block = item.block as ScheduleBlock;
               const activity = block.activityId ? byId[block.activityId] : null;
-              const isCustom = block.kind === "label" || !activity;
+              const isLabel = block.kind === "label";
+              const isOpen = (block.fill === "open" || block.fill === "conditional") && !activity;
+              const isCustom = isLabel;
               const duration = item.endMin - item.startMin;
               const short = duration <= 20;
               const compact = duration <= 40;
+              const tint = activity
+                ? categoryTint(activity.type)
+                : isOpen && block.category
+                  ? categoryTint(block.category)
+                  : undefined;
+              const title = activity
+                ? activity.title
+                : isOpen
+                  ? "Choose a " + (block.category ? CAT_LABEL[block.category] : "activity")
+                  : block.label;
+              const eventStyle: CSSProperties = tint
+                ? { ...style, ["--cat" as string]: tint }
+                : style;
 
               return (
                 <div
                   key={block.id}
                   className={
                     "cal-event" +
-                    (isCustom ? " cal-event--custom" : " cal-event--activity") +
+                    (isOpen
+                      ? " cal-event--open"
+                      : isCustom
+                        ? " cal-event--custom"
+                        : " cal-event--activity") +
                     (item.dragging ? " is-dragging" : "") +
                     (short ? " cal-event--short" : compact ? " cal-event--compact" : "")
                   }
-                  style={style}
+                  style={eventStyle}
                   role="button"
                   tabIndex={0}
                   aria-label={
-                    "Edit " +
-                    (activity ? activity.title : block.label) +
-                    " from " +
-                    formatRange(item.startMin, item.endMin)
+                    (isOpen ? "Fill " : "Edit ") + title + " from " + formatRange(item.startMin, item.endMin)
                   }
                   onPointerDown={(event) => startMove(event, block)}
                   onClick={(event) => event.stopPropagation()}
@@ -955,13 +1393,14 @@ export function ScheduleView({
                 >
                   <div className="cal-event__body">
                     <span className="cal-event__time">{formatRange(item.startMin, item.endMin)}</span>
-                    <span className="cal-event__title">{activity ? activity.title : block.label}</span>
+                    <span className="cal-event__title">{title}</span>
                     {activity && <span className="cal-event__meta">{activityMeta(activity)}</span>}
+                    {isOpen && <span className="cal-event__meta">tap to choose</span>}
                   </div>
                   <button
                     type="button"
                     className="cal-event__remove"
-                    aria-label={"Remove " + (activity ? activity.title : block.label)}
+                    aria-label={"Remove " + title}
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -986,6 +1425,11 @@ export function ScheduleView({
                 <span>Tap a time, drag an activity in, or use “Add event.”</span>
               </div>
             )}
+            {openCount > 0 && (
+              <span className="cal-openflag" aria-hidden="true">
+                {openCount} to fill
+              </span>
+            )}
           </div>
         </section>
 
@@ -1007,7 +1451,7 @@ export function ScheduleView({
           onQuickAdd={onQuickAdd}
           onStartDrag={startLibraryDrag}
           onSavePlan={onSavePlan}
-          onApplyPlan={onApplyPlan}
+          onRequestApply={(planId) => setApplyTemplateId(planId)}
           onDeletePlan={onDeletePlan}
           isFav={isFav}
           onToggleFav={onToggleFav}
@@ -1032,6 +1476,41 @@ export function ScheduleView({
           onSubmit={submitComposer}
           onClose={() => setComposer(null)}
         />
+      )}
+
+      {applyTemplateId &&
+        (() => {
+          const tpl = plans.find((p) => p.id === applyTemplateId);
+          if (!tpl) return null;
+          return (
+            <ApplySheet
+              template={tpl}
+              dayIndex={dayIndex}
+              weekBlocks={weekBlocks}
+              onConfirm={(targetDays, mode) => {
+                onApplyTemplate(tpl.id, targetDays, mode);
+                setApplyTemplateId(null);
+              }}
+              onClose={() => setApplyTemplateId(null)}
+            />
+          );
+        })()}
+
+      {applyToast && (
+        <div className="apply-toast" role="status">
+          <span>{applyToast}</span>
+          <button type="button" onClick={onUndoApply}>
+            Undo
+          </button>
+          <button
+            type="button"
+            className="apply-toast__close"
+            onClick={onDismissToast}
+            aria-label="Dismiss"
+          >
+            <CampIcon.Close />
+          </button>
+        </div>
       )}
     </div>
   );
