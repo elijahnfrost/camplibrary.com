@@ -359,7 +359,11 @@ export function CampApp() {
 
         <div className="app__main">
           <div
-            className={"topbar" + (tab === "schedule" ? " topbar--planner" : "")}
+            className={
+              "topbar" +
+              (tab === "home" ? " topbar--home" : "") +
+              (tab === "schedule" ? " topbar--planner" : "")
+            }
             data-export-scope={tab}
             data-export-format="print-bw"
             data-export-title={page.title}
