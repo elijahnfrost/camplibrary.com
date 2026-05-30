@@ -14,6 +14,13 @@ const svg = (children: React.ReactNode): FC<IconProps> => {
 };
 
 export const CampIcon = {
+  Home: svg(
+    <>
+      <path d="M4 11.5 12 4l8 7.5" />
+      <path d="M6.5 10.5V20h11v-9.5" />
+      <path d="M10 20v-5h4v5" />
+    </>
+  ),
   Shelf: svg(
     <>
       <path d="M5 5v13M9 5v13M13 6l3 12M18.5 7l-1 11" />

@@ -6,6 +6,7 @@ import { ACTIVITIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/da
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
+import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
 import { ScheduleView } from "./ScheduleView";
 import { SavedView } from "./SavedView";
@@ -15,6 +16,7 @@ import { ActivityPicker } from "./ActivityPicker";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
+  { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "schedule", label: "Schedule", icon: CampIcon.Calendar },
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
@@ -116,7 +118,7 @@ function createScheduleBlock({
 }
 
 export function CampApp() {
-  const [tab, setTab] = useState<TabId>("library");
+  const [tab, setTab] = useState<TabId>("home");
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck");
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
@@ -270,6 +272,11 @@ export function CampApp() {
   }
 
   const pageByTab: Record<TabId, { kicker: string; title: string; summary: string }> = {
+    home: {
+      kicker: "Today at a glance",
+      title: "Home",
+      summary: "Find, save, rate, and schedule camp activities.",
+    },
     library: {
       kicker: "Camp Library · " + filtered.length + " activities",
       title: "Library",
@@ -301,7 +308,12 @@ export function CampApp() {
     <div className="stage">
       <div className="app">
         <nav className="sidenav" aria-label="Primary">
-          <div className="sidenav__brand">
+          <button
+            type="button"
+            className={"sidenav__brand" + (tab === "home" ? " is-active" : "")}
+            onClick={() => setTab("home")}
+            aria-current={tab === "home" ? "page" : undefined}
+          >
             <img className="sidenav__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
             <span className="sidenav__brand-copy">
               <span className="sidenav__kicker">The counselor&rsquo;s kit</span>
@@ -309,9 +321,9 @@ export function CampApp() {
                 Camp <em>Library</em>
               </span>
             </span>
-          </div>
+          </button>
           <div className="sidenav__nav">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.id !== "home").map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -353,16 +365,18 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
-              <button
-                type="button"
-                className="icon-btn print-btn"
-                onClick={printCurrentView}
-                aria-label={"Print " + page.title}
-                title="Print or export this view"
-                data-export-action="print-current-view"
-              >
-                <CampIcon.Print />
-              </button>
+              {tab !== "home" && (
+                <button
+                  type="button"
+                  className="icon-btn print-btn"
+                  onClick={printCurrentView}
+                  aria-label={"Print " + page.title}
+                  title="Print or export this view"
+                  data-export-action="print-current-view"
+                >
+                  <CampIcon.Print />
+                </button>
+              )}
               {tab === "library" && (
                 <button
                   type="button"
@@ -444,6 +458,20 @@ export function CampApp() {
           )}
 
           <div className="app__scroll">
+            {tab === "home" && (
+              <HomeView
+                activityCount={all.length}
+                savedCount={favs.length}
+                plannedCount={plannedCount}
+                onGo={(target) => {
+                  setTab(target);
+                  if (target === "library") {
+                    setCat("All");
+                    setView("deck");
+                  }
+                }}
+              />
+            )}
             {tab === "library" && view === "shelf" && (
               <ShelfView items={filtered} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
