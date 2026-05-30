@@ -35,6 +35,7 @@ export interface Activity {
   prep: Prep;
   blurb: string;
   materials: string[];
+  materialTags?: string[];
   steps: string[];
   notes: string;
   safety: string;
@@ -103,4 +104,4 @@ export interface BookViewerState {
   view: BookViewerView;
   width: number;
 }
-export type TabId = "home" | "library" | "schedule" | "saved" | "add";
+export type TabId = "home" | "library" | "schedule" | "saved" | "add" | "admin";

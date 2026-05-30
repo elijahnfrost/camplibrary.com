@@ -25,6 +25,7 @@ import {
   normalizeTimeString,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
+import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
 import { type StorageValidator, useLocalStorage, useSessionStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
@@ -35,14 +36,20 @@ import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { AdminInviteCodes } from "./AdminInviteCodes";
 
-const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
+const TABS: { id: Exclude<TabId, "admin">; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "schedule", label: "Schedule", icon: CampIcon.Calendar },
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
+const ADMIN_TAB: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] } = {
+  id: "admin",
+  label: "Admin",
+  icon: CampIcon.Tool,
+};
 
 function cloneBlocks(blocks: DaySchedule): DaySchedule {
   return blocks.map((block) => ({ ...block }));
@@ -263,8 +270,8 @@ const bookViewerStorage: StorageValidator<BookViewerState> = (value, fallback) =
   return { view, width };
 };
 
-export function CampApp() {
-  const [tab, setTab] = useState<TabId>("home");
+export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
   const [bookViewer, setBookViewer] = useSessionStorage<BookViewerState>(
     "bookViewer",
@@ -275,6 +282,11 @@ export function CampApp() {
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
+  const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
+    "availableMaterials",
+    [],
+    stringArrayStorage
+  );
 
   // One search field, never stale: clear it whenever the tab changes so the
   // library count and the schedule activity tray aren't silently pre-filtered.
@@ -298,6 +310,7 @@ export function CampApp() {
   const auth = usePreviewAuth();
   const authLabel = useAuthLabel(auth.session);
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
+  const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
   const openAuthForCurrentTab = useCallback(() => {
     auth.openAuth();
   }, [auth]);
@@ -322,6 +335,21 @@ export function CampApp() {
     return base.map((a) => (ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a));
   }, [extra, ratings]);
 
+  const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
+  const activeAvailableMaterials = useMemo(() => {
+    const optionIds = new Set(materialOptions.map((option) => option.id));
+    return availableMaterials.filter((id) => optionIds.has(id));
+  }, [availableMaterials, materialOptions]);
+  const toggleAvailableMaterial = useCallback(
+    (id: string) => {
+      setAvailableMaterials((previous) =>
+        previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
+      );
+    },
+    [setAvailableMaterials]
+  );
+  const clearAvailableMaterials = useCallback(() => setAvailableMaterials([]), [setAvailableMaterials]);
+
   const byId = useMemo(() => {
     const m: Record<string, Activity> = {};
     all.forEach((a) => (m[a.id] = a));
@@ -344,8 +372,10 @@ export function CampApp() {
   };
 
   const filtered = useMemo(() => {
-    return all.filter((a) => matchesActivityFilters(a, { cat, place, age, query }));
-  }, [all, cat, place, age, query]);
+    return all.filter((a) =>
+      matchesActivityFilters(a, { cat, place, age, query, availableMaterialTags: activeAvailableMaterials })
+    );
+  }, [all, cat, place, age, query, activeAvailableMaterials]);
 
   const dayBlocks = useMemo(
     () => normalizeDaySchedule(schedule[dayIndex], dayIndex),
@@ -476,7 +506,9 @@ export function CampApp() {
   // Best activity of a category for a conditional "byCategory" slot:
   // prefer saved, then highest rating.
   function bestActivityOfCategory(category: CategoryId): string | undefined {
-    const pool = all.filter((a) => a.type === category);
+    const pool = all.filter(
+      (a) => a.type === category && hasRequiredMaterials(a, activeAvailableMaterials)
+    );
     if (!pool.length) return undefined;
     const ranked = [...pool].sort((a, b) => {
       const favDiff = (favSet.has(b.id) ? 1 : 0) - (favSet.has(a.id) ? 1 : 0);
@@ -650,6 +682,11 @@ export function CampApp() {
       title: "New Activity",
       summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
     },
+    admin: {
+      kicker: "Administrator",
+      title: "Staff access",
+      summary: "Generate and review staff invite keys.",
+    },
   };
   const page = pageByTab[tab];
 
@@ -675,7 +712,7 @@ export function CampApp() {
             </span>
           </button>
           <div className="sidenav__nav">
-            {TABS.filter((t) => t.id !== "home").map((t) => (
+            {navTabs.filter((t) => t.id !== "home").map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -687,12 +724,6 @@ export function CampApp() {
                 <span>{t.label}</span>
               </button>
             ))}
-            {isAdmin && (
-              <a className="sidenav__item" href="/admin">
-                <CampIcon.Tool />
-                <span>Admin</span>
-              </a>
-            )}
           </div>
           {tab === "library" && (
             <Filters
@@ -700,9 +731,13 @@ export function CampApp() {
               cat={cat}
               place={place}
               age={age}
+              materialOptions={materialOptions}
+              availableMaterials={activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onToggleMaterial={toggleAvailableMaterial}
+              onClearMaterials={clearAvailableMaterials}
             />
           )}
           <div className="sidenav__foot">
@@ -791,9 +826,13 @@ export function CampApp() {
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
               />
             </>
           )}
@@ -835,15 +874,18 @@ export function CampApp() {
                 blocks={dayBlocks}
                 weekBlocks={weekBlocks}
                 activities={filtered}
-                allActivities={all}
                 query={query}
                 onQueryChange={setQuery}
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
                 plans={schedulePlans}
                 openCount={openCount}
                 onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
@@ -891,11 +933,16 @@ export function CampApp() {
                 }}
               />
             )}
+            {tab === "admin" && (
+              <div className="admin-tab">
+                <AdminInviteCodes />
+              </div>
+            )}
           </div>
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {TABS.map((t) => (
+          {navTabs.map((t) => (
             <button
               key={t.id}
               type="button"

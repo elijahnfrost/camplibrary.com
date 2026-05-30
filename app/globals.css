@@ -371,6 +371,87 @@ body {
   color: #fff;
   border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 60%, var(--ink));
 }
+.filterbar__kit {
+  padding: 0 18px 8px;
+}
+.material-filter {
+  width: 100%;
+}
+.material-filter__summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  border-radius: 14px;
+  background: var(--card);
+  white-space: nowrap;
+}
+.material-filter__summary::-webkit-details-marker {
+  display: none;
+}
+.material-filter__summary:hover {
+  background: var(--paper-2);
+}
+.material-filter__summary.is-on {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.material-filter__panel {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--e1);
+}
+.material-filter__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.material-filter__head button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--accent);
+}
+.material-filter__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.material-filter__chip {
+  font-family: var(--text);
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  padding: 6px 9px;
+}
 
 /* ---------- home ---------- */
 .homeview {
@@ -1389,6 +1470,9 @@ body {
   display: grid;
   gap: 16px;
 }
+.admin-tab {
+  padding: 18px 18px 96px;
+}
 .admin-panel {
   display: grid;
   gap: 16px;
@@ -1438,13 +1522,19 @@ body {
 }
 .admin-table__row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(86px, 0.6fr) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.2fr)
+    minmax(120px, 0.8fr)
+    minmax(70px, 0.45fr)
+    minmax(0, 0.75fr)
+    minmax(170px, 0.9fr);
   gap: 10px;
   align-items: center;
   padding: 10px 0;
   border-bottom: 1.5px solid var(--line-soft);
 }
-.admin-table__row span {
+.admin-table__row > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1472,9 +1562,79 @@ body {
   background: var(--accent-tint);
   color: var(--accent-ink);
 }
+.admin-status--exhausted {
+  border-color: var(--wood-soft);
+  background: color-mix(in srgb, var(--amber) 16%, var(--card));
+  color: var(--wood);
+}
+.admin-status--deactivated,
+.admin-status--expired {
+  border-color: var(--line);
+  background: var(--paper-2);
+  color: var(--ink-soft);
+}
 .admin-status--used,
 .admin-status--revoked {
   opacity: 0.62;
+}
+.admin-table__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.admin-table__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.admin-table__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+.admin-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-action:hover {
+  background: var(--paper-2);
+}
+.admin-action svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-action--danger {
+  border-color: color-mix(in srgb, #a45a4f 55%, var(--line));
+  color: #8f3525;
+}
+.admin-action:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 .admin-empty {
   padding: 18px;
@@ -1497,6 +1657,9 @@ body {
   .admin-page {
     padding: 34px;
   }
+  .admin-tab {
+    padding: 24px 32px 34px;
+  }
   .admin-page__grid {
     grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
     align-items: start;
@@ -1506,9 +1669,39 @@ body {
 @media (max-width: 720px) {
   .admin-table__row {
     grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 0;
   }
   .admin-table__row--head {
     display: none;
+  }
+  .admin-table__row > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    overflow: visible;
+    white-space: normal;
+  }
+  .admin-table__row > span::before {
+    content: attr(data-label);
+    flex: 0 0 92px;
+    font-family: var(--hand-sc);
+    font-size: 10px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .admin-table__status {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .admin-table__meta {
+    white-space: normal;
+  }
+  .admin-table__actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 }
 
@@ -1759,6 +1952,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+.matlist .stamp {
+  white-space: normal;
+  line-height: 1.25;
 }
 .steps {
   list-style: none;
@@ -2496,6 +2693,16 @@ body {
     font-size: 10.5px;
     padding: 4px 10px;
   }
+  .sidefilters .material-filter__summary {
+    width: 100%;
+  }
+  .sidefilters .material-filter__panel {
+    background: color-mix(in srgb, var(--card) 84%, #fff);
+    box-shadow: none;
+  }
+  .sidefilters .material-filter__chips {
+    max-height: 220px;
+  }
 
   /* ---- main column ---- */
   .app__main {
@@ -2506,6 +2713,9 @@ body {
     display: none;
   }
   .filterbar {
+    display: none;
+  }
+  .app__main > .filterbar__kit {
     display: none;
   }
   .searchrow {
@@ -3677,6 +3887,9 @@ body {
   padding: 0;
   flex-wrap: wrap;
   overflow: visible;
+}
+.schedule-library .filterbar__kit {
+  padding: 0;
 }
 .schedule-library__hint {
   margin: 0;
