@@ -8,7 +8,7 @@ interface HomeViewProps {
   onGo: (target: "library" | "schedule" | "saved" | "add") => void;
 }
 
-const PICK_COLORS = ["#85a45f", "#d9b152", "#5f7fb2", "#cf8062"];
+const PICK_COLORS = ["#85a45f", "#d9b152", "#aebf86", "#cda08a"];
 const quickPicks = ACTIVITIES.slice(0, 4);
 
 export function HomeView({ activityCount, savedCount, plannedCount, onGo }: HomeViewProps) {
