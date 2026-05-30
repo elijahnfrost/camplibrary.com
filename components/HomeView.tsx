@@ -1,4 +1,4 @@
-import { ACTIVITIES, CATEGORIES, DAYS } from "@/lib/data";
+import { ACTIVITIES, CATEGORIES, DAYS, durLabel } from "@/lib/data";
 import { CampIcon } from "./icons";
 
 interface HomeViewProps {
@@ -8,9 +8,8 @@ interface HomeViewProps {
   onGo: (target: "library" | "schedule" | "saved" | "add") => void;
 }
 
-const BOOK_HEIGHTS = [92, 68, 112, 80, 104, 65, 98];
-const BOOK_COLORS = ["#85a45f", "#d9b152", "#aebf86", "#cda08a", "#7a9e8a", "#b07d55", "#e6dcc6"];
-const quickPicks = ACTIVITIES.slice(0, 7);
+const PICK_COLORS = ["#85a45f", "#d9b152", "#aebf86", "#cda08a"];
+const quickPicks = ACTIVITIES.slice(0, 4);
 
 export function HomeView({ activityCount, savedCount, plannedCount, onGo }: HomeViewProps) {
   return (
@@ -34,29 +33,22 @@ export function HomeView({ activityCount, savedCount, plannedCount, onGo }: Home
           </div>
         </div>
 
-        <div className="homeview__preview" aria-hidden="true">
-          <div className="homeview__note">
-            <span>Today</span>
-            <strong>{plannedCount} planned</strong>
-          </div>
-          <div className="homeview__books">
-            {quickPicks.map((activity, index) => (
-              <span
-                key={activity.id}
-                className="homeview__book"
-                style={{
-                  background: BOOK_COLORS[index],
-                  height: BOOK_HEIGHTS[index],
-                  ...(index === 1
-                    ? { transform: "rotate(17deg)", transformOrigin: "bottom center" }
-                    : index === 5
-                      ? { transform: "rotate(-15deg)", transformOrigin: "bottom center" }
-                      : undefined),
-                }}
-              >
-                {activity.title}
-              </span>
-            ))}
+        <div className="homeview__preview" aria-label="Today preview">
+          <div className="homeview__today">
+            <div className="homeview__today-head">
+              <span>Today</span>
+              <strong>{plannedCount}</strong>
+              <small>planned</small>
+            </div>
+            <div className="homeview__picks" aria-label="Starter activities">
+              {quickPicks.map((activity, index) => (
+                <div className="homeview__pick" key={activity.id}>
+                  <i style={{ background: PICK_COLORS[index] }} aria-hidden="true" />
+                  <span>{activity.title}</span>
+                  <small>{durLabel(activity)}</small>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
