@@ -8,21 +8,26 @@ type EnvKey =
   | "CLOUDFLARE_API_TOKEN"
   | "CLOUDFLARE_D1_DATABASE_ID"
   | "DATABASE_URL"
+  | "INVITE_CODE_ADMIN_TOKEN"
+  | "INVITE_CODE_SECRET"
   | "NEXT_PUBLIC_APP_URL"
   | "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY";
 
-export const REQUIRED_SERVER_ENV = [] as const satisfies readonly EnvKey[];
+export const REQUIRED_SERVER_ENV = [
+  "AUTH_SECRET",
+  "CLERK_SECRET_KEY",
+  "DATABASE_URL",
+  "INVITE_CODE_SECRET",
+] as const satisfies readonly EnvKey[];
 
 export const OPTIONAL_SERVER_ENV = [
-  "AUTH_SECRET",
   "CAMP_LIBRARY_API_TOKEN",
   "CAMP_LIBRARY_API_URL",
-  "CLERK_SECRET_KEY",
   "CLERK_WEBHOOK_SECRET",
   "CLOUDFLARE_ACCOUNT_ID",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_D1_DATABASE_ID",
-  "DATABASE_URL",
+  "INVITE_CODE_ADMIN_TOKEN",
 ] as const satisfies readonly EnvKey[];
 
 export const PUBLIC_ENV = [
@@ -42,6 +47,8 @@ function isConfigured(key: EnvKey, value: string | undefined): value is string {
   const trimmed = value.trim();
   if (PLACEHOLDER_RE.test(trimmed)) return false;
   if (key === "AUTH_SECRET" && trimmed.length < 32) return false;
+  if (key === "INVITE_CODE_SECRET" && trimmed.length < 32) return false;
+  if (key === "INVITE_CODE_ADMIN_TOKEN" && trimmed.length < 32) return false;
   return true;
 }
 
@@ -89,7 +96,9 @@ export function getBackendEnvStatus() {
     isConfigured("CLERK_SECRET_KEY", process.env.CLERK_SECRET_KEY);
 
   return {
-    ready: missingRequired.length === 0,
+    ready:
+      missingRequired.length === 0 &&
+      isConfigured("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY),
     required,
     optional,
     public: publicVars,
@@ -99,6 +108,10 @@ export function getBackendEnvStatus() {
       clerkAuth: hasClerkAuth,
       cloudflareBridge: hasCloudflareBridge,
       database: isConfigured("DATABASE_URL", process.env.DATABASE_URL),
+      inviteCodes:
+        isConfigured("DATABASE_URL", process.env.DATABASE_URL) &&
+        isConfigured("INVITE_CODE_SECRET", process.env.INVITE_CODE_SECRET),
+      clerkWebhook: isConfigured("CLERK_WEBHOOK_SECRET", process.env.CLERK_WEBHOOK_SECRET),
     },
   };
 }

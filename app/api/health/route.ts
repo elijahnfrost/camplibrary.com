@@ -1,10 +1,12 @@
 import { getBackendEnvStatus } from "@/lib/server/env";
+import { getAuthBackendStatus } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
   const env = getBackendEnvStatus();
+  const auth = getAuthBackendStatus();
 
   return Response.json(
     {
@@ -22,6 +24,7 @@ export async function GET() {
           missing: env.missingRequired,
         },
         capabilities: env.capabilities,
+        auth,
       },
     },
     {

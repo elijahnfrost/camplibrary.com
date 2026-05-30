@@ -28,6 +28,7 @@ import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
+import { AuthButton, AuthRequiredPanel, useAuthLabel, usePreviewAuth } from "./AuthControls";
 
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
@@ -195,6 +196,10 @@ export function CampApp() {
   const [detail, setDetail] = useState<Activity | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
+  const auth = usePreviewAuth();
+  const authLabel = useAuthLabel(auth.session);
+  const canEdit = auth.signedIn;
+  const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
 
   const all = useMemo(() => {
     const base = [...extra, ...ACTIVITIES];
@@ -209,12 +214,22 @@ export function CampApp() {
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
+  const requireEditAccess = useCallback(() => {
+    if (canEdit) return true;
+    auth.openAuth();
+    return false;
+  }, [auth, canEdit]);
   const toggleFav = useCallback(
-    (id: string) =>
-      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p])),
-    [setFavs]
+    (id: string) => {
+      if (!requireEditAccess()) return;
+      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p]));
+    },
+    [requireEditAccess, setFavs]
   );
-  const setRating = (id: string, val: number) => setRatings((p) => ({ ...p, [id]: val }));
+  const setRating = (id: string, val: number) => {
+    if (!requireEditAccess()) return;
+    setRatings((p) => ({ ...p, [id]: val }));
+  };
 
   const filtered = useMemo(() => {
     return all.filter((a) => matchesActivityFilters(a, { cat, place, age, query }));
@@ -239,6 +254,7 @@ export function CampApp() {
   }
 
   function addEventToDay(targetDayIndex: number, draft: EventDraft) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const block = createScheduleBlock({
       kind: draft.kind,
@@ -251,6 +267,7 @@ export function CampApp() {
   }
 
   function updateEvent(targetDayIndex: number, blockId: string, patch: Partial<ScheduleBlock>) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
       targetDayIndex,
@@ -267,6 +284,7 @@ export function CampApp() {
   }
 
   function removeEvent(targetDayIndex: number, blockId: string) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
       targetDayIndex,
@@ -276,6 +294,7 @@ export function CampApp() {
   }
 
   function quickAddActivity(targetDayIndex: number, activityId: string) {
+    if (!requireEditAccess()) return;
     const activity = byId[activityId];
     if (!activity) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
@@ -296,6 +315,7 @@ export function CampApp() {
   }
 
   function saveCurrentDayPlan(name: string) {
+    if (!requireEditAccess()) return;
     const trimmed = name.trim();
     setSchedulePlans((plans) => [
       {
@@ -309,6 +329,7 @@ export function CampApp() {
   }
 
   function applyDayPlan(planId: string, targetDayIndex: number) {
+    if (!requireEditAccess()) return;
     const plan = schedulePlans.find((item) => item.id === planId);
     if (!plan) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
@@ -323,6 +344,7 @@ export function CampApp() {
   }
 
   function deleteDayPlan(planId: string) {
+    if (!requireEditAccess()) return;
     setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
@@ -365,9 +387,11 @@ export function CampApp() {
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
     add: {
-      kicker: "Catalog something",
+      kicker: canEdit ? "Catalog something" : "Staff-only catalog",
       title: "New Activity",
-      summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
+      summary: canEdit
+        ? "Add a tested activity, quiet filler, song, craft, or camp game."
+        : "Sign in before adding to the shared library.",
     },
   };
   const page = pageByTab[tab];
@@ -403,6 +427,12 @@ export function CampApp() {
                 <span>{t.label}</span>
               </button>
             ))}
+            {isAdmin && (
+              <a className="sidenav__item" href="/admin">
+                <CampIcon.Tool />
+                <span>Admin</span>
+              </a>
+            )}
           </div>
           {tab === "library" && (
             <Filters
@@ -416,7 +446,8 @@ export function CampApp() {
             />
           )}
           <div className="sidenav__foot">
-            {all.length} in the library · {favs.length} saved
+            <span>{all.length} in the library · {favs.length} saved</span>
+            <span>{authLabel}</span>
           </div>
         </nav>
 
@@ -437,6 +468,7 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
+              <AuthButton session={auth.session} onOpen={auth.openAuth} onSignOut={auth.signOut} />
               {tab !== "home" && (
                 <button
                   type="button"
@@ -590,14 +622,18 @@ export function CampApp() {
               <SavedView items={all} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "add" && (
-              <AddView
-                onSubmit={(a) => {
-                  setExtra((p) => [a, ...p]);
-                  setTab("library");
-                  setCat("All");
-                  setView("catalog");
-                }}
-              />
+              canEdit ? (
+                <AddView
+                  onSubmit={(a) => {
+                    setExtra((p) => [a, ...p]);
+                    setTab("library");
+                    setCat("All");
+                    setView("catalog");
+                  }}
+                />
+              ) : (
+                <AuthRequiredPanel onSignIn={auth.openAuth} />
+              )
             )}
           </div>
         </main>

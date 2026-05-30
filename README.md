@@ -4,15 +4,17 @@ A warm, hand-drawn catalog of camp **games, crafts, songs, water games, and quie
 activities** — with a day planner, saved shortlist, and a form for cataloging your own.
 Built mobile-first and scaled deliberately for tablet and desktop.
 
-Live target: **Vercel** (static, zero-config). The backend is intentionally **not built
-yet** — it will be added later on **Cloudflare**. Today the app is fully client-side.
+Live target: **Vercel**. Authentication is backed by **Clerk** with Google sign-in,
+email/password accounts, email verification, and password reset. New account creation is
+gated by one-use invite codes stored in Postgres.
 
 ## Stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **next/font** for the three handwriting faces (Caveat, Patrick Hand, Patrick Hand SC)
 - Plain CSS design system in `app/globals.css` — no UI framework, faithful to the design
-- Persistence via `localStorage` (see the *backend boundary* below)
+- Clerk auth + Postgres-backed invite codes
+- App content persistence still uses `localStorage` pending the shared backend
 
 ## Getting started
 
@@ -27,22 +29,38 @@ Other scripts:
 npm run build      # production build (statically prerenders /)
 npm run start      # serve the production build
 npm run typecheck  # tsc --noEmit
+npm run env:check  # verify required auth/invite env
 ```
 
 ## Deploying to Vercel
 
 Push to GitHub and import the repo in Vercel. It auto-detects Next.js — no configuration
-needed. The single route `/` is statically prerendered, so it serves from the edge.
+needed. Configure the env vars in `.env.example`, then enable Google, email/password,
+email verification, and password reset in the Clerk Dashboard.
 
-## Backend boundary (Cloudflare, later)
+## Auth and backend boundary
 
-There is **no server code** in this repo by design. Every preference — favorites,
-schedules, custom entries, ratings, and the chosen view — lives in `localStorage`,
-isolated behind one module: [`lib/store.ts`](lib/store.ts).
+Public visitors can browse the library and schedule. Staff-only actions — saving,
+rating, adding custom activities, and changing the schedule — are locked behind Clerk
+session state in [`components/AuthControls.tsx`](components/AuthControls.tsx).
 
-When the Cloudflare backend lands (e.g. Workers + KV/D1 for synced libraries and shared
-schedules), that file is the only swap point: keep the `useLocalStorage` signature, back
-it with a `fetch` to the Worker, and the rest of the app is unchanged.
+New accounts must enter a one-use invite code. Generate one with:
+
+```bash
+npm run invite:create -- --label "Staff name" --email staff@example.com
+```
+
+Once signed in as `contact@elijahfrost.com`, the app shows an Admin entry that opens
+`/admin`, where invite codes can be generated and reviewed without using the CLI.
+
+The code is shown once, stored hashed, reserved during sign-up, and consumed after the
+Clerk account is created. Google sign-up and email/password sign-up both use the same
+code gate.
+
+Every app preference — favorites, schedules, custom entries, ratings, and the chosen view
+— still lives in `localStorage`, isolated behind [`lib/store.ts`](lib/store.ts). When the
+shared backend lands, protect mutation routes with `requireEditorSession`, then replace
+the `useLocalStorage` implementation with API-backed persistence.
 
 ## Project layout
 
@@ -50,6 +68,10 @@ it with a `fetch` to the Worker, and the rest of the app is unchanged.
 app/
   layout.tsx        Root layout — fonts, metadata, manifest
   page.tsx          Renders <CampApp/>
+  admin/            Admin-only invite-code dashboard
+  sign-in/          Clerk sign-in, password reset, Google login
+  sign-up/          Invite-code gated account creation
+  api/invite-codes/ One-use invite code admin/reserve/consume routes
   globals.css       Design system: mobile-first + the large-screen layer
 components/
   CampApp.tsx       State + the responsive shell (sidebar / tab bar / overlays)
@@ -62,8 +84,11 @@ components/
   primitives.tsx    StarButton, meters, Seg, Block, keyboard-clickable helper, …
   icons.tsx         Hand-drawn icon set
 lib/
+  auth.ts           Shared auth/session types for UI and future server enforcement
   data.ts           Seed activities + display helpers
   scheduleTime.ts   Camp-clock ↔ minutes helpers for the planner calendar
+  server/auth.ts    Clerk-backed server session helpers
+  server/inviteCodes.ts  Postgres invite-code store
   store.ts          localStorage persistence (the Cloudflare swap point)
   types.ts          Domain types
 public/

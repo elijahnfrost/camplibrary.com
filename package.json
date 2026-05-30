@@ -8,12 +8,16 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "env:check": "node scripts/check-env.mjs"
+    "env:check": "node scripts/check-env.mjs",
+    "invite:create": "node scripts/create-invite-code.mjs"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.4.2",
     "next": "^16.1.0",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "svix": "^1.95.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
