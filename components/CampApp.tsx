@@ -71,6 +71,7 @@ function defaultBlocksForDay(dayIndex: number): DaySchedule {
 
 function normalizeDaySchedule(raw: unknown, dayIndex: number): DaySchedule {
   if (Array.isArray(raw)) {
+    if (!raw.length) return [];
     const blocks = raw.map(normalizeBlock).filter((block): block is ScheduleBlock => Boolean(block));
     return blocks.length ? blocks : defaultBlocksForDay(dayIndex);
   }

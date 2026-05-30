@@ -2250,7 +2250,7 @@ body {
 
 /* ---- activity library (side panel / mobile tray) ---- */
 .schedule-library {
-  display: none;
+  display: block;
   position: sticky;
   bottom: calc(74px + env(safe-area-inset-bottom));
   z-index: 12;

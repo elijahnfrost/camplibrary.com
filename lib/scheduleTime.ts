@@ -15,16 +15,20 @@ export const DEFAULT_DURATION_MIN = 30;
 export const MIN_DURATION_MIN = 5;
 export const DEFAULT_PLANNING_START_MIN = 8 * 60;
 
-// "13:30" -> 810. Legacy camp times like "1:30" still mean 13:30.
-export function campMinutes(time: string): number {
+function parseCampMinutes(time: string): number | null {
   const match = (time || "").match(/^(\d{1,2})(?::(\d{2}))?/);
-  if (!match) return DAY_START_MIN;
+  if (!match) return null;
   let hour = parseInt(match[1], 10);
   const minute = Math.max(0, Math.min(59, match[2] ? parseInt(match[2], 10) : 0));
   if (hour > 0 && hour < 6) hour += 12; // Legacy 1-5 o'clock are afternoon at camp.
   if (hour === 24) return minute === 0 ? DAY_END_MIN : DAY_END_MIN - 1;
   hour = Math.max(0, Math.min(23, hour));
   return hour * 60 + minute;
+}
+
+// "13:30" -> 810. Legacy camp times like "1:30" still mean 13:30.
+export function campMinutes(time: string): number {
+  return parseCampMinutes(time) ?? DAY_END_MIN;
 }
 
 // 540 -> "09:00", 810 -> "13:30", 720 -> "12:00".
@@ -45,12 +49,13 @@ export function clampStart(min: number, durationMin: number): number {
 }
 
 export function blockStartMin(block: ScheduleBlock): number {
-  return campMinutes(block.start);
+  return parseCampMinutes(block.start) ?? DEFAULT_PLANNING_START_MIN;
 }
 
 export function blockEndMin(block: ScheduleBlock): number {
-  const start = campMinutes(block.start);
-  const end = block.end ? campMinutes(block.end) : start + DEFAULT_DURATION_MIN;
+  const start = blockStartMin(block);
+  const end = block.end ? parseCampMinutes(block.end) : start + DEFAULT_DURATION_MIN;
+  if (end == null) return start + DEFAULT_DURATION_MIN;
   return end > start ? end : start + DEFAULT_DURATION_MIN;
 }
 
