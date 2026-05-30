@@ -1,0 +1,17 @@
+{
+  "name": "Camp Library",
+  "short_name": "Camp Library",
+  "description": "A warm, hand-drawn catalog of camp games, crafts, and songs — plus a day planner.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3ecdd",
+  "theme_color": "#f3ecdd",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
