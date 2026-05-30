@@ -1333,6 +1333,21 @@ body {
   background: var(--card);
   box-shadow: 4px 4px 0 var(--shadow);
 }
+.auth-form__copy,
+.auth-form__hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.auth-form__hint {
+  text-align: center;
+}
+.auth-form__hint a {
+  color: var(--accent-ink);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
 .auth-form__divider {
   display: flex;
   align-items: center;
@@ -1352,13 +1367,6 @@ body {
   border-radius: 10px;
   background: color-mix(in srgb, #a45a4f 10%, var(--card));
   color: #6d332c;
-}
-.clerk-auth-box {
-  width: min(100%, 420px);
-}
-.clerk-auth-card {
-  border: 2px solid var(--ink);
-  box-shadow: 4px 4px 0 var(--shadow);
 }
 .admin-page {
   min-height: 100dvh;
@@ -1822,6 +1830,90 @@ body {
 .detail__owner-btn--danger {
   color: var(--clay);
   border-color: color-mix(in srgb, var(--clay) 45%, var(--line));
+}
+
+.viewer-controls {
+  pointer-events: auto;
+  max-width: calc(100% - 52px);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  color: var(--ink-soft);
+  box-shadow: 2px 2px 0 var(--shadow);
+  backdrop-filter: blur(2px);
+}
+.viewer-controls__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  margin-right: 2px;
+  border-right: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.viewer-controls__group:last-child {
+  padding-right: 0;
+  margin-right: 0;
+  border-right: 0;
+}
+.viewer-controls__btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.viewer-controls__btn:hover {
+  background: color-mix(in srgb, var(--paper-2) 76%, transparent);
+  color: var(--ink);
+}
+.viewer-controls__btn.is-on {
+  background: var(--accent);
+  color: #fff;
+}
+.viewer-controls__btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.overlay--viewer[data-viewer-mode="read"] .detail__hero {
+  height: 96px;
+  justify-content: flex-start;
+  padding: 24px 22px 0;
+}
+.overlay--viewer[data-viewer-mode="read"] .detail__mono {
+  font-size: 58px;
+}
+.overlay--viewer[data-viewer-mode="read"] .detail__ribbon {
+  right: 24px;
+  --ribbon-w: 30px;
+}
+.overlay--viewer[data-viewer-mode="read"] .detail__pad {
+  padding-top: 16px;
+}
+.overlay--viewer[data-viewer-mode="read"] .detail__title {
+  font-size: 40px;
+}
+.overlay--viewer[data-viewer-mode="read"] .detail__blurb {
+  font-family: var(--text);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
 }
 
 /* ---------- empty states ---------- */
@@ -2536,6 +2628,8 @@ body {
     position: absolute;
     inset: 0;
     z-index: 30;
+    overflow: hidden;
+    contain: layout paint;
   }
   .overlay--sheet {
     position: absolute;
@@ -2636,6 +2730,38 @@ body {
   }
   .overlay--sheet {
     width: 468px;
+  }
+}
+
+@media (max-width: 767px) {
+  .overlay--viewer[data-viewer-size="small"] {
+    top: 148px;
+  }
+  .overlay--viewer[data-viewer-size="medium"] {
+    top: 76px;
+  }
+  .overlay--viewer[data-viewer-size="large"] {
+    top: max(12px, env(safe-area-inset-top));
+  }
+}
+
+@media (min-width: 768px) {
+  .overlay--viewer[data-viewer-size] {
+    inset: 0 0 0 auto;
+    height: 100%;
+  }
+  .overlay--viewer[data-viewer-size="small"] {
+    width: min(384px, 92vw);
+  }
+  .overlay--viewer[data-viewer-size="medium"] {
+    width: min(468px, 92vw);
+  }
+  .overlay--viewer[data-viewer-size="large"] {
+    width: min(668px, calc(100vw - 288px));
+  }
+  .overlay--viewer[data-viewer-size="large"][data-viewer-mode="read"] .detail__pad {
+    max-width: 620px;
+    margin-inline: auto;
   }
 }
 
@@ -3353,6 +3479,10 @@ body {
   .viewswitch button {
     padding-top: 9px;
     padding-bottom: 9px;
+  }
+  .viewer-controls__btn {
+    width: 34px;
+    height: 34px;
   }
 }
 

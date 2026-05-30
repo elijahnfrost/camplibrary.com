@@ -1,6 +1,6 @@
 "use client";
 
-import type { Activity } from "@/lib/types";
+import type { Activity, BookViewerMode, BookViewerSize } from "@/lib/types";
 import {
   ageSpan,
   ageStamps,
@@ -13,6 +13,25 @@ import {
 import { CampIcon } from "./icons";
 import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
 import { Modal } from "./Modal";
+
+const VIEWER_SIZE_OPTIONS: {
+  value: BookViewerSize;
+  label: string;
+  icon: (typeof CampIcon)[keyof typeof CampIcon];
+}[] = [
+  { value: "small", label: "Small panel", icon: CampIcon.PanelSmall },
+  { value: "medium", label: "Medium panel", icon: CampIcon.PanelMedium },
+  { value: "large", label: "Large panel", icon: CampIcon.PanelLarge },
+];
+
+const VIEWER_MODE_OPTIONS: {
+  value: BookViewerMode;
+  label: string;
+  icon: (typeof CampIcon)[keyof typeof CampIcon];
+}[] = [
+  { value: "cover", label: "Cover view", icon: CampIcon.Library },
+  { value: "read", label: "Reading view", icon: CampIcon.List },
+];
 
 export function DetailSheet({
   activity: a,
@@ -27,6 +46,10 @@ export function DetailSheet({
   isCustom,
   onEdit,
   onDelete,
+  viewerSize,
+  viewerMode,
+  onViewerSizeChange,
+  onViewerModeChange,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -40,10 +63,54 @@ export function DetailSheet({
   isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
+  viewerSize: BookViewerSize;
+  viewerMode: BookViewerMode;
+  onViewerSizeChange: (size: BookViewerSize) => void;
+  onViewerModeChange: (mode: BookViewerMode) => void;
 }) {
   return (
-    <Modal label={a.title} onClose={onClose}>
+    <Modal
+      label={a.title}
+      onClose={onClose}
+      overlayProps={{
+        className: "overlay--viewer",
+        "data-viewer-size": viewerSize,
+        "data-viewer-mode": viewerMode,
+      }}
+    >
       <div className="overlay__bar overlay__bar--float">
+        <div className="viewer-controls" aria-label="Book viewer controls">
+          <div className="viewer-controls__group" role="group" aria-label="Panel size">
+            {VIEWER_SIZE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={"viewer-controls__btn" + (viewerSize === option.value ? " is-on" : "")}
+                onClick={() => onViewerSizeChange(option.value)}
+                aria-label={option.label}
+                aria-pressed={viewerSize === option.value}
+                title={option.label}
+              >
+                <option.icon />
+              </button>
+            ))}
+          </div>
+          <div className="viewer-controls__group" role="group" aria-label="View mode">
+            {VIEWER_MODE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={"viewer-controls__btn" + (viewerMode === option.value ? " is-on" : "")}
+                onClick={() => onViewerModeChange(option.value)}
+                aria-label={option.label}
+                aria-pressed={viewerMode === option.value}
+                title={option.label}
+              >
+                <option.icon />
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="overlay__handle" />
         <button
           type="button"

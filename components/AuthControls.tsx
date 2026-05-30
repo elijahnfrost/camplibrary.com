@@ -6,6 +6,17 @@ import type { AuthSession } from "@/lib/auth";
 import { ANONYMOUS_SESSION, isAdminEmail } from "@/lib/auth";
 import { CampIcon } from "./icons";
 
+function currentSignInUrl(returnTo?: string) {
+  const signInUrl = new URL("/sign-in", window.location.origin);
+  const returnUrl = new URL(
+    returnTo || window.location.pathname + window.location.search + window.location.hash || "/",
+    window.location.origin,
+  );
+  signInUrl.searchParams.set("next", returnUrl.pathname + returnUrl.search + returnUrl.hash);
+  signInUrl.searchParams.set("redirect_url", returnUrl.toString());
+  return signInUrl.toString();
+}
+
 export function usePreviewAuth() {
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
@@ -30,8 +41,8 @@ export function usePreviewAuth() {
     session,
     signedIn: session.status === "authenticated",
     authOpen: false,
-    openAuth: () => {
-      window.location.href = "/sign-in";
+    openAuth: (returnTo?: string) => {
+      window.location.href = currentSignInUrl(returnTo);
     },
     closeAuth: () => undefined,
     signIn: () => undefined,
@@ -67,8 +78,8 @@ export function AuthButton({
 
   return (
     <button type="button" className="auth-pill" onClick={onOpen}>
-      <CampIcon.Lock />
-      <span>Sign in</span>
+      <CampIcon.User />
+      <span>Staff</span>
     </button>
   );
 }
@@ -83,25 +94,9 @@ export function AuthDialog(_props: {
   return null;
 }
 
-export function AuthRequiredPanel({ onSignIn }: { onSignIn: () => void }) {
-  return (
-    <div className="empty auth-required">
-      <div className="empty__mark">
-        <CampIcon.Lock />
-      </div>
-      <div className="empty__title">Staff sign-in required</div>
-      <div className="empty__sub">Schedule edits, new activities, ratings, and saved lists are locked.</div>
-      <button type="button" className="btn btn--primary" onClick={onSignIn}>
-        <CampIcon.Lock />
-        Sign in
-      </button>
-    </div>
-  );
-}
-
 export function useAuthLabel(session: AuthSession) {
   return useMemo(() => {
-    if (session.status === "authenticated") return "Signed in as " + session.user.name;
-    return "Signed out";
+    if (session.status === "authenticated") return "Staff: " + session.user.name;
+    return "Local workspace";
   }, [session]);
 }

@@ -4,8 +4,19 @@ export default clerkMiddleware();
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/__clerk/(.*)",
-    "/(api|trpc)(.*)",
+    "/admin",
+    "/admin/(.*)",
+    "/sign-in",
+    "/sign-in/(.*)",
+    "/sign-up",
+    "/sign-up/(.*)",
+    "/sso-callback",
+    "/sso-callback/(.*)",
+    "/auth/complete",
+    "/api/auth",
+    "/api/auth/(.*)",
+    "/api/invite-codes",
+    "/api/invite-codes/(.*)",
+    "/api/webhooks/clerk",
   ],
 };

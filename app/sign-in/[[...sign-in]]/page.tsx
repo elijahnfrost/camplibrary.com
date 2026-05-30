@@ -1,8 +1,8 @@
-import { SignIn } from "@clerk/nextjs";
 import type { Metadata } from "next";
+import { StaffSignIn } from "@/components/StaffSignIn";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Staff access",
 };
 
 export default function SignInPage() {
@@ -11,20 +11,9 @@ export default function SignInPage() {
       <div className="auth-route__brand">
         <img className="auth-route__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
         <span className="auth-route__kicker">Camp Library</span>
-        <h1 className="auth-route__title">Staff sign in</h1>
+        <h1 className="auth-route__title">Staff access</h1>
       </div>
-      <SignIn
-        routing="path"
-        path="/sign-in"
-        signUpUrl="/sign-up"
-        fallbackRedirectUrl="/"
-        appearance={{
-          elements: {
-            rootBox: "clerk-auth-box",
-            cardBox: "clerk-auth-card",
-          },
-        }}
-      />
+      <StaffSignIn />
     </main>
   );
 }

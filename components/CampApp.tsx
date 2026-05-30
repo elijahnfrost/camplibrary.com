@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Activity,
   ApplyMode,
+  BookViewerMode,
+  BookViewerSize,
   BlockFill,
   CategoryId,
   ConditionalRule,
@@ -33,7 +35,7 @@ import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
-import { AuthButton, AuthRequiredPanel, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
 
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
@@ -247,10 +249,24 @@ const savedPlansStorage: StorageValidator<DayTemplate[]> = (value, fallback) => 
 
 const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
+const viewerSizeStorage: StorageValidator<BookViewerSize> = (value, fallback) =>
+  value === "small" || value === "medium" || value === "large" ? value : fallback;
+const viewerModeStorage: StorageValidator<BookViewerMode> = (value, fallback) =>
+  value === "cover" || value === "read" ? value : fallback;
 
 export function CampApp() {
   const [tab, setTab] = useState<TabId>("home");
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
+  const [viewerSize, setViewerSize] = useLocalStorage<BookViewerSize>(
+    "viewerSize",
+    "medium",
+    viewerSizeStorage
+  );
+  const [viewerMode, setViewerMode] = useLocalStorage<BookViewerMode>(
+    "viewerMode",
+    "cover",
+    viewerModeStorage
+  );
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
@@ -277,8 +293,10 @@ export function CampApp() {
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
   const auth = usePreviewAuth();
   const authLabel = useAuthLabel(auth.session);
-  const canEdit = auth.signedIn;
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
+  const openAuthForCurrentTab = useCallback(() => {
+    auth.openAuth();
+  }, [auth]);
 
   // One-time safety snapshot of pre-upgrade schedule data before the read-time
   // normalizers (zero-padded times, new template fields) write the new shape back.
@@ -308,11 +326,7 @@ export function CampApp() {
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
-  const requireEditAccess = useCallback(() => {
-    if (canEdit) return true;
-    auth.openAuth();
-    return false;
-  }, [auth, canEdit]);
+  const requireEditAccess = useCallback(() => true, []);
   const toggleFav = useCallback(
     (id: string) => {
       if (!requireEditAccess()) return;
@@ -628,11 +642,9 @@ export function CampApp() {
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
     add: {
-      kicker: canEdit ? "Catalog something" : "Staff-only catalog",
+      kicker: "Catalog something",
       title: "New Activity",
-      summary: canEdit
-        ? "Add a tested activity, quiet filler, song, craft, or camp game."
-        : "Sign in before adding to the shared library.",
+      summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
     },
   };
   const page = pageByTab[tab];
@@ -712,7 +724,7 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
-              <AuthButton session={auth.session} onOpen={auth.openAuth} onSignOut={auth.signOut} />
+              <AuthButton session={auth.session} onOpen={openAuthForCurrentTab} onSignOut={auth.signOut} />
               <button
                 type="button"
                 className="icon-btn print-btn"
@@ -847,32 +859,33 @@ export function CampApp() {
               />
             )}
             {tab === "saved" && (
-              <SavedView items={all} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
+              <SavedView
+                items={all}
+                onOpen={openDetail}
+                isFav={isFav}
+                onToggleFav={toggleFav}
+              />
             )}
             {tab === "add" && (
-              canEdit ? (
-                <AddView
-                  initial={editing}
-                  onCancelEdit={() => {
+              <AddView
+                initial={editing}
+                onCancelEdit={() => {
+                  setEditing(null);
+                  setTab("library");
+                }}
+                onSubmit={(a) => {
+                  if (editing) {
+                    setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
                     setEditing(null);
-                    setTab("library");
-                  }}
-                  onSubmit={(a) => {
-                    if (editing) {
-                      setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
-                      setEditing(null);
-                      setLiveMsg("Updated " + a.title);
-                    } else {
-                      setExtra((p) => [a, ...p]);
-                    }
-                    setTab("library");
-                    setCat("All");
-                    setView("catalog");
-                  }}
-                />
-              ) : (
-                <AuthRequiredPanel onSignIn={auth.openAuth} />
-              )
+                    setLiveMsg("Updated " + a.title);
+                  } else {
+                    setExtra((p) => [a, ...p]);
+                  }
+                  setTab("library");
+                  setCat("All");
+                  setView("catalog");
+                }}
+              />
             )}
           </div>
         </main>
@@ -909,6 +922,10 @@ export function CampApp() {
             isCustom={isCustomActivity(detail.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
+            viewerSize={viewerSize}
+            viewerMode={viewerMode}
+            onViewerSizeChange={setViewerSize}
+            onViewerModeChange={setViewerMode}
           />
         )}
       </div>
