@@ -51,6 +51,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((c) => c.id));
+const STORED_DAY_COUNT = Math.max(DAYS.length, 7);
 function isCategoryId(value: unknown): value is CategoryId {
   return typeof value === "string" && CATEGORY_IDS.has(value);
 }
@@ -65,7 +66,7 @@ function parseRule(value: unknown): ConditionalRule | undefined {
     const map: Partial<Record<number, string>> = {};
     for (const [key, raw] of Object.entries(value.map)) {
       const day = Number(key);
-      if (Number.isInteger(day) && day >= 0 && day < DAYS.length && typeof raw === "string" && raw) {
+      if (Number.isInteger(day) && day >= 0 && day < STORED_DAY_COUNT && typeof raw === "string" && raw) {
         map[day] = raw;
       }
     }
@@ -219,7 +220,7 @@ const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   const out: Schedule = {};
   for (const [key, raw] of Object.entries(value)) {
     const day = Number(key);
-    if (Number.isInteger(day) && day >= 0 && day < DAYS.length) {
+    if (Number.isInteger(day) && day >= 0 && day < STORED_DAY_COUNT) {
       out[day] = normalizeDaySchedule(raw, day);
     }
   }

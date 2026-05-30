@@ -50,9 +50,11 @@ function write<T>(key: string, value: T): void {
 export function useLocalStorage<T>(key: string, initial: T, validate?: StorageValidator<T>) {
   const [value, setValue] = useState<T>(initial);
   const hydrated = useRef(false);
+  const skippedInitialWrite = useRef(false);
 
   // Hydrate once on the client.
   useEffect(() => {
+    skippedInitialWrite.current = false;
     setValue(read<T>(key, initial, validate));
     hydrated.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +62,12 @@ export function useLocalStorage<T>(key: string, initial: T, validate?: StorageVa
 
   // Persist after hydration (never overwrite storage with the SSR default).
   useEffect(() => {
-    if (hydrated.current) write(key, value);
+    if (!hydrated.current) return;
+    if (!skippedInitialWrite.current) {
+      skippedInitialWrite.current = true;
+      return;
+    }
+    write(key, value);
   }, [key, value]);
 
   const set = useCallback((next: T | ((prev: T) => T)) => {

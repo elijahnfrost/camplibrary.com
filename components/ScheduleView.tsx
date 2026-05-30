@@ -24,19 +24,17 @@ import {
   blockEndMin,
   blockStartMin,
   campMinutes,
-  clampStart,
   DAY_END_MIN,
   DAY_START_MIN,
   DEFAULT_DURATION_MIN,
   DURATION_OPTIONS,
+  formatClock,
   formatRange,
-  hourMarks,
   MIN_DURATION_MIN,
   minutesToCamp,
   nextFreeStart,
   snapMinutes,
   startOptions,
-  TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { CampIcon } from "./icons";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
@@ -66,10 +64,6 @@ function activityMeta(activity: Activity): string {
   return code(activity) + " · " + durLabel(activity) + " · " + ENERGY[activity.energy];
 }
 
-function pct(min: number): number {
-  return ((min - DAY_START_MIN) / TOTAL_MIN) * 100;
-}
-
 // ---- Overlap layout: assign side-by-side columns to events that share time ----
 
 type Laid = {
@@ -80,6 +74,13 @@ type Laid = {
   dragging?: boolean;
   col: number;
   cols: number;
+};
+
+type VisibleRange = {
+  start: number;
+  end: number;
+  total: number;
+  hours: number;
 };
 
 function layoutEvents(items: Omit<Laid, "col" | "cols">[]): Laid[] {
@@ -184,6 +185,14 @@ function EventComposer({
     set.add(durationMin);
     return [...set].sort((a, b) => a - b);
   }, [durationMin]);
+  const startChoices = useMemo(() => {
+    const options = startOptions();
+    if (!options.some((option) => option.value === start)) {
+      options.push({ value: start, label: formatClock(start) });
+      options.sort((a, b) => campMinutes(a.value) - campMinutes(b.value));
+    }
+    return options;
+  }, [start]);
 
   function chooseActivity(activity: Activity) {
     setActivityId(activity.id);
@@ -197,7 +206,8 @@ function EventComposer({
     event.preventDefault();
     if (!canSubmit) return;
     const startMinutes = campMinutes(start);
-    const endMinutes = Math.min(DAY_END_MIN, startMinutes + durationMin);
+    const endLimit = startMinutes >= DAY_END_MIN ? 24 * 60 : DAY_END_MIN;
+    const endMinutes = Math.min(endLimit, startMinutes + durationMin);
     const start24 = minutesToCamp(startMinutes);
     const end24 = minutesToCamp(endMinutes);
     if (tab === "library") {
@@ -439,7 +449,7 @@ function EventComposer({
               value={start}
               onChange={(event) => setStart(event.target.value)}
             >
-              {startOptions().map((option) => (
+              {startChoices.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -893,6 +903,12 @@ export function ScheduleView({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const calScrollRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const visibleRangeRef = useRef<VisibleRange>({
+    start: DAY_START_MIN,
+    end: DAY_END_MIN,
+    total: DAY_END_MIN - DAY_START_MIN,
+    hours: (DAY_END_MIN - DAY_START_MIN) / 60,
+  });
   const [drag, setDragInternal] = useState<DragState | null>(null);
   const suppressClickRef = useRef(false);
   const lastPointerRef = useRef({ x: 0, y: 0 });
@@ -911,13 +927,47 @@ export function ScheduleView({
 
   // The bounded camp-day window (8:00–17:00) fits without the old 24h-grid
   // scroll-anchoring hack, so the calendar simply starts at the top of the day.
+  const visibleRange = useMemo<VisibleRange>(() => {
+    const starts = blocks.map(blockStartMin);
+    const ends = blocks.map(blockEndMin);
+    if (drag) {
+      starts.push(drag.startMin);
+      ends.push(drag.endMin);
+    }
+    const start = Math.max(0, Math.floor(Math.min(DAY_START_MIN, ...starts) / 60) * 60);
+    const end = Math.min(24 * 60, Math.ceil(Math.max(DAY_END_MIN, ...ends) / 60) * 60);
+    const total = Math.max(60, end - start);
+    return { start, end, total, hours: total / 60 };
+  }, [blocks, drag]);
+
+  useEffect(() => {
+    visibleRangeRef.current = visibleRange;
+  }, [visibleRange]);
+
+  const marks = useMemo(() => {
+    const out: { min: number; label: string }[] = [];
+    for (let min = visibleRange.start; min <= visibleRange.end; min += 60) {
+      out.push({ min, label: formatClock(min, true) });
+    }
+    return out;
+  }, [visibleRange]);
+
+  function pctInRange(min: number): number {
+    return ((min - visibleRange.start) / visibleRange.total) * 100;
+  }
+
+  function clampStartToRange(min: number, durationMin: number, range = visibleRangeRef.current): number {
+    const latest = Math.max(range.start, range.end - durationMin);
+    return Math.max(range.start, Math.min(latest, min));
+  }
 
   function clientYToMin(clientY: number): number {
     const el = gridRef.current;
     if (!el) return DAY_START_MIN;
     const rect = el.getBoundingClientRect();
     const ratio = (clientY - rect.top) / rect.height;
-    return DAY_START_MIN + ratio * TOTAL_MIN;
+    const range = visibleRangeRef.current;
+    return range.start + ratio * range.total;
   }
 
   function isOverGrid(x: number, y: number): boolean {
@@ -951,7 +1001,7 @@ export function ScheduleView({
       if (!current) return;
       if (current.type === "move") {
         const raw = clientYToMin(clientY) - current.grabOffsetMin;
-        const startMin = clampStart(snapMinutes(raw), current.durationMin);
+        const startMin = clampStartToRange(snapMinutes(raw), current.durationMin);
         setDrag({
           ...current,
           startMin,
@@ -960,14 +1010,15 @@ export function ScheduleView({
         });
       } else if (current.type === "resize") {
         const raw = clientYToMin(clientY);
+        const range = visibleRangeRef.current;
         const endMin = Math.min(
-          DAY_END_MIN,
+          range.end,
           Math.max(current.startMin + MIN_DURATION_MIN, snapMinutes(raw))
         );
         setDrag({ ...current, endMin });
       } else {
         const over = isOverGrid(clientX, clientY);
-        const startMin = clampStart(snapMinutes(clientYToMin(clientY)), current.durationMin);
+        const startMin = clampStartToRange(snapMinutes(clientYToMin(clientY)), current.durationMin);
         setDrag({
           ...current,
           clientX,
@@ -1121,7 +1172,7 @@ export function ScheduleView({
     setComposer({
       tab: "library",
       label: "",
-      start: minutesToCamp(clampStart(snapMinutes(start), DEFAULT_DURATION_MIN)),
+      start: minutesToCamp(clampStartToRange(snapMinutes(start), DEFAULT_DURATION_MIN)),
       durationMin: DEFAULT_DURATION_MIN,
     });
   }
@@ -1187,8 +1238,6 @@ export function ScheduleView({
     return layoutEvents(items);
   }, [blocks, drag]);
 
-  const marks = hourMarks();
-
   return (
     <div className="planner planner--calendar fadein">
       <div className="cal-head">
@@ -1249,10 +1298,15 @@ export function ScheduleView({
       </div>
 
       <div className="schedule-workbench">
-        <section className="cal" ref={calScrollRef} aria-label={DAYS[dayIndex] + " calendar"}>
+        <section
+          className="cal"
+          ref={calScrollRef}
+          aria-label={DAYS[dayIndex] + " calendar"}
+          style={{ ["--day-hours" as string]: visibleRange.hours }}
+        >
           <div className="cal-axis" aria-hidden="true">
             {marks.map((mark) => (
-              <span key={mark.min} className="cal-axis__mark" style={{ top: pct(mark.min) + "%" }}>
+              <span key={mark.min} className="cal-axis__mark" style={{ top: pctInRange(mark.min) + "%" }}>
                 {mark.label}
               </span>
             ))}
@@ -1262,18 +1316,18 @@ export function ScheduleView({
             {marks.map((mark) => (
               <span
                 key={mark.min}
-                className={"cal-line" + (mark.min === DAY_END_MIN ? " cal-line--last" : "")}
-                style={{ top: pct(mark.min) + "%" }}
+                className={"cal-line" + (mark.min === visibleRange.end ? " cal-line--last" : "")}
+                style={{ top: pctInRange(mark.min) + "%" }}
               />
             ))}
             {marks.slice(0, -1).map((mark) => (
-              <span key={"half-" + mark.min} className="cal-line cal-line--half" style={{ top: pct(mark.min + 30) + "%" }} />
+              <span key={"half-" + mark.min} className="cal-line cal-line--half" style={{ top: pctInRange(mark.min + 30) + "%" }} />
             ))}
 
             {positioned.map((item) => {
               const style: CSSProperties = {
-                top: pct(item.startMin) + "%",
-                height: "calc(" + ((item.endMin - item.startMin) / TOTAL_MIN) * 100 + "% - 4px)",
+                top: pctInRange(item.startMin) + "%",
+                height: "calc(" + ((item.endMin - item.startMin) / visibleRange.total) * 100 + "% - 4px)",
                 left: "calc(" + (item.col / item.cols) * 100 + "% + 3px)",
                 width: "calc(" + 100 / item.cols + "% - 6px)",
               };
