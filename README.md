@@ -54,16 +54,16 @@ app/
 components/
   CampApp.tsx       State + the responsive shell (sidebar / tab bar / overlays)
   LibraryViews.tsx  Shelf · Deck · Catalog
-  ScheduleView.tsx  Day planner
+  ScheduleView.tsx  Day-planner calendar (drag/resize events, add-event composer)
   SavedView.tsx     Starred shortlist
   AddView.tsx       Catalog-an-entry form
   DetailSheet.tsx   Activity detail (bottom sheet → centered modal)
-  ActivityPicker.tsx  Fill a schedule slot
   Modal.tsx         Responsive overlay wrapper (Esc / scrim close)
   primitives.tsx    StarButton, meters, Seg, Block, keyboard-clickable helper, …
   icons.tsx         Hand-drawn icon set
 lib/
   data.ts           Seed activities + display helpers
+  scheduleTime.ts   Camp-clock ↔ minutes helpers for the planner calendar
   store.ts          localStorage persistence (the Cloudflare swap point)
   types.ts          Domain types
 public/

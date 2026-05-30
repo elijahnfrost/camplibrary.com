@@ -35,27 +35,21 @@ export const SLOTS: Slot[] = [
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+// A fresh day starts with just the lunch break placed; counselors add events onto it.
 export const DAY_BLOCK_TEMPLATE: ScheduleBlock[] = [
-  { id: "s1", start: "9:00", end: "10:00", kind: "activity", label: "Opening block" },
-  { id: "s2", start: "10:30", end: "12:00", kind: "activity", label: "Main activity" },
   { id: "lunch", start: "12:00", end: "1:15", kind: "label", label: "Lunch & rest hour" },
-  { id: "s3", start: "1:30", end: "2:15", kind: "activity", label: "Maker block" },
-  { id: "s4", start: "3:00", end: "3:30", kind: "activity", label: "Water or field block" },
-  { id: "s5", start: "4:30", end: "4:50", kind: "activity", label: "Closing block" },
 ];
 
+// Wednesday ships as a worked example of a full camp day.
 export const DEFAULT_SCHEDULE: Schedule = {
-  2: DAY_BLOCK_TEMPLATE.map((block) => {
-    const activityByBlock: Record<string, string> = {
-      s1: "boom-chicka-boom",
-      s2: "gaga-ball",
-      s3: "tie-dye",
-      s4: "sponge-relay",
-    };
-    return block.kind === "activity"
-      ? { ...block, activityId: activityByBlock[block.id] }
-      : { ...block };
-  }),
+  2: [
+    { id: "s1", start: "9:00", end: "9:30", kind: "activity", label: "Boom Chicka Boom", activityId: "boom-chicka-boom" },
+    { id: "s2", start: "9:45", end: "10:45", kind: "activity", label: "Gaga Ball", activityId: "gaga-ball" },
+    { id: "s3", start: "11:00", end: "11:45", kind: "activity", label: "Tie-Dye Shirts", activityId: "tie-dye" },
+    { id: "lunch", start: "12:00", end: "1:15", kind: "label", label: "Lunch & rest hour" },
+    { id: "s4", start: "1:30", end: "1:45", kind: "activity", label: "Sponge Relay", activityId: "sponge-relay" },
+    { id: "s5", start: "3:00", end: "3:30", kind: "activity", label: "Capture the Flag", activityId: "capture-flag" },
+  ],
 };
 
 export function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {

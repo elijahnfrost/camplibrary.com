@@ -115,6 +115,16 @@ export const CampIcon = {
     </>
   ),
   Moon: svg(<path d="M20 13.5A8 8 0 1 1 10.5 4 6.3 6.3 0 0 0 20 13.5z" />),
+  Grip: svg(
+    <>
+      <circle cx="8" cy="6" r="1" />
+      <circle cx="16" cy="6" r="1" />
+      <circle cx="8" cy="12" r="1" />
+      <circle cx="16" cy="12" r="1" />
+      <circle cx="8" cy="18" r="1" />
+      <circle cx="16" cy="18" r="1" />
+    </>
+  ),
   Shuffle: svg(
     <path d="M4 6h3.5l9 12H20M4 18h3.5l3-4M14 9l2.5-3H20M17 3l3 3-3 3M17 15l3 3-3 3" />
   ),

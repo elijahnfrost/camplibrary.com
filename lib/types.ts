@@ -57,6 +57,13 @@ export interface ScheduleBlock {
 export type DaySchedule = ScheduleBlock[];
 export type Schedule = Record<number, DaySchedule>;
 
+export interface SavedDayPlan {
+  id: string;
+  name: string;
+  blocks: DaySchedule;
+  createdAt: number;
+}
+
 export interface Slot {
   id: string;
   time?: string;
