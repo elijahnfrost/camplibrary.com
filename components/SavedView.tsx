@@ -25,7 +25,7 @@ export function SavedView({
         </div>
         <div className="empty__title">Nothing saved yet</div>
         <div className="empty__sub">
-          Tap Save on any activity to keep it here — your go-to shortlist for a rainy day.
+          Tap Save on any activity to keep it here - your go-to shortlist for a rainy day.
         </div>
       </div>
     );

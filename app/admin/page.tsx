@@ -1,6 +1,6 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { isAdminEmail } from "@/lib/auth";
 import { AdminInviteCodes } from "@/components/AdminInviteCodes";
 
@@ -11,8 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
+  const { userId, redirectToSignIn } = await auth();
+  if (!userId) return redirectToSignIn({ returnBackUrl: "/admin" });
+
   const user = await currentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) return redirectToSignIn({ returnBackUrl: "/admin" });
   if (!isAdminEmail(user.primaryEmailAddress?.emailAddress)) notFound();
 
   return (

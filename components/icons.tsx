@@ -41,6 +41,24 @@ export const CampIcon = {
       <path d="M9 6h11M9 12h11M9 18h11" />
     </>
   ),
+  PanelSmall: svg(
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="1.5" />
+      <path d="M15.5 5v14" />
+    </>
+  ),
+  PanelMedium: svg(
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="1.5" />
+      <path d="M12 5v14" />
+    </>
+  ),
+  PanelLarge: svg(
+    <>
+      <rect x="4" y="5" width="16" height="14" rx="1.5" />
+      <path d="M8.5 5v14" />
+    </>
+  ),
   Library: svg(
     <>
       <path d="M12 6.5C10.5 5 8 4.7 5 5.2V18c3-.5 5.5-.2 7 1.3 1.5-1.5 4-1.8 7-1.3V5.2c-3-.5-5.5-.2-7 1.3z" />

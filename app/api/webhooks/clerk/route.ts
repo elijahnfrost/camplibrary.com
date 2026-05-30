@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const webhookSecret = getOptionalServerEnv("CLERK_WEBHOOK_SECRET");
   if (!webhookSecret) {
-    return Response.json({ error: "Clerk webhook secret is not configured" }, { status: 503 });
+    return Response.json({ error: "Webhook secret is not configured" }, { status: 503 });
   }
 
   const payload = await request.text();
