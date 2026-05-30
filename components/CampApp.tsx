@@ -1,17 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Activity, DaySchedule, LibraryView, Schedule, ScheduleBlock, ScheduleBlockKind, TabId } from "@/lib/types";
+import type {
+  Activity,
+  DaySchedule,
+  LibraryView,
+  SavedDayPlan,
+  Schedule,
+  ScheduleBlock,
+  ScheduleBlockKind,
+  TabId,
+} from "@/lib/types";
 import { ACTIVITIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
+import {
+  campMinutes,
+  MIN_DURATION_MIN,
+  minutesToCamp,
+  nextFreeStart,
+} from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
-import { ScheduleView } from "./ScheduleView";
+import { ScheduleView, type EventDraft } from "./ScheduleView";
 import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
-import { ActivityPicker } from "./ActivityPicker";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
@@ -20,11 +34,6 @@ const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof Cam
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
-
-type PickerTarget = {
-  dayIndex: number;
-  block: ScheduleBlock;
-};
 
 function cloneBlocks(blocks: DaySchedule): DaySchedule {
   return blocks.map((block) => ({ ...block }));
@@ -78,15 +87,6 @@ function normalizeDaySchedule(raw: unknown, dayIndex: number): DaySchedule {
   return defaultBlocksForDay(dayIndex);
 }
 
-function campMinutes(time: string): number {
-  const match = time.match(/^(\d{1,2})(?::(\d{2}))?/);
-  if (!match) return Number.MAX_SAFE_INTEGER;
-  let hour = parseInt(match[1], 10);
-  const minute = match[2] ? parseInt(match[2], 10) : 0;
-  if (hour > 0 && hour < 6) hour += 12;
-  return hour * 60 + minute;
-}
-
 function orderBlocks(blocks: DaySchedule): DaySchedule {
   return [...blocks].sort((a, b) => campMinutes(a.start) - campMinutes(b.start));
 }
@@ -127,10 +127,10 @@ export function CampApp() {
   const [favs, setFavs] = useLocalStorage<string[]>("favs", []);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", []);
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE);
+  const [schedulePlans, setSchedulePlans] = useLocalStorage<SavedDayPlan[]>("schedulePlans", []);
   const [dayIndex, setDayIndex] = useState(2);
 
   const [detail, setDetail] = useState<Activity | null>(null);
-  const [pickerBlock, setPickerBlock] = useState<PickerTarget | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {});
 
@@ -172,88 +172,92 @@ export function CampApp() {
     setSchedule((p) => ({ ...p, [targetDayIndex]: ordered ? orderBlocks(blocks) : blocks }));
   }
 
-  function saveDayBlocks(blocks: DaySchedule, ordered = true) {
-    saveBlocksForDay(dayIndex, blocks, ordered);
+  function addEventToDay(targetDayIndex: number, draft: EventDraft) {
+    const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
+    const block = createScheduleBlock({
+      kind: draft.kind,
+      start: draft.start,
+      end: draft.end,
+      label: draft.label,
+      activityId: draft.kind === "activity" ? draft.activityId : undefined,
+    });
+    saveBlocksForDay(targetDayIndex, [...targetBlocks, block]);
   }
 
-  function addToSchedule(a: Activity) {
-    const emptyIndex = dayBlocks.findIndex((block) => block.kind === "activity" && !block.activityId);
-    if (emptyIndex >= 0) {
-      const next = dayBlocks.map((block, index) =>
-        index === emptyIndex ? { ...block, activityId: a.id, label: block.label || a.title } : block
-      );
-      saveDayBlocks(next);
-    } else {
-      saveDayBlocks([
-        ...dayBlocks,
-        createScheduleBlock({
-          kind: "activity",
-          start: "",
-          end: "",
-          label: a.title,
-          activityId: a.id,
-        }),
-      ]);
-    }
-    setJustAdded(a.id);
-  }
-
-  function clearBlockActivity(targetDayIndex: number, blockId: string) {
+  function updateEvent(targetDayIndex: number, blockId: string, patch: Partial<ScheduleBlock>) {
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
       targetDayIndex,
       targetBlocks.map((block) => {
-        if (block.id !== blockId || block.kind !== "activity") return block;
-        const { activityId, ...rest } = block;
-        return rest;
+        if (block.id !== blockId) return block;
+        const merged: ScheduleBlock = { ...block, ...patch };
+        // A custom (label) event never keeps an activity reference.
+        if (merged.kind === "label" || ("activityId" in patch && !patch.activityId)) {
+          delete merged.activityId;
+        }
+        return merged;
       })
     );
   }
 
-  function pickForBlock(a: Activity) {
-    if (!pickerBlock) return;
-    const targetBlocks = normalizeDaySchedule(schedule[pickerBlock.dayIndex], pickerBlock.dayIndex);
+  function removeEvent(targetDayIndex: number, blockId: string) {
+    const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
-      pickerBlock.dayIndex,
-      targetBlocks.map((block) =>
-        block.id === pickerBlock.block.id
-          ? { ...block, kind: "activity", activityId: a.id, label: block.label || a.title }
-          : block
-      )
+      targetDayIndex,
+      targetBlocks.filter((block) => block.id !== blockId),
+      false
     );
-    setPickerBlock(null);
   }
 
-  function moveActivityAssignment(fromDayIndex: number, fromBlockId: string, toDayIndex: number, toBlockId: string) {
-    const fromBlocks = normalizeDaySchedule(schedule[fromDayIndex], fromDayIndex);
-    const toBlocks = fromDayIndex === toDayIndex ? fromBlocks : normalizeDaySchedule(schedule[toDayIndex], toDayIndex);
-    const fromBlock = fromBlocks.find((block) => block.id === fromBlockId);
-    const toBlock = toBlocks.find((block) => block.id === toBlockId);
-    if (!fromBlock?.activityId || !toBlock || toBlock.kind !== "activity") return;
+  function quickAddActivity(targetDayIndex: number, activityId: string) {
+    const activity = byId[activityId];
+    if (!activity) return;
+    const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
+    const duration = Math.max(MIN_DURATION_MIN, activity.durationMin);
+    const start = nextFreeStart(targetBlocks, duration);
+    addEventToDay(targetDayIndex, {
+      kind: "activity",
+      activityId,
+      label: activity.title,
+      start: minutesToCamp(start),
+      end: minutesToCamp(start + duration),
+    });
+  }
 
-    const movedActivityId = fromBlock.activityId;
-    const displacedActivityId = toBlock.activityId;
+  function addToSchedule(a: Activity) {
+    quickAddActivity(dayIndex, a.id);
+    setJustAdded(a.id);
+  }
 
-    const updateSource = (block: ScheduleBlock) => {
-      if (block.id !== fromBlockId || block.kind !== "activity") return block;
-      if (displacedActivityId) return { ...block, activityId: displacedActivityId };
-      const { activityId, ...rest } = block;
-      return rest;
-    };
-    const updateTarget = (block: ScheduleBlock) =>
-      block.id === toBlockId && block.kind === "activity" ? { ...block, activityId: movedActivityId } : block;
+  function saveCurrentDayPlan(name: string) {
+    const trimmed = name.trim();
+    setSchedulePlans((plans) => [
+      {
+        id: "plan-" + Date.now().toString(36),
+        name: trimmed || DAYS[dayIndex] + " plan",
+        blocks: cloneBlocks(dayBlocks),
+        createdAt: Date.now(),
+      },
+      ...plans,
+    ]);
+  }
 
-    if (fromDayIndex === toDayIndex) {
-      saveBlocksForDay(fromDayIndex, fromBlocks.map((block) => updateTarget(updateSource(block))));
+  function applyDayPlan(planId: string, targetDayIndex: number) {
+    const plan = schedulePlans.find((item) => item.id === planId);
+    if (!plan) return;
+    const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
+    const hasPlannedActivities = targetBlocks.some((block) => block.kind === "activity" && block.activityId);
+    if (
+      hasPlannedActivities &&
+      !window.confirm("Replace the activities planned for " + DAYS[targetDayIndex] + " with " + plan.name + "?")
+    ) {
       return;
     }
-
-    saveBlocksForDay(fromDayIndex, fromBlocks.map(updateSource));
-    saveBlocksForDay(toDayIndex, toBlocks.map(updateTarget));
+    saveBlocksForDay(targetDayIndex, cloneBlocks(plan.blocks));
   }
 
-  function replaceDayBlocks(targetDayIndex: number, nextBlocks: DaySchedule) {
-    saveBlocksForDay(targetDayIndex, nextBlocks);
+  function deleteDayPlan(planId: string) {
+    setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
   function changeDay(d: number) {
@@ -459,11 +463,27 @@ export function CampApp() {
                 onDayChange={changeDay}
                 blocks={dayBlocks}
                 weekBlocks={weekBlocks}
-                onOpenBlock={(block, targetDayIndex) => setPickerBlock({ dayIndex: targetDayIndex, block })}
-                onClearActivity={clearBlockActivity}
-                onMoveActivity={moveActivityAssignment}
-                onReplaceDayBlocks={replaceDayBlocks}
+                activities={filtered}
+                allActivities={all}
+                query={query}
+                onQueryChange={setQuery}
+                cat={cat}
+                place={place}
+                age={age}
+                onCat={setCat}
+                onPlace={setPlace}
+                onAge={setAge}
+                plans={schedulePlans}
+                onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
+                onUpdateEvent={(blockId, patch) => updateEvent(dayIndex, blockId, patch)}
+                onRemoveEvent={(blockId) => removeEvent(dayIndex, blockId)}
+                onQuickAdd={(activityId) => quickAddActivity(dayIndex, activityId)}
+                onSavePlan={saveCurrentDayPlan}
+                onApplyPlan={(planId) => applyDayPlan(planId, dayIndex)}
+                onDeletePlan={deleteDayPlan}
                 onOpenActivity={openDetail}
+                isFav={isFav}
+                onToggleFav={toggleFav}
                 byId={byId}
               />
             )}
@@ -506,18 +526,6 @@ export function CampApp() {
             onAddToSchedule={addToSchedule}
             added={justAdded === detail.id ? "added" : justAdded === "full" ? "full" : false}
             onSetRating={setRating}
-          />
-        )}
-        {pickerBlock && (
-          <ActivityPicker
-            items={all}
-            onPick={pickForBlock}
-            onClose={() => setPickerBlock(null)}
-            slotLabel={
-              pickerBlock.block.start || pickerBlock.block.end
-                ? [pickerBlock.block.start, pickerBlock.block.end].filter(Boolean).join("-")
-                : pickerBlock.block.label
-            }
           />
         )}
       </div>
