@@ -10,8 +10,9 @@ import {
   ENERGY,
   monogram,
   ratingColor,
+  ribbonTone,
 } from "@/lib/data";
-import { CampIcon } from "./icons";
+import type { CSSProperties } from "react";
 import { clickable, EmptyResults, StarButton } from "./primitives";
 
 interface ViewProps {
@@ -30,6 +31,7 @@ function hash(s: string): number {
 // Book covers tint by approval rating (low = clay → high = green) so the shelf ranks by color.
 const spineWidth = (a: Activity) => 30 + (hash(a.id + "w") % 5) * 4; // 30–46
 const spinePadTop = (a: Activity) => 10 + (hash(a.id + "h") % 5) * 9; // extra cover space above the title
+const SPINE_MARKS = 6; // count of hand-drawn spine motifs (see .spine__mark in globals.css)
 
 // ---------- Shelf view ----------
 export function ShelfView({ items, onOpen, isFav }: ViewProps) {
@@ -51,27 +53,34 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
             </span>
           </div>
           <div className="rail">
-            {g.list.map((a) => (
-              <div
-                className="spine"
-                key={a.id}
-                style={{
-                  width: spineWidth(a),
-                  paddingTop: spinePadTop(a),
-                  background: ratingColor(a.rating),
-                }}
-                title={a.title}
-                aria-label={a.title}
-                {...clickable(() => onOpen(a))}
-              >
-                {isFav(a.id) && (
-                  <span className="spine__fav">
-                    <CampIcon.Bookmark />
-                  </span>
-                )}
-                <span className="spine__title">{a.title}</span>
-              </div>
-            ))}
+            {g.list.map((a) => {
+              const saved = isFav(a.id);
+              // saved spines get one of six hand-drawn motifs (data-mark) in
+              // their ribbon tone; reserve head & foot room so it clears the title
+              const mark = hash(a.id + "spine") % SPINE_MARKS;
+              const tone = ribbonTone(a.id);
+              return (
+                <div
+                  className="spine"
+                  key={a.id}
+                  style={
+                    {
+                      width: spineWidth(a),
+                      paddingTop: saved ? Math.max(spinePadTop(a), 30) : spinePadTop(a),
+                      paddingBottom: saved ? 28 : undefined,
+                      background: ratingColor(a.rating),
+                      ...(saved ? { "--tone-fill": tone.fill, "--tone-edge": tone.edge } : {}),
+                    } as CSSProperties
+                  }
+                  title={a.title}
+                  aria-label={a.title}
+                  {...clickable(() => onOpen(a))}
+                >
+                  {saved && <span className="spine__mark" data-mark={mark} aria-hidden="true" />}
+                  <span className="spine__title">{a.title}</span>
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}
@@ -91,7 +100,12 @@ export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
             <div className="plate__grid" />
             <span className="plate__cat">{a.type}</span>
             <span className="plate__star">
-              <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} />
+              <StarButton
+                on={isFav(a.id)}
+                onToggle={() => onToggleFav(a.id)}
+                variant="ribbon"
+                tone={ribbonTone(a.id)}
+              />
             </span>
             <span className="plate__mono">{monogram(a.title)}</span>
           </div>
@@ -144,7 +158,7 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
               <span className="stamp">{ENERGY[a.energy]}</span>
             </div>
           </div>
-          <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} />
+          <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} tone={ribbonTone(a.id)} />
         </div>
       ))}
       <div style={{ height: 10 }} />

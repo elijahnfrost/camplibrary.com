@@ -525,6 +525,7 @@ body {
 .spine {
   flex: none;
   position: relative;
+  overflow: hidden;
   cursor: pointer;
   z-index: 1;
   display: flex;
@@ -543,6 +544,8 @@ body {
   filter: brightness(0.93);
 }
 .spine__title {
+  position: relative;
+  z-index: 1; /* always rides above the decorative mark, guaranteeing legibility */
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-family: var(--hand);
@@ -552,20 +555,131 @@ body {
   color: inherit;
   white-space: nowrap;
 }
-.spine__fav {
+
+/* Saved books get a hand-drawn spine treatment instead of a plain label band.
+   One of six motifs is chosen per book (see data-mark) — twin rules, end
+   lozenges, a cartouche panel, hatching, stripe bands, a crest — each drawn in
+   the book's ribbon tone (--tone-fill / --tone-edge) and confined to the head /
+   foot caps or the perimeter, so the vertical title is never crowded.
+   ShelfView reserves matching top & bottom padding on saved spines. */
+.spine__mark {
   position: absolute;
-  top: 7px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: inline-flex;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--tone-edge, var(--star-ink));
 }
-.spine__fav svg {
-  width: 13px;
+.spine__mark::before,
+.spine__mark::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 0 · twin rules — a pair of fine lines at head and foot */
+.spine__mark[data-mark="0"]::before,
+.spine__mark[data-mark="0"]::after {
+  left: 6px;
+  right: 6px;
+  height: 5px;
+  border-top: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+}
+.spine__mark[data-mark="0"]::before { top: 11px; }
+.spine__mark[data-mark="0"]::after { bottom: 10px; }
+
+/* 1 · lozenges — a filled diamond capping each end */
+.spine__mark[data-mark="1"]::before,
+.spine__mark[data-mark="1"]::after {
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  background: var(--tone-fill, var(--star-gold));
+  border: 1.5px solid currentColor;
+}
+.spine__mark[data-mark="1"]::before { top: 12px; transform: translateX(-50%) rotate(45deg); }
+.spine__mark[data-mark="1"]::after { bottom: 11px; transform: translateX(-50%) rotate(45deg); }
+
+/* 2 · cartouche — a rounded panel framing the title, crowned with a tiny diamond */
+.spine__mark[data-mark="2"] {
+  inset: 6px 5px;
+  border: 1.6px solid currentColor;
+  border-radius: 9px;
+}
+.spine__mark[data-mark="2"]::before {
+  top: 6px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--tone-fill, var(--star-gold));
+  border: 1.4px solid currentColor;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* 3 · hatching — diagonal strokes fenced by a rule, head and foot */
+.spine__mark[data-mark="3"]::before,
+.spine__mark[data-mark="3"]::after {
+  left: 4px;
+  right: 4px;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--tone-edge, #444) 72%, transparent) 3px 4.5px
+  );
+}
+.spine__mark[data-mark="3"]::before {
+  top: 6px;
+  height: 19px;
+  border-bottom: 1.5px solid currentColor;
+}
+.spine__mark[data-mark="3"]::after {
+  bottom: 6px;
   height: 13px;
-  fill: var(--star-gold);
-  stroke: var(--star-ink);
-  stroke-width: 1.3;
-  stroke-linejoin: round;
+  border-top: 1.5px solid currentColor;
+}
+
+/* 4 · stripe bands — bold tonal bands across the head, a rule at the foot */
+.spine__mark[data-mark="4"]::before {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 21px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--tone-fill, var(--star-gold)) 0 5px,
+    transparent 5px 9px
+  );
+  border-bottom: 1.5px solid currentColor;
+}
+.spine__mark[data-mark="4"]::after {
+  left: 6px;
+  right: 6px;
+  bottom: 10px;
+  height: 0;
+  border-top: 1.5px solid currentColor;
+}
+
+/* 5 · crest — a diamond over a rule at the head, a rule at the foot */
+.spine__mark[data-mark="5"] {
+  background: linear-gradient(currentColor, currentColor) no-repeat;
+  background-size: calc(100% - 12px) 1.5px;
+  background-position: 6px 23px;
+}
+.spine__mark[data-mark="5"]::before {
+  top: 9px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--tone-fill, var(--star-gold));
+  border: 1.5px solid currentColor;
+  transform: translateX(-50%) rotate(45deg);
+}
+.spine__mark[data-mark="5"]::after {
+  left: 6px;
+  right: 6px;
+  bottom: 11px;
+  height: 0;
+  border-top: 1.5px solid currentColor;
 }
 
 /* ---------- deck (grid) ---------- */
@@ -627,8 +741,10 @@ body {
 }
 .plate__star {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: -3px;
+  right: 14px;
+  z-index: 2;
+  --ribbon-w: 26px;
 }
 .deck-card__body {
   padding: 9px 11px 11px;
@@ -740,32 +856,92 @@ body {
   border-color: var(--accent-ink);
 }
 
-/* ---------- star ---------- */
+/* ---------- bookmark (save) ---------- */
+/* Two looks, one control: a tappable chip in list rows, and a ribbon that
+   hangs over the top edge of cards & heroes. Saved state takes the activity's
+   own ribbon tone (gold / red / blue / plum / teal — see ribbonTone()). */
 .star {
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: 5px;
   display: inline-flex;
-  color: var(--ink-faint);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
-.star svg {
-  width: 18px;
-  height: 18px;
+.star:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* chip — list rows (catalog, saved, picker) */
+.star--chip {
+  width: 30px;
+  height: 30px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--ink) 20%, transparent);
+  border-radius: 50%;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 130ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 130ms ease, border-color 130ms ease, color 130ms ease;
+}
+.star--chip svg {
+  width: 16px;
+  height: 16px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.6;
+  stroke-width: 1.7;
   stroke-linejoin: round;
 }
-.star:hover {
-  color: var(--ink-soft);
+.star--chip:hover {
+  color: var(--ink);
+  background: var(--card);
+  transform: translateY(-1px);
 }
-.star.is-on {
-  color: var(--star-gold);
+.star--chip:active {
+  transform: scale(0.93);
 }
-.star.is-on svg {
-  fill: var(--star-gold);
-  stroke: var(--star-ink);
+.star--chip.is-on {
+  color: var(--tone-edge, var(--star-ink));
+  background: color-mix(in srgb, var(--tone-fill, var(--star-gold)) 28%, var(--card));
+  border-color: var(--tone-fill, var(--star-gold));
+}
+.star--chip.is-on svg {
+  fill: var(--tone-fill, var(--star-gold));
+  stroke: var(--tone-edge, var(--star-ink));
+}
+
+/* ribbon — hangs over a top edge (deck plate, detail hero) */
+.star--ribbon {
+  width: var(--ribbon-w, 26px);
+  align-items: flex-start;
+  /* unsaved: a faint paper ghost, inviting a tap */
+  --rb-fill: color-mix(in srgb, var(--card) 60%, transparent);
+  --rb-edge: color-mix(in srgb, var(--ink) 34%, transparent);
+  /* grow downward from the fixed top edge, so it reads as the ribbon being
+     tugged further out — without ever detaching from the top */
+  transform-origin: top center;
+  transition: transform 170ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.star--ribbon:hover {
+  transform: scaleY(1.1);
+}
+.star--ribbon:active {
+  transform: scaleY(1.04);
+}
+.star--ribbon.is-on {
+  --rb-fill: var(--tone-fill, var(--star-gold));
+  --rb-edge: var(--tone-edge, var(--star-ink));
+}
+.ribbon-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--rb-fill, var(--star-gold));
+  stroke: var(--rb-edge, var(--star-ink));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
 
 /* ---------- bottom tab bar (phone) ---------- */
@@ -890,6 +1066,7 @@ body {
   z-index: 31;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--paper);
   animation: cl-rise 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -945,6 +1122,34 @@ body {
   border-radius: 3px;
   background: var(--line);
 }
+/* detail: the bar floats over the full-bleed hero so the page opens onto its
+   image. Only the controls catch clicks; the rest lets the hero scroll. */
+.overlay__bar--float {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  align-items: flex-start;
+  padding: 12px 14px 0;
+  pointer-events: none;
+}
+.overlay__bar--float .icon-btn {
+  pointer-events: auto;
+}
+.overlay__bar--float .overlay__handle {
+  background: color-mix(in srgb, #fff 78%, transparent);
+}
+.icon-btn--float {
+  width: 38px;
+  height: 38px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 50%;
+  box-shadow: 2px 2px 0 var(--shadow);
+  backdrop-filter: blur(2px);
+}
 .overlay__body {
   flex: 1;
   overflow-y: auto;
@@ -957,12 +1162,22 @@ body {
 /* ---------- detail ---------- */
 .detail__hero {
   position: relative;
-  height: 172px;
+  height: 208px;
   border-bottom: 1.5px solid var(--ink);
   background: var(--paper);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.detail__ribbon {
+  position: absolute;
+  /* tuck the top under the page edge so the ribbon reads as hanging FROM the
+     top — clips away the top outline and the gap above it. Kept clear of the
+     24px corner radius so the clip stays a clean horizontal line. */
+  top: -6px;
+  right: 26px;
+  z-index: 2;
+  --ribbon-w: 34px;
 }
 .detail__mono {
   font-family: var(--script);

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity } from "@/lib/types";
-import { code, durLabel, ENERGY } from "@/lib/data";
+import { code, durLabel, ENERGY, ribbonTone } from "@/lib/data";
 import { CampIcon } from "./icons";
 import { clickable, StarButton } from "./primitives";
 
@@ -47,7 +47,7 @@ export function SavedView({
                 <span className="stamp">{ENERGY[a.energy]}</span>
               </div>
             </div>
-            <StarButton on={true} onToggle={() => onToggleFav(a.id)} />
+            <StarButton on={true} onToggle={() => onToggleFav(a.id)} tone={ribbonTone(a.id)} />
           </div>
         ))}
       <div style={{ height: 10 }} />
