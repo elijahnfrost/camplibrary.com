@@ -93,27 +93,44 @@ export function RatingPicker({
   );
 }
 
+// A bookmark drawn tall, so it reads as a ribbon hanging down from a top edge.
+export function RibbonMark() {
+  return (
+    <svg className="ribbon-svg" viewBox="0 0 24 40" aria-hidden="true">
+      <path d="M3 1H21V35L12 27L3 35Z" />
+    </svg>
+  );
+}
+
 export function StarButton({
   on,
   onToggle,
   stop = true,
+  variant = "chip",
+  tone,
 }: {
   on: boolean;
   onToggle: () => void;
   stop?: boolean;
+  variant?: "chip" | "ribbon";
+  tone?: { fill: string; edge: string };
 }) {
+  const style = tone
+    ? ({ "--tone-fill": tone.fill, "--tone-edge": tone.edge } as CSSProperties)
+    : undefined;
   return (
     <button
       type="button"
-      className={"star" + (on ? " is-on" : "")}
+      className={"star star--" + variant + (on ? " is-on" : "")}
       aria-label={on ? "Remove from saved" : "Save"}
       aria-pressed={on}
+      style={style}
       onClick={(e) => {
         if (stop) e.stopPropagation();
         onToggle();
       }}
     >
-      <CampIcon.Bookmark />
+      {variant === "ribbon" ? <RibbonMark /> : <CampIcon.Bookmark />}
     </button>
   );
 }

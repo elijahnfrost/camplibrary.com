@@ -133,6 +133,28 @@ export function ratingColor(r: number | undefined): string {
   return RATING_COLORS[Math.max(1, Math.min(5, Math.round(r)))];
 }
 
+// Bookmark ribbon palette — saturated, hand-drawn hues that pop against the
+// muted rating-tinted plates. Picked deterministically per activity so the
+// shelf and deck get a cheerful, stable mix (gold, red, blue, plum, teal)
+// rather than one uniform gold.
+export interface RibbonTone {
+  fill: string;
+  edge: string;
+}
+const RIBBON_TONES: RibbonTone[] = [
+  { fill: "#e3a72e", edge: "#8a6a1c" }, // gold
+  { fill: "#cf5b46", edge: "#822f22" }, // tomato red
+  { fill: "#4d86b3", edge: "#2c5675" }, // river blue
+  { fill: "#8a5688", edge: "#542f53" }, // plum
+  { fill: "#3f8f80", edge: "#22564c" }, // teal
+];
+
+export function ribbonTone(id: string): RibbonTone {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return RIBBON_TONES[Math.abs(h) % RIBBON_TONES.length];
+}
+
 // ---------- seed activities ----------
 type SeedActivity = Omit<Activity, "ages" | "rating"> & {
   ages?: Activity["ages"];

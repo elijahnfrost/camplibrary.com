@@ -9,6 +9,7 @@ import {
   groupLabel,
   monogram,
   ratingColor,
+  ribbonTone,
 } from "@/lib/data";
 import { CampIcon } from "./icons";
 import { Block, EnergyMeter, Fact, RatingPicker, StarButton } from "./primitives";
@@ -33,19 +34,31 @@ export function DetailSheet({
 }) {
   return (
     <Modal label={a.title} onClose={onClose}>
-      <div className="overlay__bar">
+      <div className="overlay__bar overlay__bar--float">
         <div className="overlay__handle" />
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+        <button
+          type="button"
+          className="icon-btn icon-btn--float"
+          onClick={onClose}
+          aria-label="Close"
+        >
           <CampIcon.Close />
         </button>
-        <div className="overlay__bar-spacer" />
-        <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
       </div>
 
       <div className="overlay__body">
         <div className="detail__hero" style={{ background: ratingColor(a.rating) }}>
           <div className="plate__grid" />
           <span className="detail__mono">{monogram(a.title)}</span>
+          <span className="detail__ribbon">
+            <StarButton
+              on={isFav(a.id)}
+              onToggle={() => onToggleFav(a.id)}
+              stop={false}
+              variant="ribbon"
+              tone={ribbonTone(a.id)}
+            />
+          </span>
         </div>
 
         <div className="detail__pad">
