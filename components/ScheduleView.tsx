@@ -144,18 +144,28 @@ function EventComposer({
     start: string;
     durationMin: number;
     category?: CategoryId;
+    rule?: ConditionalRule;
   };
   onSubmit: (draft: EventDraft, blockId?: string) => void;
   onClose: () => void;
 }) {
+  const initialByDay =
+    initial.rule && initial.rule.mode === "byWeekday" ? initial.rule.map : {};
   const [tab, setTab] = useState<"library" | "custom" | "open">(initial.tab);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<CategoryId | "All">(initial.category ?? "All");
   const [activityId, setActivityId] = useState<string | undefined>(initial.activityId);
   const [label, setLabel] = useState(initial.label);
   const [category, setCategory] = useState<CategoryId>(initial.category ?? "Game");
+  const [varyByDay, setVaryByDay] = useState(Object.keys(initialByDay).length > 0);
+  const [byDay, setByDay] = useState<Partial<Record<number, string>>>(initialByDay);
   const [start, setStart] = useState(initial.start);
   const [durationMin, setDurationMin] = useState(initial.durationMin);
+
+  const categoryActivities = useMemo(
+    () => allActivities.filter((a) => a.type === category),
+    [allActivities, category]
+  );
 
   const isEdit = Boolean(initial.blockId);
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
@@ -204,14 +214,22 @@ function EventComposer({
         initial.blockId
       );
     } else if (tab === "open") {
+      const map: Partial<Record<number, string>> = {};
+      if (varyByDay) {
+        for (const [day, id] of Object.entries(byDay)) {
+          if (id) map[Number(day)] = id;
+        }
+      }
+      const hasRule = Object.keys(map).length > 0;
       onSubmit(
         {
           kind: "activity",
           label: "Choose a " + CAT_LABEL[category],
           start: start24,
           end: end24,
-          fill: "open",
+          fill: hasRule ? "conditional" : "open",
           category,
+          rule: hasRule ? { mode: "byWeekday", map } : undefined,
         },
         initial.blockId
       );
@@ -351,6 +369,46 @@ function EventComposer({
                 </button>
               ))}
             </div>
+
+            <label className="composer__vary">
+              <input
+                type="checkbox"
+                checked={varyByDay}
+                onChange={(e) => setVaryByDay(e.target.checked)}
+              />
+              <span>Vary by weekday</span>
+              <small>auto-fill a specific activity on chosen days</small>
+            </label>
+
+            {varyByDay && (
+              <div className="vary-grid" role="group" aria-label="Activity by weekday">
+                {DAYS.map((day, i) => (
+                  <div className="vary-row" key={day}>
+                    <span className="vary-row__day">{day.slice(0, 3)}</span>
+                    <select
+                      className="input"
+                      value={byDay[i] ?? ""}
+                      onChange={(e) =>
+                        setByDay((prev) => {
+                          const next = { ...prev };
+                          if (e.target.value) next[i] = e.target.value;
+                          else delete next[i];
+                          return next;
+                        })
+                      }
+                      aria-label={day + " activity"}
+                    >
+                      <option value="">Leave open</option>
+                      {categoryActivities.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -829,6 +887,7 @@ export function ScheduleView({
     start: string;
     durationMin: number;
     category?: CategoryId;
+    rule?: ConditionalRule;
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -836,6 +895,8 @@ export function ScheduleView({
   const dragRef = useRef<DragState | null>(null);
   const [drag, setDragInternal] = useState<DragState | null>(null);
   const suppressClickRef = useRef(false);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
+  const autoScrollRaf = useRef<number | null>(null);
 
   // Keep the latest props/handlers reachable from the window listeners without re-binding.
   const handlersRef = useRef({ onAddEvent, onUpdateEvent, onOpenActivity, blocks, byId });
@@ -881,13 +942,15 @@ export function ScheduleView({
 
   // Global pointer listeners drive every drag (move / resize / create from library).
   useEffect(() => {
-    function onMove(event: PointerEvent) {
+    const EDGE = 52; // px from a calendar edge that triggers auto-scroll while dragging
+
+    // Recompute the live drag preview from a pointer position — shared by pointermove
+    // and the auto-scroll loop so dragging near an edge keeps updating as it scrolls.
+    function computeAt(clientX: number, clientY: number) {
       const current = dragRef.current;
       if (!current) return;
-      event.preventDefault();
-
       if (current.type === "move") {
-        const raw = clientYToMin(event.clientY) - current.grabOffsetMin;
+        const raw = clientYToMin(clientY) - current.grabOffsetMin;
         const startMin = clampStart(snapMinutes(raw), current.durationMin);
         setDrag({
           ...current,
@@ -896,24 +959,77 @@ export function ScheduleView({
           moved: current.moved || startMin !== current.startMin,
         });
       } else if (current.type === "resize") {
-        const raw = clientYToMin(event.clientY);
+        const raw = clientYToMin(clientY);
         const endMin = Math.min(
           DAY_END_MIN,
           Math.max(current.startMin + MIN_DURATION_MIN, snapMinutes(raw))
         );
         setDrag({ ...current, endMin });
       } else {
-        const over = isOverGrid(event.clientX, event.clientY);
-        const startMin = clampStart(snapMinutes(clientYToMin(event.clientY)), current.durationMin);
+        const over = isOverGrid(clientX, clientY);
+        const startMin = clampStart(snapMinutes(clientYToMin(clientY)), current.durationMin);
         setDrag({
           ...current,
-          clientX: event.clientX,
-          clientY: event.clientY,
+          clientX,
+          clientY,
           over,
           startMin,
           endMin: startMin + current.durationMin,
         });
       }
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollRaf.current != null) {
+        window.cancelAnimationFrame(autoScrollRaf.current);
+        autoScrollRaf.current = null;
+      }
+    }
+
+    // While a drag is held near the top/bottom of the (scrollable) calendar, scroll
+    // it so off-screen times are reachable on a phone — the key touch fix.
+    function autoScrollStep() {
+      const sc = calScrollRef.current;
+      if (!sc || !dragRef.current) {
+        stopAutoScroll();
+        return;
+      }
+      const rect = sc.getBoundingClientRect();
+      const { x, y } = lastPointerRef.current;
+      let dir = 0;
+      if (y < rect.top + EDGE) dir = -1;
+      else if (y > rect.bottom - EDGE) dir = 1;
+      if (dir === 0) {
+        stopAutoScroll();
+        return;
+      }
+      const before = sc.scrollTop;
+      const max = sc.scrollHeight - sc.clientHeight;
+      sc.scrollTop = Math.max(0, Math.min(max, sc.scrollTop + dir * 12));
+      if (sc.scrollTop !== before) computeAt(x, y);
+      autoScrollRaf.current = window.requestAnimationFrame(autoScrollStep);
+    }
+
+    function maybeAutoScroll() {
+      const sc = calScrollRef.current;
+      if (!sc || !dragRef.current) return;
+      const rect = sc.getBoundingClientRect();
+      const y = lastPointerRef.current.y;
+      const nearEdge = y < rect.top + EDGE || y > rect.bottom - EDGE;
+      if (nearEdge && autoScrollRaf.current == null) {
+        autoScrollRaf.current = window.requestAnimationFrame(autoScrollStep);
+      } else if (!nearEdge) {
+        stopAutoScroll();
+      }
+    }
+
+    function onMove(event: PointerEvent) {
+      const current = dragRef.current;
+      if (!current) return;
+      event.preventDefault();
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      computeAt(event.clientX, event.clientY);
+      maybeAutoScroll();
     }
 
     function onUp() {
@@ -944,6 +1060,7 @@ export function ScheduleView({
           end: minutesToCamp(current.endMin),
         });
       }
+      stopAutoScroll();
       setDrag(null);
     }
 
@@ -954,6 +1071,7 @@ export function ScheduleView({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      stopAutoScroll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1011,11 +1129,11 @@ export function ScheduleView({
   function openEditComposer(block: ScheduleBlock) {
     const startMin = blockStartMin(block);
     const durationMin = blockEndMin(block) - startMin;
-    const isOpenSlot = (block.fill === "open" || block.fill === "conditional") && !block.activityId;
-    // Tapping an open slot jumps straight to the Library tab, pre-filtered to its
-    // category, so the dominant action is "choose the activity that fills it".
+    // A plain open slot opens on Library (pre-filtered) so the dominant action is
+    // "choose the activity that fills it"; a conditional slot opens on Open slot so
+    // its per-weekday rule is editable.
     const tab: "library" | "custom" | "open" =
-      block.kind === "label" ? "custom" : isOpenSlot ? "library" : "library";
+      block.kind === "label" ? "custom" : block.fill === "conditional" ? "open" : "library";
     setComposer({
       blockId: block.id,
       tab,
@@ -1024,6 +1142,7 @@ export function ScheduleView({
       start: minutesToCamp(startMin),
       durationMin,
       category: block.category,
+      rule: block.rule,
     });
   }
 

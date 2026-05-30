@@ -1528,10 +1528,32 @@ body {
 .detail__actions {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
   border-top: 1.5px solid var(--line);
   background: var(--paper);
+}
+.detail__owner {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.detail__owner-btn {
+  flex: 1;
+}
+.detail__owner-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.detail__owner-btn--danger {
+  color: var(--clay);
+  border-color: color-mix(in srgb, var(--clay) 45%, var(--line));
 }
 
 /* ---------- empty states ---------- */
@@ -1670,6 +1692,25 @@ body {
 }
 .form__section:first-child {
   margin-top: 0;
+}
+.form__editbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--wood-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 12%, var(--card));
+}
+.form__editbar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: 15px;
+  color: var(--wood);
 }
 .field__hint {
   text-transform: none;
@@ -1820,9 +1861,50 @@ body {
   border: 2px solid var(--ink);
 }
 
-/* Mobile default: the toolbar search field is desktop-only. */
+/* Mobile: one search field for the library, stacked under the view switch
+   (the old topbar toggle + separate searchrow are gone). */
+.toolbar {
+  display: grid;
+  gap: 10px;
+  padding: 12px 18px 2px;
+}
 .toolbar__search {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink-soft);
+}
+.toolbar__search:focus-within {
+  border-color: var(--accent);
+}
+.toolbar__search svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.toolbar__search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  font-family: var(--text);
+  font-size: 15px;
+  color: var(--ink);
+}
+.toolbar__search-input::placeholder {
+  color: var(--ink-faint);
 }
 
 /* ============================================================
@@ -3599,6 +3681,49 @@ body {
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--ink-faint);
+}
+.composer__vary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+.composer__vary input {
+  grid-row: 1 / 3;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+.composer__vary span {
+  font-family: var(--hand);
+  font-size: 15px;
+}
+.composer__vary small {
+  font-family: var(--text);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.vary-grid {
+  display: grid;
+  gap: 6px;
+}
+.vary-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.vary-row__day {
+  font-family: var(--hand-sc);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.vary-row .input {
+  height: 38px;
 }
 .composer__list {
   display: grid;

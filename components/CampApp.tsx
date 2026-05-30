@@ -253,7 +253,12 @@ export function CampApp() {
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+
+  // One search field, never stale: clear it whenever the tab changes so the
+  // library count and the schedule activity tray aren't silently pre-filtered.
+  useEffect(() => {
+    setQuery("");
+  }, [tab]);
 
   const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
@@ -262,6 +267,7 @@ export function CampApp() {
   const [dayIndex, setDayIndex] = useState(2);
 
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [editing, setEditing] = useState<Activity | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
@@ -540,6 +546,35 @@ export function CampApp() {
     setDetail(a);
   }
 
+  const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
+
+  function editActivity(a: Activity) {
+    setEditing(a);
+    setDetail(null);
+    setTab("add");
+  }
+
+  function deleteActivity(a: Activity) {
+    // Remove the custom entry and clean up every reference so nothing is orphaned.
+    setExtra((p) => p.filter((x) => x.id !== a.id));
+    setFavs((p) => p.filter((id) => id !== a.id));
+    setRatings((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
+      return next;
+    });
+    setSchedule((p) => {
+      const next: Schedule = {};
+      for (const [key, blocks] of Object.entries(p)) {
+        next[Number(key)] = blocks.filter((b) => b.activityId !== a.id);
+      }
+      return next;
+    });
+    setDetail(null);
+    setLiveMsg("Deleted " + a.title);
+  }
+
   const pageByTab: Record<TabId, { kicker: string; title: string; summary: string }> = {
     home: {
       kicker: "Today at a glance",
@@ -653,20 +688,6 @@ export function CampApp() {
               >
                 <CampIcon.Print />
               </button>
-              {tab === "library" && (
-                <button
-                  type="button"
-                  className={"icon-btn topbar__search-toggle" + (searchOpen ? " is-on" : "")}
-                  onClick={() => {
-                    setSearchOpen((s) => !s);
-                    if (searchOpen) setQuery("");
-                  }}
-                  aria-label="Search"
-                  aria-pressed={searchOpen}
-                >
-                  <CampIcon.Search />
-                </button>
-              )}
             </div>
           </div>
           )}
@@ -714,17 +735,6 @@ export function CampApp() {
                   />
                 </div>
               </div>
-              {searchOpen && (
-                <div style={{ padding: "12px 18px 0" }} className="searchrow fadein">
-                  <input
-                    className="input"
-                    autoFocus
-                    placeholder="Search titles, tags, materials..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                </div>
-              )}
               <Filters
                 variant="bar"
                 cat={cat}
@@ -806,8 +816,19 @@ export function CampApp() {
             )}
             {tab === "add" && (
               <AddView
+                initial={editing}
+                onCancelEdit={() => {
+                  setEditing(null);
+                  setTab("library");
+                }}
                 onSubmit={(a) => {
-                  setExtra((p) => [a, ...p]);
+                  if (editing) {
+                    setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+                    setEditing(null);
+                    setLiveMsg("Updated " + a.title);
+                  } else {
+                    setExtra((p) => [a, ...p]);
+                  }
                   setTab("library");
                   setCat("All");
                   setView("catalog");
@@ -842,8 +863,13 @@ export function CampApp() {
             onToggleFav={toggleFav}
             onClose={() => setDetail(null)}
             onAddToSchedule={addToSchedule}
-            added={justAdded === detail.id ? "added" : justAdded === "full" ? "full" : false}
+            added={justAdded === detail.id ? "added" : false}
             onSetRating={setRating}
+            dayName={DAYS[dayIndex]}
+            alreadyScheduled={dayBlocks.some((b) => b.activityId === detail.id)}
+            isCustom={isCustomActivity(detail.id)}
+            onEdit={editActivity}
+            onDelete={deleteActivity}
           />
         )}
       </div>
