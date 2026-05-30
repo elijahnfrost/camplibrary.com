@@ -9,7 +9,7 @@ interface HomeViewProps {
 }
 
 const BOOK_HEIGHTS = [92, 68, 112, 80, 104, 65, 98];
-const BOOK_COLORS = ["#85a45f", "#d9b152", "#5f7fb2", "#cf8062", "#7a9e8a", "#b07d55", "#a67bb5"];
+const BOOK_COLORS = ["#85a45f", "#d9b152", "#aebf86", "#cda08a", "#7a9e8a", "#b07d55", "#e6dcc6"];
 const quickPicks = ACTIVITIES.slice(0, 7);
 
 export function HomeView({ activityCount, savedCount, plannedCount, onGo }: HomeViewProps) {
