@@ -3,15 +3,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const required = [];
-
-const optional = [
+const required = [
   "AUTH_SECRET",
-  "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
-  "CLERK_WEBHOOK_SECRET",
   "DATABASE_URL",
+  "INVITE_CODE_SECRET",
+];
+
+const optional = [
+  "NEXT_PUBLIC_APP_URL",
+  "CLERK_WEBHOOK_SECRET",
+  "INVITE_CODE_ADMIN_TOKEN",
   "CAMP_LIBRARY_API_URL",
   "CAMP_LIBRARY_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
@@ -53,6 +56,8 @@ function isConfigured(env, key) {
   const trimmed = value.trim();
   if (placeholderRe.test(trimmed)) return false;
   if (key === "AUTH_SECRET" && trimmed.length < 32) return false;
+  if (key === "INVITE_CODE_SECRET" && trimmed.length < 32) return false;
+  if (key === "INVITE_CODE_ADMIN_TOKEN" && trimmed.length < 32) return false;
   return true;
 }
 

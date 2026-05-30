@@ -1236,6 +1236,274 @@ body {
   box-shadow: none;
 }
 
+/* ---------- auth controls ---------- */
+.auth-pill {
+  max-width: 132px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.auth-pill:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.auth-pill svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.auth-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-pill--signed-in {
+  border-color: var(--accent-ink);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.auth-required {
+  gap: 14px;
+}
+.auth-route {
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 22px;
+  padding: 28px 18px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--hand);
+}
+.auth-route__brand {
+  width: min(100%, 420px);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.auth-route__logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+.auth-route__kicker,
+.auth-form__section,
+.auth-form__divider,
+.auth-route__status {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.auth-route__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: 44px;
+  line-height: 0.95;
+}
+.auth-form {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.auth-form__divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faint);
+}
+.auth-form__divider::before,
+.auth-form__divider::after {
+  content: "";
+  height: 1.5px;
+  flex: 1;
+  background: var(--line);
+}
+.auth-form__error {
+  padding: 10px 12px;
+  border: 1.5px solid #a45a4f;
+  border-radius: 10px;
+  background: color-mix(in srgb, #a45a4f 10%, var(--card));
+  color: #6d332c;
+}
+.clerk-auth-box {
+  width: min(100%, 420px);
+}
+.clerk-auth-card {
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.admin-page {
+  min-height: 100dvh;
+  padding: 22px 18px 34px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--hand);
+}
+.admin-page__head {
+  width: min(100%, 1120px);
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+.admin-page__grid {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+.admin-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 4px 4px 0 var(--shadow);
+}
+.admin-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-panel__kicker,
+.admin-code__label {
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.admin-panel__title {
+  margin: 2px 0 0;
+  font-family: var(--script);
+  font-size: 32px;
+  line-height: 1;
+}
+.admin-code {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1.5px dashed var(--accent-ink);
+  border-radius: 12px;
+  background: var(--accent-tint);
+}
+.admin-code strong {
+  font-family: var(--hand-sc);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--accent-ink);
+}
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+.admin-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(86px, 0.6fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1.5px solid var(--line-soft);
+}
+.admin-table__row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-table__row--head {
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.admin-status {
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.admin-status--active {
+  border-color: var(--accent-ink);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.admin-status--used,
+.admin-status--revoked {
+  opacity: 0.62;
+}
+.admin-empty {
+  padding: 18px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 420px) {
+  .auth-pill {
+    width: 40px;
+    padding: 0;
+  }
+  .auth-pill span {
+    display: none;
+  }
+}
+
+@media (min-width: 860px) {
+  .admin-page {
+    padding: 34px;
+  }
+  .admin-page__grid {
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-table__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-table__row--head {
+    display: none;
+  }
+}
+
 /* ---------- overlays ---------- */
 /* On phones the wrapper vanishes (display:contents) so the sheet rises from
    the bottom exactly as designed; >=768 it becomes a centering layer. */

@@ -33,6 +33,7 @@ import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
+import { AuthButton, AuthRequiredPanel, useAuthLabel, usePreviewAuth } from "./AuthControls";
 
 const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
@@ -274,6 +275,10 @@ export function CampApp() {
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
+  const auth = usePreviewAuth();
+  const authLabel = useAuthLabel(auth.session);
+  const canEdit = auth.signedIn;
+  const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
 
   // One-time safety snapshot of pre-upgrade schedule data before the read-time
   // normalizers (zero-padded times, new template fields) write the new shape back.
@@ -303,12 +308,22 @@ export function CampApp() {
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
+  const requireEditAccess = useCallback(() => {
+    if (canEdit) return true;
+    auth.openAuth();
+    return false;
+  }, [auth, canEdit]);
   const toggleFav = useCallback(
-    (id: string) =>
-      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p])),
-    [setFavs]
+    (id: string) => {
+      if (!requireEditAccess()) return;
+      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p]));
+    },
+    [requireEditAccess, setFavs]
   );
-  const setRating = (id: string, val: number) => setRatings((p) => ({ ...p, [id]: val }));
+  const setRating = (id: string, val: number) => {
+    if (!requireEditAccess()) return;
+    setRatings((p) => ({ ...p, [id]: val }));
+  };
 
   const filtered = useMemo(() => {
     return all.filter((a) => matchesActivityFilters(a, { cat, place, age, query }));
@@ -350,6 +365,7 @@ export function CampApp() {
   }
 
   function addEventToDay(targetDayIndex: number, draft: EventDraft) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const block = createScheduleBlock({
       kind: draft.kind,
@@ -365,6 +381,7 @@ export function CampApp() {
   }
 
   function updateEvent(targetDayIndex: number, blockId: string, patch: Partial<ScheduleBlock>) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
       targetDayIndex,
@@ -389,6 +406,7 @@ export function CampApp() {
   }
 
   function removeEvent(targetDayIndex: number, blockId: string) {
+    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     saveBlocksForDay(
       targetDayIndex,
@@ -398,6 +416,7 @@ export function CampApp() {
   }
 
   function quickAddActivity(targetDayIndex: number, activityId: string) {
+    if (!requireEditAccess()) return;
     const activity = byId[activityId];
     if (!activity) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
@@ -419,6 +438,7 @@ export function CampApp() {
   }
 
   function saveCurrentDayPlan(name: string) {
+    if (!requireEditAccess()) return;
     const trimmed = name.trim();
     const now = Date.now();
     setSchedulePlans((plans) => [
@@ -490,6 +510,7 @@ export function CampApp() {
   }
 
   function applyTemplate(templateId: string, targetDays: number[], mode: ApplyMode) {
+    if (!requireEditAccess()) return;
     const tpl = schedulePlans.find((t) => t.id === templateId);
     if (!tpl || !targetDays.length) return;
     setUndoSnapshot(schedule);
@@ -531,6 +552,7 @@ export function CampApp() {
   }
 
   function deleteDayPlan(planId: string) {
+    if (!requireEditAccess()) return;
     setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
@@ -550,12 +572,14 @@ export function CampApp() {
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
 
   function editActivity(a: Activity) {
+    if (!requireEditAccess()) return;
     setEditing(a);
     setDetail(null);
     setTab("add");
   }
 
   function deleteActivity(a: Activity) {
+    if (!requireEditAccess()) return;
     // Remove the custom entry and clean up every reference so nothing is orphaned.
     setExtra((p) => p.filter((x) => x.id !== a.id));
     setFavs((p) => p.filter((id) => id !== a.id));
@@ -604,9 +628,11 @@ export function CampApp() {
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
     add: {
-      kicker: "Catalog something",
+      kicker: canEdit ? "Catalog something" : "Staff-only catalog",
       title: "New Activity",
-      summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
+      summary: canEdit
+        ? "Add a tested activity, quiet filler, song, craft, or camp game."
+        : "Sign in before adding to the shared library.",
     },
   };
   const page = pageByTab[tab];
@@ -645,6 +671,12 @@ export function CampApp() {
                 <span>{t.label}</span>
               </button>
             ))}
+            {isAdmin && (
+              <a className="sidenav__item" href="/admin">
+                <CampIcon.Tool />
+                <span>Admin</span>
+              </a>
+            )}
           </div>
           {tab === "library" && (
             <Filters
@@ -658,7 +690,8 @@ export function CampApp() {
             />
           )}
           <div className="sidenav__foot">
-            {all.length} in the library · {favs.length} saved
+            <span>{all.length} in the library · {favs.length} saved</span>
+            <span>{authLabel}</span>
           </div>
         </nav>
 
@@ -679,6 +712,7 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
+              <AuthButton session={auth.session} onOpen={auth.openAuth} onSignOut={auth.signOut} />
               <button
                 type="button"
                 className="icon-btn print-btn"
@@ -816,25 +850,29 @@ export function CampApp() {
               <SavedView items={all} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "add" && (
-              <AddView
-                initial={editing}
-                onCancelEdit={() => {
-                  setEditing(null);
-                  setTab("library");
-                }}
-                onSubmit={(a) => {
-                  if (editing) {
-                    setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+              canEdit ? (
+                <AddView
+                  initial={editing}
+                  onCancelEdit={() => {
                     setEditing(null);
-                    setLiveMsg("Updated " + a.title);
-                  } else {
-                    setExtra((p) => [a, ...p]);
-                  }
-                  setTab("library");
-                  setCat("All");
-                  setView("catalog");
-                }}
-              />
+                    setTab("library");
+                  }}
+                  onSubmit={(a) => {
+                    if (editing) {
+                      setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+                      setEditing(null);
+                      setLiveMsg("Updated " + a.title);
+                    } else {
+                      setExtra((p) => [a, ...p]);
+                    }
+                    setTab("library");
+                    setCat("All");
+                    setView("catalog");
+                  }}
+                />
+              ) : (
+                <AuthRequiredPanel onSignIn={auth.openAuth} />
+              )
             )}
           </div>
         </main>
