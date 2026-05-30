@@ -1,9 +1,9 @@
 "use client";
 
 import type { Activity } from "@/lib/types";
-import { code, durLabel, ENERGY, ribbonTone } from "@/lib/data";
+import { code, durLabel, ENERGY } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { clickable, StarButton } from "./primitives";
+import { clickable, SaveButton } from "./primitives";
 
 export function SavedView({
   items,
@@ -25,7 +25,7 @@ export function SavedView({
         </div>
         <div className="empty__title">Nothing saved yet</div>
         <div className="empty__sub">
-          Tap the star on any activity to keep it here — your go-to shortlist for a rainy day.
+          Tap Save on any activity to keep it here — your go-to shortlist for a rainy day.
         </div>
       </div>
     );
@@ -47,7 +47,7 @@ export function SavedView({
                 <span className="stamp">{ENERGY[a.energy]}</span>
               </div>
             </div>
-            <StarButton on={true} onToggle={() => onToggleFav(a.id)} tone={ribbonTone(a.id)} />
+            <SaveButton on={true} onToggle={() => onToggleFav(a.id)} />
           </div>
         ))}
       <div style={{ height: 10 }} />

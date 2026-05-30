@@ -89,9 +89,6 @@ export const CampIcon = {
   ChevronRight: svg(<path d="M9 5l7 7-7 7" />),
   ChevronUp: svg(<path d="M5 15l7-7 7 7" />),
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
-  Star: svg(
-    <path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.77l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z" />
-  ),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
   Print: svg(

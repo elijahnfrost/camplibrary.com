@@ -9,10 +9,9 @@ import {
   groupLabel,
   monogram,
   ratingColor,
-  ribbonTone,
 } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { Block, EnergyMeter, Fact, RatingPicker, StarButton } from "./primitives";
+import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
 import { Modal } from "./Modal";
 
 export function DetailSheet({
@@ -51,12 +50,11 @@ export function DetailSheet({
           <div className="plate__grid" />
           <span className="detail__mono">{monogram(a.title)}</span>
           <span className="detail__ribbon">
-            <StarButton
+            <SaveButton
               on={isFav(a.id)}
               onToggle={() => onToggleFav(a.id)}
               stop={false}
               variant="ribbon"
-              tone={ribbonTone(a.id)}
             />
           </span>
         </div>

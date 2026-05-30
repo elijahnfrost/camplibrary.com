@@ -97,11 +97,17 @@ export function Filters({ variant, cat, place, age, onCat, onPlace, onAge }: Fil
   // mobile horizontal bar
   return (
     <div className="filterbar">
-      {typeChips}
-      <span className="filterbar__div" />
-      {placeChips}
-      <span className="filterbar__div" />
-      {ageChips}
+      <span className="filterbar__cluster" role="group" aria-label="Type">
+        {typeChips}
+      </span>
+      <span className="filterbar__div" aria-hidden="true" />
+      <span className="filterbar__cluster" role="group" aria-label="Where">
+        {placeChips}
+      </span>
+      <span className="filterbar__div" aria-hidden="true" />
+      <span className="filterbar__cluster" role="group" aria-label="Ages">
+        {ageChips}
+      </span>
     </div>
   );
 }

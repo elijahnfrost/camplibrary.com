@@ -10,10 +10,9 @@ import {
   ENERGY,
   monogram,
   ratingColor,
-  ribbonTone,
 } from "@/lib/data";
 import type { CSSProperties } from "react";
-import { clickable, EmptyResults, StarButton } from "./primitives";
+import { clickable, EmptyResults, SaveButton } from "./primitives";
 
 interface ViewProps {
   items: Activity[];
@@ -55,10 +54,9 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
           <div className="rail">
             {g.list.map((a) => {
               const saved = isFav(a.id);
-              // saved spines get one of six hand-drawn motifs (data-mark) in
-              // their ribbon tone; reserve head & foot room so it clears the title
+              // saved spines get one of six hand-drawn motifs (data-mark), all in
+              // the single honey-gold; reserve head & foot room so it clears the title
               const mark = hash(a.id + "spine") % SPINE_MARKS;
-              const tone = ribbonTone(a.id);
               return (
                 <div
                   className="spine"
@@ -69,7 +67,6 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
                       paddingTop: saved ? Math.max(spinePadTop(a), 30) : spinePadTop(a),
                       paddingBottom: saved ? 28 : undefined,
                       background: ratingColor(a.rating),
-                      ...(saved ? { "--tone-fill": tone.fill, "--tone-edge": tone.edge } : {}),
                     } as CSSProperties
                   }
                   title={a.title}
@@ -100,11 +97,10 @@ export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
             <div className="plate__grid" />
             <span className="plate__cat">{a.type}</span>
             <span className="plate__star">
-              <StarButton
+              <SaveButton
                 on={isFav(a.id)}
                 onToggle={() => onToggleFav(a.id)}
                 variant="ribbon"
-                tone={ribbonTone(a.id)}
               />
             </span>
             <span className="plate__mono">{monogram(a.title)}</span>
@@ -158,7 +154,7 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
               <span className="stamp">{ENERGY[a.energy]}</span>
             </div>
           </div>
-          <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} tone={ribbonTone(a.id)} />
+          <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} />
         </div>
       ))}
       <div style={{ height: 10 }} />

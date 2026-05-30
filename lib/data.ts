@@ -1,7 +1,7 @@
 // Camp Library — seed data + display helpers.
 // Ported from the Claude Design prototype (camp-data.js). Seed content is preserved verbatim.
 
-import type { Activity, AgeGroup, Category, Place, Schedule, ScheduleBlock, Slot } from "./types";
+import type { Activity, AgeGroup, Category, CategoryId, Place, Schedule, ScheduleBlock, Slot } from "./types";
 
 // Category order drives the shelves.
 export const CATEGORIES: Category[] = [
@@ -33,22 +33,24 @@ export const SLOTS: Slot[] = [
   { id: "s5", time: "4:30" },
 ];
 
-export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+// A day camp runs Monday–Friday.
+export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 // A fresh day starts with just the lunch break placed; counselors add events onto it.
+// Times are canonical zero-padded 24h.
 export const DAY_BLOCK_TEMPLATE: ScheduleBlock[] = [
-  { id: "lunch", start: "12:00", end: "1:15", kind: "label", label: "Lunch & rest hour" },
+  { id: "lunch", start: "12:00", end: "13:15", kind: "label", label: "Lunch & rest hour" },
 ];
 
 // Wednesday ships as a worked example of a full camp day.
 export const DEFAULT_SCHEDULE: Schedule = {
   2: [
-    { id: "s1", start: "9:00", end: "9:30", kind: "activity", label: "Boom Chicka Boom", activityId: "boom-chicka-boom" },
-    { id: "s2", start: "9:45", end: "10:45", kind: "activity", label: "Gaga Ball", activityId: "gaga-ball" },
+    { id: "s1", start: "09:00", end: "09:30", kind: "activity", label: "Boom Chicka Boom", activityId: "boom-chicka-boom" },
+    { id: "s2", start: "09:45", end: "10:45", kind: "activity", label: "Gaga Ball", activityId: "gaga-ball" },
     { id: "s3", start: "11:00", end: "11:45", kind: "activity", label: "Tie-Dye Shirts", activityId: "tie-dye" },
-    { id: "lunch", start: "12:00", end: "1:15", kind: "label", label: "Lunch & rest hour" },
-    { id: "s4", start: "1:30", end: "1:45", kind: "activity", label: "Sponge Relay", activityId: "sponge-relay" },
-    { id: "s5", start: "3:00", end: "3:30", kind: "activity", label: "Capture the Flag", activityId: "capture-flag" },
+    { id: "lunch", start: "12:00", end: "13:15", kind: "label", label: "Lunch & rest hour" },
+    { id: "s4", start: "13:30", end: "13:45", kind: "activity", label: "Sponge Relay", activityId: "sponge-relay" },
+    { id: "s5", start: "15:00", end: "15:30", kind: "activity", label: "Capture the Flag", activityId: "capture-flag" },
   ],
 };
 
@@ -104,6 +106,19 @@ export function metaLine(a: Activity): string {
   return [durLabel(a), ageLabel(a), a.place].join("  ·  ");
 }
 
+// Category → earthy accent, used to color-code calendar events and open slots
+// so a planned day reads at a glance (game / craft / song / water / quiet).
+const CATEGORY_TINTS: Record<CategoryId, string> = {
+  Game: "#3f6b45", // pine
+  Craft: "#b3603f", // terracotta
+  Song: "#c98a2e", // amber
+  Water: "#4d7a86", // muted river
+  Quiet: "#6a6486", // dusk
+};
+export function categoryTint(id: CategoryId | undefined): string {
+  return id ? CATEGORY_TINTS[id] : "#8f8470";
+}
+
 // Approval rating → warm sequential color scale (low = clay, high = green) so the shelf ranks by color.
 const RATING_COLORS: Record<number, string> = {
   1: "#cda08a",
@@ -125,28 +140,6 @@ export const RATING_WORD: Record<number, string> = {
 export function ratingColor(r: number | undefined): string {
   if (!r || r < 1) return RATING_NEUTRAL;
   return RATING_COLORS[Math.max(1, Math.min(5, Math.round(r)))];
-}
-
-// Bookmark ribbon palette — saturated, hand-drawn hues that pop against the
-// muted rating-tinted plates. Picked deterministically per activity so the
-// shelf and deck get a cheerful, stable mix (gold, red, blue, plum, teal)
-// rather than one uniform gold.
-export interface RibbonTone {
-  fill: string;
-  edge: string;
-}
-const RIBBON_TONES: RibbonTone[] = [
-  { fill: "#e3a72e", edge: "#8a6a1c" }, // gold
-  { fill: "#cf5b46", edge: "#822f22" }, // tomato red
-  { fill: "#4d86b3", edge: "#2c5675" }, // river blue
-  { fill: "#8a5688", edge: "#542f53" }, // plum
-  { fill: "#3f8f80", edge: "#22564c" }, // teal
-];
-
-export function ribbonTone(id: string): RibbonTone {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return RIBBON_TONES[Math.abs(h) % RIBBON_TONES.length];
 }
 
 // ---------- seed activities ----------

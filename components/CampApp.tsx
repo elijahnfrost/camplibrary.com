@@ -1,22 +1,27 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Activity,
+  ApplyMode,
+  BlockFill,
+  CategoryId,
+  ConditionalRule,
   DaySchedule,
+  DayTemplate,
   LibraryView,
-  SavedDayPlan,
   Schedule,
   ScheduleBlock,
   ScheduleBlockKind,
   TabId,
 } from "@/lib/types";
-import { ACTIVITIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
+import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
 import {
   campMinutes,
   MIN_DURATION_MIN,
   minutesToCamp,
   nextFreeStart,
+  normalizeTimeString,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { type StorageValidator, useLocalStorage } from "@/lib/store";
@@ -45,24 +50,67 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const CATEGORY_IDS = new Set<string>(CATEGORIES.map((c) => c.id));
+function isCategoryId(value: unknown): value is CategoryId {
+  return typeof value === "string" && CATEGORY_IDS.has(value);
+}
+
+function parseRule(value: unknown): ConditionalRule | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.mode === "rotate" && Array.isArray(value.pool)) {
+    const pool = value.pool.filter((id): id is string => typeof id === "string" && Boolean(id));
+    return pool.length ? { mode: "rotate", pool } : undefined;
+  }
+  if (value.mode === "byWeekday" && isRecord(value.map)) {
+    const map: Partial<Record<number, string>> = {};
+    for (const [key, raw] of Object.entries(value.map)) {
+      const day = Number(key);
+      if (Number.isInteger(day) && day >= 0 && day < DAYS.length && typeof raw === "string" && raw) {
+        map[day] = raw;
+      }
+    }
+    return Object.keys(map).length ? { mode: "byWeekday", map } : undefined;
+  }
+  if (value.mode === "byCategory" && isCategoryId(value.category)) {
+    return { mode: "byCategory", category: value.category };
+  }
+  return undefined;
+}
+
 function normalizeBlock(value: unknown, index: number): ScheduleBlock | null {
   if (!isRecord(value)) return null;
   const kind: ScheduleBlockKind = value.kind === "label" ? "label" : "activity";
+  const fill: BlockFill =
+    value.fill === "open" ? "open" : value.fill === "conditional" ? "conditional" : "fixed";
   const label =
     typeof value.label === "string" && value.label.trim()
       ? value.label.trim()
       : kind === "label"
         ? "Schedule note"
         : "Activity block";
+  // Canonicalize stored/legacy times to zero-padded 24h on read (one-way upgrade).
+  const start =
+    typeof value.start === "string" && value.start.trim() ? normalizeTimeString(value.start) : "";
+  const end =
+    typeof value.end === "string" && value.end.trim() ? normalizeTimeString(value.end) : "";
   const block: ScheduleBlock = {
     id: typeof value.id === "string" && value.id ? value.id : "block-" + index,
-    start: typeof value.start === "string" ? value.start : "",
-    end: typeof value.end === "string" ? value.end : "",
+    start,
+    end,
     kind,
     label,
   };
-  if (kind === "activity" && typeof value.activityId === "string" && value.activityId) {
+  // A filled (fixed) activity carries its activityId; open slots intentionally don't.
+  if (kind === "activity" && fill === "fixed" && typeof value.activityId === "string" && value.activityId) {
     block.activityId = value.activityId;
+  }
+  if (fill !== "fixed") block.fill = fill;
+  if ((fill === "open" || fill === "conditional") && isCategoryId(value.category)) {
+    block.category = value.category;
+  }
+  if (fill === "conditional") {
+    const rule = parseRule(value.rule);
+    if (rule) block.rule = rule;
   }
   return block;
 }
@@ -94,28 +142,44 @@ function orderBlocks(blocks: DaySchedule): DaySchedule {
   return [...blocks].sort((a, b) => campMinutes(a.start) - campMinutes(b.start));
 }
 
+let blockSeq = 0;
+function freshId(prefix: string): string {
+  blockSeq += 1;
+  return prefix + "-" + Date.now().toString(36) + "-" + blockSeq.toString(36);
+}
+
 function createScheduleBlock({
   kind,
   start,
   end,
   label,
   activityId,
+  fill = "fixed",
+  category,
+  rule,
 }: {
   kind: ScheduleBlockKind;
   start: string;
   end: string;
   label: string;
   activityId?: string;
+  fill?: BlockFill;
+  category?: CategoryId;
+  rule?: ConditionalRule;
 }): ScheduleBlock {
   const fallback = kind === "label" ? "Schedule note" : "Activity block";
-  return {
-    id: "custom-" + kind + "-" + Date.now().toString(36),
+  const block: ScheduleBlock = {
+    id: freshId("custom-" + kind),
     start: start.trim(),
     end: end.trim(),
     kind,
     label: label.trim() || fallback,
-    ...(activityId ? { activityId } : {}),
   };
+  if (fill === "fixed" && activityId) block.activityId = activityId;
+  if (fill !== "fixed") block.fill = fill;
+  if ((fill === "open" || fill === "conditional") && category) block.category = category;
+  if (fill === "conditional" && rule) block.rule = rule;
+  return block;
 }
 
 const stringArrayStorage: StorageValidator<string[]> = (value, fallback) =>
@@ -162,16 +226,21 @@ const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   return out;
 };
 
-const savedPlansStorage: StorageValidator<SavedDayPlan[]> = (value, fallback) => {
+const savedPlansStorage: StorageValidator<DayTemplate[]> = (value, fallback) => {
   if (!Array.isArray(value)) return fallback;
-  return value
-    .filter(isRecord)
-    .map((plan, index) => ({
-      id: typeof plan.id === "string" && plan.id ? plan.id : "plan-" + index,
-      name: typeof plan.name === "string" && plan.name.trim() ? plan.name.trim() : "Saved plan",
+  return value.filter(isRecord).map((plan, index) => {
+    const createdAt =
+      typeof plan.createdAt === "number" && Number.isFinite(plan.createdAt) ? plan.createdAt : 0;
+    return {
+      id: typeof plan.id === "string" && plan.id ? plan.id : "tpl-" + index,
+      name: typeof plan.name === "string" && plan.name.trim() ? plan.name.trim() : "Saved template",
       blocks: normalizeDaySchedule(plan.blocks, 0),
-      createdAt: typeof plan.createdAt === "number" && Number.isFinite(plan.createdAt) ? plan.createdAt : 0,
-    }));
+      createdAt,
+      updatedAt:
+        typeof plan.updatedAt === "number" && Number.isFinite(plan.updatedAt) ? plan.updatedAt : createdAt,
+      origin: plan.origin === "scratch" ? "scratch" : "day",
+    };
+  });
 };
 
 const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
@@ -189,12 +258,30 @@ export function CampApp() {
   const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
-  const [schedulePlans, setSchedulePlans] = useLocalStorage<SavedDayPlan[]>("schedulePlans", [], savedPlansStorage);
+  const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
 
   const [detail, setDetail] = useState<Activity | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [liveMsg, setLiveMsg] = useState("");
+  const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
+  const [applyToast, setApplyToast] = useState<string | null>(null);
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
+
+  // One-time safety snapshot of pre-upgrade schedule data before the read-time
+  // normalizers (zero-padded times, new template fields) write the new shape back.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("camp:scheduleVersion")) return;
+      const prevSchedule = window.localStorage.getItem("camp:schedule");
+      const prevPlans = window.localStorage.getItem("camp:schedulePlans");
+      if (prevSchedule != null) window.localStorage.setItem("camp:schedule.bak", prevSchedule);
+      if (prevPlans != null) window.localStorage.setItem("camp:schedulePlans.bak", prevPlans);
+      window.localStorage.setItem("camp:scheduleVersion", "2");
+    } catch {
+      /* private mode / quota — non-fatal */
+    }
+  }, []);
 
   const all = useMemo(() => {
     const base = [...extra, ...ACTIVITIES];
@@ -233,6 +320,23 @@ export function CampApp() {
   }, [schedule]);
   const plannedCount = dayBlocks.filter((block) => block.kind === "activity" && block.activityId).length;
   const labelCount = dayBlocks.filter((block) => block.kind === "label").length;
+  const openCount = dayBlocks.filter(
+    (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
+  ).length;
+
+  // Real data for the home dashboard (no more hardcoded picks).
+  const todayPlanned = useMemo(
+    () =>
+      dayBlocks
+        .filter((b) => b.kind === "activity" && b.activityId && byId[b.activityId])
+        .map((b) => ({ activity: byId[b.activityId as string], start: b.start })),
+    [dayBlocks, byId]
+  );
+  const savedActivities = useMemo(() => all.filter((a) => favSet.has(a.id)), [all, favSet]);
+  const recentActivities = useMemo(
+    () => extra.map((e) => byId[e.id]).filter((a): a is Activity => Boolean(a)),
+    [extra, byId]
+  );
 
   function saveBlocksForDay(targetDayIndex: number, blocks: DaySchedule, ordered = true) {
     setSchedule((p) => ({ ...p, [targetDayIndex]: ordered ? orderBlocks(blocks) : blocks }));
@@ -246,6 +350,9 @@ export function CampApp() {
       end: draft.end,
       label: draft.label,
       activityId: draft.kind === "activity" ? draft.activityId : undefined,
+      fill: draft.fill ?? "fixed",
+      category: draft.category,
+      rule: draft.rule,
     });
     saveBlocksForDay(targetDayIndex, [...targetBlocks, block]);
   }
@@ -257,9 +364,17 @@ export function CampApp() {
       targetBlocks.map((block) => {
         if (block.id !== blockId) return block;
         const merged: ScheduleBlock = { ...block, ...patch };
-        // A custom (label) event never keeps an activity reference.
-        if (merged.kind === "label" || ("activityId" in patch && !patch.activityId)) {
+        const fill: BlockFill = merged.kind === "label" ? "fixed" : merged.fill ?? "fixed";
+        // Keep the block internally consistent with its fill mode.
+        if (merged.kind === "label" || fill === "fixed") {
+          delete merged.fill;
+          delete merged.category;
+          delete merged.rule;
+        }
+        if (fill === "open" || fill === "conditional") {
+          // An unfilled/typed slot holds no concrete activity.
           delete merged.activityId;
+          if (fill === "open") delete merged.rule;
         }
         return merged;
       })
@@ -288,6 +403,7 @@ export function CampApp() {
       start: minutesToCamp(start),
       end: minutesToCamp(start + duration),
     });
+    setLiveMsg(activity.title + " added to " + DAYS[targetDayIndex]);
   }
 
   function addToSchedule(a: Activity) {
@@ -297,29 +413,114 @@ export function CampApp() {
 
   function saveCurrentDayPlan(name: string) {
     const trimmed = name.trim();
+    const now = Date.now();
     setSchedulePlans((plans) => [
       {
-        id: "plan-" + Date.now().toString(36),
-        name: trimmed || DAYS[dayIndex] + " plan",
+        id: "tpl-" + now.toString(36),
+        name: trimmed || DAYS[dayIndex] + " template",
         blocks: cloneBlocks(dayBlocks),
-        createdAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
+        origin: "day",
       },
       ...plans,
     ]);
+    setLiveMsg("Saved template " + (trimmed || DAYS[dayIndex] + " template"));
   }
 
-  function applyDayPlan(planId: string, targetDayIndex: number) {
-    const plan = schedulePlans.find((item) => item.id === planId);
-    if (!plan) return;
-    const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
-    const hasPlannedActivities = targetBlocks.some((block) => block.kind === "activity" && block.activityId);
-    if (
-      hasPlannedActivities &&
-      !window.confirm("Replace the activities planned for " + DAYS[targetDayIndex] + " with " + plan.name + "?")
-    ) {
-      return;
+  // Best activity of a category for a conditional "byCategory" slot:
+  // prefer saved, then highest rating.
+  function bestActivityOfCategory(category: CategoryId): string | undefined {
+    const pool = all.filter((a) => a.type === category);
+    if (!pool.length) return undefined;
+    const ranked = [...pool].sort((a, b) => {
+      const favDiff = (favSet.has(b.id) ? 1 : 0) - (favSet.has(a.id) ? 1 : 0);
+      return favDiff || b.rating - a.rating;
+    });
+    return ranked[0].id;
+  }
+
+  // Turn one template block into a concrete block for a specific day.
+  function resolveBlock(block: ScheduleBlock, targetDayIndex: number, occurrenceIndex: number): ScheduleBlock {
+    const fill: BlockFill = block.fill ?? "fixed";
+    if (fill !== "conditional") {
+      return createScheduleBlock({
+        kind: block.kind,
+        start: block.start,
+        end: block.end,
+        label: block.label,
+        activityId: block.activityId,
+        fill,
+        category: block.category,
+      });
     }
-    saveBlocksForDay(targetDayIndex, cloneBlocks(plan.blocks));
+    const rule = block.rule;
+    let resolvedId: string | undefined;
+    if (rule?.mode === "byWeekday") resolvedId = rule.map[targetDayIndex];
+    else if (rule?.mode === "rotate") resolvedId = rule.pool[occurrenceIndex % rule.pool.length];
+    else if (rule?.mode === "byCategory") resolvedId = bestActivityOfCategory(rule.category);
+    const resolved = resolvedId ? byId[resolvedId] : undefined;
+    if (resolved) {
+      return createScheduleBlock({
+        kind: "activity",
+        start: block.start,
+        end: block.end,
+        label: resolved.title,
+        activityId: resolved.id,
+        fill: "fixed",
+      });
+    }
+    // Unresolved → leave a typed open slot to fill by hand.
+    const category = block.category ?? (rule?.mode === "byCategory" ? rule.category : undefined);
+    return createScheduleBlock({
+      kind: "activity",
+      start: block.start,
+      end: block.end,
+      label: block.label,
+      fill: "open",
+      category,
+    });
+  }
+
+  function applyTemplate(templateId: string, targetDays: number[], mode: ApplyMode) {
+    const tpl = schedulePlans.find((t) => t.id === templateId);
+    if (!tpl || !targetDays.length) return;
+    setUndoSnapshot(schedule);
+    setSchedule((prev) => {
+      const next: Schedule = { ...prev };
+      targetDays.forEach((dayIdx, occ) => {
+        const existing = normalizeDaySchedule(prev[dayIdx], dayIdx);
+        const stamped = tpl.blocks.map((b) => resolveBlock(b, dayIdx, occ));
+        let dayBlocksNext: DaySchedule;
+        if (mode === "replace") {
+          dayBlocksNext = stamped;
+        } else if (mode === "fill") {
+          const hasActivities = existing.some((b) => b.kind === "activity" && b.activityId);
+          dayBlocksNext = hasActivities ? existing : stamped;
+        } else {
+          const merged = [...existing];
+          stamped.forEach((s) => {
+            const sStart = campMinutes(s.start);
+            const sEnd = campMinutes(s.end);
+            const overlaps = existing.some((e) => campMinutes(e.start) < sEnd && campMinutes(e.end) > sStart);
+            if (!overlaps) merged.push(s);
+          });
+          dayBlocksNext = merged;
+        }
+        next[dayIdx] = orderBlocks(dayBlocksNext);
+      });
+      return next;
+    });
+    const days = targetDays.map((d) => DAYS[d].slice(0, 3)).join(", ");
+    setApplyToast("Applied “" + tpl.name + "” to " + days);
+    setLiveMsg("Applied " + tpl.name + " to " + days);
+  }
+
+  function undoApply() {
+    if (!undoSnapshot) return;
+    setSchedule(undoSnapshot);
+    setUndoSnapshot(null);
+    setApplyToast(null);
   }
 
   function deleteDayPlan(planId: string) {
@@ -351,16 +552,18 @@ export function CampApp() {
       summary: "Browse, filter, rate, and save dependable camp activities.",
     },
     schedule: {
-      kicker: "Week 1 planner",
+      kicker: DAYS[dayIndex] + " · camp week",
       title: "Schedule",
       summary:
         plannedCount +
-        " planned · " +
+        " planned" +
+        (openCount ? " · " + openCount + " to fill" : "") +
+        " · " +
         labelCount +
-        (labelCount === 1 ? " label" : " labels"),
+        (labelCount === 1 ? " break" : " breaks"),
     },
     saved: {
-      kicker: favs.length + " starred",
+      kicker: favs.length + " saved",
       title: "Saved",
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
@@ -374,6 +577,9 @@ export function CampApp() {
 
   return (
     <div className="stage">
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <div className="app">
         <nav className="sidenav" aria-label="Primary">
           <button
@@ -420,11 +626,11 @@ export function CampApp() {
           </div>
         </nav>
 
-        <main className="app__main">
+        <main className="app__main" id="main">
+          {tab !== "home" && (
           <div
             className={
               "topbar" +
-              (tab === "home" ? " topbar--home" : "") +
               (tab === "schedule" ? " topbar--planner" : "")
             }
             data-export-scope={tab}
@@ -437,18 +643,16 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
-              {tab !== "home" && (
-                <button
-                  type="button"
-                  className="icon-btn print-btn"
-                  onClick={printCurrentView}
-                  aria-label={"Print " + page.title}
-                  title="Print or export this view"
-                  data-export-action="print-current-view"
-                >
-                  <CampIcon.Print />
-                </button>
-              )}
+              <button
+                type="button"
+                className="icon-btn print-btn"
+                onClick={printCurrentView}
+                aria-label={"Print " + page.title}
+                title="Print or export this view"
+                data-export-action="print-current-view"
+              >
+                <CampIcon.Print />
+              </button>
               {tab === "library" && (
                 <button
                   type="button"
@@ -465,6 +669,7 @@ export function CampApp() {
               )}
             </div>
           </div>
+          )}
 
           {tab === "library" && (
             <>
@@ -535,9 +740,15 @@ export function CampApp() {
           <div className="app__scroll">
             {tab === "home" && (
               <HomeView
+                dayName={DAYS[dayIndex]}
+                today={todayPlanned}
+                plannedCount={plannedCount}
+                saved={savedActivities}
+                recent={recentActivities}
                 activityCount={all.length}
                 savedCount={favs.length}
-                plannedCount={plannedCount}
+                plansCount={schedulePlans.length}
+                onOpen={openDetail}
                 onGo={(target) => {
                   setTab(target);
                   if (target === "library") {
@@ -573,13 +784,17 @@ export function CampApp() {
                 onPlace={setPlace}
                 onAge={setAge}
                 plans={schedulePlans}
+                openCount={openCount}
                 onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
                 onUpdateEvent={(blockId, patch) => updateEvent(dayIndex, blockId, patch)}
                 onRemoveEvent={(blockId) => removeEvent(dayIndex, blockId)}
                 onQuickAdd={(activityId) => quickAddActivity(dayIndex, activityId)}
                 onSavePlan={saveCurrentDayPlan}
-                onApplyPlan={(planId) => applyDayPlan(planId, dayIndex)}
+                onApplyTemplate={applyTemplate}
                 onDeletePlan={deleteDayPlan}
+                applyToast={applyToast}
+                onUndoApply={undoApply}
+                onDismissToast={() => setApplyToast(null)}
                 onOpenActivity={openDetail}
                 isFav={isFav}
                 onToggleFav={toggleFav}
@@ -602,7 +817,7 @@ export function CampApp() {
           </div>
         </main>
 
-        <nav className="tabbar" aria-label="Primary">
+        <nav className="tabbar" aria-label="Sections">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -615,6 +830,10 @@ export function CampApp() {
             </button>
           ))}
         </nav>
+
+        <div className="sr-only" role="status" aria-live="polite">
+          {liveMsg}
+        </div>
 
         {detail && (
           <DetailSheet

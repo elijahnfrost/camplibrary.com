@@ -1,19 +1,25 @@
 // Camp Library — schedule time helpers.
-// The planner now displays a full 24-hour military-time day. The parser still
-// accepts the original camp clock values so saved schedules keep working.
+// The planner shows a BOUNDED camp-day window (not a full 24h grid), so the
+// real programming day fills the viewport instead of forcing long scrolls.
+// Times are stored as zero-padded 24h "HH:MM" but displayed in 12h am/pm.
 
 import type { ScheduleBlock } from "./types";
 
-// Visible window for the planner grid (minutes from midnight).
-export const DAY_START_MIN = 0;
-export const DAY_END_MIN = 24 * 60;
+// Visible window for the planner grid (minutes from midnight). A camp day of
+// ~9:00–16:30 sits comfortably inside 8:00–17:00 with margin on both ends.
+export const DAY_START_MIN = 8 * 60; // 8:00
+export const DAY_END_MIN = 17 * 60; // 17:00
 export const TOTAL_MIN = DAY_END_MIN - DAY_START_MIN;
+
+// Absolute bounds for parsing/formatting safety (independent of the visible window).
+const ABS_MAX_MIN = 24 * 60;
 
 // Drag snapping + sensible default durations.
 export const SNAP_MIN = 15;
 export const DEFAULT_DURATION_MIN = 30;
 export const MIN_DURATION_MIN = 5;
-export const DEFAULT_PLANNING_START_MIN = 8 * 60;
+// Where quick-add / "Add event" default to — the real start of camp programming.
+export const DEFAULT_PLANNING_START_MIN = 9 * 60;
 
 function parseCampMinutes(time: string): number | null {
   const match = (time || "").match(/^(\d{1,2})(?::(\d{2}))?/);
@@ -24,23 +30,42 @@ function parseCampMinutes(time: string): number | null {
   if (hourText.length === 1 && hour > 0 && hour < 6) {
     hour += 12; // Legacy unpadded 1-5 o'clock are afternoon at camp.
   }
-  if (hour === 24) return minute === 0 ? DAY_END_MIN : DAY_END_MIN - 1;
+  if (hour === 24) return minute === 0 ? ABS_MAX_MIN : ABS_MAX_MIN - 1;
   hour = Math.max(0, Math.min(23, hour));
   return hour * 60 + minute;
 }
 
 // "13:30" -> 810. Legacy camp times like "1:30" still mean 13:30.
 export function campMinutes(time: string): number {
-  return parseCampMinutes(time) ?? DAY_END_MIN;
+  return parseCampMinutes(time) ?? DEFAULT_PLANNING_START_MIN;
 }
 
-// 540 -> "09:00", 810 -> "13:30", 720 -> "12:00".
+// 540 -> "09:00", 810 -> "13:30". Storage stays 24h, zero-padded.
 export function minutesToCamp(total: number): string {
-  const clamped = Math.max(0, Math.min(DAY_END_MIN, Math.round(total)));
-  if (clamped === DAY_END_MIN) return "24:00";
+  const clamped = Math.max(0, Math.min(ABS_MAX_MIN, Math.round(total)));
+  if (clamped === ABS_MAX_MIN) return "24:00";
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+// Rewrite any stored/legacy time string into canonical zero-padded 24h.
+export function normalizeTimeString(raw: string): string {
+  return minutesToCamp(campMinutes(raw));
+}
+
+// 12-hour display for a US camp audience. Accepts minutes or an "HH:MM" string.
+// 540 -> "9:00 am", 810 -> "1:30 pm". `hourOnly` drops ":00" for axis ticks.
+export function formatClock(value: number | string, hourOnly = false): string {
+  const min = typeof value === "number" ? value : campMinutes(value);
+  const clamped = Math.max(0, Math.min(ABS_MAX_MIN, Math.round(min)));
+  const total = clamped % ABS_MAX_MIN; // 24:00 reads as 12:00 am edge
+  const h24 = Math.floor(total / 60);
+  const m = total % 60;
+  const suffix = h24 < 12 ? "am" : "pm";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  if (hourOnly && m === 0) return h12 + " " + suffix;
+  return h12 + ":" + String(m).padStart(2, "0") + " " + suffix;
 }
 
 export function snapMinutes(min: number, snap: number = SNAP_MIN): number {
@@ -66,9 +91,9 @@ export function blockDuration(block: ScheduleBlock): number {
   return blockEndMin(block) - blockStartMin(block);
 }
 
-// "09:00 - 09:45" style range for display.
+// "9:00 am – 9:45 am" style range for display.
 export function formatRange(startMin: number, endMin: number): string {
-  return minutesToCamp(startMin) + " - " + minutesToCamp(endMin);
+  return formatClock(startMin) + " – " + formatClock(endMin);
 }
 
 export function durationLabel(minutes: number): string {
@@ -78,21 +103,21 @@ export function durationLabel(minutes: number): string {
   return m ? h + "h " + m + "m" : h + "h";
 }
 
-// Hour marks for the calendar axis (00:00, 01:00 ... 24:00).
+// Hour marks for the calendar axis across the visible window.
 export function hourMarks(): { min: number; label: string }[] {
   const marks: { min: number; label: string }[] = [];
   for (let m = DAY_START_MIN; m <= DAY_END_MIN; m += 60) {
-    marks.push({ min: m, label: minutesToCamp(m) });
+    marks.push({ min: m, label: formatClock(m, true) });
   }
   return marks;
 }
 
 // 15-minute start options across the visible window, for the composer dropdown.
+// Value stays 24h "HH:MM" (storage); label is 12h am/pm.
 export function startOptions(): { value: string; label: string }[] {
   const options: { value: string; label: string }[] = [];
   for (let m = DAY_START_MIN; m < DAY_END_MIN; m += SNAP_MIN) {
-    const camp = minutesToCamp(m);
-    options.push({ value: camp, label: camp });
+    options.push({ value: minutesToCamp(m), label: formatClock(m) });
   }
   return options;
 }
@@ -115,11 +140,8 @@ export function nextFreeStart(blocks: ScheduleBlock[], durationMin: number): num
       if (!overlaps) return start;
     }
   }
-  for (let start = DAY_START_MIN; start + durationMin <= DAY_END_MIN; start += SNAP_MIN) {
-    const end = start + durationMin;
-    const overlaps = busy.some((b) => start < b.end && end > b.start);
-    if (!overlaps) return start;
-  }
-  // Nothing free — stack it at the end of the day so it is still reachable.
-  return Math.max(DAY_START_MIN, DAY_END_MIN - durationMin);
+  // Nothing free in the window — append right after the last block so the new
+  // event stays near the visible day rather than dropping into dead hours.
+  const lastEnd = busy.length ? Math.max(...busy.map((b) => b.end)) : DAY_START_MIN;
+  return clampStart(snapMinutes(lastEnd), durationMin);
 }

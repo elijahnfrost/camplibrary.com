@@ -10,24 +10,45 @@
  * ============================================================ */
 
 :root {
-  --paper: #f3ecdd;
-  --paper-2: #efe7d5;
-  --card: #fbf7ec;
+  /* Aged-kraft paper ramp — deeper + warmer than the old flat cream so cards
+     read as lamp-lit pages floating above a darker desk. */
+  --paper: #e9dec6;
+  --paper-2: #e0d3b6;
+  --card: #f4ead0;
   --ink: #2c2824;
-  --ink-soft: #6b6358;
-  --ink-faint: #766d61;
-  --line: #b7ad99;
-  --line-soft: #cfc6b3;
-  --accent: #4f7a52;
-  --accent-ink: #36573a;
-  --accent-tint: #e7eee2;
+  --ink-soft: #5f574a;
+  --ink-faint: #6e6557;
+  /* Resting component borders now ~3:1 on paper (WCAG 1.4.11); --line-soft stays
+     for purely decorative hairlines (calendar rules, dividers). */
+  --line: #8f8470;
+  --line-soft: #c4b89f;
+  /* Deepened to pine — also lifts white-on-green buttons from 4.96 to 6.18 AA. */
+  --accent: #3f6b45;
+  --accent-ink: #2c4a32;
+  --accent-tint: #dde7d2;
   --hl: #e7cf6a;
-  --shadow: rgba(44, 40, 36, 0.13);
-  --stage-bg: #e4dac4;
-  --star-gold: #e6b93f;
-  --star-ink: #8a6a1c;
+  /* Warm wood-shadow rather than cool grey. */
+  --shadow: rgba(38, 30, 22, 0.18);
+  --stage-bg: #d6c6a4;
+  --star-gold: #e0a92e;
+  --star-ink: #835f17;
 
-  /* Handwriting faces are supplied by next/font as CSS variables. */
+  /* Earthy support palette — used deliberately, not everywhere. */
+  --wood: #6b4a2f;
+  --wood-soft: #8a6240;
+  --clay: #b3603f;
+  --amber: #d99a3c;
+  --amber-soft: #e7cf6a;
+  --dusk: #4a4660;
+
+  /* Elevation ramp — hard "sticker" offsets low, warm soft blur high. */
+  --e1: 2px 2px 0 var(--shadow);
+  --e2: 3px 3px 0 var(--shadow);
+  --e3: 0 8px 24px -8px rgba(38, 30, 22, 0.34);
+  --e4: 0 18px 48px -12px rgba(38, 30, 22, 0.5);
+
+  /* Quiet humanist companion for body + dense data; handwriting stays on display. */
+  --text: var(--font-text), system-ui, -apple-system, "Segoe UI", sans-serif;
   --hand: var(--font-hand), "Patrick Hand", "Comic Sans MS", cursive;
   --hand-sc: var(--font-hand-sc), var(--font-hand), "Patrick Hand SC", cursive;
   --script: var(--font-script), "Caveat", cursive;
@@ -46,7 +67,14 @@ body {
   margin: 0;
   min-height: 100%;
   overflow-x: hidden;
-  background: var(--paper);
+  /* Aged-paper grain: two soft mottles + a faint diagonal fiber over the base.
+     Pure CSS, static (reduced-motion safe), no image asset. */
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--paper-2) 70%, transparent), transparent 42%),
+    radial-gradient(circle at 84% 68%, color-mix(in srgb, var(--wood-soft) 9%, transparent), transparent 46%),
+    repeating-linear-gradient(122deg, rgba(107, 74, 47, 0.025) 0 2px, transparent 2px 7px);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--hand);
   -webkit-font-smoothing: antialiased;
@@ -72,6 +100,48 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+/* Skip link — first focusable element; revealed on focus. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 200;
+  padding: 8px 14px;
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  box-shadow: var(--e2);
+  font-family: var(--hand);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: max(10px, env(safe-area-inset-top));
+}
+
+/* Humanist data + reading layer: keep handwriting for display headings,
+   kickers, labels, buttons and chips, but set the dense/information-bearing
+   text (catalog meta, schedule times, blurbs, steps, form fields) in the quiet
+   sans so it stays legible at small sizes and clears WCAG AA. */
+.deck-card__meta,
+.cat-stamps,
+.stamp,
+.cal-axis__mark,
+.cal-event__time,
+.cal-event__meta,
+.schedule-activity__meta,
+.detail__blurb,
+.prose,
+.steps,
+.safety,
+.facts__v,
+.homeview__stats span,
+.homeview__pick small,
+.input,
+.textarea,
+.select {
+  font-family: var(--text);
 }
 
 /* ============================================================
@@ -267,6 +337,10 @@ body {
 .filterbar::-webkit-scrollbar {
   display: none;
 }
+/* Group wrappers add screen-reader structure without changing the flex layout. */
+.filterbar__cluster {
+  display: contents;
+}
 .filterbar__div {
   flex: none;
   align-self: stretch;
@@ -293,9 +367,9 @@ body {
   background: var(--paper-2);
 }
 .chip.is-on {
-  background: var(--accent);
+  background: var(--chip-on, var(--accent));
   color: #fff;
-  border-color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 60%, var(--ink));
 }
 
 /* ---------- home ---------- */
@@ -312,11 +386,11 @@ body {
   gap: 18px;
   padding: 20px 18px;
   border: 1.5px solid var(--ink);
-  border-radius: 10px;
+  border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(251, 247, 236, 0.96), rgba(239, 231, 213, 0.72)),
-    var(--card);
-  box-shadow: 3px 3px 0 var(--shadow);
+    radial-gradient(140% 120% at 0% 0%, color-mix(in srgb, var(--amber) 12%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--card), color-mix(in srgb, var(--paper-2) 70%, var(--card)));
+  box-shadow: var(--e2);
 }
 .homeview__copy {
   display: grid;
@@ -374,11 +448,34 @@ body {
 .homeview__today {
   display: grid;
   gap: 13px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
   padding: 14px;
   border: 1.5px solid var(--line);
-  border-radius: 9px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  border-radius: 11px;
+  background: linear-gradient(180deg, var(--card), color-mix(in srgb, var(--paper) 50%, var(--card)));
+  box-shadow: inset 0 0 0 1px rgba(255, 248, 230, 0.5), var(--e2);
+  transition: transform 130ms ease, box-shadow 130ms ease;
+}
+.homeview__today:hover {
+  transform: translateY(-1px);
+}
+.homeview__today-empty {
+  display: grid;
+  gap: 2px;
+  padding: 6px 2px 2px;
+}
+.homeview__today-empty p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+.homeview__today-empty span {
+  font-size: 12px;
+  color: var(--ink-soft);
 }
 .homeview__today-head {
   display: grid;
@@ -389,7 +486,7 @@ body {
 .homeview__today-head span {
   grid-column: 1 / -1;
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 .homeview__today-head strong {
   font-family: var(--script);
@@ -433,8 +530,74 @@ body {
 }
 .homeview__pick small {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 10.5px;
   white-space: nowrap;
+}
+
+/* Saved shortlist / Recently added rails */
+.homeview__rail {
+  margin-top: 14px;
+}
+.homeview__rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.homeview__rail-head span {
+  font-family: var(--hand-sc);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.homeview__rail-head button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-family: var(--hand);
+  font-size: 13px;
+}
+.homeview__rail-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.homeview__mini {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 9px;
+  min-height: 44px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--e1);
+}
+.homeview__mini i {
+  grid-row: 1 / 3;
+  width: 9px;
+  height: 26px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+}
+.homeview__mini span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1.05;
+}
+.homeview__mini small {
+  color: var(--ink-faint);
+  font-family: var(--text);
+  font-size: 10.5px;
 }
 .homeview__stats {
   display: grid;
@@ -466,7 +629,7 @@ body {
 }
 .homeview__stats span {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 .homeview__grid {
   display: grid;
@@ -2507,6 +2670,9 @@ body {
 /* ---- calendar surface ---- */
 .cal {
   --hour-px: 64px;
+  /* Hours in the visible camp-day window (8:00–17:00) — keep in sync with
+     DAY_START_MIN/DAY_END_MIN in lib/scheduleTime.ts. */
+  --day-hours: 9;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   align-items: start;
@@ -2515,7 +2681,12 @@ body {
   min-width: 0;
   border: 1.5px solid var(--line);
   border-radius: 14px;
-  background: var(--card);
+  /* Warmer kraft surface so the planner reads as a day sheet, not a spreadsheet. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--paper) 55%, var(--card)),
+    var(--card)
+  );
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -2524,17 +2695,17 @@ body {
 }
 .cal-axis {
   position: relative;
-  height: calc(var(--hour-px) * 24);
+  height: calc(var(--hour-px) * var(--day-hours));
   border-right: 1.5px solid var(--line-soft);
-  background: color-mix(in srgb, var(--paper) 70%, #fff);
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
 }
 .cal-axis__mark {
   position: absolute;
   right: 7px;
   transform: translateY(-50%);
-  font-family: var(--hand-sc);
-  font-size: 9.5px;
-  letter-spacing: 0.03em;
+  font-family: var(--text);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
   color: var(--ink-faint);
   white-space: nowrap;
 }
@@ -2546,7 +2717,7 @@ body {
 }
 .cal-grid {
   position: relative;
-  height: calc(var(--hour-px) * 24);
+  height: calc(var(--hour-px) * var(--day-hours));
   min-width: 0;
   cursor: copy;
 }
@@ -2581,11 +2752,32 @@ body {
   user-select: none;
   box-shadow: 0 1px 0 rgba(44, 40, 36, 0.05);
 }
+/* Activity events carry their category colour as a left bar + tint. */
+.cal-event--activity {
+  border-color: color-mix(in srgb, var(--cat, var(--accent-ink)) 65%, var(--ink));
+  background: color-mix(in srgb, var(--cat, var(--accent)) 13%, var(--card));
+  border-left-width: 5px;
+  border-left-color: var(--cat, var(--accent));
+}
 .cal-event--custom {
   border-style: dashed;
   border-color: var(--line);
-  background: color-mix(in srgb, var(--card) 68%, var(--paper));
+  background: color-mix(in srgb, var(--paper-2) 55%, var(--card));
   color: var(--ink-soft);
+}
+/* Open / blank slot — a dashed, category-tinted placeholder to fill per day. */
+.cal-event--open {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--cat, var(--line)) 65%, var(--paper));
+  background: color-mix(in srgb, var(--cat, var(--line)) 10%, var(--card));
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cal-event--open .cal-event__title {
+  color: color-mix(in srgb, var(--cat, var(--ink-soft)) 60%, var(--ink));
+}
+.cal-event--open .cal-event__meta {
+  font-style: italic;
 }
 .cal-event.is-dragging {
   cursor: grabbing;
@@ -2772,6 +2964,45 @@ body {
   }
   .cal-event__resize::after {
     opacity: 0.55;
+  }
+}
+
+/* Coarse-pointer (touch) hit-area enlargement — keep the visual size, expand the
+   tappable box to ~44px so dense controls are reliable with a thumb. */
+@media (pointer: coarse) {
+  .star {
+    position: relative;
+  }
+  .star::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+  }
+  .cal-event__resize {
+    height: 22px;
+  }
+  .cal-event__remove,
+  .daynav .icon-btn,
+  .schedule-activity__add,
+  .plan-chip__delete,
+  .icon-btn {
+    position: relative;
+  }
+  .cal-event__remove::before,
+  .daynav .icon-btn::before,
+  .schedule-activity__add::before,
+  .plan-chip__delete::before {
+    content: "";
+    position: absolute;
+    inset: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .filterbar .chip,
+  .viewswitch button {
+    padding-top: 9px;
+    padding-bottom: 9px;
   }
 }
 
@@ -3088,7 +3319,192 @@ body {
 }
 .saved-plans__none {
   color: var(--ink-faint);
+  font-family: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* ---- day templates ---- */
+.template-list {
+  display: grid;
+  gap: 8px;
+}
+.template-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 12px;
+  border: 1.5px solid var(--line);
+  border-left: 4px solid var(--wood-soft);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--e1);
+}
+.template-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.template-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: 16px;
+  line-height: 1.1;
+}
+.template-card__meta {
+  font-family: var(--text);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.template-card__apply {
+  height: 34px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+/* ---- apply-a-template sheet ---- */
+.apply-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.apply-day {
+  flex: 1 1 56px;
+  min-height: 44px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.apply-day.is-on {
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 22%, var(--card));
+  color: var(--accent-ink);
+}
+.apply-presets {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+}
+.apply-presets button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-family: var(--hand);
   font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.apply-modes {
+  display: grid;
+  gap: 7px;
+}
+.apply-mode {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+}
+.apply-mode.is-on {
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+.apply-mode strong {
+  font-family: var(--hand);
+  font-size: 15px;
+}
+.apply-mode small {
+  font-family: var(--text);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.apply-preview {
+  margin: 2px 0 0;
+  font-family: var(--text);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+/* ---- apply undo toast ---- */
+.apply-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(86px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 28px);
+  padding: 10px 12px 10px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--card);
+  box-shadow: var(--e4);
+  font-family: var(--text);
+  font-size: 13.5px;
+}
+.apply-toast span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.apply-toast button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--amber-soft);
+  font-family: var(--hand);
+  font-size: 15px;
+}
+.apply-toast__close {
+  display: inline-flex;
+  color: var(--card);
+}
+.apply-toast__close svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* "N to fill" flag pinned to the calendar */
+.cal-openflag {
+  position: sticky;
+  top: 6px;
+  float: right;
+  margin-right: 6px;
+  z-index: 4;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1.5px solid var(--clay);
+  background: color-mix(in srgb, var(--clay) 16%, var(--card));
+  color: color-mix(in srgb, var(--clay) 60%, var(--ink));
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 
 /* ---- add / edit event composer ---- */
@@ -3143,12 +3559,12 @@ body {
 }
 .composer__seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   padding: 3px;
   border: 1.5px solid var(--line);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--paper) 70%, var(--card));
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
 }
 .composer__seg button {
   min-height: 36px;
@@ -3171,6 +3587,18 @@ body {
 .composer__library {
   display: grid;
   gap: 10px;
+}
+.composer__catrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.composer__hint {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-faint);
 }
 .composer__list {
   display: grid;
