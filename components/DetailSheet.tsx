@@ -1,0 +1,161 @@
+"use client";
+
+import type { Activity } from "@/lib/types";
+import {
+  ageSpan,
+  ageStamps,
+  code,
+  ENERGY,
+  groupLabel,
+  monogram,
+  ratingColor,
+  RATING_WORD,
+} from "@/lib/data";
+import { CampIcon } from "./icons";
+import { ApprovalDots, Block, EnergyMeter, Fact, StarButton } from "./primitives";
+import { Modal } from "./Modal";
+
+export function DetailSheet({
+  activity: a,
+  isFav,
+  onToggleFav,
+  onClose,
+  onAddToSchedule,
+  added,
+  onSetRating,
+}: {
+  activity: Activity;
+  isFav: (id: string) => boolean;
+  onToggleFav: (id: string) => void;
+  onClose: () => void;
+  onAddToSchedule: (a: Activity) => void;
+  added: false | "added" | "full";
+  onSetRating: (id: string, val: number) => void;
+}) {
+  return (
+    <Modal label={a.title} onClose={onClose}>
+      <div className="overlay__bar">
+        <div className="overlay__handle" />
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
+        <div className="overlay__bar-spacer" />
+        <StarButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
+      </div>
+
+      <div className="overlay__body">
+        <div className="detail__hero" style={{ background: ratingColor(a.rating) }}>
+          <div className="plate__grid" />
+          <span className="detail__mono">{monogram(a.title)}</span>
+        </div>
+
+        <div className="detail__pad">
+          <div className="detail__eyebrow">
+            {code(a)} · {a.type}
+          </div>
+          <h2 className="detail__title">{a.title}</h2>
+          <p className="detail__blurb">{a.blurb}</p>
+
+          <div className="detail__stamps">
+            <span className="stamp stamp--accent">{a.place}</span>
+            {ageStamps(a).map((s, i) => (
+              <span className="stamp" key={i}>
+                {s}
+              </span>
+            ))}
+            <span className="stamp">{ENERGY[a.energy]}</span>
+            <span className="stamp">{a.prep === "None" ? "No prep" : a.prep + " prep"}</span>
+          </div>
+
+          <div className="approval">
+            <div className="approval__row">
+              <ApprovalDots rating={a.rating} />
+              <span
+                className="approval__word"
+                style={{ color: a.rating ? ratingColor(a.rating) : "var(--ink-faint)" }}
+              >
+                {RATING_WORD[a.rating || 0]}
+              </span>
+              <span className="approval__num">{a.rating ? a.rating + "/5" : "Unrated"}</span>
+            </div>
+            <input
+              className="rating-range"
+              type="range"
+              min="0"
+              max="5"
+              step="1"
+              value={a.rating || 0}
+              onChange={(e) => onSetRating(a.id, parseInt(e.target.value, 10))}
+              aria-label="Set approval rating"
+            />
+            <div className="approval__scale">
+              <span>Not run</span>
+              <span>Loved it</span>
+            </div>
+          </div>
+
+          <div className="facts">
+            <Fact k="Ages">{ageSpan(a)}</Fact>
+            <Fact k="Group size">{groupLabel(a)}</Fact>
+            <Fact k="Time">
+              <span>{a.durationMin}</span>
+              <small>min</small>
+            </Fact>
+            <Fact k="Energy">
+              <EnergyMeter level={a.energy} />
+              <small>{ENERGY[a.energy]}</small>
+            </Fact>
+            <Fact k="Place">{a.place}</Fact>
+            <Fact k="Prep">{a.prep}</Fact>
+          </div>
+
+          <Block num="i" name="Materials">
+            {a.materials.length === 0 ? (
+              <span className="stamp">None needed</span>
+            ) : (
+              <div className="matlist">
+                {a.materials.map((m, i) => (
+                  <span className="stamp" key={i}>
+                    {m}
+                  </span>
+                ))}
+              </div>
+            )}
+          </Block>
+
+          <Block num="ii" name="How to play">
+            <ol className="steps">
+              {a.steps.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ol>
+          </Block>
+
+          <Block num="iii" name="Notes & variations">
+            <p className="prose">{a.notes}</p>
+          </Block>
+
+          <Block num="iv" name="Safety">
+            <div className="safety">{a.safety}</div>
+          </Block>
+        </div>
+      </div>
+
+      <div className="detail__actions">
+        <button
+          type="button"
+          className="btn btn--primary btn--block"
+          onClick={() => onAddToSchedule(a)}
+          disabled={added === "full"}
+        >
+          {added === "added" ? <CampIcon.Check /> : <CampIcon.Calendar />}
+          {added === "added"
+            ? "Added to schedule"
+            : added === "full"
+              ? "Day is full"
+              : "Add to schedule"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
