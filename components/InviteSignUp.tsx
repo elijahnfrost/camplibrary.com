@@ -22,7 +22,7 @@ const initialForm: FormState = {
 function errorMessage(reason: string) {
   if (reason === "email_mismatch") return "That invite code was issued for a different email.";
   if (reason === "expired") return "That invite code has expired.";
-  if (reason === "unavailable") return "That invite code has already been used or reserved.";
+  if (reason === "unavailable") return "That invite code is no longer available.";
   return "That invite code is not valid.";
 }
 
