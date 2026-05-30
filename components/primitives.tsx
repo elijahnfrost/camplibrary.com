@@ -13,6 +13,7 @@ export function clickable(onActivate: () => void) {
     tabIndex: 0,
     onClick: onActivate,
     onKeyDown: (e: KeyboardEvent) => {
+      if (e.target !== e.currentTarget) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         onActivate();
@@ -129,6 +130,9 @@ export function StarButton({
         if (stop) e.stopPropagation();
         onToggle();
       }}
+      onKeyDown={(e) => {
+        if (stop) e.stopPropagation();
+      }}
     >
       {variant === "ribbon" ? <RibbonMark /> : <CampIcon.Bookmark />}
     </button>
@@ -139,18 +143,21 @@ export function Seg<T extends string>({
   options,
   value,
   onChange,
+  ariaLabel,
 }: {
   options: readonly T[];
   value: T;
   onChange: (v: T) => void;
+  ariaLabel?: string;
 }) {
   return (
-    <div className="seg">
+    <div className="seg" role="group" aria-label={ariaLabel}>
       {options.map((o) => (
         <button
           key={o}
           type="button"
           className={value === o ? "is-on" : ""}
+          aria-pressed={value === o}
           onClick={() => onChange(o)}
         >
           {o}

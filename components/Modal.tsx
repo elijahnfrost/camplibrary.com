@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useDialogFocus } from "./useDialogFocus";
 
 /**
  * Bottom sheet on phones, centered card on larger surfaces.
@@ -17,18 +18,19 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   return (
     <div className="modal-root">
       <div className="scrim" onClick={onClose} />
-      <div className="overlay overlay--sheet" role="dialog" aria-modal="true" aria-label={label}>
+      <div
+        ref={dialogRef}
+        className="overlay overlay--sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
+      >
         {children}
       </div>
     </div>

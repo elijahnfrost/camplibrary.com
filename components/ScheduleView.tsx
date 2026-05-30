@@ -32,6 +32,7 @@ import {
 import { CampIcon } from "./icons";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 import { StarButton } from "./primitives";
+import { useDialogFocus } from "./useDialogFocus";
 
 export type EventDraft = {
   kind: "activity" | "label";
@@ -134,14 +135,7 @@ function EventComposer({
   const [durationMin, setDurationMin] = useState(initial.durationMin);
 
   const isEdit = Boolean(initial.blockId);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -196,7 +190,14 @@ function EventComposer({
   }
 
   return (
-    <div className="composer-scrim" role="dialog" aria-modal="true" aria-label={(isEdit ? "Edit" : "Add") + " event"}>
+    <div
+      ref={dialogRef}
+      className="composer-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-label={(isEdit ? "Edit" : "Add") + " event"}
+      tabIndex={-1}
+    >
       <div className="composer-backdrop" onClick={onClose} />
       <form className="composer fadein" onSubmit={submit}>
         <header className="composer__head">
@@ -209,11 +210,10 @@ function EventComposer({
           </button>
         </header>
 
-        <div className="composer__seg" role="tablist" aria-label="Event type">
+        <div className="composer__seg" role="group" aria-label="Event type">
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === "library"}
+            aria-pressed={tab === "library"}
             className={tab === "library" ? "is-on" : ""}
             onClick={() => setTab("library")}
           >
@@ -221,8 +221,7 @@ function EventComposer({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === "custom"}
+            aria-pressed={tab === "custom"}
             className={tab === "custom" ? "is-on" : ""}
             onClick={() => setTab("custom")}
           >
@@ -630,14 +629,14 @@ export function ScheduleView({
   function handleEventClick(blockId: string) {
     const block = handlersRef.current.blocks.find((b) => b.id === blockId);
     if (!block) return;
-    if (block.kind === "activity" && block.activityId) {
-      const activity = handlersRef.current.byId[block.activityId];
-      if (activity) {
-        handlersRef.current.onOpenActivity(activity);
-        return;
-      }
-    }
     openEditComposer(block);
+  }
+
+  function suppressNextGridClick() {
+    suppressClickRef.current = true;
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
   }
 
   // Global pointer listeners drive every drag (move / resize / create from library).
@@ -684,7 +683,7 @@ export function ScheduleView({
 
       if (current.type === "move") {
         if (current.moved) {
-          suppressClickRef.current = true;
+          suppressNextGridClick();
           handlers.onUpdateEvent(current.blockId, {
             start: minutesToCamp(current.startMin),
             end: minutesToCamp(current.endMin),
@@ -693,10 +692,10 @@ export function ScheduleView({
           handleEventClick(current.blockId);
         }
       } else if (current.type === "resize") {
-        suppressClickRef.current = true;
+        suppressNextGridClick();
         handlers.onUpdateEvent(current.blockId, { end: minutesToCamp(current.endMin) });
       } else if (current.over) {
-        suppressClickRef.current = true;
+        suppressNextGridClick();
         handlers.onAddEvent({
           kind: "activity",
           activityId: current.activity.id,
@@ -937,8 +936,22 @@ export function ScheduleView({
                     (short ? " cal-event--short" : compact ? " cal-event--compact" : "")
                   }
                   style={style}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    "Edit " +
+                    (activity ? activity.title : block.label) +
+                    " from " +
+                    formatRange(item.startMin, item.endMin)
+                  }
                   onPointerDown={(event) => startMove(event, block)}
                   onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleEventClick(block.id);
+                    }
+                  }}
                 >
                   <div className="cal-event__body">
                     <span className="cal-event__time">{formatRange(item.startMin, item.endMin)}</span>
