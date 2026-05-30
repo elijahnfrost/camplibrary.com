@@ -36,14 +36,20 @@ import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { AdminInviteCodes } from "./AdminInviteCodes";
 
-const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
+const TABS: { id: Exclude<TabId, "admin">; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "schedule", label: "Schedule", icon: CampIcon.Calendar },
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
+const ADMIN_TAB: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] } = {
+  id: "admin",
+  label: "Admin",
+  icon: CampIcon.Tool,
+};
 
 function cloneBlocks(blocks: DaySchedule): DaySchedule {
   return blocks.map((block) => ({ ...block }));
@@ -254,8 +260,8 @@ const viewerSizeStorage: StorageValidator<BookViewerSize> = (value, fallback) =>
 const viewerModeStorage: StorageValidator<BookViewerMode> = (value, fallback) =>
   value === "cover" || value === "read" ? value : fallback;
 
-export function CampApp() {
-  const [tab, setTab] = useState<TabId>("home");
+export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
   const [viewerSize, setViewerSize] = useLocalStorage<BookViewerSize>(
     "viewerSize",
@@ -294,6 +300,7 @@ export function CampApp() {
   const auth = usePreviewAuth();
   const authLabel = useAuthLabel(auth.session);
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
+  const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
   const openAuthForCurrentTab = useCallback(() => {
     auth.openAuth();
   }, [auth]);
@@ -646,6 +653,11 @@ export function CampApp() {
       title: "New Activity",
       summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
     },
+    admin: {
+      kicker: "Administrator",
+      title: "Staff access",
+      summary: "Generate and review staff invite keys.",
+    },
   };
   const page = pageByTab[tab];
 
@@ -671,7 +683,7 @@ export function CampApp() {
             </span>
           </button>
           <div className="sidenav__nav">
-            {TABS.filter((t) => t.id !== "home").map((t) => (
+            {navTabs.filter((t) => t.id !== "home").map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -683,12 +695,6 @@ export function CampApp() {
                 <span>{t.label}</span>
               </button>
             ))}
-            {isAdmin && (
-              <a className="sidenav__item" href="/admin">
-                <CampIcon.Tool />
-                <span>Admin</span>
-              </a>
-            )}
           </div>
           {tab === "library" && (
             <Filters
@@ -887,11 +893,16 @@ export function CampApp() {
                 }}
               />
             )}
+            {tab === "admin" && (
+              <div className="admin-tab">
+                <AdminInviteCodes />
+              </div>
+            )}
           </div>
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {TABS.map((t) => (
+          {navTabs.map((t) => (
             <button
               key={t.id}
               type="button"

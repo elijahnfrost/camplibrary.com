@@ -1,7 +1,7 @@
 # Backend Requirements
 
 This project is currently a Next.js app with Clerk authentication and Postgres-backed
-one-use invite codes. The existing app-data persistence boundary is `lib/store.ts`,
+usage-limited invite codes. The existing app-data persistence boundary is `lib/store.ts`,
 which keeps favorites, schedules, custom entries, ratings, and the selected view in
 `localStorage`. Backend work should preserve that frontend boundary until the UI is
 intentionally rewired.
@@ -14,7 +14,7 @@ intentionally rewired.
 - Vercel-managed Neon is connected as `camp-library`.
 - Clerk is wired through `proxy.ts`, `ClerkProvider`, `/sign-in`, `/sign-up`, and
   `lib/server/auth.ts`.
-- New accounts require a one-use invite code from `invite_codes`.
+- New accounts require an active invite code from `invite_codes`.
 
 ## Required Decisions
 
@@ -85,9 +85,9 @@ npm run env:check
 - Auth/session endpoint or middleware once the provider is selected.
 - `GET /api/auth/status`: reports Clerk/invite readiness and current session.
 - `GET /api/auth/session`: reports the current app session projection.
-- `/admin`: admin-only invite-code dashboard for `contact@elijahfrost.com`.
+- `/admin`: admin-only deep link into the app-shell Admin tab for `contact@elijahfrost.com`.
 - `GET /api/invite-codes`: lists invite codes for the signed-in admin or `INVITE_CODE_ADMIN_TOKEN`.
-- `POST /api/invite-codes`: creates a one-use code for the signed-in admin or `INVITE_CODE_ADMIN_TOKEN`.
+- `POST /api/invite-codes`: creates a usage-limited code for the signed-in admin or `INVITE_CODE_ADMIN_TOKEN`.
 - `POST /api/invite-codes/reserve`: reserves a valid code for sign-up.
 - `POST /api/invite-codes/complete`: consumes a reserved code after account creation.
 - `POST /api/webhooks/clerk`: consumes invite codes from Clerk `user.created` events.

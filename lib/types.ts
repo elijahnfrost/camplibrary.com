@@ -100,4 +100,4 @@ export interface Slot {
 export type LibraryView = "shelf" | "deck" | "catalog";
 export type BookViewerSize = "small" | "medium" | "large";
 export type BookViewerMode = "cover" | "read";
-export type TabId = "home" | "library" | "schedule" | "saved" | "add";
+export type TabId = "home" | "library" | "schedule" | "saved" | "add" | "admin";

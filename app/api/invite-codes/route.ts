@@ -1,21 +1,9 @@
-import { requireAdminSession } from "@/lib/server/auth";
-import { createInviteCode, isValidInviteAdminToken, listInviteCodes } from "@/lib/server/inviteCodes";
+import { authorizeInviteAdmin } from "@/lib/server/inviteCodeAdmin";
+import { createInviteCode, listInviteCodes, normalizeInviteMaxUses } from "@/lib/server/inviteCodes";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function adminTokenFrom(request: NextRequest) {
-  const header = request.headers.get("authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-  return header.slice("Bearer ".length).trim();
-}
-
-async function authorizeInviteAdmin(request: NextRequest) {
-  if (isValidInviteAdminToken(adminTokenFrom(request))) return null;
-  const admin = await requireAdminSession(request);
-  return admin.ok ? null : admin.response;
-}
 
 export async function GET(request: NextRequest) {
   const unauthorizedResponse = await authorizeInviteAdmin(request);
@@ -31,11 +19,20 @@ export async function POST(request: NextRequest) {
     label?: string;
     invitedEmail?: string;
     expiresAt?: string | null;
+    maxUses?: unknown;
+    usageLimit?: unknown;
   };
+  let maxUses: number;
+  try {
+    maxUses = normalizeInviteMaxUses(body.maxUses ?? body.usageLimit);
+  } catch {
+    return Response.json({ error: "maxUses must be a positive integer" }, { status: 400 });
+  }
   const invite = await createInviteCode({
     label: body.label,
     invitedEmail: body.invitedEmail,
     expiresAt: body.expiresAt,
+    maxUses,
   });
   return Response.json(invite, {
     status: 201,

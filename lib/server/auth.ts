@@ -22,7 +22,7 @@ export function getAuthBackendStatus(): AuthBackendStatus {
     notes: hasClerk
       ? [
           "Hosted sign-in is configured for Google and email/password auth.",
-          "New account creation is gated by one-use invite codes.",
+          "New account creation is gated by usage-limited invite codes.",
           "Mutation routes should call requireEditorSession before persisting shared edits.",
         ]
       : ["Sign-in provider environment keys are missing."],
