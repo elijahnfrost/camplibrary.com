@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { Activity, CategoryId } from "@/lib/types";
-import { CATEGORIES, code, durLabel } from "@/lib/data";
+import type { Activity } from "@/lib/types";
+import { code, durLabel } from "@/lib/data";
+import { matchesActivityFilters } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
 import { clickable } from "./primitives";
 import { Modal } from "./Modal";
-
-type CatFilter = "All" | CategoryId;
-type PlaceFilter = "All" | "Inside" | "Outside";
+import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 
 export function ActivityPicker({
   items,
@@ -24,22 +23,10 @@ export function ActivityPicker({
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
+  const [age, setAge] = useState<AgeFilter>("All");
 
   const list = items
-    .filter((a) => {
-      if (cat !== "All" && a.type !== cat) return false;
-      if (place === "Inside" && !(a.place === "Inside" || a.place === "Both")) return false;
-      if (place === "Outside" && !(a.place === "Outside" || a.place === "Both")) return false;
-      const s = q.trim().toLowerCase();
-      if (
-        s &&
-        !(a.title + " " + a.type + " " + a.place + " " + a.blurb + " " + a.materials.join(" "))
-          .toLowerCase()
-          .includes(s)
-      )
-        return false;
-      return true;
-    })
+    .filter((a) => matchesActivityFilters(a, { cat, place, age, query: q }))
     .sort((a, b) => a.title.localeCompare(b.title));
 
   return (
@@ -67,36 +54,15 @@ export function ActivityPicker({
           />
         </div>
       </div>
-      <div className="filterbar" style={{ paddingTop: 10 }}>
-        <button
-          type="button"
-          className={"chip" + (cat === "All" ? " is-on" : "")}
-          onClick={() => setCat("All")}
-        >
-          All
-        </button>
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={"chip" + (cat === c.id ? " is-on" : "")}
-            onClick={() => setCat((p) => (p === c.id ? "All" : c.id))}
-          >
-            {c.label}
-          </button>
-        ))}
-        <span className="filterbar__div" />
-        {(["Inside", "Outside"] as const).map((p) => (
-          <button
-            key={p}
-            type="button"
-            className={"chip" + (place === p ? " is-on" : "")}
-            onClick={() => setPlace((cur) => (cur === p ? "All" : p))}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
+      <Filters
+        variant="bar"
+        cat={cat}
+        place={place}
+        age={age}
+        onCat={setCat}
+        onPlace={setPlace}
+        onAge={setAge}
+      />
       <div className="overlay__body">
         <div className="catalog">
           {list.map((a) => (

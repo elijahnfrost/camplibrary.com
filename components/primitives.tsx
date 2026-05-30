@@ -1,7 +1,7 @@
 "use client";
 
-import type { KeyboardEvent, ReactNode } from "react";
-import { ENERGY, ratingColor } from "@/lib/data";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import { CampIcon } from "./icons";
 
 // ---------- keyboard accessibility for div-based buttons ----------
@@ -43,6 +43,53 @@ export function ApprovalDots({ rating }: { rating: number }) {
         />
       ))}
     </span>
+  );
+}
+
+export function RatingPicker({
+  value,
+  onChange,
+  label = "Approval rating",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  label?: string;
+}) {
+  const color = value ? ratingColor(value) : "var(--ink-faint)";
+
+  return (
+    <div className="rating-picker" role="group" aria-label={label}>
+      <div className="rating-picker__status">
+        <button
+          type="button"
+          className={"rating-reset" + (!value ? " is-on" : "")}
+          onClick={() => onChange(0)}
+          aria-pressed={!value}
+        >
+          <CampIcon.Reset />
+          Not run
+        </button>
+        <span className="rating-picker__word" style={{ color }}>
+          {RATING_WORD[value || 0]}
+        </span>
+        <span className="rating-picker__num">{value ? value + "/5" : "Unrated"}</span>
+      </div>
+      <div className="rating-picker__scale">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={"rating-dot" + (value >= n ? " is-filled" : "") + (value === n ? " is-on" : "")}
+            onClick={() => onChange(n)}
+            aria-label={"Set approval " + n + " of 5"}
+            aria-pressed={value === n}
+            style={value >= n ? ({ "--rating-color": ratingColor(n) } as CSSProperties) : undefined}
+          >
+            <span>{n}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

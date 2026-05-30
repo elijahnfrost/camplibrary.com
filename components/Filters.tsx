@@ -1,12 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { AgeGroupId, CategoryId } from "@/lib/types";
+import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
-
-export type CatFilter = "All" | CategoryId;
-export type PlaceFilter = "All" | "Inside" | "Outside";
-export type AgeFilter = "All" | AgeGroupId;
+export type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 
 const PLACES = ["Inside", "Outside"] as const;
 

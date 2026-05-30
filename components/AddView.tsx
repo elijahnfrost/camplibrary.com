@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
-import { AGE_GROUPS, CATEGORIES, ratingColor, RATING_WORD } from "@/lib/data";
+import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { ApprovalDots, Seg } from "./primitives";
+import { RatingPicker, Seg } from "./primitives";
 
 type EnergyWord = "Calm" | "Lively" | "Rowdy";
 
@@ -148,34 +148,9 @@ export function AddView({ onSubmit }: { onSubmit: (a: Activity) => void }) {
       </div>
       <div className="field">
         <label className="field__label">
-          Approval rating <span className="field__hint">leave at &ldquo;not run&rdquo; if it&rsquo;s untried</span>
+          Approval rating <span className="field__hint">reset to &ldquo;not run&rdquo; if it&rsquo;s untried</span>
         </label>
-        <div className="approval approval--form">
-          <div className="approval__row">
-            <ApprovalDots rating={f.rating} />
-            <span
-              className="approval__word"
-              style={{ color: f.rating ? ratingColor(f.rating) : "var(--ink-faint)" }}
-            >
-              {RATING_WORD[f.rating || 0]}
-            </span>
-            <span className="approval__num">{f.rating ? f.rating + "/5" : "Unrated"}</span>
-          </div>
-          <input
-            className="rating-range"
-            type="range"
-            min="0"
-            max="5"
-            step="1"
-            value={f.rating}
-            onChange={(e) => set("rating")(parseInt(e.target.value, 10))}
-            aria-label="Set approval rating"
-          />
-          <div className="approval__scale">
-            <span>Not run</span>
-            <span>Loved it</span>
-          </div>
-        </div>
+        <RatingPicker value={f.rating} onChange={set("rating")} />
       </div>
 
       <div className="form__section">The write-up</div>

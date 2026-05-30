@@ -9,10 +9,9 @@ import {
   groupLabel,
   monogram,
   ratingColor,
-  RATING_WORD,
 } from "@/lib/data";
 import { CampIcon } from "./icons";
-import { ApprovalDots, Block, EnergyMeter, Fact, StarButton } from "./primitives";
+import { Block, EnergyMeter, Fact, RatingPicker, StarButton } from "./primitives";
 import { Modal } from "./Modal";
 
 export function DetailSheet({
@@ -67,32 +66,7 @@ export function DetailSheet({
             <span className="stamp">{a.prep === "None" ? "No prep" : a.prep + " prep"}</span>
           </div>
 
-          <div className="approval">
-            <div className="approval__row">
-              <ApprovalDots rating={a.rating} />
-              <span
-                className="approval__word"
-                style={{ color: a.rating ? ratingColor(a.rating) : "var(--ink-faint)" }}
-              >
-                {RATING_WORD[a.rating || 0]}
-              </span>
-              <span className="approval__num">{a.rating ? a.rating + "/5" : "Unrated"}</span>
-            </div>
-            <input
-              className="rating-range"
-              type="range"
-              min="0"
-              max="5"
-              step="1"
-              value={a.rating || 0}
-              onChange={(e) => onSetRating(a.id, parseInt(e.target.value, 10))}
-              aria-label="Set approval rating"
-            />
-            <div className="approval__scale">
-              <span>Not run</span>
-              <span>Loved it</span>
-            </div>
-          </div>
+          <RatingPicker value={a.rating || 0} onChange={(value) => onSetRating(a.id, value)} />
 
           <div className="facts">
             <Fact k="Ages">{ageSpan(a)}</Fact>

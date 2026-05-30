@@ -1,13 +1,7 @@
 // Camp Library — seed data + display helpers.
 // Ported from the Claude Design prototype (camp-data.js). Seed content is preserved verbatim.
 
-import type {
-  Activity,
-  AgeGroup,
-  Category,
-  Place,
-  Slot,
-} from "./types";
+import type { Activity, AgeGroup, Category, Place, Schedule, ScheduleBlock, Slot } from "./types";
 
 // Category order drives the shelves.
 export const CATEGORIES: Category[] = [
@@ -39,7 +33,30 @@ export const SLOTS: Slot[] = [
   { id: "s5", time: "4:30" },
 ];
 
-export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+export const DAY_BLOCK_TEMPLATE: ScheduleBlock[] = [
+  { id: "s1", start: "9:00", end: "10:00", kind: "activity", label: "Opening block" },
+  { id: "s2", start: "10:30", end: "12:00", kind: "activity", label: "Main activity" },
+  { id: "lunch", start: "12:00", end: "1:15", kind: "label", label: "Lunch & rest hour" },
+  { id: "s3", start: "1:30", end: "2:15", kind: "activity", label: "Maker block" },
+  { id: "s4", start: "3:00", end: "3:30", kind: "activity", label: "Water or field block" },
+  { id: "s5", start: "4:30", end: "4:50", kind: "activity", label: "Closing block" },
+];
+
+export const DEFAULT_SCHEDULE: Schedule = {
+  2: DAY_BLOCK_TEMPLATE.map((block) => {
+    const activityByBlock: Record<string, string> = {
+      s1: "boom-chicka-boom",
+      s2: "gaga-ball",
+      s3: "tie-dye",
+      s4: "sponge-relay",
+    };
+    return block.kind === "activity"
+      ? { ...block, activityId: activityByBlock[block.id] }
+      : { ...block };
+  }),
+};
 
 export function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {
   return AGE_GROUPS.filter((g) => (a.ages || []).indexOf(g.id) >= 0);

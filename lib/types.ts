@@ -42,8 +42,19 @@ export interface Activity {
   rating: number; // 0–5 (0 = not run yet)
 }
 
-// A schedule maps a day index → slot id → activity id.
-export type DaySchedule = Record<string, string>;
+export type ScheduleBlockKind = "activity" | "label";
+
+export interface ScheduleBlock {
+  id: string;
+  start: string;
+  end: string;
+  kind: ScheduleBlockKind;
+  label: string;
+  activityId?: string;
+}
+
+// A schedule maps a day index → ordered blocks for that day.
+export type DaySchedule = ScheduleBlock[];
 export type Schedule = Record<number, DaySchedule>;
 
 export interface Slot {

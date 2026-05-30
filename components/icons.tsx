@@ -80,11 +80,27 @@ export const CampIcon = {
   Close: svg(<path d="M6 6l12 12M18 6 6 18" />),
   ChevronLeft: svg(<path d="M15 5l-7 7 7 7" />),
   ChevronRight: svg(<path d="M9 5l7 7-7 7" />),
+  ChevronUp: svg(<path d="M5 15l7-7 7 7" />),
+  ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Star: svg(
     <path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.77l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z" />
   ),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
+  Print: svg(
+    <>
+      <path d="M7 8V4h10v4" />
+      <path d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
+      <path d="M7 14h10v6H7z" />
+      <path d="M17.5 11.5h.01" />
+    </>
+  ),
+  Reset: svg(
+    <>
+      <path d="M5 8v5h5" />
+      <path d="M6.5 13A6.5 6.5 0 1 0 8 5.8L5 8" />
+    </>
+  ),
   Sun: svg(
     <>
       <circle cx="12" cy="12" r="4" />
