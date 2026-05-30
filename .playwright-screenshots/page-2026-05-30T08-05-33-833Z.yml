@@ -1,0 +1,84 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - navigation "Primary" [ref=e4]:
+      - button "The counselor’s kit Camp Library" [ref=e5] [cursor=pointer]:
+        - img [ref=e6]
+        - generic [ref=e7]:
+          - generic [ref=e8]: The counselor’s kit
+          - generic [ref=e9]:
+            - text: Camp
+            - emphasis [ref=e10]: Library
+      - generic [ref=e11]:
+        - button "Library" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - generic [ref=e15]: Library
+        - button "Schedule" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: Schedule
+        - button "Saved" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - generic [ref=e24]: Saved
+        - button "Add" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - generic [ref=e28]: Add
+      - generic [ref=e29]: 15 in the library · 0 saved
+    - generic [ref=e30]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: Today at a glance
+        - generic [ref=e34]: Home
+        - generic [ref=e35]: Find, save, rate, and schedule camp activities.
+      - generic [ref=e37]:
+        - region "Plan the day" [ref=e38]:
+          - generic [ref=e39]:
+            - generic [ref=e40]: Home base
+            - heading "Plan the day" [level=1] [ref=e41]:
+              - text: Plan
+              - emphasis [ref=e42]: the day
+            - paragraph [ref=e43]: Jump into the library, fill the schedule, or add a tested activity.
+            - generic [ref=e44]:
+              - button "Open Library" [ref=e45] [cursor=pointer]:
+                - img [ref=e46]
+                - text: Open Library
+              - button "Open Schedule" [ref=e48] [cursor=pointer]:
+                - img [ref=e49]
+                - text: Open Schedule
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]: Today
+              - strong [ref=e55]: 4 planned
+            - generic [ref=e56]:
+              - generic [ref=e57]: Capture the Flag
+              - generic [ref=e58]: Gaga Ball
+              - generic [ref=e59]: Sharks & Minnows
+              - generic [ref=e60]: Camouflage
+              - generic [ref=e61]: Friendship Bracelets
+              - generic [ref=e62]: Tie-Dye Shirts
+              - generic [ref=e63]: Leaf Rubbings
+        - region "Camp Library summary" [ref=e64]:
+          - button "15 Activities" [ref=e65] [cursor=pointer]:
+            - strong [ref=e66]: "15"
+            - generic [ref=e67]: Activities
+          - button "5 Shelves" [ref=e68] [cursor=pointer]:
+            - strong [ref=e69]: "5"
+            - generic [ref=e70]: Shelves
+          - button "7 Day planner" [ref=e71] [cursor=pointer]:
+            - strong [ref=e72]: "7"
+            - generic [ref=e73]: Day planner
+          - button "0 Saved" [ref=e74] [cursor=pointer]:
+            - strong [ref=e75]: "0"
+            - generic [ref=e76]: Saved
+        - region "Quick actions" [ref=e77]:
+          - button "Find an activity Browse by age, place, type, or energy." [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+            - strong [ref=e82]: Find an activity
+            - generic [ref=e83]: Browse by age, place, type, or energy.
+          - button "Build the day Fill blocks, move items, and print the plan." [ref=e84] [cursor=pointer]:
+            - img [ref=e85]
+            - strong [ref=e88]: Build the day
+            - generic [ref=e89]: Fill blocks, move items, and print the plan.
+          - button "Catalog your own Add tested games, crafts, songs, or quiet fillers." [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+            - strong [ref=e93]: Catalog your own
+            - generic [ref=e94]: Add tested games, crafts, songs, or quiet fillers.
+  - button "Open Next.js Dev Tools" [ref=e100] [cursor=pointer]:
+    - img [ref=e101]
