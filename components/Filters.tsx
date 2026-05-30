@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
+import type { MaterialOption } from "@/lib/materials";
 export type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 
 const PLACES = ["Inside", "Outside"] as const;
@@ -12,9 +13,13 @@ interface FiltersProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  materialOptions: MaterialOption[];
+  availableMaterials: string[];
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
+  onToggleMaterial: (id: string) => void;
+  onClearMaterials: () => void;
 }
 
 function Chip({
@@ -42,8 +47,71 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function Filters({ variant, cat, place, age, onCat, onPlace, onAge }: FiltersProps) {
-  const anyOn = cat !== "All" || place !== "All" || age !== "All";
+function MaterialPicker({
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  options: MaterialOption[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  onClear: () => void;
+}) {
+  if (!options.length) return null;
+  const selectedSet = new Set(selected);
+  const selectedCount = options.filter((option) => selectedSet.has(option.id)).length;
+
+  return (
+    <details className="material-filter">
+      <summary
+        className={"material-filter__summary" + (selectedCount ? " is-on" : "")}
+        aria-label={"Materials I have access to, " + selectedCount + " selected"}
+      >
+        <span>Materials{selectedCount ? " · " + selectedCount : ""}</span>
+      </summary>
+      <div className="material-filter__panel">
+        <div className="material-filter__head">
+          <span>Materials I have</span>
+          {selectedCount > 0 && (
+            <button type="button" onClick={onClear}>
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="material-filter__chips" role="group" aria-label="Available materials">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={"chip material-filter__chip" + (selectedSet.has(option.id) ? " is-on" : "")}
+              onClick={() => onToggle(option.id)}
+              aria-pressed={selectedSet.has(option.id)}
+              title={option.count + (option.count === 1 ? " activity" : " activities")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+export function Filters({
+  variant,
+  cat,
+  place,
+  age,
+  materialOptions,
+  availableMaterials,
+  onCat,
+  onPlace,
+  onAge,
+  onToggleMaterial,
+  onClearMaterials,
+}: FiltersProps) {
+  const anyOn = cat !== "All" || place !== "All" || age !== "All" || availableMaterials.length > 0;
 
   const typeChips = (
     <>
@@ -81,6 +149,7 @@ export function Filters({ variant, cat, place, age, onCat, onPlace, onAge }: Fil
                 onCat("All");
                 onPlace("All");
                 onAge("All");
+                onClearMaterials();
               }}
             >
               Clear
@@ -90,24 +159,42 @@ export function Filters({ variant, cat, place, age, onCat, onPlace, onAge }: Fil
         <Group label="Type">{typeChips}</Group>
         <Group label="Where">{placeChips}</Group>
         <Group label="Ages">{ageChips}</Group>
+        <Group label="Available kit">
+          <MaterialPicker
+            options={materialOptions}
+            selected={availableMaterials}
+            onToggle={onToggleMaterial}
+            onClear={onClearMaterials}
+          />
+        </Group>
       </div>
     );
   }
 
   // mobile horizontal bar
   return (
-    <div className="filterbar">
-      <span className="filterbar__cluster" role="group" aria-label="Type">
-        {typeChips}
-      </span>
-      <span className="filterbar__div" aria-hidden="true" />
-      <span className="filterbar__cluster" role="group" aria-label="Where">
-        {placeChips}
-      </span>
-      <span className="filterbar__div" aria-hidden="true" />
-      <span className="filterbar__cluster" role="group" aria-label="Ages">
-        {ageChips}
-      </span>
-    </div>
+    <>
+      <div className="filterbar">
+        <span className="filterbar__cluster" role="group" aria-label="Type">
+          {typeChips}
+        </span>
+        <span className="filterbar__div" aria-hidden="true" />
+        <span className="filterbar__cluster" role="group" aria-label="Where">
+          {placeChips}
+        </span>
+        <span className="filterbar__div" aria-hidden="true" />
+        <span className="filterbar__cluster" role="group" aria-label="Ages">
+          {ageChips}
+        </span>
+      </div>
+      <div className="filterbar__kit">
+        <MaterialPicker
+          options={materialOptions}
+          selected={availableMaterials}
+          onToggle={onToggleMaterial}
+          onClear={onClearMaterials}
+        />
+      </div>
+    </>
   );
 }

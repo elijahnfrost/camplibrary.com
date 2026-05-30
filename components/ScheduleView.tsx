@@ -38,6 +38,7 @@ import {
 } from "@/lib/scheduleTime";
 import { CampIcon } from "./icons";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
+import type { MaterialOption } from "@/lib/materials";
 import { SaveButton } from "./primitives";
 import { useDialogFocus } from "./useDialogFocus";
 
@@ -632,9 +633,13 @@ function ScheduleLibrary({
   cat,
   place,
   age,
+  materialOptions,
+  availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onToggleMaterial,
+  onClearMaterials,
   plans,
   dayName,
   onToggle,
@@ -654,9 +659,13 @@ function ScheduleLibrary({
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  materialOptions: MaterialOption[];
+  availableMaterials: string[];
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
+  onToggleMaterial: (id: string) => void;
+  onClearMaterials: () => void;
   plans: DayTemplate[];
   dayName: string;
   onToggle: () => void;
@@ -707,7 +716,19 @@ function ScheduleLibrary({
           />
         </label>
 
-        <Filters variant="bar" cat={cat} place={place} age={age} onCat={onCat} onPlace={onPlace} onAge={onAge} />
+        <Filters
+          variant="bar"
+          cat={cat}
+          place={place}
+          age={age}
+          materialOptions={materialOptions}
+          availableMaterials={availableMaterials}
+          onCat={onCat}
+          onPlace={onPlace}
+          onAge={onAge}
+          onToggleMaterial={onToggleMaterial}
+          onClearMaterials={onClearMaterials}
+        />
 
         <p className="schedule-library__hint">Drag onto the calendar, or tap + to drop it at the next open time.</p>
 
@@ -830,15 +851,18 @@ export function ScheduleView({
   blocks,
   weekBlocks,
   activities,
-  allActivities,
   query,
   onQueryChange,
   cat,
   place,
   age,
+  materialOptions,
+  availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onToggleMaterial,
+  onClearMaterials,
   plans,
   openCount,
   onAddEvent,
@@ -861,15 +885,18 @@ export function ScheduleView({
   blocks: DaySchedule;
   weekBlocks: Record<number, DaySchedule>;
   activities: Activity[];
-  allActivities: Activity[];
   query: string;
   onQueryChange: (value: string) => void;
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  materialOptions: MaterialOption[];
+  availableMaterials: string[];
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
+  onToggleMaterial: (id: string) => void;
+  onClearMaterials: () => void;
   plans: DayTemplate[];
   openCount: number;
   onAddEvent: (draft: EventDraft) => void;
@@ -924,6 +951,13 @@ export function ScheduleView({
   }
 
   const filled = blocks.length;
+  const composerActivities = useMemo(() => {
+    if (!composer?.activityId || activities.some((activity) => activity.id === composer.activityId)) {
+      return activities;
+    }
+    const current = byId[composer.activityId];
+    return current ? [current, ...activities] : activities;
+  }, [activities, byId, composer?.activityId]);
 
   // The bounded camp-day window (8:00–17:00) fits without the old 24h-grid
   // scroll-anchoring hack, so the calendar simply starts at the top of the day.
@@ -1441,9 +1475,13 @@ export function ScheduleView({
           cat={cat}
           place={place}
           age={age}
+          materialOptions={materialOptions}
+          availableMaterials={availableMaterials}
           onCat={onCat}
           onPlace={onPlace}
           onAge={onAge}
+          onToggleMaterial={onToggleMaterial}
+          onClearMaterials={onClearMaterials}
           plans={plans}
           dayName={DAYS[dayIndex]}
           onToggle={() => setLibraryOpen((open) => !open)}
@@ -1471,7 +1509,7 @@ export function ScheduleView({
       {composer && (
         <EventComposer
           dayName={DAYS[dayIndex]}
-          allActivities={allActivities}
+          allActivities={composerActivities}
           initial={composer}
           onSubmit={submitComposer}
           onClose={() => setComposer(null)}

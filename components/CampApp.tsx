@@ -26,6 +26,7 @@ import {
   normalizeTimeString,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
+import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
 import { type StorageValidator, useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
@@ -271,6 +272,11 @@ export function CampApp() {
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
+  const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
+    "availableMaterials",
+    [],
+    stringArrayStorage
+  );
 
   // One search field, never stale: clear it whenever the tab changes so the
   // library count and the schedule activity tray aren't silently pre-filtered.
@@ -318,6 +324,21 @@ export function CampApp() {
     return base.map((a) => (ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a));
   }, [extra, ratings]);
 
+  const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
+  const activeAvailableMaterials = useMemo(() => {
+    const optionIds = new Set(materialOptions.map((option) => option.id));
+    return availableMaterials.filter((id) => optionIds.has(id));
+  }, [availableMaterials, materialOptions]);
+  const toggleAvailableMaterial = useCallback(
+    (id: string) => {
+      setAvailableMaterials((previous) =>
+        previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
+      );
+    },
+    [setAvailableMaterials]
+  );
+  const clearAvailableMaterials = useCallback(() => setAvailableMaterials([]), [setAvailableMaterials]);
+
   const byId = useMemo(() => {
     const m: Record<string, Activity> = {};
     all.forEach((a) => (m[a.id] = a));
@@ -340,8 +361,10 @@ export function CampApp() {
   };
 
   const filtered = useMemo(() => {
-    return all.filter((a) => matchesActivityFilters(a, { cat, place, age, query }));
-  }, [all, cat, place, age, query]);
+    return all.filter((a) =>
+      matchesActivityFilters(a, { cat, place, age, query, availableMaterialTags: activeAvailableMaterials })
+    );
+  }, [all, cat, place, age, query, activeAvailableMaterials]);
 
   const dayBlocks = useMemo(
     () => normalizeDaySchedule(schedule[dayIndex], dayIndex),
@@ -472,7 +495,9 @@ export function CampApp() {
   // Best activity of a category for a conditional "byCategory" slot:
   // prefer saved, then highest rating.
   function bestActivityOfCategory(category: CategoryId): string | undefined {
-    const pool = all.filter((a) => a.type === category);
+    const pool = all.filter(
+      (a) => a.type === category && hasRequiredMaterials(a, activeAvailableMaterials)
+    );
     if (!pool.length) return undefined;
     const ranked = [...pool].sort((a, b) => {
       const favDiff = (favSet.has(b.id) ? 1 : 0) - (favSet.has(a.id) ? 1 : 0);
@@ -696,9 +721,13 @@ export function CampApp() {
               cat={cat}
               place={place}
               age={age}
+              materialOptions={materialOptions}
+              availableMaterials={activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onToggleMaterial={toggleAvailableMaterial}
+              onClearMaterials={clearAvailableMaterials}
             />
           )}
           <div className="sidenav__foot">
@@ -787,9 +816,13 @@ export function CampApp() {
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
               />
             </>
           )}
@@ -831,15 +864,18 @@ export function CampApp() {
                 blocks={dayBlocks}
                 weekBlocks={weekBlocks}
                 activities={filtered}
-                allActivities={all}
                 query={query}
                 onQueryChange={setQuery}
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
                 plans={schedulePlans}
                 openCount={openCount}
                 onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
