@@ -1,0 +1,346 @@
+/* ============================================================
+ * elijahfrost.com Design System — Colors & Type
+ * ============================================================
+ *
+ * Drop this stylesheet in your <head> and link the two web
+ * fonts to inherit the full visual language. Everything below
+ * is a 1:1 mirror of the canonical tokens.css from the
+ * @elijahfrost/design-system package, with semantic helper
+ * classes (.eyebrow, .display, .body, .label, etc.) appended.
+ *
+ * Required external resources:
+ *   <link rel="preconnect" href="https://fonts.googleapis.com">
+ *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ *   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300..600&family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&display=swap">
+ *
+ * Two font CSS variables drive everything:
+ *   --font-inter      → body / UI / labels (sans)
+ *   --font-cormorant  → display / italics / serif (display)
+ *
+ * Tokens never appear as raw hex anywhere downstream — always
+ * reach for `var(--color-fg)` etc. so the dark↔light flip
+ * (managed by toggling `html.light`) works.
+ * ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- Type families ---------- */
+  --font-inter: "Inter";
+  --font-cormorant: "Cormorant Garamond";
+  --font-sans:    var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif:   var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-display: var(--font-serif);
+  --font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---------- Letter-spacing scale ----------
+   * Five canonical values. Use the semantic name, never raw em.
+   *   tight             → display headings
+   *   label-sm          → mobile button labels, nav links
+   *   label             → caption labels, footer year, sm+ button labels
+   *   eyebrow           → field labels, muted action links
+   *   display-eyebrow   → hero subtitle
+   */
+  --tracking-tight: -0.01em;
+  --tracking-label-sm: 0.18em;
+  --tracking-label: 0.2em;
+  --tracking-eyebrow: 0.25em;
+  --tracking-display-eyebrow: 0.28em;
+
+  /* ---------- Motion ---------- */
+  --theme-transition-duration: 120ms;
+  --theme-transition-ease: linear;
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);  /* entrance + primary UI motion */
+  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1); /* icon morphs, cursor scale */
+  --duration-fast: 100ms;
+  --duration-base: 120ms;
+  --duration-slow: 220ms;
+
+  /* ---------- Color — DARK (default) ----------
+   * Off-black page, warm off-white text. NEVER pure black/pure white.
+   * The neutrals are tuned toward stone/sand, not blue-gray.
+   */
+  --color-bg-page:                  #0d0d0d;  /* page surface — off-black, never #000 */
+  --color-fg:                       #e4dfd8;  /* default body text — warm off-white */
+  --color-fg-bright:                #ffffff;  /* hover + emphasis */
+  --color-fg-muted:                 #6b6660;  /* secondary text, focus ring */
+  --color-fg-dim:                   #4a4643;  /* eyebrows, italic prefixes */
+  --color-fg-soft:                  #8a8580;  /* button labels (default), quiet links */
+  --color-fg-body:                  #7a7670;  /* long-form body copy, bullets */
+  --color-label:                    #3a3733;  /* placeholders, dt labels */
+
+  --color-border:                   #2a2a2a;  /* button border (default) */
+  --color-border-hover:             #444444;  /* button border (hover) */
+  --color-border-section:           #1e1e1e;  /* section dividers, input border */
+  --color-border-divider:           #1a1a1a;  /* faint entry dividers, footer */
+
+  --color-numeral:                  #2e2c2a;  /* roman numerals beside headings */
+  --color-bullet:                   #3a3733;  /* 3px bullet dot */
+  --color-border-input-focus:       #2e2e2e;
+  --color-border-input-error:       #3a322f;
+  --color-border-input-error-focus: #4a3f3a;
+  --color-chrome-border:            rgba(34, 34, 34, 0.42);
+  --color-hero-grid:                var(--color-fg);
+  --color-footer-year:              #2a2a2a;
+  --color-error-text:               #5a4a4a;
+
+  /* Text selection: soft mix of fg + page (no flat color block) */
+  --color-selection-bg: color-mix(in srgb, var(--color-fg) 16%, var(--color-bg-page));
+  --color-selection-fg: var(--color-fg);
+
+  /* iOS Safari tap flash */
+  --color-tap-highlight: rgba(228, 223, 216, 0.12);
+
+  /* Custom cursor — fill = body text, stroke = page bg */
+  --cursor-fill: var(--color-fg);
+  --cursor-stroke: var(--color-bg-page);
+  --cursor-arrow-fill: var(--color-fg);
+}
+
+/* ---------- Color — LIGHT (warm paper) ---------- */
+html.light {
+  color-scheme: light;
+
+  --color-bg-page:                  #faf8f5;  /* warm paper, never #fff */
+  --color-fg:                       #1c1917;  /* near-black, warm */
+  --color-fg-bright:                #0c0a09;
+  --color-fg-muted:                 #5c5750;
+  --color-fg-dim:                   #6b6560;
+  --color-fg-soft:                  #7a7570;
+  --color-fg-body:                  #5e5950;
+  --color-label:                    #8a8580;
+
+  --color-border:                   #d4cfc5;
+  --color-border-hover:              #a8a29a;
+  --color-border-section:           #e0dcd5;
+  --color-border-divider:           #d9d4cc;
+
+  --color-numeral:                  #c4bfb6;
+  --color-bullet:                   #c4bfb6;
+  --color-border-input-focus:       #a8a29a;
+  --color-border-input-error:       #c4a89a;
+  --color-border-input-error-focus: #b89888;
+  --color-chrome-border:            rgba(120, 113, 103, 0.35);
+  --color-footer-year:              #c4bfb6;
+  --color-error-text:               #8a6a6a;
+
+  --color-selection-bg: color-mix(in srgb, var(--color-fg) 9%, var(--color-bg-page));
+  --color-tap-highlight: rgba(28, 25, 23, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --theme-transition-duration: 0ms; }
+}
+
+/* ============================================================
+ * Base styles
+ * ============================================================ */
+
+html { -webkit-tap-highlight-color: var(--color-tap-highlight); }
+
+body {
+  background: var(--color-bg-page);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem; /* 15px on mobile */
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+@media (min-width: 640px) {
+  body { font-size: 1rem; line-height: 1.5; }
+}
+
+::selection      { background-color: var(--color-selection-bg); color: var(--color-selection-fg); }
+::-moz-selection { background-color: var(--color-selection-bg); color: var(--color-selection-fg); }
+
+/* Theme crossfade — one rule for body + all descendants */
+body, body * {
+  transition-property: background-color, color, border-color, outline-color, fill, stroke;
+  transition-duration: var(--theme-transition-duration);
+  transition-timing-function: var(--theme-transition-ease);
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  body, body * { transition-duration: 0ms; }
+}
+
+/* ============================================================
+ * Semantic typography classes
+ * ------------------------------------------------------------
+ * Pure ornament — use these or use raw inline styles, both
+ * are fine. Mirror the patterns from elijahfrost.com.
+ * ============================================================ */
+
+/* Display — section headings */
+.h1,
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: var(--tracking-tight);
+  font-size: clamp(2.25rem, 10.5vw, 2.75rem);
+  line-height: 0.95;
+  color: var(--color-fg);
+  margin: 0;
+}
+@media (min-width: 640px) { .h1, .h-display { font-size: 3.75rem; } }       /* sm:text-6xl */
+@media (min-width: 768px) { .h1, .h-display { font-size: 4.5rem; } }        /* md:text-7xl */
+@media (min-width: 1024px){ .h1, .h-display { font-size: 6rem; } }          /* lg:text-8xl */
+@media (min-width: 1280px){ .h1, .h-display { font-size: 8rem; } }          /* xl:text-9xl */
+
+/* Section heading — paired with a Roman numeral */
+.h2,
+.h-section {
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: var(--tracking-tight);
+  font-size: 1.875rem; /* 30px */
+  line-height: 1.1;
+  color: var(--color-fg);
+  margin: 0;
+}
+@media (min-width: 640px) { .h2, .h-section { font-size: 2.25rem; } }  /* sm:text-4xl */
+@media (min-width: 768px) { .h2, .h-section { font-size: 3rem; } }      /* md:text-5xl */
+
+/* Entry title — for CV experience / education entries */
+.h3,
+.h-entry {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.25rem;   /* 20px */
+  line-height: 1.35;
+  color: var(--color-fg);
+  margin: 0;
+}
+@media (min-width: 640px) { .h3, .h-entry { font-size: 1.5rem; } }
+@media (min-width: 768px) { .h3, .h-entry { font-size: 1.875rem; } }
+
+.h4 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.125rem;
+  line-height: 1.4;
+  color: var(--color-fg);
+  margin: 0;
+}
+@media (min-width: 640px) { .h4 { font-size: 1.25rem; } }
+
+/* Italic display eyebrow — "Hello, I am" / signature */
+.display-eyebrow {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  font-size: 1.25rem;
+  color: var(--color-fg-dim);
+  margin: 0;
+}
+@media (min-width: 640px) { .display-eyebrow { font-size: 1.5rem; } }
+@media (min-width: 768px) { .display-eyebrow { font-size: 1.875rem; } }
+
+/* Italic numeral — Roman numerals beside section titles */
+.numeral {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--color-numeral);
+  user-select: none;
+}
+
+/* Eyebrow — all-caps tracked label */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-fg-muted);
+}
+@media (min-width: 640px) { .eyebrow { font-size: 11px; letter-spacing: var(--tracking-display-eyebrow); } }
+
+.label {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+@media (min-width: 640px) { .label { font-size: 10px; } }
+
+.meta-tag {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+/* Body */
+.body {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--color-fg-body);
+}
+@media (min-width: 640px) { .body { font-size: 0.875rem; } }
+
+.body-lg {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-fg-body);
+}
+@media (min-width: 640px) { .body-lg { font-size: 1rem; } }
+
+/* Mono — for code samples in design-system docs */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+}
+
+/* ============================================================
+ * Spacing & layout primitives
+ * ============================================================ */
+
+/* Canonical max-content widths used by the source site */
+:root {
+  --max-narrow: 36rem;   /* 576px — text panels */
+  --max-prose:  42rem;   /* 672px — wide reading */
+  --max-content: 64rem;  /* 1024px — section content */
+  --max-page:    80rem;  /* 1280px — outermost gutters */
+
+  --gutter-x-mobile: 1rem;
+  --gutter-x-sm:     2.5rem;
+  --gutter-x-lg:     4rem;
+
+  --section-py-mobile: 3rem;
+  --section-py-sm:     4rem;
+  --section-py-lg:     5rem;
+}
+
+/* ============================================================
+ * Focus ring (canonical)
+ * ============================================================ */
+.ds-focus-ring:focus-visible,
+[data-ds-focus-ring]:focus-visible {
+  outline: 2px solid var(--color-fg-muted);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+ * Entrance motion
+ * ============================================================ */
+@keyframes ds-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: ds-fade-up 0.32s var(--ease-out-quint) both; }
+.fade-in-up.delay-1 { animation-delay:   0ms; }
+.fade-in-up.delay-2 { animation-delay:  40ms; }
+.fade-in-up.delay-3 { animation-delay:  80ms; }
+.fade-in-up.delay-4 { animation-delay: 120ms; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up { animation: none; opacity: 1; }
+}
