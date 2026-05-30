@@ -65,4 +65,4 @@ export interface Slot {
 }
 
 export type LibraryView = "shelf" | "deck" | "catalog";
-export type TabId = "library" | "schedule" | "saved" | "add";
+export type TabId = "home" | "library" | "schedule" | "saved" | "add";
