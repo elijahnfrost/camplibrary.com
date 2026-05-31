@@ -6,9 +6,9 @@
 import type { ScheduleBlock } from "./types";
 
 // Visible window for the planner grid (minutes from midnight). A camp day of
-// ~9:00–16:30 sits comfortably inside 8:00–17:00 with margin on both ends.
+// ~8:00–18:00 covers drop-off through pickup without showing dead overnight hours.
 export const DAY_START_MIN = 8 * 60; // 8:00
-export const DAY_END_MIN = 17 * 60; // 17:00
+export const DAY_END_MIN = 18 * 60; // 18:00
 export const TOTAL_MIN = DAY_END_MIN - DAY_START_MIN;
 
 // Absolute bounds for parsing/formatting safety (independent of the visible window).
@@ -20,6 +20,26 @@ export const DEFAULT_DURATION_MIN = 30;
 export const MIN_DURATION_MIN = 5;
 // Where quick-add / "Add event" default to — the real start of camp programming.
 export const DEFAULT_PLANNING_START_MIN = 9 * 60;
+
+// Calendar zoom: the timeline scale is the pixel height of one hour. Pinch /
+// ctrl-wheel / zoom buttons step through these levels; the chosen index is
+// persisted (localStorage "planZoom").
+export const ZOOM_LEVELS = [40, 52, 64, 76, 96, 120, 160]; // px per hour
+export const DEFAULT_ZOOM = 4; // 96px — readable 15-minute snack blocks in a full 8-6 day
+export const DESKTOP_ZOOM = 3; // 76px — a roomier default on wide screens
+export function clampZoomIndex(index: number): number {
+  return Math.max(0, Math.min(ZOOM_LEVELS.length - 1, Math.round(index)));
+}
+
+// Overlapping-event column caps. Beyond the cap we collapse the tail into a
+// single "+N more" chip so a busy slot never shreds into unreadable slivers.
+export const MAX_COLS_DAY = 3;
+export const MAX_COLS_WEEK = 2;
+
+// A blank-grid pointer drag only becomes a "draw new event" gesture once it
+// travels past this many pixels (raised on coarse pointers); below it, the
+// press is treated as a tap that opens the composer at that time.
+export const DRAW_THRESHOLD_PX = 6;
 
 function parseCampMinutes(time: string): number | null {
   const match = (time || "").match(/^(\d{1,2})(?::(\d{2}))?/);

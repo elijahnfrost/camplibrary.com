@@ -78,7 +78,8 @@ app/
 components/
   CampApp.tsx       State + the responsive shell (sidebar / tab bar / overlays)
   LibraryViews.tsx  Shelf · Deck · Catalog
-  ScheduleView.tsx  Day-planner calendar (drag/resize events, add-event composer)
+  ScheduleOverview.tsx  Run Sheet week preview
+  CalendarView.tsx  Planner calendar (drag/resize events, add-event composer)
   SavedView.tsx     Starred shortlist
   AddView.tsx       Catalog-an-entry form
   DetailSheet.tsx   Activity detail (bottom sheet → centered modal)

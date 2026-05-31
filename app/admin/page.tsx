@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { isAdminEmail } from "@/lib/auth";
+import { isAdminEmail, isClerkAuthUsable } from "@/lib/auth";
 import { CampApp } from "@/components/CampApp";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
+  if (!isClerkAuthUsable()) notFound();
+
   const { userId, redirectToSignIn } = await auth();
   if (!userId) return redirectToSignIn({ returnBackUrl: "/admin" });
 

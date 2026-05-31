@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { StaffSignIn } from "@/components/StaffSignIn";
 
 export const metadata: Metadata = {
@@ -6,6 +7,8 @@ export const metadata: Metadata = {
 };
 
 export default function SignInPage() {
+  const authEnabled = isClerkPublicKeyUsable();
+
   return (
     <main className="auth-route">
       <div className="auth-route__brand">
@@ -13,7 +16,13 @@ export default function SignInPage() {
         <span className="auth-route__kicker">Camp Library</span>
         <h1 className="auth-route__title">Staff access</h1>
       </div>
-      <StaffSignIn />
+      {authEnabled ? (
+        <StaffSignIn />
+      ) : (
+        <div className="auth-route__status">
+          Staff sign-in is disabled because Clerk is not configured with valid local keys.
+        </div>
+      )}
     </main>
   );
 }

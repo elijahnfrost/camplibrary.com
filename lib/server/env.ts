@@ -1,3 +1,5 @@
+import { isClerkPublicKeyUsable, isClerkSecretKeyUsable } from "@/lib/auth";
+
 type EnvKey =
   | "AUTH_SECRET"
   | "CAMP_LIBRARY_API_TOKEN"
@@ -46,6 +48,8 @@ function isConfigured(key: EnvKey, value: string | undefined): value is string {
   if (value == null) return false;
   const trimmed = value.trim();
   if (PLACEHOLDER_RE.test(trimmed)) return false;
+  if (key === "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY") return isClerkPublicKeyUsable(trimmed);
+  if (key === "CLERK_SECRET_KEY") return isClerkSecretKeyUsable(trimmed);
   if (key === "AUTH_SECRET" && trimmed.length < 32) return false;
   if (key === "INVITE_CODE_SECRET" && trimmed.length < 32) return false;
   if (key === "INVITE_CODE_ADMIN_TOKEN" && trimmed.length < 32) return false;

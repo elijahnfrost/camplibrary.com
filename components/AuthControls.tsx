@@ -3,8 +3,10 @@
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useMemo } from "react";
 import type { AuthSession } from "@/lib/auth";
-import { ANONYMOUS_SESSION, isAdminEmail } from "@/lib/auth";
+import { ANONYMOUS_SESSION, isAdminEmail, isClerkPublicKeyUsable } from "@/lib/auth";
 import { CampIcon } from "./icons";
+
+const CLERK_ENABLED = isClerkPublicKeyUsable();
 
 function currentSignInUrl(returnTo?: string) {
   const signInUrl = new URL("/sign-in", window.location.origin);
@@ -18,6 +20,20 @@ function currentSignInUrl(returnTo?: string) {
 }
 
 export function usePreviewAuth() {
+  if (!CLERK_ENABLED) {
+    return {
+      session: ANONYMOUS_SESSION,
+      signedIn: false,
+      authOpen: false,
+      openAuth: () => {
+        window.location.href = "/sign-in";
+      },
+      closeAuth: () => undefined,
+      signIn: () => undefined,
+      signOut: () => undefined,
+    };
+  }
+
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
 

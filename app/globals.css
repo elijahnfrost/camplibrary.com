@@ -960,6 +960,7 @@ body {
   padding: 14px 18px 6px;
 }
 .deck-card {
+  position: relative;
   cursor: pointer;
   border: 1.5px solid var(--ink);
   border-radius: 9px;
@@ -1043,6 +1044,7 @@ body {
   padding: 8px 18px 6px;
 }
 .cat-row {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -1107,6 +1109,58 @@ body {
   color: #fff;
   background: var(--accent);
   border-color: var(--accent-ink);
+}
+
+/* ---------- stretched-button cards (no nested interactives) ----------
+   A card's primary action is one real <button class="stretch"> whose ::after
+   covers the whole (position:relative) container; secondary controls (the star)
+   are sibling real buttons layered above. Eliminates role="button" wrappers and
+   button-inside-button nesting while preserving the full-card hit target. */
+.stretch {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+}
+/* The card's own visible content sits below the overlay; named controls ride above. */
+.deck-card__open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.deck-card > .plate__star,
+.cat-row > .star {
+  position: relative;
+  z-index: 1;
+}
+.cat-row__open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+}
+/* Focus ring on the whole card when its primary button is keyboard-focused. */
+.deck-card:has(.deck-card__open:focus-visible),
+.cat-row:has(.cat-row__open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.deck-card__open:focus-visible,
+.cat-row__open:focus-visible {
+  outline: none;
 }
 
 .meter {
@@ -2503,13 +2557,13 @@ body {
 }
 
 /* ============================================================
- * DESKTOP APP (>= 768px)
+ * DESKTOP APP (>= 1024px)
  * A full-window application, not a scaled phone. The app fills the
  * browser window; primary nav + filters live in a full-height left
  * sidebar; search sits in a header toolbar; and detail / picker slide
  * in as a right-hand inspector panel (master–detail).
  * ============================================================ */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   body {
     background: var(--stage-bg);
   }
@@ -2627,6 +2681,8 @@ body {
     margin-top: auto;
     padding-top: 14px;
     border-top: 1.5px dashed var(--line);
+    display: grid;
+    gap: 4px;
     font-family: var(--hand-sc);
     font-size: 10px;
     letter-spacing: 0.05em;
@@ -2721,9 +2777,9 @@ body {
   .searchrow {
     display: none;
   }
-  .topbar__actions {
-    display: none;
-  }
+	  .topbar__actions {
+	    display: flex;
+	  }
 
   .topbar {
     align-items: center;
@@ -3079,6 +3135,11 @@ body {
   display: block;
   font-size: 13px;
 }
+@media (max-width: 640px) {
+  .topbar--planner {
+    display: none;
+  }
+}
 .print-btn {
   border: 1.5px solid var(--line);
   border-radius: 12px;
@@ -3180,6 +3241,25 @@ body {
 .day-chip.is-active small {
   color: #fff;
 }
+@media (max-width: 640px) {
+  .day-carousel {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .day-chip {
+    min-width: 0;
+    padding: 8px 7px;
+  }
+  .day-chip span {
+    font-size: 9.5px;
+  }
+  .day-chip strong {
+    font-size: 19px;
+  }
+}
 
 .rating-picker {
   margin-top: 14px;
@@ -3273,12 +3353,6 @@ body {
 }
 
 @media (min-width: 768px) {
-  .topbar__search-toggle {
-    display: none;
-  }
-  .topbar--planner .topbar__summary {
-    display: block;
-  }
   .planner {
     max-width: 980px;
     margin-inline: auto;
@@ -3289,6 +3363,15 @@ body {
   }
   .day-chip {
     flex-basis: 82px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .topbar__search-toggle {
+    display: none;
+  }
+  .topbar--planner .topbar__summary {
+    display: block;
   }
 }
 
@@ -3423,6 +3506,33 @@ body {
   padding: 0 6px 12px;
 }
 
+@media (max-width: 640px) {
+  .planner--calendar {
+    padding-top: 18px;
+  }
+  .cal-head {
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+  .cal-head__title {
+    font-size: 30px;
+  }
+  .cal-head__sub {
+    margin-top: 2px;
+  }
+  .cal-head__tools {
+    gap: 8px;
+  }
+  .cal-add-btn {
+    height: 36px;
+    padding-inline: 14px;
+  }
+  .cal-days {
+    padding-bottom: 10px;
+  }
+}
+
 .schedule-workbench {
   display: grid;
   grid-template-rows: minmax(280px, 1fr);
@@ -3433,14 +3543,16 @@ body {
 
 /* ---- calendar surface ---- */
 .cal {
-  --hour-px: 64px;
+  --hour-px: 64px; /* fallback; the live scale is set inline (JS-driven zoom) */
   /* Hours in the visible camp-day window (8:00–17:00) — keep in sync with
      DAY_START_MIN/DAY_END_MIN in lib/scheduleTime.ts. */
   --day-hours: 9;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   align-items: start;
-  height: 100%;
+  align-self: start;
+  height: min(100%, calc(var(--hour-px) * var(--day-hours)));
+  max-height: calc(var(--hour-px) * var(--day-hours));
   min-height: 0;
   min-width: 0;
   border: 1.5px solid var(--line);
@@ -3456,6 +3568,8 @@ body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  /* One finger pans (scrolls); two fingers pinch-zoom (handled in JS). */
+  touch-action: pan-y;
 }
 .cal-axis {
   position: relative;
@@ -3483,7 +3597,14 @@ body {
   position: relative;
   height: calc(var(--hour-px) * var(--day-hours));
   min-width: 0;
+}
+/* Blank-space layer that hosts the hour lines and starts "draw to create".
+   Events sit above it; one finger pans, drag (mouse) draws a new block. */
+.cal-grid__surface {
+  position: absolute;
+  inset: 0;
   cursor: copy;
+  touch-action: pan-y;
 }
 .cal-line {
   position: absolute;
@@ -3502,10 +3623,7 @@ body {
 .cal-event {
   position: absolute;
   box-sizing: border-box;
-  min-height: 32px;
-  display: flex;
-  gap: 6px;
-  padding: 5px 7px;
+  min-height: 24px;
   border: 1.5px solid var(--accent-ink);
   border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 12%, var(--card));
@@ -3522,6 +3640,30 @@ body {
   background: color-mix(in srgb, var(--cat, var(--accent)) 13%, var(--card));
   border-left-width: 5px;
   border-left-color: var(--cat, var(--accent));
+}
+/* The primary edit action fills the event; drag still lives on the parent. */
+.cal-event__open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  gap: 6px;
+  padding: 5px 22px 5px 7px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: inherit;
+  touch-action: none;
+}
+.cal-event:has(.cal-event__open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cal-event__open:focus-visible {
+  outline: none;
 }
 .cal-event--custom {
   border-style: dashed;
@@ -3613,10 +3755,12 @@ body {
   display: none;
 }
 .cal-event__remove {
-  flex: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
   width: 24px;
   height: 24px;
-  margin: -2px -3px 0 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3649,16 +3793,24 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: 10px;
+  z-index: 2;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: ns-resize;
   touch-action: none;
+}
+.cal-event__resize--top {
+  top: 0;
+}
+.cal-event__resize--bottom {
+  bottom: 0;
 }
 .cal-event__resize::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 3px;
   width: 22px;
   height: 2px;
   transform: translateX(-50%);
@@ -3667,8 +3819,39 @@ body {
   opacity: 0;
   transition: opacity 120ms;
 }
-.cal-event:hover .cal-event__resize::after {
+.cal-event__resize--top::after {
+  top: 3px;
+}
+.cal-event__resize--bottom::after {
+  bottom: 3px;
+}
+.cal-event:hover .cal-event__resize::after,
+.cal-event__resize:focus-visible::after {
   opacity: 1;
+}
+/* "+N more" overflow chip occupying the last overlap column. */
+.cal-event--more {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--accent-ink);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+  color: var(--accent-ink);
+  cursor: pointer;
+  overflow: hidden;
+  font-family: var(--hand-sc);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 2px;
+  touch-action: none;
+}
+.cal-event--more:hover {
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
 }
 
 .cal-empty {
@@ -3778,7 +3961,7 @@ body {
 .schedule-library {
   display: block;
   position: sticky;
-  bottom: calc(74px + env(safe-area-inset-bottom));
+  bottom: 0;
   z-index: 12;
   overflow: hidden;
   border: 2px solid var(--ink);
@@ -3838,12 +4021,40 @@ body {
   scrollbar-width: thin;
 }
 .schedule-library.is-open {
+  display: flex;
+  flex-direction: column;
+  max-height: min(70dvh, 620px);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -12px 30px rgba(44, 40, 36, 0.2);
 }
 .schedule-library.is-open .schedule-library__content {
   display: grid;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+
+@media (max-width: 1023px) {
+  .schedule-library.is-open {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 0;
+    z-index: 45;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1319px) {
+  .schedule-library.is-open {
+    position: fixed;
+    left: 280px;
+    right: 24px;
+    bottom: 24px;
+    z-index: 45;
+    border-radius: 14px;
+  }
 }
 .schedule-search {
   display: flex;
@@ -4468,21 +4679,36 @@ body {
   gap: 10px;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1000px) {
   .planner--calendar {
     max-width: 1240px;
     margin-inline: auto;
     padding: 20px 24px 24px;
-  }
-  .cal {
-    --hour-px: 72px;
   }
   .schedule-workbench {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(420px, 1fr);
     gap: 22px;
   }
+  .composer-scrim {
+    align-items: center;
+  }
+  .composer {
+    border-radius: 16px;
+    box-shadow: 6px 8px 0 var(--shadow);
+  }
+}
+
+@media (min-width: 1320px) {
+  .schedule-workbench {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-rows: minmax(0, 1fr);
+  }
   .schedule-library {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     position: sticky;
     top: 12px;
     bottom: auto;
@@ -4495,28 +4721,10 @@ body {
   .schedule-library__content {
     display: grid;
     gap: 12px;
-    max-height: calc(100dvh - 150px);
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
-  }
-  .composer-scrim {
-    align-items: center;
-  }
-  .composer {
-    border-radius: 16px;
-    box-shadow: 6px 8px 0 var(--shadow);
-  }
-}
-
-@media (min-width: 1120px) {
-  .schedule-workbench {
-    grid-template-columns: minmax(0, 1fr) 380px;
-    grid-template-rows: minmax(0, 1fr);
-  }
-  .schedule-library {
-    display: block;
-  }
-  .cal {
-    --hour-px: 76px;
   }
 }
 
@@ -4531,7 +4739,7 @@ body {
     padding: 0;
   }
   .cal {
-    --hour-px: 64px;
+    --hour-px: 60px !important; /* stable print scale regardless of on-screen zoom */
     border-color: #000;
     background: #fff;
     break-inside: avoid;
@@ -4549,6 +4757,533 @@ body {
   .cal-event__time,
   .cal-event__meta {
     color: #000;
+  }
+}
+
+/* ============================================================
+ * Calendar zoom cluster
+ * ============================================================ */
+.cal-zoom {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 38px;
+  padding: 1px 3px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.cal-zoom__btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: 21px;
+  line-height: 1;
+}
+.cal-zoom__btn:hover:not(:disabled) {
+  background: var(--paper-2);
+}
+.cal-zoom__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cal-zoom__range {
+  width: clamp(78px, 11vw, 132px);
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.cal-zoom__value {
+  min-width: 38px;
+  padding-right: 6px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-align: right;
+}
+@media (max-width: 520px) {
+  .cal-zoom__range {
+    width: 70px;
+  }
+  .cal-zoom__value {
+    display: none;
+  }
+}
+
+/* ============================================================
+ * Week overview tab (Schedule)
+ * ============================================================ */
+.planner--overview {
+  padding: 14px 14px 28px;
+}
+.overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.overview-daynav {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 0;
+}
+.overview-open {
+  flex: none;
+  height: 40px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .overview-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .overview-daynav {
+    width: 100%;
+  }
+  .overview-open {
+    width: 100%;
+    justify-content: center;
+  }
+}
+.overview-week {
+  display: none;
+}
+.overview-agenda {
+  display: grid;
+  gap: 8px;
+}
+.agenda-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agenda-row:hover {
+  border-color: var(--ink-soft);
+}
+.agenda-row--locked {
+  cursor: default;
+}
+.agenda-row--locked:hover {
+  border-color: var(--line);
+}
+.agenda-row--custom {
+  border-style: dashed;
+}
+.agenda-row__time {
+  flex: none;
+  width: 92px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.agenda-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.agenda-row__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: 17px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.agenda-row--custom .agenda-row__title {
+  font-family: var(--hand-sc);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.agenda-row__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.agenda-row > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  stroke: var(--ink-faint);
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.overview-empty {
+  position: static;
+  inset: auto;
+  margin-top: 18px;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  padding: 36px 24px;
+}
+
+/* ---- desktop 5-column week grid ---- */
+.cal-week {
+  --day-hours: 9;
+  display: grid;
+  grid-template-columns: 52px repeat(5, minmax(0, 1fr));
+  grid-template-rows: 54px auto;
+  height: auto;
+  min-height: 0;
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.cal-week__corner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--card);
+  border-bottom: 1.5px solid var(--line);
+  border-right: 1.5px solid var(--line-soft);
+}
+.cal-week__dayhead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 8px 4px;
+  min-height: 54px;
+  border: 0;
+  border-bottom: 1.5px solid var(--line);
+  border-left: 1px solid var(--line-soft);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cal-week__dayhead span {
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cal-week__dayhead strong {
+  font-family: var(--script);
+  font-size: 18px;
+  line-height: 0.9;
+  color: var(--ink);
+}
+.cal-week__dayhead small {
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.cal-week__dayhead:hover {
+  background: var(--paper-2);
+}
+.cal-week__dayhead.is-active {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.cal-week__dayhead.is-active strong {
+  color: var(--accent-ink);
+}
+.cal-week__axis {
+  position: relative;
+  height: calc(var(--hour-px) * var(--day-hours));
+  border-right: 1.5px solid var(--line-soft);
+  background: color-mix(in srgb, var(--paper) 70%, #fff);
+}
+.cal-week__col {
+  position: relative;
+  height: calc(var(--hour-px) * var(--day-hours));
+  min-width: 0;
+  border-left: 1px solid var(--line-soft);
+}
+.cal-week__col[data-today="true"] {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.week-event {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  padding: 3px 5px;
+  min-height: 18px;
+  border: 1.5px solid var(--accent-ink);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.week-event--activity {
+  border-color: color-mix(in srgb, var(--cat, var(--accent-ink)) 65%, var(--ink));
+  background: color-mix(in srgb, var(--cat, var(--accent)) 13%, var(--card));
+  border-left-width: 4px;
+  border-left-color: var(--cat, var(--accent));
+}
+.week-event:hover {
+  filter: brightness(0.96);
+}
+.week-event--locked {
+  cursor: default;
+}
+.week-event--locked:hover {
+  filter: none;
+}
+.week-event--custom {
+  border-style: dashed;
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--card) 68%, var(--paper));
+  color: var(--ink-soft);
+}
+.week-event--open {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--cat, var(--line)) 65%, var(--paper));
+  background: color-mix(in srgb, var(--cat, var(--line)) 10%, var(--card));
+  color: var(--ink-soft);
+}
+.week-event__time {
+  font-family: var(--hand-sc);
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  line-height: 1;
+}
+.week-event__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: 12px;
+  line-height: 1.05;
+}
+.week-event--short {
+  justify-content: center;
+  min-height: 14px;
+  padding-block: 1px;
+}
+.week-event--short .week-event__time {
+  display: none;
+}
+.week-event--short .week-event__title {
+  font-size: 10px;
+  line-height: 1;
+}
+.week-event--more {
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+  color: var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: 10px;
+}
+
+/* ============================================================
+ * +N more overflow sheet
+ * ============================================================ */
+.overflow-sheet {
+  gap: 10px;
+}
+.overflow-sheet__list {
+  display: grid;
+  gap: 0;
+  max-height: 56dvh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.overflow-row .cat-row__open {
+  gap: 10px;
+  align-items: flex-start;
+  padding: 0;
+}
+.overflow-row .cat-main {
+  gap: 3px;
+}
+.overflow-row__time {
+  flex: none;
+  padding-top: 2px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.overflow-row__meta {
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.overflow-row__remove {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.overflow-row__remove:hover {
+  color: var(--ink);
+}
+.overflow-row__remove svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.schedule-detail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 28px 22px 22px;
+}
+.schedule-detail__mark {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  color: var(--accent-ink);
+}
+.schedule-detail__mark svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.schedule-detail__eyebrow,
+.schedule-detail__time {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.schedule-detail__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: 34px;
+  line-height: 0.95;
+  color: var(--ink);
+}
+.schedule-detail__time {
+  color: var(--ink-soft);
+}
+.schedule-detail__note {
+  margin: 0;
+  max-width: 34rem;
+  font-family: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+@media (max-width: 767px) {
+  .overlay--schedule-note {
+    top: auto;
+    min-height: 0;
+    max-height: calc(100dvh - 112px);
+  }
+  .overlay--schedule-note .schedule-detail {
+    flex: none;
+  }
+}
+
+@media (min-width: 1180px) {
+  .planner--overview {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding: 20px 24px 24px;
+  }
+  .overview-toolbar {
+    display: none;
+  }
+  .overview-week {
+    display: block;
+    flex: 1;
+    min-height: 0;
+  }
+  .overview-agenda {
+    display: none;
+  }
+}
+
+/* Mobile bottom bar now carries six tabs — tighten below very narrow widths. */
+.tabbar button span,
+.tabbar button {
+  white-space: nowrap;
+}
+@media (max-width: 380px) {
+  .tabbar button {
+    font-size: 9px;
+    letter-spacing: 0.03em;
+    padding: 10px 0 6px;
+    gap: 4px;
+  }
+  .tabbar button svg {
+    width: 21px;
+    height: 21px;
   }
 }
 

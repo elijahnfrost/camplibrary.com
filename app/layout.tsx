@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Caveat, Nunito_Sans, Patrick_Hand, Patrick_Hand_SC } from "next/font/google";
+import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
 import "./globals.css";
 
@@ -75,14 +76,18 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const app = isClerkPublicKeyUsable() ? (
+    <ClerkAuthProvider>{children}</ClerkAuthProvider>
+  ) : (
+    children
+  );
+
   return (
     <html
       lang="en"
       className={`${caveat.variable} ${patrickHand.variable} ${patrickHandSc.variable} ${nunitoSans.variable}`}
     >
-      <body>
-        <ClerkAuthProvider>{children}</ClerkAuthProvider>
-      </body>
+      <body>{app}</body>
     </html>
   );
 }

@@ -17,15 +17,18 @@ export function Modal({
   label,
   onClose,
   children,
+  className = "",
   overlayProps,
 }: {
   label: string;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
   overlayProps?: ModalOverlayProps;
 }) {
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const { className: overlayClassName, ...restOverlayProps } = overlayProps ?? {};
+  const classes = ["overlay", "overlay--sheet", overlayClassName, className].filter(Boolean).join(" ");
 
   return (
     <div className="modal-root">
@@ -33,7 +36,7 @@ export function Modal({
       <div
         {...restOverlayProps}
         ref={dialogRef}
-        className={"overlay overlay--sheet" + (overlayClassName ? " " + overlayClassName : "")}
+        className={classes}
         role="dialog"
         aria-modal="true"
         aria-label={label}

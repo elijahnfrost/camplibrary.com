@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import type { NextRequest } from "next/server";
 import type { AuthSession } from "@/lib/auth";
-import { ANONYMOUS_SESSION, isAdminEmail } from "@/lib/auth";
+import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable } from "@/lib/auth";
 import { getBackendEnvStatus } from "./env";
 
 export type AuthBackendStatus = {
@@ -25,11 +25,13 @@ export function getAuthBackendStatus(): AuthBackendStatus {
           "New account creation is gated by usage-limited invite codes.",
           "Mutation routes should call requireEditorSession before persisting shared edits.",
         ]
-      : ["Sign-in provider environment keys are missing."],
+      : ["Clerk environment keys are missing or placeholders."],
   };
 }
 
 export async function getServerAuthSession(_request?: NextRequest): Promise<AuthSession> {
+  if (!isClerkAuthUsable()) return ANONYMOUS_SESSION;
+
   const user = await currentUser();
   if (!user) return ANONYMOUS_SESSION;
 
@@ -51,6 +53,13 @@ export async function requireEditorSession(request: NextRequest): Promise<
   | { ok: true; session: Extract<AuthSession, { status: "authenticated" }> }
   | { ok: false; response: Response }
 > {
+  if (!isClerkAuthUsable()) {
+    return {
+      ok: false,
+      response: unauthorizedResponse(),
+    };
+  }
+
   const { userId } = await auth();
   if (userId) {
     const session = await getServerAuthSession(request);
@@ -67,6 +76,10 @@ export async function requireAdminSession(request?: NextRequest): Promise<
   | { ok: true; session: Extract<AuthSession, { status: "authenticated" }> }
   | { ok: false; response: Response }
 > {
+  if (!isClerkAuthUsable()) {
+    return { ok: false, response: unauthorizedResponse() };
+  }
+
   const { userId } = await auth();
   if (!userId) {
     return { ok: false, response: unauthorizedResponse() };

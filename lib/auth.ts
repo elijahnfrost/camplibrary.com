@@ -30,6 +30,64 @@ export const ANONYMOUS_SESSION: AuthSession = {
 
 export const ADMIN_EMAIL = "contact@elijahfrost.com";
 
+const PLACEHOLDER_RE = /^(|<.*>|.*placeholder.*|changeme|change-me|example|replace-me|todo|your-.+)$/i;
+const DUMMY_CLERK_MARKERS = [
+  "pk_test_zm9vlwjhci0xmjmu",
+  "sk_test_dgvzdhnly3jldgtlewzvcmxvy2fszgv2",
+  "foo-bar-123.clerk.accounts.dev",
+  "testsecretkeyforlocaldevonly",
+  "localdevonly",
+  "local-dev",
+];
+
+function decodeClerkPayload(value: string): string {
+  const encoded = value.replace(/^pk_(?:test|live)_/, "").replace(/^sk_(?:test|live)_/, "").replace(/\$$/, "");
+  if (!encoded || encoded === value) return value;
+
+  const atobFn = globalThis.atob;
+  if (typeof atobFn === "function") {
+    try {
+      return atobFn(encoded);
+    } catch {
+      return value;
+    }
+  }
+
+  try {
+    const buffer = (globalThis as typeof globalThis & { Buffer?: { from(input: string, encoding: "base64"): { toString(): string } } })
+      .Buffer;
+    return buffer?.from(encoded, "base64").toString() || value;
+  } catch {
+    return value;
+  }
+}
+
+export function isUsableClerkKey(value: string | null | undefined): value is string {
+  if (value == null) return false;
+  const trimmed = value.trim();
+  if (PLACEHOLDER_RE.test(trimmed)) return false;
+  const raw = trimmed.toLowerCase();
+  if (DUMMY_CLERK_MARKERS.some((marker) => raw.includes(marker))) return false;
+  const decoded = decodeClerkPayload(trimmed).toLowerCase();
+  return !DUMMY_CLERK_MARKERS.some((marker) => decoded.includes(marker));
+}
+
+export function isClerkPublicKeyUsable(
+  value: string | null | undefined = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+): value is string {
+  const trimmed = value?.trim();
+  return Boolean(trimmed?.startsWith("pk_")) && isUsableClerkKey(trimmed);
+}
+
+export function isClerkSecretKeyUsable(value: string | null | undefined = process.env.CLERK_SECRET_KEY): value is string {
+  const trimmed = value?.trim();
+  return Boolean(trimmed?.startsWith("sk_")) && isUsableClerkKey(trimmed);
+}
+
+export function isClerkAuthUsable(): boolean {
+  return isClerkPublicKeyUsable() && isClerkSecretKeyUsable();
+}
+
 export function isAdminEmail(email: string | null | undefined): boolean {
   return email?.trim().toLowerCase() === ADMIN_EMAIL;
 }
