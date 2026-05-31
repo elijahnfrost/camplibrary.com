@@ -1,5 +1,7 @@
 // Camp Library — shared domain types.
 
+import type { ActivityPlaybookData } from "@/lib/playbooks";
+
 export type CategoryId = "Game" | "Craft" | "Song" | "Water" | "Quiet";
 export type Place = "Inside" | "Outside" | "Both";
 export type AgeGroupId = "pre" | "g13" | "g46";
@@ -41,6 +43,9 @@ export interface Activity {
   safety: string;
   ages: AgeGroupId[];
   rating: number; // 0–5 (0 = not run yet)
+  // Optional hand-drawn field diagrams (stages) shown inside "How to play".
+  // Custom books carry their own; built-in books fall back to the registry.
+  playbook?: ActivityPlaybookData;
 }
 
 export type ScheduleBlockKind = "activity" | "label";
