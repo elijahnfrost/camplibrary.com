@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { Activity, ApplyMode, DaySchedule, DayTemplate, ScheduleBlock } from "@/lib/types";
 import { activityMeta, categoryTint, DAYS } from "@/lib/data";
+import type { MaterialOption } from "@/lib/materials";
 import {
   blockEndMin,
   blockStartMin,
@@ -127,9 +128,13 @@ export function CalendarView({
   cat,
   place,
   age,
+  materialOptions,
+  availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onToggleMaterial,
+  onClearMaterials,
   plans,
   openCount,
   onAddEvent,
@@ -161,9 +166,13 @@ export function CalendarView({
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  materialOptions: MaterialOption[];
+  availableMaterials: string[];
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
+  onToggleMaterial: (id: string) => void;
+  onClearMaterials: () => void;
   plans: DayTemplate[];
   openCount: number;
   onAddEvent: (draft: EventDraft) => void;
@@ -949,9 +958,13 @@ export function CalendarView({
           cat={cat}
           place={place}
           age={age}
+          materialOptions={materialOptions}
+          availableMaterials={availableMaterials}
           onCat={onCat}
           onPlace={onPlace}
           onAge={onAge}
+          onToggleMaterial={onToggleMaterial}
+          onClearMaterials={onClearMaterials}
           plans={plans}
           dayName={DAYS[dayIndex]}
           onToggle={() => setLibraryOpen((open) => !open)}

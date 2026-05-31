@@ -35,6 +35,7 @@ export interface Activity {
   prep: Prep;
   blurb: string;
   materials: string[];
+  materialTags?: string[];
   steps: string[];
   notes: string;
   safety: string;
@@ -98,5 +99,10 @@ export interface Slot {
 }
 
 export type LibraryView = "shelf" | "deck" | "catalog";
-// "schedule" is the week/agenda overview; "calendar" is the single-day interactive workspace.
-export type TabId = "home" | "library" | "schedule" | "calendar" | "saved" | "add";
+export type BookViewerView = "book" | "card" | "prep";
+export interface BookViewerState {
+  view: BookViewerView;
+  width: number;
+}
+// "schedule" is the Run Sheet preview; "calendar" is the interactive Planner workspace.
+export type TabId = "home" | "library" | "schedule" | "calendar" | "saved" | "add" | "admin";

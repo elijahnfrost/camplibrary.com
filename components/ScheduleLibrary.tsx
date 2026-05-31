@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { Activity, DayTemplate } from "@/lib/types";
 import { activityMeta } from "@/lib/data";
+import type { MaterialOption } from "@/lib/materials";
 import { CampIcon } from "./icons";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 import { SaveButton } from "./primitives";
@@ -15,9 +16,13 @@ export function ScheduleLibrary({
   cat,
   place,
   age,
+  materialOptions,
+  availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onToggleMaterial,
+  onClearMaterials,
   plans,
   dayName,
   onToggle,
@@ -37,9 +42,13 @@ export function ScheduleLibrary({
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  materialOptions: MaterialOption[];
+  availableMaterials: string[];
   onCat: (value: CatFilter) => void;
   onPlace: (value: PlaceFilter) => void;
   onAge: (value: AgeFilter) => void;
+  onToggleMaterial: (id: string) => void;
+  onClearMaterials: () => void;
   plans: DayTemplate[];
   dayName: string;
   onToggle: () => void;
@@ -92,7 +101,19 @@ export function ScheduleLibrary({
           />
         </label>
 
-        <Filters variant="bar" cat={cat} place={place} age={age} onCat={onCat} onPlace={onPlace} onAge={onAge} />
+        <Filters
+          variant="bar"
+          cat={cat}
+          place={place}
+          age={age}
+          materialOptions={materialOptions}
+          availableMaterials={availableMaterials}
+          onCat={onCat}
+          onPlace={onPlace}
+          onAge={onAge}
+          onToggleMaterial={onToggleMaterial}
+          onClearMaterials={onClearMaterials}
+        />
 
         <p className="schedule-library__hint">Drag onto the calendar, or tap + to drop it at the next open time.</p>
 

@@ -1,7 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { useDialogFocus } from "./useDialogFocus";
+
+type ModalOverlayProps = HTMLAttributes<HTMLDivElement> & {
+  [key: `data-${string}`]: string | undefined;
+};
 
 /**
  * Bottom sheet on phones, centered card on larger surfaces.
@@ -14,20 +18,25 @@ export function Modal({
   onClose,
   children,
   className = "",
+  overlayProps,
 }: {
   label: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  overlayProps?: ModalOverlayProps;
 }) {
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
+  const { className: overlayClassName, ...restOverlayProps } = overlayProps ?? {};
+  const classes = ["overlay", "overlay--sheet", overlayClassName, className].filter(Boolean).join(" ");
 
   return (
     <div className="modal-root">
       <div className="scrim" onClick={onClose} />
       <div
+        {...restOverlayProps}
         ref={dialogRef}
-        className={"overlay overlay--sheet" + (className ? " " + className : "")}
+        className={classes}
         role="dialog"
         aria-modal="true"
         aria-label={label}

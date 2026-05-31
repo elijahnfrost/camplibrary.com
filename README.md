@@ -6,14 +6,14 @@ Built mobile-first and scaled deliberately for tablet and desktop.
 
 Live target: **Vercel**. Authentication is backed by **Clerk** with Google sign-in,
 email/password accounts, email verification, and password reset. New account creation is
-gated by one-use invite codes stored in Postgres.
+gated by usage-limited invite codes stored in Postgres.
 
 ## Stack
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **next/font** for the three handwriting faces (Caveat, Patrick Hand, Patrick Hand SC)
 - Plain CSS design system in `app/globals.css` — no UI framework, faithful to the design
-- Clerk auth + Postgres-backed invite codes
+- Clerk auth + Postgres-backed usage-limited invite codes
 - App content persistence still uses `localStorage` pending the shared backend
 
 ## Getting started
@@ -44,18 +44,20 @@ Public visitors can browse the library and schedule. Staff-only actions — savi
 rating, adding custom activities, and changing the schedule — are locked behind Clerk
 session state in [`components/AuthControls.tsx`](components/AuthControls.tsx).
 
-New accounts must enter a one-use invite code. Generate one with:
+New accounts must enter an invite code. Generate one with:
 
 ```bash
-npm run invite:create -- --label "Staff name" --email staff@example.com
+npm run invite:create -- --label "Staff name" --email staff@example.com --max-uses 1
 ```
 
-Once signed in as `contact@elijahfrost.com`, the app shows an Admin entry that opens
-`/admin`, where invite codes can be generated and reviewed without using the CLI.
+Once signed in as `contact@elijahfrost.com`, the app shows an Admin tab where invite
+codes can be generated, reviewed, and removed without using the CLI. `/admin` remains
+an admin-protected deep link into the same app shell.
 
 The code is shown once, stored hashed, reserved during sign-up, and consumed after the
-Clerk account is created. Google sign-up and email/password sign-up both use the same
-code gate.
+Clerk account is created. Usage count is tracked in Postgres, and a key is deactivated
+once it reaches its max-use limit. Google sign-up and email/password sign-up both use
+the same code gate.
 
 Every app preference — favorites, schedules, custom entries, ratings, and the chosen view
 — still lives in `localStorage`, isolated behind [`lib/store.ts`](lib/store.ts). When the
@@ -71,12 +73,13 @@ app/
   admin/            Admin-only invite-code dashboard
   sign-in/          Clerk sign-in, password reset, Google login
   sign-up/          Invite-code gated account creation
-  api/invite-codes/ One-use invite code admin/reserve/consume routes
+  api/invite-codes/ Usage-limited invite code admin/reserve/consume routes
   globals.css       Design system: mobile-first + the large-screen layer
 components/
   CampApp.tsx       State + the responsive shell (sidebar / tab bar / overlays)
   LibraryViews.tsx  Shelf · Deck · Catalog
-  ScheduleView.tsx  Day-planner calendar (drag/resize events, add-event composer)
+  ScheduleOverview.tsx  Run Sheet week preview
+  CalendarView.tsx  Planner calendar (drag/resize events, add-event composer)
   SavedView.tsx     Starred shortlist
   AddView.tsx       Catalog-an-entry form
   DetailSheet.tsx   Activity detail (bottom sheet → centered modal)

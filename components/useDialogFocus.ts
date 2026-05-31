@@ -5,6 +5,10 @@ import { useEffect, useRef } from "react";
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+function focusWithoutScroll(element: HTMLElement) {
+  element.focus({ preventScroll: true });
+}
+
 export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T | null>(null);
   const onCloseRef = useRef(onClose);
@@ -18,7 +22,7 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusFirst = () => {
       const first = activeDialog.querySelector<HTMLElement>(FOCUSABLE);
-      (first || activeDialog).focus();
+      focusWithoutScroll(first || activeDialog);
     };
     const frame = window.requestAnimationFrame(focusFirst);
 
@@ -35,7 +39,7 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
       );
       if (!focusable.length) {
         event.preventDefault();
-        activeDialog.focus();
+        focusWithoutScroll(activeDialog);
         return;
       }
 
@@ -43,10 +47,10 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        focusWithoutScroll(last);
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        focusWithoutScroll(first);
       }
     }
 
@@ -54,7 +58,7 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      if (previouslyFocused?.isConnected) focusWithoutScroll(previouslyFocused);
     };
   }, []);
 

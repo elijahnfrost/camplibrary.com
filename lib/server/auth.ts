@@ -6,7 +6,7 @@ import { getBackendEnvStatus } from "./env";
 
 export type AuthBackendStatus = {
   connected: boolean;
-  provider: "clerk" | "custom" | "none";
+  provider: "managed" | "custom" | "none";
   sessionMode: "provider" | "none";
   notes: string[];
 };
@@ -17,12 +17,12 @@ export function getAuthBackendStatus(): AuthBackendStatus {
 
   return {
     connected: hasClerk,
-    provider: hasClerk ? "clerk" : "none",
+    provider: hasClerk ? "managed" : "none",
     sessionMode: hasClerk ? "provider" : "none",
     notes: hasClerk
       ? [
-          "Clerk is configured for Google and email/password auth.",
-          "New account creation is gated by one-use invite codes.",
+          "Hosted sign-in is configured for Google and email/password auth.",
+          "New account creation is gated by usage-limited invite codes.",
           "Mutation routes should call requireEditorSession before persisting shared edits.",
         ]
       : ["Clerk environment keys are missing or placeholders."],

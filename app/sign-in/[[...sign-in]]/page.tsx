@@ -1,9 +1,9 @@
-import { SignIn } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { isClerkPublicKeyUsable } from "@/lib/auth";
+import { StaffSignIn } from "@/components/StaffSignIn";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Staff access",
 };
 
 export default function SignInPage() {
@@ -14,21 +14,10 @@ export default function SignInPage() {
       <div className="auth-route__brand">
         <img className="auth-route__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
         <span className="auth-route__kicker">Camp Library</span>
-        <h1 className="auth-route__title">Staff sign in</h1>
+        <h1 className="auth-route__title">Staff access</h1>
       </div>
       {authEnabled ? (
-        <SignIn
-          routing="path"
-          path="/sign-in"
-          signUpUrl="/sign-up"
-          fallbackRedirectUrl="/"
-          appearance={{
-            elements: {
-              rootBox: "clerk-auth-box",
-              cardBox: "clerk-auth-card",
-            },
-          }}
-        />
+        <StaffSignIn />
       ) : (
         <div className="auth-route__status">
           Staff sign-in is disabled because Clerk is not configured with valid local keys.

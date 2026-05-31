@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Caveat, Nunito_Sans, Patrick_Hand, Patrick_Hand_SC } from "next/font/google";
 import { isClerkPublicKeyUsable } from "@/lib/auth";
+import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
 import "./globals.css";
 
 // The design's three handwriting faces, loaded as CSS variables.
@@ -77,14 +77,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const app = isClerkPublicKeyUsable() ? (
-    <ClerkProvider
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-    >
-      {children}
-    </ClerkProvider>
+    <ClerkAuthProvider>{children}</ClerkAuthProvider>
   ) : (
     children
   );

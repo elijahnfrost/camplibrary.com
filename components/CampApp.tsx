@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Activity,
   ApplyMode,
+  BookViewerState,
   BlockFill,
   CategoryId,
   ConditionalRule,
@@ -27,7 +28,8 @@ import {
   normalizeTimeString,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
-import { type StorageValidator, useLocalStorage } from "@/lib/store";
+import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
+import { type StorageValidator, useLocalStorage, useSessionStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
@@ -38,9 +40,10 @@ import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
-import { AuthButton, AuthRequiredPanel, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { AdminInviteCodes } from "./AdminInviteCodes";
 
-const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
+const TABS: { id: Exclude<TabId, "admin">; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "schedule", label: "Run Sheet", icon: CampIcon.List },
@@ -48,6 +51,11 @@ const TABS: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof Cam
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
+const ADMIN_TAB: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] } = {
+  id: "admin",
+  label: "Admin",
+  icon: CampIcon.Tool,
+};
 
 function cloneBlocks(blocks: DaySchedule): DaySchedule {
   return blocks.map((block) => ({ ...block }));
@@ -257,6 +265,20 @@ const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
 const zoomStorage: StorageValidator<number> = (value, fallback) =>
   typeof value === "number" && Number.isFinite(value) ? clampZoomIndex(value) : fallback;
 
+const DEFAULT_BOOK_VIEWER: BookViewerState = {
+  view: "book",
+  width: 760,
+};
+const bookViewerStorage: StorageValidator<BookViewerState> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const view = value.view === "book" || value.view === "card" || value.view === "prep" ? value.view : fallback.view;
+  const width =
+    typeof value.width === "number" && Number.isFinite(value.width)
+      ? Math.max(360, Math.min(960, Math.round(value.width)))
+      : fallback.width;
+  return { view, width };
+};
+
 const SCHEDULE_SEED_VERSION = "3";
 
 function isLegacyOneDaySeed(raw: string | null): boolean {
@@ -293,13 +315,23 @@ function isLegacyOneDaySeed(raw: string | null): boolean {
   }
 }
 
-export function CampApp() {
-  const [tab, setTab] = useState<TabId>("home");
+export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
+  const [bookViewer, setBookViewer] = useSessionStorage<BookViewerState>(
+    "bookViewer",
+    DEFAULT_BOOK_VIEWER,
+    bookViewerStorage
+  );
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
+  const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
+    "availableMaterials",
+    [],
+    stringArrayStorage
+  );
 
   // One search field, never stale: clear it whenever the tab changes so the
   // library count and the schedule activity tray aren't silently pre-filtered.
@@ -326,8 +358,11 @@ export function CampApp() {
   const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
   const auth = usePreviewAuth();
   const authLabel = useAuthLabel(auth.session);
-  const canEdit = auth.signedIn;
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
+  const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
+  const openAuthForCurrentTab = useCallback(() => {
+    auth.openAuth();
+  }, [auth]);
 
   // Safety snapshot + seed migration. If the browser still has the old
   // one-day demo schedule, upgrade it to the full Monday-Friday draft; leave
@@ -360,6 +395,21 @@ export function CampApp() {
     return base.map((a) => (ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a));
   }, [extra, ratings]);
 
+  const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
+  const activeAvailableMaterials = useMemo(() => {
+    const optionIds = new Set(materialOptions.map((option) => option.id));
+    return availableMaterials.filter((id) => optionIds.has(id));
+  }, [availableMaterials, materialOptions]);
+  const toggleAvailableMaterial = useCallback(
+    (id: string) => {
+      setAvailableMaterials((previous) =>
+        previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
+      );
+    },
+    [setAvailableMaterials]
+  );
+  const clearAvailableMaterials = useCallback(() => setAvailableMaterials([]), [setAvailableMaterials]);
+
   const byId = useMemo(() => {
     const m: Record<string, Activity> = {};
     all.forEach((a) => (m[a.id] = a));
@@ -368,11 +418,7 @@ export function CampApp() {
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
-  const requireEditAccess = useCallback(() => {
-    if (canEdit) return true;
-    auth.openAuth();
-    return false;
-  }, [auth, canEdit]);
+  const requireEditAccess = useCallback(() => true, []);
   const toggleFav = useCallback(
     (id: string) => {
       if (!requireEditAccess()) return;
@@ -386,8 +432,10 @@ export function CampApp() {
   };
 
   const filtered = useMemo(() => {
-    return all.filter((a) => matchesActivityFilters(a, { cat, place, age, query }));
-  }, [all, cat, place, age, query]);
+    return all.filter((a) =>
+      matchesActivityFilters(a, { cat, place, age, query, availableMaterialTags: activeAvailableMaterials })
+    );
+  }, [all, cat, place, age, query, activeAvailableMaterials]);
 
   const dayBlocks = useMemo(
     () => normalizeDaySchedule(schedule[dayIndex], dayIndex),
@@ -526,7 +574,9 @@ export function CampApp() {
   // Best activity of a category for a conditional "byCategory" slot:
   // prefer saved, then highest rating.
   function bestActivityOfCategory(category: CategoryId): string | undefined {
-    const pool = all.filter((a) => a.type === category);
+    const pool = all.filter(
+      (a) => a.type === category && hasRequiredMaterials(a, activeAvailableMaterials)
+    );
     if (!pool.length) return undefined;
     const ranked = [...pool].sort((a, b) => {
       const favDiff = (favSet.has(b.id) ? 1 : 0) - (favSet.has(a.id) ? 1 : 0);
@@ -720,11 +770,14 @@ export function CampApp() {
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
     add: {
-      kicker: canEdit ? "Catalog something" : "Staff-only catalog",
+      kicker: "Catalog something",
       title: "New Activity",
-      summary: canEdit
-        ? "Add a tested activity, quiet filler, song, craft, or camp game."
-        : "Sign in before adding to the shared library.",
+      summary: "Add a tested activity, quiet filler, song, craft, or camp game.",
+    },
+    admin: {
+      kicker: "Administrator",
+      title: "Staff access",
+      summary: "Generate and review staff invite keys.",
     },
   };
   const page = pageByTab[tab];
@@ -751,7 +804,7 @@ export function CampApp() {
             </span>
           </button>
           <div className="sidenav__nav">
-            {TABS.filter((t) => t.id !== "home").map((t) => (
+            {navTabs.filter((t) => t.id !== "home").map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -763,12 +816,6 @@ export function CampApp() {
                 <span>{t.label}</span>
               </button>
             ))}
-            {isAdmin && (
-              <a className="sidenav__item" href="/admin">
-                <CampIcon.Tool />
-                <span>Admin</span>
-              </a>
-            )}
           </div>
           {tab === "library" && (
             <Filters
@@ -776,9 +823,13 @@ export function CampApp() {
               cat={cat}
               place={place}
               age={age}
+              materialOptions={materialOptions}
+              availableMaterials={activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onToggleMaterial={toggleAvailableMaterial}
+              onClearMaterials={clearAvailableMaterials}
             />
           )}
           <div className="sidenav__foot">
@@ -804,7 +855,7 @@ export function CampApp() {
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
-              <AuthButton session={auth.session} onOpen={auth.openAuth} onSignOut={auth.signOut} />
+              <AuthButton session={auth.session} onOpen={openAuthForCurrentTab} onSignOut={auth.signOut} />
               <button
                 type="button"
                 className="icon-btn print-btn"
@@ -867,9 +918,13 @@ export function CampApp() {
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
               />
             </>
           )}
@@ -927,9 +982,13 @@ export function CampApp() {
                 cat={cat}
                 place={place}
                 age={age}
+                materialOptions={materialOptions}
+                availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onToggleMaterial={toggleAvailableMaterial}
+                onClearMaterials={clearAvailableMaterials}
                 plans={schedulePlans}
                 openCount={openCount}
                 onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
@@ -952,38 +1011,44 @@ export function CampApp() {
               />
             )}
             {tab === "saved" && (
-              <SavedView items={all} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
+              <SavedView
+                items={all}
+                onOpen={openDetail}
+                isFav={isFav}
+                onToggleFav={toggleFav}
+              />
             )}
             {tab === "add" && (
-              canEdit ? (
-                <AddView
-                  initial={editing}
-                  onCancelEdit={() => {
+              <AddView
+                initial={editing}
+                onCancelEdit={() => {
+                  setEditing(null);
+                  setTab("library");
+                }}
+                onSubmit={(a) => {
+                  if (editing) {
+                    setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
                     setEditing(null);
-                    setTab("library");
-                  }}
-                  onSubmit={(a) => {
-                    if (editing) {
-                      setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
-                      setEditing(null);
-                      setLiveMsg("Updated " + a.title);
-                    } else {
-                      setExtra((p) => [a, ...p]);
-                    }
-                    setTab("library");
-                    setCat("All");
-                    setView("catalog");
-                  }}
-                />
-              ) : (
-                <AuthRequiredPanel onSignIn={auth.openAuth} />
-              )
+                    setLiveMsg("Updated " + a.title);
+                  } else {
+                    setExtra((p) => [a, ...p]);
+                  }
+                  setTab("library");
+                  setCat("All");
+                  setView("catalog");
+                }}
+              />
+            )}
+            {tab === "admin" && (
+              <div className="admin-tab">
+                <AdminInviteCodes />
+              </div>
             )}
           </div>
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {TABS.map((t) => (
+          {navTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -1016,6 +1081,8 @@ export function CampApp() {
             onDelete={deleteActivity}
             showScheduleAction={detailMode !== "runSheet"}
             showOwnerActions={detailMode !== "runSheet"}
+            viewer={bookViewer}
+            onViewerChange={setBookViewer}
           />
         )}
       </div>
