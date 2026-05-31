@@ -39,9 +39,11 @@ shape can never crash the render.
 
 - **Custom books** carry their diagram on `Activity.playbook` (persisted with the book in `extra`).
 - **Built-in books** (e.g. Capture the Flag) start from `PLAYBOOKS_BY_ACTIVITY_ID`; edits are
-  saved as a per-activity override in the `camp:playbooks` localStorage map — the seed data is
-  never mutated.
-- Resolution order in `CampApp.resolvePlaybook`: `activity.playbook` → override map → seed registry → none.
+  saved with the full edited activity in the `camp:overrides` localStorage map — the seed data is
+  never mutated, and diagram edits stay together with title/material/step edits.
+- Resolution order in `CampApp`: edited activity override → seed/custom activity with
+  `Activity.playbook` → built-in `PLAYBOOKS_BY_ACTIVITY_ID` registry → none.
+- Legacy `camp:playbooks` entries from the standalone diagram editor are still read as a compatibility fallback and cleared when that diagram is saved or reset through the unified editor.
 
 ## Editing flow
 

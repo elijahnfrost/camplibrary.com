@@ -14,6 +14,7 @@ import {
 import { blankPlaybook, type ActivityPlaybookData } from "@/lib/playbooks";
 import { CampIcon } from "./icons";
 import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
+import { AddView } from "./AddView";
 import { Modal } from "./Modal";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 import { PlaybookEditor } from "./PlaybookEditor";
@@ -25,12 +26,12 @@ export function DetailSheet({
   onClose,
   onSetRating,
   isCustom,
-  onEdit,
+  isEdited,
+  onSave,
+  onReset,
   onDelete,
   showOwnerActions = true,
-  playbook = null,
   onSavePlaybook,
-  canEditPlaybook = true,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -38,42 +39,51 @@ export function DetailSheet({
   onClose: () => void;
   onSetRating: (id: string, val: number) => void;
   isCustom: boolean;
-  onEdit: (a: Activity) => void;
+  isEdited: boolean;
+  onSave: (a: Activity) => void;
+  onReset: (a: Activity) => void;
   onDelete: (a: Activity) => void;
   showOwnerActions?: boolean;
-  playbook?: ActivityPlaybookData | null;
   onSavePlaybook?: (activityId: string, data: ActivityPlaybookData) => void;
-  canEditPlaybook?: boolean;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
-  const [pbEditing, setPbEditing] = useState(false);
-  const [draft, setDraft] = useState<ActivityPlaybookData | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [playbookEditing, setPlaybookEditing] = useState(false);
+  const [playbookDraft, setPlaybookDraft] = useState<ActivityPlaybookData | null>(null);
+  const canEditPlaybook = Boolean(onSavePlaybook);
 
-  const canEditDiagram = canEditPlaybook && Boolean(onSavePlaybook);
-
-  // Reset the editor whenever the open activity changes.
+  // Always reopen on the reading view — even if the same modal is reused for a
+  // different book — and scroll the body back to the top when the mode flips.
   useEffect(() => {
-    setPbEditing(false);
-    setDraft(null);
+    setMode("view");
+    setPlaybookEditing(false);
+    setPlaybookDraft(null);
   }, [a.id]);
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+  }, [mode]);
+
+  const isEditing = mode === "edit";
 
   function startPlaybookEdit() {
-    setDraft(playbook ?? blankPlaybook(a.id, a.title));
-    setPbEditing(true);
+    setPlaybookDraft(a.playbook ?? blankPlaybook(a.id, a.title));
+    setPlaybookEditing(true);
   }
 
   function savePlaybookEdit() {
-    if (draft && onSavePlaybook) onSavePlaybook(a.id, draft);
-    setPbEditing(false);
+    if (playbookDraft) onSavePlaybook?.(a.id, playbookDraft);
+    setPlaybookEditing(false);
+    setPlaybookDraft(null);
   }
 
   function cancelPlaybookEdit() {
-    setPbEditing(false);
-    setDraft(null);
+    setPlaybookEditing(false);
+    setPlaybookDraft(null);
   }
-  const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
 
   const onBodyTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (isEditing || playbookEditing) return;
     if (event.touches.length !== 1 || typeof window === "undefined" || window.innerWidth >= 768) return;
     const body = bodyRef.current;
     if (!body || body.scrollTop > 4) {
@@ -170,9 +180,9 @@ export function DetailSheet({
 
   const steps = (num = "ii") => (
     <Block num={num} name="How to play">
-      {pbEditing && draft ? (
+      {playbookEditing && playbookDraft ? (
         <div className="pb-editwrap">
-          <PlaybookEditor value={draft} onChange={setDraft} />
+          <PlaybookEditor value={playbookDraft} onChange={setPlaybookDraft} />
           <div className="pb-editwrap__actions">
             <button type="button" className="btn btn--primary btn--sm" onClick={savePlaybookEdit}>
               <CampIcon.Check />
@@ -183,10 +193,10 @@ export function DetailSheet({
             </button>
           </div>
         </div>
-      ) : playbook ? (
+      ) : a.playbook ? (
         <ActivityPlaybook
-          playbook={playbook}
-          onRequestEdit={canEditDiagram ? startPlaybookEdit : undefined}
+          playbook={a.playbook}
+          onRequestEdit={canEditPlaybook ? startPlaybookEdit : undefined}
         />
       ) : (
         <>
@@ -195,7 +205,7 @@ export function DetailSheet({
               <li key={i}>{s}</li>
             ))}
           </ol>
-          {canEditDiagram ? (
+          {canEditPlaybook ? (
             <button type="button" className="btn btn--ghost btn--sm pb-add" onClick={startPlaybookEdit}>
               <CampIcon.Plus />
               Add a diagram
@@ -241,11 +251,11 @@ export function DetailSheet({
 
   return (
     <Modal
-      label={a.title}
+      label={isEditing ? "Editing " + a.title : a.title}
       onClose={onClose}
       overlayProps={{
         className: "overlay--viewer",
-        "data-viewer-view": "book",
+        "data-viewer-view": isEditing ? "edit" : "book",
       }}
     >
       <div
@@ -255,24 +265,59 @@ export function DetailSheet({
         onTouchEnd={onBodyTouchEnd}
         onTouchCancel={onBodyTouchCancel}
       >
-        {bookView}
+        {isEditing ? (
+          <AddView
+            initial={a}
+            onCancelEdit={() => setMode("view")}
+            onSubmit={(updated) => {
+              onSave(updated);
+              setMode("view");
+            }}
+          />
+        ) : (
+          bookView
+        )}
       </div>
 
-      {showOwnerActions && isCustom && (
+      {showOwnerActions && !isEditing && (
         <div className="detail__actions">
           <div className="detail__owner">
-            <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
-              <CampIcon.Tool />
-              Edit
-            </button>
             <button
               type="button"
-              className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
-              onClick={() => onDelete(a)}
+              className="btn btn--quiet detail__owner-btn"
+              onClick={() => {
+                setPlaybookEditing(false);
+                setPlaybookDraft(null);
+                setMode("edit");
+              }}
             >
-              <CampIcon.Trash />
-              Delete
+              <CampIcon.Pencil />
+              Edit
             </button>
+            {isEdited && (
+              <button
+                type="button"
+                className="btn btn--quiet detail__owner-btn"
+                onClick={() => {
+                  setPlaybookEditing(false);
+                  setPlaybookDraft(null);
+                  onReset(a);
+                }}
+              >
+                <CampIcon.Reset />
+                Reset
+              </button>
+            )}
+            {isCustom && (
+              <button
+                type="button"
+                className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
+                onClick={() => onDelete(a)}
+              >
+                <CampIcon.Trash />
+                Delete
+              </button>
+            )}
           </div>
         </div>
       )}
