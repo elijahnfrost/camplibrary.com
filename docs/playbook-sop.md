@@ -43,6 +43,7 @@ shape can never crash the render.
   never mutated, and diagram edits stay together with title/material/step edits.
 - Resolution order in `CampApp`: edited activity override → seed/custom activity with
   `Activity.playbook` → built-in `PLAYBOOKS_BY_ACTIVITY_ID` registry → none.
+- Legacy `camp:playbooks` entries from the standalone diagram editor are still read as a compatibility fallback and cleared when that diagram is saved or reset through the unified editor.
 
 ## Editing flow
 

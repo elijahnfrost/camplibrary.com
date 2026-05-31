@@ -178,8 +178,8 @@ export function DetailSheet({
     </Block>
   );
 
-  const steps = (
-    <Block num="ii" name="How to play">
+  const steps = (num = "ii") => (
+    <Block num={num} name="How to play">
       {playbookEditing && playbookDraft ? (
         <div className="pb-editwrap">
           <PlaybookEditor value={playbookDraft} onChange={setPlaybookDraft} />
@@ -216,14 +216,14 @@ export function DetailSheet({
     </Block>
   );
 
-  const notes = (
-    <Block num="iii" name="Notes & variations">
+  const notes = (num = "iii") => (
+    <Block num={num} name="Notes & variations">
       <p className="prose">{a.notes}</p>
     </Block>
   );
 
-  const safety = (
-    <Block num="iv" name="Safety">
+  const safety = (num = "iv") => (
+    <Block num={num} name="Safety">
       <div className="safety">{a.safety}</div>
     </Block>
   );
@@ -241,9 +241,9 @@ export function DetailSheet({
       <section className="book-page book-page--instructions">
         <div className="detail__pad">
           {materials}
-          {steps}
-          {notes}
-          {safety}
+          {steps("ii")}
+          {notes("iii")}
+          {safety("iv")}
         </div>
       </section>
     </div>

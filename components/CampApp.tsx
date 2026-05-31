@@ -258,6 +258,21 @@ const overridesStorage: StorageValidator<Record<string, Activity>> = (value, fal
   return out;
 };
 
+// Per-activity playbook overrides — lets any diagram (including built-in ones)
+// be edited and persisted without mutating the seed data.
+const playbookOverridesStorage: StorageValidator<Record<string, ActivityPlaybookData>> = (
+  value,
+  fallback
+) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, ActivityPlaybookData> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const normalized = normalizePlaybook(raw);
+    if (normalized) out[key] = normalized;
+  }
+  return out;
+};
+
 const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Schedule = {};
@@ -355,11 +370,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     {},
     overridesStorage
   );
+  const [playbookOverrides, setPlaybookOverrides] = useLocalStorage<Record<string, ActivityPlaybookData>>(
+    "playbooks",
+    {},
+    playbookOverridesStorage
+  );
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
   const [zoomIdx, setZoomIdx] = useLocalStorage<number>("planZoom", DEFAULT_ZOOM, zoomStorage);
   const focusNonceRef = useRef(0);
+  const activityDeepLinkOpenedRef = useRef(false);
   const [calFocus, setCalFocus] = useState<{ min: number; nonce: number } | null>(null);
 
   const [detail, setDetail] = useState<Activity | null>(null);
@@ -408,11 +429,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       // A saved edit to a built-in book fully replaces the seed; ratings then
       // layer on top so the standalone rating picker stays the source of truth.
       const seededPlaybook = PLAYBOOKS_BY_ACTIVITY_ID[seed.id];
-      const baseActivity = seededPlaybook && !seed.playbook ? { ...seed, playbook: seededPlaybook } : seed;
+      const legacyPlaybookOverride = playbookOverrides[seed.id];
+      const basePlaybook = seed.playbook ?? legacyPlaybookOverride ?? seededPlaybook;
+      const baseActivity = basePlaybook ? { ...seed, playbook: basePlaybook } : seed;
       const a = overrides[seed.id] ?? baseActivity;
       return ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a;
     });
-  }, [extra, overrides, ratings]);
+  }, [extra, overrides, playbookOverrides, ratings]);
 
   const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
   const activeAvailableMaterials = useMemo(() => {
@@ -434,6 +457,16 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     all.forEach((a) => (m[a.id] = a));
     return m;
   }, [all]);
+
+  useEffect(() => {
+    if (activityDeepLinkOpenedRef.current) return;
+    const activityId = new URLSearchParams(window.location.search).get("activity");
+    if (!activityId || !byId[activityId]) return;
+    activityDeepLinkOpenedRef.current = true;
+    setTab("library");
+    setDetailMode("library");
+    setDetail(byId[activityId]);
+  }, [byId]);
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
@@ -729,6 +762,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       const activity = byId[activityId];
       if (!activity) return;
       setOverrides((p) => ({ ...p, [activityId]: { ...activity, playbook: next } }));
+      setPlaybookOverrides((p) => {
+        if (p[activityId] == null) return p;
+        const cleaned = { ...p };
+        delete cleaned[activityId];
+        return cleaned;
+      });
     }
     setLiveMsg("Saved diagram");
   }
@@ -757,6 +796,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       return next;
     });
     setRatings((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
+      return next;
+    });
+    setPlaybookOverrides((p) => {
       if (p[a.id] == null) return p;
       const next = { ...p };
       delete next[a.id];
