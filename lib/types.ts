@@ -99,10 +99,5 @@ export interface Slot {
 }
 
 export type LibraryView = "shelf" | "deck" | "catalog";
-export type BookViewerView = "book" | "card" | "prep";
-export interface BookViewerState {
-  view: BookViewerView;
-  width: number;
-}
 // "schedule" is the Run Sheet preview; "calendar" is the interactive Planner workspace.
 export type TabId = "home" | "library" | "schedule" | "calendar" | "saved" | "add" | "admin";

@@ -1836,34 +1836,6 @@ body {
   border-radius: 3px;
   background: var(--line);
 }
-/* detail: the bar floats over the full-bleed hero so the page opens onto its
-   image. Only the controls catch clicks; the rest lets the hero scroll. */
-.overlay__bar--float {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 6;
-  align-items: flex-start;
-  padding: 12px 14px 0;
-  pointer-events: none;
-}
-.overlay__bar--float .icon-btn {
-  pointer-events: auto;
-}
-.overlay__bar--float .overlay__handle {
-  background: color-mix(in srgb, #fff 78%, transparent);
-}
-.icon-btn--float {
-  width: 38px;
-  height: 38px;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--card) 86%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 50%;
-  box-shadow: 2px 2px 0 var(--shadow);
-  backdrop-filter: blur(2px);
-}
 .overlay__body {
   flex: 1;
   overflow-y: auto;
@@ -2085,101 +2057,18 @@ body {
   border-color: color-mix(in srgb, var(--clay) 45%, var(--line));
 }
 
-.viewer-controls {
-  pointer-events: auto;
-  max-width: calc(100% - 52px);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-  border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-  color: var(--ink-soft);
-  box-shadow: 2px 2px 0 var(--shadow);
-  backdrop-filter: blur(2px);
-}
-.viewer-controls__group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.viewer-controls__btn {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.viewer-controls__btn:hover {
-  background: color-mix(in srgb, var(--paper-2) 76%, transparent);
-  color: var(--ink);
-}
-.viewer-controls__btn.is-on {
-  background: var(--accent);
-  color: #fff;
-}
-.viewer-controls__btn svg {
-  width: 17px;
-  height: 17px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.viewer-resize-handle {
-  display: none;
-}
-
-.overlay--viewer[data-viewer-view="card"] .detail__hero,
-.overlay--viewer[data-viewer-view="prep"] .detail__hero {
-  height: 96px;
-  justify-content: flex-start;
-  padding: 24px 22px 0;
-}
-.overlay--viewer[data-viewer-view="card"] .detail__mono,
-.overlay--viewer[data-viewer-view="prep"] .detail__mono {
-  font-size: 58px;
-}
-.overlay--viewer[data-viewer-view="card"] .detail__ribbon,
-.overlay--viewer[data-viewer-view="prep"] .detail__ribbon {
-  right: 24px;
-  --ribbon-w: 30px;
-}
-.overlay--viewer[data-viewer-view="card"] .detail__pad,
-.overlay--viewer[data-viewer-view="prep"] .detail__pad {
-  padding-top: 16px;
-}
-.overlay--viewer[data-viewer-view="card"] .detail__title,
-.overlay--viewer[data-viewer-view="prep"] .detail__title {
-  font-size: 40px;
-}
-.overlay--viewer[data-viewer-view="card"] .detail__blurb,
-.overlay--viewer[data-viewer-view="prep"] .detail__blurb {
-  font-family: var(--text);
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--ink);
-}
-
 .book-spread {
   min-height: 100%;
-  padding: 52px 12px 16px;
+  padding: 14px;
   display: grid;
   gap: 0;
+  box-sizing: border-box;
 }
 .book-page {
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: color-mix(in srgb, var(--card) 72%, var(--paper));
   border: 1.5px solid var(--ink);
 }
@@ -2191,20 +2080,21 @@ body {
   border-radius: 0 0 16px 16px;
 }
 .book-page .detail__hero {
-  height: 184px;
+  height: 156px;
+  flex: none;
 }
 .book-page .detail__pad {
   padding: 18px 20px 24px;
 }
 .book-page .detail__title {
-  font-size: 40px;
+  font-size: clamp(32px, 5vw, 42px);
 }
 .book-page .detail__blurb {
-  font-size: 22px;
-}
-.prep-grid {
-  display: grid;
-  gap: 2px 16px;
+  font-family: var(--text);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
 }
 
 /* ---------- empty states ---------- */
@@ -3073,58 +2963,50 @@ body {
 
 @media (max-width: 767px) {
   .overlay--viewer {
-    top: 76px;
-  }
-  .overlay--viewer[data-viewer-view="book"] {
     top: max(12px, env(safe-area-inset-top));
+    overflow: visible;
+    background: transparent;
+  }
+  .overlay--viewer .detail__actions {
+    padding: 8px 18px calc(16px + env(safe-area-inset-bottom));
+    border: 0;
+    background: transparent;
   }
 }
 
 @media (min-width: 768px) {
+  .modal-root:has(.overlay--viewer) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(18px, 3vw, 34px);
+  }
   .overlay--viewer {
-    inset: 0 0 0 auto;
-    height: 100%;
-    width: min(max(360px, var(--viewer-width, 760px)), calc(100vw - 288px), 960px);
-  }
-  .viewer-resize-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -8px;
-    z-index: 8;
-    display: block;
-    width: 16px;
-    cursor: ew-resize;
-    touch-action: none;
-  }
-  .viewer-resize-handle::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 6px;
-    width: 4px;
-    height: 54px;
-    border-radius: 999px;
-    transform: translateY(-50%);
-    background: color-mix(in srgb, var(--line) 70%, transparent);
-    box-shadow: 2px 2px 0 var(--shadow);
-  }
-  .viewer-resize-handle:focus-visible::after,
-  .viewer-resize-handle:hover::after {
-    background: var(--accent);
+    position: relative;
+    inset: auto;
+    width: min(1040px, calc(100vw - 64px));
+    height: min(820px, calc(100vh - 48px));
+    max-height: calc(100vh - 48px);
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .overlay--viewer[data-viewer-view="book"] .overlay__body {
-    background:
-      linear-gradient(90deg, transparent 0 calc(50% - 1px), color-mix(in srgb, var(--ink) 32%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
-      var(--paper);
+    background: transparent;
   }
   .book-spread {
-    padding: 58px 18px 18px;
-    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+    height: 100%;
+    padding: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+    max-width: 1040px;
+    margin-inline: auto;
   }
   .book-page {
-    min-height: calc(100vh - 134px);
+    min-height: min(650px, calc(100vh - 158px));
   }
   .book-page--summary {
     border-radius: 16px 0 0 16px;
@@ -3133,13 +3015,25 @@ body {
     border-top: 1.5px solid var(--ink);
     border-radius: 0 16px 16px 0;
   }
-  .overlay--viewer[data-viewer-view="card"] .detail__pad,
-  .overlay--viewer[data-viewer-view="prep"] .detail__pad {
-    max-width: 620px;
-    margin-inline: auto;
+  .overlay--viewer .detail__actions {
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 12px 0 0;
+    border: 0;
+    background: transparent;
   }
-  .prep-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .overlay--viewer .detail__owner {
+    flex: 0 0 auto;
+    width: auto;
+  }
+  .overlay--viewer .detail__owner-btn {
+    min-width: 110px;
+  }
+  .overlay--viewer .btn--block {
+    width: auto;
+    min-width: min(260px, 100%);
+    margin-left: auto;
   }
 }
 
@@ -3984,10 +3878,6 @@ body {
   .viewswitch button {
     padding-top: 9px;
     padding-bottom: 9px;
-  }
-  .viewer-controls__btn {
-    width: 34px;
-    height: 34px;
   }
 }
 
