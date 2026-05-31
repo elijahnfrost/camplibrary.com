@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
 import {
   ageSpan,
@@ -11,9 +11,12 @@ import {
   monogram,
   ratingColor,
 } from "@/lib/data";
+import { blankPlaybook, type ActivityPlaybookData } from "@/lib/playbooks";
 import { CampIcon } from "./icons";
 import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
 import { Modal } from "./Modal";
+import { ActivityPlaybook } from "./ActivityPlaybook";
+import { PlaybookEditor } from "./PlaybookEditor";
 
 export function DetailSheet({
   activity: a,
@@ -25,6 +28,9 @@ export function DetailSheet({
   onEdit,
   onDelete,
   showOwnerActions = true,
+  playbook = null,
+  onSavePlaybook,
+  canEditPlaybook = true,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -35,8 +41,36 @@ export function DetailSheet({
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
   showOwnerActions?: boolean;
+  playbook?: ActivityPlaybookData | null;
+  onSavePlaybook?: (activityId: string, data: ActivityPlaybookData) => void;
+  canEditPlaybook?: boolean;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [pbEditing, setPbEditing] = useState(false);
+  const [draft, setDraft] = useState<ActivityPlaybookData | null>(null);
+
+  const canEditDiagram = canEditPlaybook && Boolean(onSavePlaybook);
+
+  // Reset the editor whenever the open activity changes.
+  useEffect(() => {
+    setPbEditing(false);
+    setDraft(null);
+  }, [a.id]);
+
+  function startPlaybookEdit() {
+    setDraft(playbook ?? blankPlaybook(a.id, a.title));
+    setPbEditing(true);
+  }
+
+  function savePlaybookEdit() {
+    if (draft && onSavePlaybook) onSavePlaybook(a.id, draft);
+    setPbEditing(false);
+  }
+
+  function cancelPlaybookEdit() {
+    setPbEditing(false);
+    setDraft(null);
+  }
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
 
   const onBodyTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -134,24 +168,52 @@ export function DetailSheet({
     </Block>
   );
 
-  const steps = (
-    <Block num="ii" name="How to play">
-      <ol className="steps">
-        {a.steps.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ol>
+  const steps = (num = "ii") => (
+    <Block num={num} name="How to play">
+      {pbEditing && draft ? (
+        <div className="pb-editwrap">
+          <PlaybookEditor value={draft} onChange={setDraft} />
+          <div className="pb-editwrap__actions">
+            <button type="button" className="btn btn--primary btn--sm" onClick={savePlaybookEdit}>
+              <CampIcon.Check />
+              Save diagram
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={cancelPlaybookEdit}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : playbook ? (
+        <ActivityPlaybook
+          playbook={playbook}
+          onRequestEdit={canEditDiagram ? startPlaybookEdit : undefined}
+        />
+      ) : (
+        <>
+          <ol className="steps">
+            {a.steps.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ol>
+          {canEditDiagram ? (
+            <button type="button" className="btn btn--ghost btn--sm pb-add" onClick={startPlaybookEdit}>
+              <CampIcon.Plus />
+              Add a diagram
+            </button>
+          ) : null}
+        </>
+      )}
     </Block>
   );
 
-  const notes = (
-    <Block num="iii" name="Notes & variations">
+  const notes = (num = "iii") => (
+    <Block num={num} name="Notes & variations">
       <p className="prose">{a.notes}</p>
     </Block>
   );
 
-  const safety = (
-    <Block num="iv" name="Safety">
+  const safety = (num = "iv") => (
+    <Block num={num} name="Safety">
       <div className="safety">{a.safety}</div>
     </Block>
   );
@@ -169,9 +231,9 @@ export function DetailSheet({
       <section className="book-page book-page--instructions">
         <div className="detail__pad">
           {materials}
-          {steps}
-          {notes}
-          {safety}
+          {steps("ii")}
+          {notes("iii")}
+          {safety("iv")}
         </div>
       </section>
     </div>
