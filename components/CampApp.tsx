@@ -17,6 +17,11 @@ import type {
 } from "@/lib/types";
 import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
 import {
+  PLAYBOOKS_BY_ACTIVITY_ID,
+  normalizePlaybook,
+  type ActivityPlaybookData,
+} from "@/lib/playbooks";
+import {
   campMinutes,
   clampZoomIndex,
   DAY_START_MIN,
@@ -226,8 +231,32 @@ function isActivity(value: unknown): value is Activity {
   );
 }
 
+function normalizeActivity(value: unknown): Activity | null {
+  if (!isActivity(value)) return null;
+  const playbook = normalizePlaybook(value.playbook);
+  if (playbook) return { ...value, playbook };
+  if (value.playbook === undefined) return value;
+  const { playbook: _playbook, ...activity } = value;
+  return activity;
+}
+
 const activitiesStorage: StorageValidator<Activity[]> = (value, fallback) =>
-  Array.isArray(value) ? value.filter(isActivity) : fallback;
+  Array.isArray(value)
+    ? value.map(normalizeActivity).filter((activity): activity is Activity => Boolean(activity))
+    : fallback;
+
+// Edits to built-in (seed) books are stored as full-activity overrides keyed by
+// the seed id. Custom books are edited in place inside `extra`, so this map only
+// ever holds seed ids.
+const overridesStorage: StorageValidator<Record<string, Activity>> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, Activity> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const activity = normalizeActivity(raw);
+    if (activity) out[key] = activity;
+  }
+  return out;
+};
 
 const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
@@ -321,6 +350,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
+  const [overrides, setOverrides] = useLocalStorage<Record<string, Activity>>(
+    "overrides",
+    {},
+    overridesStorage
+  );
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
@@ -330,7 +364,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const [detail, setDetail] = useState<Activity | null>(null);
   const [detailMode, setDetailMode] = useState<"library" | "runSheet">("library");
-  const [editing, setEditing] = useState<Activity | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
@@ -371,8 +404,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const all = useMemo(() => {
     const base = [...extra, ...ACTIVITIES];
-    return base.map((a) => (ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a));
-  }, [extra, ratings]);
+    return base.map((seed) => {
+      // A saved edit to a built-in book fully replaces the seed; ratings then
+      // layer on top so the standalone rating picker stays the source of truth.
+      const seededPlaybook = PLAYBOOKS_BY_ACTIVITY_ID[seed.id];
+      const baseActivity = seededPlaybook && !seed.playbook ? { ...seed, playbook: seededPlaybook } : seed;
+      const a = overrides[seed.id] ?? baseActivity;
+      return ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a;
+    });
+  }, [extra, overrides, ratings]);
 
   const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
   const activeAvailableMaterials = useMemo(() => {
@@ -678,12 +718,51 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
+  const isEditedActivity = useCallback((id: string) => overrides[id] != null, [overrides]);
 
-  function editActivity(a: Activity) {
+  function saveActivityPlaybook(activityId: string, data: ActivityPlaybookData) {
     if (!requireEditAccess()) return;
-    setEditing(a);
-    setDetail(null);
-    setTab("add");
+    const next = { ...data, activityId };
+    if (isCustomActivity(activityId)) {
+      setExtra((p) => p.map((x) => (x.id === activityId ? { ...x, playbook: next } : x)));
+    } else {
+      const activity = byId[activityId];
+      if (!activity) return;
+      setOverrides((p) => ({ ...p, [activityId]: { ...activity, playbook: next } }));
+    }
+    setLiveMsg("Saved diagram");
+  }
+
+  // Save an edit made in the book viewer. Custom books update in place; edits to
+  // a built-in book are stored as an override. Either way we mirror the rating
+  // into the ratings map so it agrees with the standalone rating picker.
+  function saveActivityEdit(a: Activity) {
+    if (!requireEditAccess()) return;
+    if (isCustomActivity(a.id)) {
+      setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+    } else {
+      setOverrides((p) => ({ ...p, [a.id]: a }));
+    }
+    setRatings((p) => ({ ...p, [a.id]: a.rating }));
+    setLiveMsg("Updated " + a.title);
+  }
+
+  // Drop a built-in book's edits and restore the original seed (incl. its rating).
+  function resetActivity(a: Activity) {
+    if (!requireEditAccess()) return;
+    setOverrides((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
+      return next;
+    });
+    setRatings((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
+      return next;
+    });
+    setLiveMsg("Reset " + a.title + " to the original");
   }
 
   function deleteActivity(a: Activity) {
@@ -992,19 +1071,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             )}
             {tab === "add" && (
               <AddView
-                initial={editing}
-                onCancelEdit={() => {
-                  setEditing(null);
-                  setTab("library");
-                }}
                 onSubmit={(a) => {
-                  if (editing) {
-                    setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
-                    setEditing(null);
-                    setLiveMsg("Updated " + a.title);
-                  } else {
-                    setExtra((p) => [a, ...p]);
-                  }
+                  setExtra((p) => [a, ...p]);
+                  setLiveMsg("Added " + a.title + " to the library");
                   setTab("library");
                   setCat("All");
                   setView("catalog");
@@ -1045,9 +1114,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onClose={() => setDetail(null)}
             onSetRating={setRating}
             isCustom={isCustomActivity(detail.id)}
-            onEdit={editActivity}
+            isEdited={isEditedActivity(detail.id)}
+            onSave={saveActivityEdit}
+            onReset={resetActivity}
             onDelete={deleteActivity}
             showOwnerActions={detailMode !== "runSheet"}
+            onSavePlaybook={saveActivityPlaybook}
           />
         )}
       </div>

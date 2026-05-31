@@ -4,8 +4,10 @@ import { useState } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
 import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
 import { materialTagsFromMaterials } from "@/lib/materials";
+import { blankPlaybook, type ActivityPlaybookData } from "@/lib/playbooks";
 import { CampIcon } from "./icons";
 import { RatingPicker, Seg } from "./primitives";
+import { PlaybookEditor } from "./PlaybookEditor";
 
 type EnergyWord = "Calm" | "Lively" | "Rowdy";
 
@@ -25,6 +27,7 @@ interface FormState {
   steps: string;
   notes: string;
   safety: string;
+  playbook: ActivityPlaybookData | null;
 }
 
 const ENERGY_MAP: Record<EnergyWord, number> = { Calm: 1, Lively: 2, Rowdy: 3 };
@@ -34,7 +37,7 @@ const DEFAULT_DURATION = 20;
 const BLANK_FORM: FormState = {
   title: "", type: "Game", place: "Outside", ages: ["g46"],
   durationMin: "20", groupMin: "", groupMax: "", energy: "Lively", prep: "Low", rating: 0,
-  blurb: "", materials: "", steps: "", notes: "", safety: "",
+  blurb: "", materials: "", steps: "", notes: "", safety: "", playbook: null,
 };
 
 function formFromActivity(a: Activity): FormState {
@@ -54,6 +57,7 @@ function formFromActivity(a: Activity): FormState {
     steps: a.steps.join("\n"),
     notes: a.notes === "—" ? "" : a.notes,
     safety: a.safety === "—" ? "" : a.safety,
+    playbook: a.playbook ?? null,
   };
 }
 
@@ -113,8 +117,9 @@ export function AddView({
     const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
     const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const materials = f.materials.split(",").map((x) => x.trim()).filter(Boolean);
+    const id = initial ? initial.id : (slug || "custom-activity") + "-" + Date.now().toString(36);
     const a: Activity = {
-      id: initial ? initial.id : (slug || "custom-activity") + "-" + Date.now().toString(36),
+      id,
       title: f.title.trim(),
       type: f.type,
       place: f.place,
@@ -133,6 +138,7 @@ export function AddView({
       steps: lines(f.steps),
       notes: f.notes.trim() || "—",
       safety: f.safety.trim() || "—",
+      playbook: f.playbook ? { ...f.playbook, activityId: id } : undefined,
     };
     onSubmit(a);
   }
@@ -299,6 +305,36 @@ export function AddView({
         <label className="field__label" htmlFor="activity-safety">Safety</label>
         <textarea id="activity-safety" className="textarea" style={{ minHeight: 64 }} value={f.safety} onChange={onIn("safety")} />
       </div>
+
+      <div className="form__section">Diagram</div>
+      <div className="field">
+        <span className="field__label">
+          Field diagram <span className="field__hint">optional · shown as the visual “How to play”</span>
+        </span>
+        {f.playbook ? (
+          <div className="form__playbook">
+            <PlaybookEditor value={f.playbook} onChange={set("playbook")} />
+            <button
+              type="button"
+              className="btn btn--quiet btn--sm"
+              onClick={() => set("playbook")(null)}
+            >
+              <CampIcon.Trash />
+              Remove diagram
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => set("playbook")(blankPlaybook("", f.title.trim()))}
+          >
+            <CampIcon.Plus />
+            Add a diagram
+          </button>
+        )}
+      </div>
+
       <button type="button" className="btn btn--primary btn--block" disabled={!valid} onClick={submit}>
         {isEdit ? <CampIcon.Check /> : <CampIcon.Plus />}
         {isEdit ? "Save changes" : "Add to library"}

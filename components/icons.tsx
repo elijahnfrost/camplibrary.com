@@ -128,6 +128,12 @@ export const CampIcon = {
   Tool: svg(
     <path d="M14.5 6a3.5 3.5 0 0 0-4.7 4.2L4 16v4h4l5.8-5.8A3.5 3.5 0 0 0 18 9.5L15.5 12 12 8.5 14.5 6z" />
   ),
+  Pencil: svg(
+    <>
+      <path d="M4 20l1-4.2L15.4 5.4a2 2 0 0 1 2.9 0l.3.3a2 2 0 0 1 0 2.9L8.2 19l-4.2 1z" />
+      <path d="M13.5 7.2l3.3 3.3" />
+    </>
+  ),
   Close: svg(<path d="M6 6l12 12M18 6 6 18" />),
   ChevronLeft: svg(<path d="M15 5l-7 7 7 7" />),
   ChevronRight: svg(<path d="M9 5l7 7-7 7" />),
