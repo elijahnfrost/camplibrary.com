@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Activity,
   ApplyMode,
-  BookViewerState,
   BlockFill,
   CategoryId,
   ConditionalRule,
@@ -29,7 +28,7 @@ import {
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
-import { type StorageValidator, useLocalStorage, useSessionStorage } from "@/lib/store";
+import { type StorageValidator, useLocalStorage } from "@/lib/store";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
@@ -265,20 +264,6 @@ const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
 const zoomStorage: StorageValidator<number> = (value, fallback) =>
   typeof value === "number" && Number.isFinite(value) ? clampZoomIndex(value) : fallback;
 
-const DEFAULT_BOOK_VIEWER: BookViewerState = {
-  view: "book",
-  width: 760,
-};
-const bookViewerStorage: StorageValidator<BookViewerState> = (value, fallback) => {
-  if (!isRecord(value)) return fallback;
-  const view = value.view === "book" || value.view === "card" || value.view === "prep" ? value.view : fallback.view;
-  const width =
-    typeof value.width === "number" && Number.isFinite(value.width)
-      ? Math.max(360, Math.min(960, Math.round(value.width)))
-      : fallback.width;
-  return { view, width };
-};
-
 const SCHEDULE_SEED_VERSION = "3";
 
 function isLegacyOneDaySeed(raw: string | null): boolean {
@@ -318,11 +303,6 @@ function isLegacyOneDaySeed(raw: string | null): boolean {
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
-  const [bookViewer, setBookViewer] = useSessionStorage<BookViewerState>(
-    "bookViewer",
-    DEFAULT_BOOK_VIEWER,
-    bookViewerStorage
-  );
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
@@ -351,7 +331,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [detail, setDetail] = useState<Activity | null>(null);
   const [detailMode, setDetailMode] = useState<"library" | "runSheet">("library");
   const [editing, setEditing] = useState<Activity | null>(null);
-  const [justAdded, setJustAdded] = useState<string | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
@@ -548,11 +527,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setLiveMsg(activity.title + " added to " + DAYS[targetDayIndex]);
   }
 
-  function addToSchedule(a: Activity) {
-    quickAddActivity(dayIndex, a.id);
-    setJustAdded(a.id);
-  }
-
   function saveCurrentDayPlan(name: string) {
     if (!requireEditAccess()) return;
     const trimmed = name.trim();
@@ -692,7 +666,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function openDetail(a: Activity) {
-    setJustAdded(null);
     setDetailMode("library");
     setDetail(a);
   }
@@ -700,7 +673,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   function openScheduleBlock(day: number, block: ScheduleBlock) {
     if (block.kind !== "activity" || !block.activityId || !byId[block.activityId]) return;
     selectDay(day);
-    setJustAdded(null);
     setDetailMode("runSheet");
     setDetail(byId[block.activityId]);
   }
@@ -1071,18 +1043,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             isFav={isFav}
             onToggleFav={toggleFav}
             onClose={() => setDetail(null)}
-            onAddToSchedule={addToSchedule}
-            added={justAdded === detail.id ? "added" : false}
             onSetRating={setRating}
-            dayName={DAYS[dayIndex]}
-            alreadyScheduled={dayBlocks.some((b) => b.activityId === detail.id)}
             isCustom={isCustomActivity(detail.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
-            showScheduleAction={detailMode !== "runSheet"}
             showOwnerActions={detailMode !== "runSheet"}
-            viewer={bookViewer}
-            onViewerChange={setBookViewer}
           />
         )}
       </div>
