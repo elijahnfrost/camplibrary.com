@@ -2287,6 +2287,38 @@ body {
 .select[aria-invalid="true"] {
   border-color: #a8422e;
 }
+.password-input {
+  position: relative;
+  width: 100%;
+}
+.password-input__control {
+  padding-right: 78px;
+}
+.password-input__toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  height: calc(100% - 8px);
+  min-width: 62px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--card) 78%, var(--paper));
+  color: var(--accent-ink);
+  font: 700 13px var(--hand-sc);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.password-input__toggle:hover {
+  background: var(--paper-2);
+}
+.password-input__toggle:active {
+  transform: translateY(1px);
+}
 .textarea {
   resize: vertical;
   min-height: 88px;

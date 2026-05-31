@@ -57,6 +57,7 @@ export function StaffSignIn() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [pending, setPending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const returnTo = useMemo(
@@ -111,7 +112,11 @@ export function StaffSignIn() {
   }
 
   async function verifyCode() {
-    if (!signIn || !form.code.trim()) return;
+    if (!form.code.trim()) {
+      setError("Enter the verification code from your email.");
+      return;
+    }
+    if (!signIn) return;
     setPending(true);
     setError("");
     try {
@@ -146,8 +151,8 @@ export function StaffSignIn() {
   if (verifying) {
     return (
       <div className="auth-form">
-        <div className="auth-form__section">Check email</div>
-        <p className="auth-form__copy">Enter the verification code sent to {form.email.trim()}.</p>
+        <div className="auth-form__section">Check your email</div>
+        <p className="auth-form__copy">We sent a verification code to {form.email.trim()}.</p>
         <div className="field">
           <label className="field__label" htmlFor="staff-code">
             Verification code
@@ -161,12 +166,12 @@ export function StaffSignIn() {
           />
         </div>
         {error && <div className="auth-form__error">{error}</div>}
-        <button type="button" className="btn btn--primary btn--block" disabled={busy || !form.code.trim()} onClick={verifyCode}>
+        <button type="button" className="btn btn--primary btn--block" disabled={busy} onClick={verifyCode}>
           <CampIcon.Check />
           Verify
         </button>
         <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={() => setVerifying(false)}>
-          Use password instead
+          Back to sign in
         </button>
       </div>
     );
@@ -175,6 +180,7 @@ export function StaffSignIn() {
   return (
     <form className="auth-form" onSubmit={handlePasswordSubmit}>
       <div className="auth-form__section">Staff access</div>
+      <p className="auth-form__copy">Existing staff can sign in with Google or password.</p>
       <button type="button" className="btn btn--primary btn--block" disabled={busy || !signIn} onClick={continueWithGoogle}>
         <CampIcon.User />
         Continue with Google
@@ -199,14 +205,25 @@ export function StaffSignIn() {
         <label className="field__label" htmlFor="staff-password">
           Password
         </label>
-        <input
-          id="staff-password"
-          className="input"
-          type="password"
-          value={form.password}
-          onChange={(event) => update("password", event.target.value)}
-          autoComplete="current-password"
-        />
+        <div className="password-input">
+          <input
+            id="staff-password"
+            className="input password-input__control"
+            type={showPassword ? "text" : "password"}
+            value={form.password}
+            onChange={(event) => update("password", event.target.value)}
+            autoComplete="current-password"
+          />
+          <button
+            type="button"
+            className="password-input__toggle"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            onClick={() => setShowPassword((current) => !current)}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
       </div>
       {error && <div className="auth-form__error">{error}</div>}
       <button type="submit" className="btn btn--primary btn--block" disabled={!canSubmit}>
@@ -214,7 +231,7 @@ export function StaffSignIn() {
         Sign in
       </button>
       <p className="auth-form__hint">
-        New staff? <a href="/sign-up">Use an invite code.</a>
+        New staff need an invite code to <a href="/sign-up">create an account</a>.
       </p>
     </form>
   );
