@@ -1139,7 +1139,9 @@ body {
   inset: 0;
   z-index: 1;
 }
-.deck-card > .plate__star,
+.deck-card > .plate__star {
+  z-index: 2;
+}
 .cat-row > .star {
   position: relative;
   z-index: 1;
