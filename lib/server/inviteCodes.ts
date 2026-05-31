@@ -373,6 +373,7 @@ export async function consumeInviteCode({
         invite_codes.usage_count,
         invite_codes.max_uses,
         invite_code_reservations.id AS reservation_row_id,
+        invite_code_reservations.email AS reservation_email,
         invite_code_reservations.status AS reservation_status,
         invite_code_reservations.reserved_until,
         invite_code_reservations.clerk_user_id
@@ -393,13 +394,16 @@ export async function consumeInviteCode({
     const expiresAt = item.expires_at ? new Date(String(item.expires_at)).getTime() : null;
     const reservedUntil = item.reserved_until ? new Date(String(item.reserved_until)).getTime() : 0;
     const invitedEmail = item.invited_email == null ? null : String(item.invited_email).toLowerCase();
+    const reservationEmail = item.reservation_email == null ? null : String(item.reservation_email).toLowerCase();
+    const effectiveEmail = normalizedEmail || reservationEmail;
     const usageCount = Number(item.usage_count ?? 0);
     const maxUses = Number(item.max_uses ?? 1);
 
-    if (item.invite_status === "used" || item.invite_status === "revoked" || !item.active) return [];
+    if (item.invite_status === "used" || item.invite_status === "revoked") return [];
+    if (!item.active && item.invite_status !== "reserved") return [];
     if (expiresAt != null && expiresAt < now) return [];
     if (item.reservation_status !== "reserved" || reservedUntil <= now) return [];
-    if (invitedEmail && invitedEmail !== normalizedEmail) return [];
+    if (invitedEmail && invitedEmail !== effectiveEmail) return [];
     if (usageCount >= maxUses) return [];
 
     const nextUsageCount = usageCount + 1;

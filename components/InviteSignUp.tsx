@@ -62,19 +62,25 @@ export function InviteSignUp() {
   const [reserved, setReserved] = useState<{ inviteCode: string; reservationId: string } | null>(null);
   const [error, setError] = useState("");
 
-  const canSubmit =
+  const hasInviteCode = form.inviteCode.trim().length > 0;
+  const hasValidCredentials = form.email.includes("@") && form.password.length >= 8;
+  const canSubmitCredentials =
     Boolean(signUp) &&
-    form.inviteCode.trim().length > 0 &&
-    form.email.includes("@") &&
-    form.password.length >= 8 &&
+    hasValidCredentials &&
     !pending &&
     fetchStatus !== "fetching";
+  const canSubmit = canSubmitCredentials && hasInviteCode;
+  const disablePasswordSubmit = pending || fetchStatus === "fetching" || (hasInviteCode && (!signUp || !hasValidCredentials));
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
   async function createWithPassword() {
+    if (!hasInviteCode) {
+      setError("Enter your invite code to create an account.");
+      return;
+    }
     if (!signUp || !canSubmit) return;
     setPending(true);
     setError("");
@@ -105,6 +111,10 @@ export function InviteSignUp() {
 
   async function verifyEmail() {
     if (!signUp || !reserved) return;
+    if (!verificationCode.trim()) {
+      setError("Enter the verification code from your email.");
+      return;
+    }
     setPending(true);
     setError("");
     try {
@@ -125,7 +135,11 @@ export function InviteSignUp() {
   }
 
   async function createWithGoogle() {
-    if (!signUp || !form.inviteCode.trim()) return;
+    if (!hasInviteCode) {
+      setError("Enter your invite code to continue with Google.");
+      return;
+    }
+    if (!signUp) return;
     setPending(true);
     setError("");
     try {
@@ -149,7 +163,8 @@ export function InviteSignUp() {
   if (verifying) {
     return (
       <div className="auth-form">
-        <div className="auth-form__section">Email verification</div>
+        <div className="auth-form__section">Check your email</div>
+        <p className="auth-form__copy">We sent a verification code to {form.email.trim()}.</p>
         <div className="field">
           <label className="field__label" htmlFor="verification-code">
             Verification code
@@ -173,10 +188,11 @@ export function InviteSignUp() {
 
   return (
     <div className="auth-form">
-      <div className="auth-form__section">Invite code</div>
+      <div className="auth-form__section">Create staff account</div>
+      <p className="auth-form__copy">New staff start with an invite code, then choose Google or email.</p>
       <div className="field">
         <label className="field__label" htmlFor="invite-code">
-          One-use code
+          Invite code
         </label>
         <input
           id="invite-code"
@@ -187,7 +203,7 @@ export function InviteSignUp() {
         />
       </div>
 
-      <button type="button" className="btn btn--primary btn--block" disabled={!form.inviteCode.trim() || pending} onClick={createWithGoogle}>
+      <button type="button" className="btn btn--primary btn--block" disabled={pending} onClick={createWithGoogle}>
         <CampIcon.User />
         Continue with Google
       </button>
@@ -233,7 +249,7 @@ export function InviteSignUp() {
         />
       </div>
       {error && <div className="auth-form__error">{error}</div>}
-      <button type="button" className="btn btn--primary btn--block" disabled={!canSubmit} onClick={createWithPassword}>
+      <button type="button" className="btn btn--primary btn--block" disabled={disablePasswordSubmit} onClick={createWithPassword}>
         <CampIcon.Check />
         Create account
       </button>
