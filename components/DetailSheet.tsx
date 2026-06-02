@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type TouchEvent } from "react";
+import { Fragment, useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
 import {
   ageSpan,
@@ -11,9 +11,76 @@ import {
   monogram,
   ratingColor,
 } from "@/lib/data";
+import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
 import { CampIcon } from "./icons";
-import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
+import { Block, EnergyMeter, Fact, RatingPicker, SaveButton, Seg } from "./primitives";
 import { Modal } from "./Modal";
+
+type KitSort = "Have" | "Need";
+
+// The activity's materials as a working checklist. Tapping a row marks whether
+// the camp HAS that item — the same per-tag "kit" the library filter reads — and
+// the Have/Need toggle floats that group to the top so a counselor can see, at a
+// glance, what's still to gather.
+function MaterialChecklist({
+  needs,
+  availableMaterials,
+  onToggleMaterial,
+}: {
+  needs: MaterialNeed[];
+  availableMaterials: string[];
+  onToggleMaterial: (id: string) => void;
+}) {
+  const [lead, setLead] = useState<KitSort>("Have");
+  const haveSet = new Set(availableMaterials);
+  const have = needs.filter((n) => haveSet.has(n.id));
+  const need = needs.filter((n) => !haveSet.has(n.id));
+  const ordered = lead === "Have" ? [...have, ...need] : [...need, ...have];
+  const leadCount = lead === "Have" ? have.length : need.length;
+  const showControls = needs.length >= 2;
+
+  return (
+    <div className="matkit">
+      {showControls && (
+        <div className="matkit__bar">
+          <span className="matkit__status">
+            Have {have.length} · Need {need.length}
+          </span>
+          <Seg
+            options={["Have", "Need"] as const}
+            value={lead}
+            onChange={setLead}
+            ariaLabel="Sort materials by what you have or still need"
+          />
+        </div>
+      )}
+      <div className="matkit__list">
+        {ordered.map((n, i) => {
+          const has = haveSet.has(n.id);
+          // Hairline between the two groups so the sort reads as a split, not a shuffle.
+          const divide = showControls && i === leadCount && i > 0 && i < ordered.length;
+          return (
+            <Fragment key={n.id}>
+              {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
+              <button
+                type="button"
+                className={"matkit__item" + (has ? " is-have" : "")}
+                onClick={() => onToggleMaterial(n.id)}
+                aria-pressed={has}
+                aria-label={(has ? "Have" : "Still need") + ": " + n.label}
+              >
+                <span className="matkit__check" aria-hidden="true">
+                  {has && <CampIcon.Check />}
+                </span>
+                <span className="matkit__name">{n.label}</span>
+              </button>
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function DetailSheet({
   activity: a,
@@ -25,6 +92,8 @@ export function DetailSheet({
   onEdit,
   onDelete,
   showOwnerActions = true,
+  availableMaterials,
+  onToggleMaterial,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -35,6 +104,8 @@ export function DetailSheet({
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
   showOwnerActions?: boolean;
+  availableMaterials: string[];
+  onToggleMaterial: (id: string) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
@@ -118,18 +189,17 @@ export function DetailSheet({
     </div>
   );
 
+  const needs = materialNeedsForActivity(a);
   const materials = (
     <Block num="i" name="Materials">
-      {a.materials.length === 0 ? (
+      {needs.length === 0 ? (
         <span className="stamp">None needed</span>
       ) : (
-        <div className="matlist">
-          {a.materials.map((m, i) => (
-            <span className="stamp" key={i}>
-              {m}
-            </span>
-          ))}
-        </div>
+        <MaterialChecklist
+          needs={needs}
+          availableMaterials={availableMaterials}
+          onToggleMaterial={onToggleMaterial}
+        />
       )}
     </Block>
   );
@@ -164,11 +234,11 @@ export function DetailSheet({
           {titleSummary}
           <RatingPicker value={a.rating || 0} onChange={(value) => onSetRating(a.id, value)} />
           {facts}
+          {materials}
         </div>
       </section>
       <section className="book-page book-page--instructions">
         <div className="detail__pad">
-          {materials}
           {steps}
           {notes}
           {safety}

@@ -1048,6 +1048,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onEdit={editActivity}
             onDelete={deleteActivity}
             showOwnerActions={detailMode !== "runSheet"}
+            availableMaterials={activeAvailableMaterials}
+            onToggleMaterial={toggleAvailableMaterial}
           />
         )}
       </div>
