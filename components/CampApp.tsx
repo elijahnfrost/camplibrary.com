@@ -17,6 +17,11 @@ import type {
 } from "@/lib/types";
 import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
 import {
+  PLAYBOOKS_BY_ACTIVITY_ID,
+  normalizePlaybook,
+  type ActivityPlaybookData,
+} from "@/lib/playbooks";
+import {
   campMinutes,
   clampZoomIndex,
   DAY_START_MIN,
@@ -229,6 +234,21 @@ function isActivity(value: unknown): value is Activity {
 const activitiesStorage: StorageValidator<Activity[]> = (value, fallback) =>
   Array.isArray(value) ? value.filter(isActivity) : fallback;
 
+// Per-activity playbook overrides — lets any diagram (including built-in ones)
+// be edited and persisted without mutating the seed data.
+const playbookOverridesStorage: StorageValidator<Record<string, ActivityPlaybookData>> = (
+  value,
+  fallback
+) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, ActivityPlaybookData> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const normalized = normalizePlaybook(raw);
+    if (normalized) out[key] = normalized;
+  }
+  return out;
+};
+
 const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Schedule = {};
@@ -321,11 +341,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
+  const [playbookOverrides, setPlaybookOverrides] = useLocalStorage<Record<string, ActivityPlaybookData>>(
+    "playbooks",
+    {},
+    playbookOverridesStorage
+  );
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
   const [zoomIdx, setZoomIdx] = useLocalStorage<number>("planZoom", DEFAULT_ZOOM, zoomStorage);
   const focusNonceRef = useRef(0);
+  const activityDeepLinkOpenedRef = useRef(false);
   const [calFocus, setCalFocus] = useState<{ min: number; nonce: number } | null>(null);
 
   const [detail, setDetail] = useState<Activity | null>(null);
@@ -394,6 +420,16 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     all.forEach((a) => (m[a.id] = a));
     return m;
   }, [all]);
+
+  useEffect(() => {
+    if (activityDeepLinkOpenedRef.current) return;
+    const activityId = new URLSearchParams(window.location.search).get("activity");
+    if (!activityId || !byId[activityId]) return;
+    activityDeepLinkOpenedRef.current = true;
+    setTab("library");
+    setDetailMode("library");
+    setDetail(byId[activityId]);
+  }, [byId]);
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
@@ -678,6 +714,28 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
+
+  // A custom book carries its own diagram; built-in books fall back to an
+  // editable override, then the seed registry.
+  const resolvePlaybook = useCallback(
+    (activity: Activity): ActivityPlaybookData | null =>
+      activity.playbook ?? playbookOverrides[activity.id] ?? PLAYBOOKS_BY_ACTIVITY_ID[activity.id] ?? null,
+    [playbookOverrides]
+  );
+
+  const savePlaybook = useCallback(
+    (activityId: string, data: ActivityPlaybookData) => {
+      if (!requireEditAccess()) return;
+      const next = { ...data, activityId };
+      if (isCustomActivity(activityId)) {
+        setExtra((p) => p.map((x) => (x.id === activityId ? { ...x, playbook: next } : x)));
+      } else {
+        setPlaybookOverrides((p) => ({ ...p, [activityId]: next }));
+      }
+      setLiveMsg("Saved diagram");
+    },
+    [requireEditAccess, isCustomActivity, setExtra, setPlaybookOverrides]
+  );
 
   function editActivity(a: Activity) {
     if (!requireEditAccess()) return;
@@ -1050,6 +1108,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             showOwnerActions={detailMode !== "runSheet"}
             availableMaterials={activeAvailableMaterials}
             onToggleMaterial={toggleAvailableMaterial}
+            playbook={resolvePlaybook(byId[detail.id] || detail)}
+            onSavePlaybook={savePlaybook}
           />
         )}
       </div>

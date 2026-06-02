@@ -1508,6 +1508,17 @@ body {
   border-color: var(--line);
   color: var(--ink-soft);
 }
+.btn--sm {
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  gap: 6px;
+}
+.btn--sm svg {
+  width: 15px;
+  height: 15px;
+}
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -2301,6 +2312,9 @@ body {
 .book-page--instructions {
   border-top: 0;
   border-radius: 0 0 16px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .book-page .detail__hero {
   height: 156px;
@@ -2318,6 +2332,448 @@ body {
   font-size: 16px;
   line-height: 1.45;
   color: var(--ink);
+}
+
+/* ---------- activity playbooks ---------- */
+.playbook {
+  container: playbook / inline-size;
+  margin-top: 18px;
+  overflow: visible;
+}
+.playbook__intro {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 10px;
+}
+.playbook__intro p {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.playbook__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--text);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.playbook__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+}
+.playbook__legend-dot,
+.playbook__legend-square {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--shadow);
+}
+.playbook__legend-dot {
+  border-radius: 50%;
+}
+.playbook__legend-square {
+  border-radius: 2px;
+}
+.playbook__legend-dot--blue {
+  background: #4d7a86;
+}
+.playbook__legend-square--red {
+  background: var(--clay);
+}
+.playbook__legend-flag {
+  width: 10px;
+  height: 10px;
+  border-left: 1.5px solid var(--ink);
+  border-top: 5px solid var(--amber);
+}
+.playbook__frames {
+  display: grid;
+  gap: 18px;
+  padding: 14px 0 0;
+}
+.playbook-frame {
+  min-width: 0;
+}
+.playbook-frame__head {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.playbook-frame__head h4 {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.playbook-frame__head p {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.playbook-field {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  aspect-ratio: 1.08;
+  overflow: visible;
+}
+.playbook-field__grass {
+  fill: transparent;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.playbook-field__half {
+  opacity: 0.2;
+}
+.playbook-field__half--blue {
+  fill: #4d7a86;
+}
+.playbook-field__half--red {
+  fill: var(--clay);
+}
+.playbook-field__mid,
+.playbook-field__zone {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 58%, transparent);
+  stroke-width: 0.65;
+  stroke-dasharray: 2 1.6;
+  vector-effect: non-scaling-stroke;
+}
+.playbook-field__mid {
+  stroke-width: 0.8;
+  stroke-dasharray: 2.4 1.8;
+  stroke-linecap: butt;
+}
+.playbook-field__zone--safe {
+  stroke: color-mix(in srgb, var(--accent-ink) 58%, transparent);
+}
+.playbook-field__zone--jail {
+  stroke: color-mix(in srgb, var(--clay) 74%, var(--ink));
+}
+.playbook-field__zone--area {
+  stroke: color-mix(in srgb, var(--ink) 50%, transparent);
+}
+.playbook-field__zlabel,
+.playbook-field__label {
+  font-family: var(--hand-sc);
+  font-size: 3px;
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  text-transform: uppercase;
+  fill: var(--ink-faint);
+  pointer-events: none;
+}
+.playbook-arrow {
+  fill: none;
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2 1.25;
+}
+.playbook-arrow--blue {
+  stroke: #315f6e;
+}
+.playbook-arrow--red {
+  stroke: #8b442e;
+}
+.playbook-arrow--neutral {
+  stroke: var(--wood);
+  stroke-dasharray: 1.4 2.4;
+}
+.playbook-arrowhead--blue {
+  fill: #315f6e;
+}
+.playbook-arrowhead--red {
+  fill: #8b442e;
+}
+.playbook-arrowhead--neutral {
+  fill: var(--wood);
+}
+.playbook-flag path:first-child {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+.playbook-flag path:nth-child(2),
+.playbook-flag circle {
+  stroke: var(--ink);
+  stroke-width: 0.4;
+}
+.playbook-flag--blue path:nth-child(2),
+.playbook-flag--blue circle {
+  fill: #4d7a86;
+}
+.playbook-flag--red path:nth-child(2),
+.playbook-flag--red circle {
+  fill: var(--clay);
+}
+.playbook-player circle,
+.playbook-player rect {
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-player--blue circle,
+.playbook-player--blue rect {
+  fill: #4d7a86;
+}
+.playbook-player--red circle,
+.playbook-player--red rect {
+  fill: var(--clay);
+}
+.playbook-player.is-runner circle,
+.playbook-player.is-runner rect,
+.playbook-player.is-flag circle,
+.playbook-player.is-flag rect {
+  stroke-width: 0.65;
+}
+.playbook-player.is-flag path {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 0.33;
+}
+
+.book-page--instructions .playbook__intro {
+  padding: 0 0 12px;
+}
+.book-page--instructions .playbook__frames {
+  padding: 14px 0 0;
+}
+.book-page--instructions .playbook-field {
+  min-height: 250px;
+}
+
+@media (min-width: 560px) {
+  .playbook__intro {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+
+@container playbook (min-width: 720px) {
+  .playbook__frames {
+    gap: 16px;
+  }
+}
+
+/* ---------- playbook editor ---------- */
+.playbook--editable {
+  cursor: default;
+}
+.playbook__editcue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+.playbook__editcue-hint {
+  font-family: var(--text);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.pb-editwrap {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.pb-editwrap__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pb-add {
+  margin-top: 12px;
+}
+
+.pbe {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+}
+.pbe__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pbe__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--text);
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pbe__toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.pbe__stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pbe__stage {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.pbe__stage.is-active {
+  border-color: var(--accent-ink);
+  background: var(--accent);
+  color: #fff;
+}
+.pbe__stage--add {
+  border-style: dashed;
+  font-size: 18px;
+}
+.pbe__meta {
+  display: grid;
+  gap: 8px;
+}
+.pbe__name,
+.pbe__caption {
+  font-size: 14px;
+  padding: 8px 11px;
+}
+.pbe__name {
+  font-family: var(--hand-sc);
+  letter-spacing: 0.04em;
+}
+.pbe__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.pbe__tools .btn {
+  padding: 0 11px;
+}
+.pbe__swatch {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--ink);
+  display: inline-block;
+}
+.pbe__swatch--blue {
+  background: #4d7a86;
+  border-radius: 50%;
+}
+.pbe__swatch--red {
+  background: var(--clay);
+  border-radius: 2px;
+}
+.pbe__stage-wrap {
+  border-radius: 12px;
+  outline: none;
+}
+.pbe__stage-wrap:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.playbook-field--edit {
+  min-height: 300px;
+  aspect-ratio: 1;
+  touch-action: none;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+  border-radius: 12px;
+  cursor: default;
+}
+.pbe-hit {
+  fill: transparent;
+  cursor: grab;
+}
+.pbe-hit-line {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 3.4;
+  cursor: pointer;
+}
+.pbe-ring {
+  fill: none;
+  stroke: var(--accent-ink);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.4 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.pbe-handle {
+  fill: var(--paper);
+  stroke: var(--accent-ink);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  cursor: nwse-resize;
+}
+.pbe__inspect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 0;
+}
+.pbe__inspect-label {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.pbe__inspect .seg {
+  width: auto;
+}
+.pbe__zlabel {
+  width: 110px;
+  font-size: 13px;
+  padding: 6px 9px;
+}
+.pbe__del {
+  margin-left: auto;
+}
+.pbe__hint {
+  font-family: var(--text);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.pbe__stage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 10px;
+}
+.form__playbook {
+  display: grid;
+  gap: 10px;
 }
 
 /* ---------- empty states ---------- */
@@ -2470,6 +2926,11 @@ body {
 .seg button.is-on {
   background: var(--accent);
   color: #fff;
+}
+.seg--sm button {
+  padding: 6px 9px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
 .row2 {
   display: grid;
@@ -3294,6 +3755,9 @@ body {
   .book-page--instructions {
     border-top: 1.5px solid var(--ink);
     border-radius: 0 16px 16px 0;
+  }
+  .book-page--instructions .detail__pad {
+    min-height: 100%;
   }
   .overlay--viewer .detail__actions {
     flex-wrap: nowrap;
