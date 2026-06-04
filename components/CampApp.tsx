@@ -21,6 +21,7 @@ import {
   normalizePlaybook,
   type ActivityPlaybookData,
 } from "@/lib/playbooks";
+import { buildRunDoc, ensureSectionHeadings, normalizeRunDoc, promoteMaterialsBlocks, type RunDoc } from "@/lib/runList";
 import {
   campMinutes,
   clampZoomIndex,
@@ -250,6 +251,19 @@ const playbookOverridesStorage: StorageValidator<Record<string, ActivityPlaybook
   return out;
 };
 
+// Per-activity Run List overrides — hand-edited instruction documents that
+// supersede the doc derived from the activity's flat steps/notes/safety. Same
+// pattern as playbook overrides; built-in and custom books both persist here.
+const runListOverridesStorage: StorageValidator<Record<string, RunDoc>> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, RunDoc> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const normalized = normalizeRunDoc(raw);
+    if (normalized) out[key] = normalized;
+  }
+  return out;
+};
+
 const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Schedule = {};
@@ -346,6 +360,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     "playbooks",
     {},
     playbookOverridesStorage
+  );
+  // Key bumped to .v2 when the doc model moved diagram/materials into the Run
+  // List. Older saved docs with child materials are promoted at render time.
+  const [runListOverrides, setRunListOverrides] = useLocalStorage<Record<string, RunDoc>>(
+    "runLists.v2",
+    {},
+    runListOverridesStorage
   );
   const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
@@ -749,18 +770,24 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     [playbookOverrides]
   );
 
-  const savePlaybook = useCallback(
-    (activityId: string, data: ActivityPlaybookData) => {
+  // The Run List doc: a saved override if one exists, else derived from the
+  // activity — its steps/notes/safety plus a materials block and (when the
+  // activity has one) the field diagram seeded in as a diagram block.
+  const resolveRunDoc = useCallback(
+    (activity: Activity): RunDoc =>
+      ensureSectionHeadings(
+        activity,
+        promoteMaterialsBlocks(runListOverrides[activity.id] ?? buildRunDoc(activity, resolvePlaybook(activity)))
+      ),
+    [runListOverrides, resolvePlaybook]
+  );
+
+  const saveRunDoc = useCallback(
+    (activityId: string, doc: RunDoc) => {
       if (!requireEditAccess()) return;
-      const next = { ...data, activityId };
-      if (isCustomActivity(activityId)) {
-        setExtra((p) => p.map((x) => (x.id === activityId ? { ...x, playbook: next } : x)));
-      } else {
-        setPlaybookOverrides((p) => ({ ...p, [activityId]: next }));
-      }
-      setLiveMsg("Saved diagram");
+      setRunListOverrides((p) => ({ ...p, [activityId]: doc }));
     },
-    [requireEditAccess, isCustomActivity, setExtra, setPlaybookOverrides]
+    [requireEditAccess, setRunListOverrides]
   );
 
   function editActivity(a: Activity) {
@@ -786,6 +813,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       for (const [key, blocks] of Object.entries(p)) {
         next[Number(key)] = blocks.filter((b) => b.activityId !== a.id);
       }
+      return next;
+    });
+    setRunListOverrides((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
+      return next;
+    });
+    setPlaybookOverrides((p) => {
+      if (p[a.id] == null) return p;
+      const next = { ...p };
+      delete next[a.id];
       return next;
     });
     setDetail(null);
@@ -1093,17 +1132,20 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             {tab === "add" && (
               <AddView
                 initial={editing}
+                initialRunDoc={editing ? resolveRunDoc(editing) : null}
                 onCancelEdit={() => {
                   setEditing(null);
                   setTab("library");
                 }}
-                onSubmit={(a) => {
+                onSubmit={(a, runDoc) => {
                   if (editing) {
                     setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+                    if (runDoc) setRunListOverrides((p) => ({ ...p, [a.id]: runDoc }));
                     setEditing(null);
                     setLiveMsg("Updated " + a.title);
                   } else {
                     setExtra((p) => [a, ...p]);
+                    if (runDoc) setRunListOverrides((p) => ({ ...p, [a.id]: runDoc }));
                   }
                   setTab("library");
                   setCat("All");
@@ -1149,15 +1191,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onDelete={deleteActivity}
             onPrint={(activity) => requestPrint({ type: "activity-book", activityId: activity.id })}
             showOwnerActions={detailMode !== "runSheet"}
-            playbook={resolvePlaybook(byId[detail.id] || detail)}
-            onSavePlaybook={savePlaybook}
+            availableMaterials={activeAvailableMaterials}
+            onToggleMaterial={toggleAvailableMaterial}
+            runDoc={resolveRunDoc(byId[detail.id] || detail)}
+            onSaveRunDoc={saveRunDoc}
           />
         )}
         <PrintViews
           intent={printIntent}
           byId={byId}
           weekBlocks={weekBlocks}
-          resolvePlaybook={resolvePlaybook}
+          resolveRunDoc={resolveRunDoc}
         />
       </div>
     </div>

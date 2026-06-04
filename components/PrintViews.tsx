@@ -10,7 +10,8 @@ import {
   ENERGY,
   groupLabel,
 } from "@/lib/data";
-import type { ActivityPlaybookData } from "@/lib/playbooks";
+import { materialNeedsForActivity } from "@/lib/materials";
+import type { RunBlock, RunChild, RunDoc } from "@/lib/runList";
 import { blockEndMin, blockStartMin, formatRange, hourMarks, TOTAL_MIN } from "@/lib/scheduleTime";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 
@@ -18,6 +19,16 @@ export type PrintIntent =
   | { type: "activity-book"; activityId: string }
   | { type: "run-sheet"; dayIndex: number }
   | { type: "planner"; dayIndex: number };
+
+const CHILD_LABEL: Record<RunChild["type"], string> = {
+  note: "Note",
+  safety: "Safety",
+  video: "Video",
+  variation: "Variation",
+  substep: "Sub-step",
+  diagram: "Diagram",
+  materials: "Materials",
+};
 
 function sortBlocks(blocks: DaySchedule): DaySchedule {
   return [...blocks].sort((a, b) => blockStartMin(a) - blockStartMin(b));
@@ -47,12 +58,118 @@ function PrintFact({ label, value }: { label: string; value: string }) {
   );
 }
 
+function MaterialsList({ activity }: { activity: Activity }) {
+  const needs = materialNeedsForActivity(activity);
+  const labels = needs.length ? needs.map((need) => need.label) : activity.materials;
+  return labels.length ? (
+    <ul className="print-chip-list">
+      {labels.map((material) => (
+        <li key={material}>{material}</li>
+      ))}
+    </ul>
+  ) : (
+    <p>None needed.</p>
+  );
+}
+
+function PrintChild({ child, activity }: { child: RunChild; activity: Activity }) {
+  if (child.type === "materials") {
+    return (
+      <div className="print-run-child">
+        <h3>Materials</h3>
+        <MaterialsList activity={activity} />
+      </div>
+    );
+  }
+
+  if (child.type === "diagram" && child.diagram) {
+    return (
+      <div className="print-run-child print-playbook">
+        <h3>Diagram</h3>
+        <ActivityPlaybook playbook={child.diagram} />
+      </div>
+    );
+  }
+
+  if (child.type === "video") {
+    return (
+      <div className="print-run-child">
+        <h3>Video</h3>
+        <p>{child.title || child.url || "Video reference"}</p>
+        {child.url ? <small>{child.url}</small> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className={"print-run-child print-run-child--" + child.type}>
+      <h3>{CHILD_LABEL[child.type]}</h3>
+      <p>{child.text}</p>
+    </div>
+  );
+}
+
+function PrintRunBlock({ block, activity }: { block: RunBlock; activity: Activity }) {
+  if (block.type === "heading") {
+    return <h2 className="print-run-heading">{block.text}</h2>;
+  }
+
+  if (block.type === "details") {
+    return (
+      <section className="print-facts print-run-details" aria-label="Activity details">
+        {(block.tags || []).map((tag) => (
+          <PrintFact key={tag.id} label={tag.icon || "Detail"} value={tag.label} />
+        ))}
+      </section>
+    );
+  }
+
+  if (block.type === "materials") {
+    return (
+      <section className="print-section print-section--materials">
+        <h2>Materials</h2>
+        <MaterialsList activity={activity} />
+      </section>
+    );
+  }
+
+  if (block.type === "step") {
+    return (
+      <section className="print-run-step">
+        <div className="print-run-step__main">
+          {block.time ? <span>{block.time}</span> : null}
+          <p>{block.text}</p>
+        </div>
+        {(block.children || []).map((child) => (
+          <PrintChild key={child.id} child={child} activity={activity} />
+        ))}
+      </section>
+    );
+  }
+
+  if (block.type === "playbook") {
+    return (
+      <section className="print-run-note">
+        <h2>{block.title || "Playbook"}</h2>
+        {block.meta ? <p>{block.meta}</p> : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className={"print-run-note print-run-note--" + block.type}>
+      <h2>{block.type === "note" ? "Note" : block.type === "safety" ? "Safety" : "Variation"}</h2>
+      <p>{block.text}</p>
+    </section>
+  );
+}
+
 function ActivityBookPrint({
   activity,
-  playbook,
+  runDoc,
 }: {
   activity: Activity;
-  playbook: ActivityPlaybookData | null;
+  runDoc: RunDoc;
 }) {
   return (
     <article className="print-sheet print-book" aria-label={"Print layout for " + activity.title}>
@@ -72,44 +189,11 @@ function ActivityBookPrint({
         <PrintFact label="Approval" value={activity.rating ? activity.rating + "/5" : "Not run"} />
       </section>
 
-      <section className="print-section print-section--materials">
-        <h2>Materials</h2>
-        {activity.materials.length ? (
-          <ul className="print-chip-list">
-            {activity.materials.map((material) => (
-              <li key={material}>{material}</li>
-            ))}
-          </ul>
-        ) : (
-          <p>None needed.</p>
-        )}
-      </section>
-
-      <section className="print-section">
-        <h2>How to Play</h2>
-        {playbook ? (
-          <div className="print-playbook">
-            <ActivityPlaybook playbook={playbook} />
-          </div>
-        ) : (
-          <ol className="print-steps">
-            {activity.steps.map((step, index) => (
-              <li key={index}>{step}</li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <section className="print-section print-two-col">
-        <div>
-          <h2>Notes & Variations</h2>
-          <p>{activity.notes}</p>
-        </div>
-        <div>
-          <h2>Safety</h2>
-          <p>{activity.safety}</p>
-        </div>
-      </section>
+      <div className="print-run-list">
+        {runDoc.blocks.map((block) => (
+          <PrintRunBlock key={block.id} block={block} activity={activity} />
+        ))}
+      </div>
     </article>
   );
 }
@@ -223,12 +307,12 @@ export function PrintViews({
   intent,
   byId,
   weekBlocks,
-  resolvePlaybook,
+  resolveRunDoc,
 }: {
   intent: PrintIntent | null;
   byId: Record<string, Activity>;
   weekBlocks: Record<number, DaySchedule>;
-  resolvePlaybook: (activity: Activity) => ActivityPlaybookData | null;
+  resolveRunDoc: (activity: Activity) => RunDoc;
 }) {
   if (!intent) return null;
 
@@ -237,7 +321,7 @@ export function PrintViews({
     if (!activity) return null;
     return (
       <div className="print-root" aria-hidden="true">
-        <ActivityBookPrint activity={activity} playbook={resolvePlaybook(activity)} />
+        <ActivityBookPrint activity={activity} runDoc={resolveRunDoc(activity)} />
       </div>
     );
   }

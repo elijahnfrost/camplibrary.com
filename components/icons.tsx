@@ -169,6 +169,25 @@ export const CampIcon = {
   Shuffle: svg(
     <path d="M4 6h3.5l9 12H20M4 18h3.5l3-4M14 9l2.5-3H20M17 3l3 3-3 3M17 15l3 3-3 3" />
   ),
+  // ---- Run List detail glyphs (note / safety / video / variation / sub-step) ----
+  Note: svg(<path d="M5 6h14M5 11h14M5 16h9" />),
+  Shield: svg(
+    <>
+      <path d="M12 21c4-4.5 6-7.8 6-11a6 6 0 1 0-12 0c0 3.2 2 6.5 6 11z" />
+      <circle cx="12" cy="10" r="2.2" />
+    </>
+  ),
+  Video: svg(
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M10 9.5v5l4-2.5z" />
+    </>
+  ),
+  Variation: svg(<path d="M4 7h4l9 10h3M4 17h4l3-3.4M16 4l3 3-3 3M16 14l3 3-3 3" />),
+  SubStep: svg(<path d="M7 5v7a3 3 0 0 0 3 3h8M14 11l5 4-5 4" />),
+  Heading: svg(<path d="M6 5v14M16 5v14M6 12h10" />),
+  CollapseAll: svg(<path d="M6 9l6-6 6 6M6 15l6 6 6-6" />),
+  ExpandAll: svg(<path d="M6 15l6 6 6-6M6 9l6-6 6 6" />),
 } as const;
 
 export type CampIconName = keyof typeof CampIcon;
