@@ -100,6 +100,7 @@ export function DetailSheet({
   playbook = null,
   onSavePlaybook,
   canEditPlaybook = true,
+  pinAction,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -115,6 +116,10 @@ export function DetailSheet({
   playbook?: ActivityPlaybookData | null;
   onSavePlaybook?: (activityId: string, data: ActivityPlaybookData) => void;
   canEditPlaybook?: boolean;
+  pinAction?: {
+    isPinned: boolean;
+    onToggle: () => void;
+  };
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [pbEditing, setPbEditing] = useState(false);
@@ -328,22 +333,35 @@ export function DetailSheet({
         {bookView}
       </div>
 
-      {showOwnerActions && isCustom && (
+      {(pinAction || (showOwnerActions && isCustom)) && (
         <div className="detail__actions">
-          <div className="detail__owner">
-            <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
-              <CampIcon.Tool />
-              Edit
-            </button>
+          {pinAction && (
             <button
               type="button"
-              className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
-              onClick={() => onDelete(a)}
+              className="btn btn--primary btn--block detail__pin-btn"
+              onClick={pinAction.onToggle}
+              aria-pressed={pinAction.isPinned}
             >
-              <CampIcon.Trash />
-              Delete
+              <CampIcon.Pin />
+              {pinAction.isPinned ? "Unpin from Clipboard" : "Pin to Clipboard"}
             </button>
-          </div>
+          )}
+          {showOwnerActions && isCustom && (
+            <div className="detail__owner">
+              <button type="button" className="btn btn--quiet detail__owner-btn" onClick={() => onEdit(a)}>
+                <CampIcon.Tool />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
+                onClick={() => onDelete(a)}
+              >
+                <CampIcon.Trash />
+                Delete
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Modal>
