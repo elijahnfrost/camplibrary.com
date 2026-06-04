@@ -2219,47 +2219,8 @@ body {
   background: var(--accent);
   border-color: var(--accent-ink);
 }
-.steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 13px;
-  counter-reset: step;
-}
-.steps li {
-  display: flex;
-  gap: 12px;
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--ink);
-}
-.steps li::before {
-  counter-increment: step;
-  content: counter(step);
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 22px;
-  color: var(--accent);
-  flex: none;
-  width: 22px;
-  line-height: 1;
-}
-.prose {
-  font-size: 15px;
-  line-height: 1.5;
-  color: var(--ink);
-}
-.safety {
-  border: 1.5px solid var(--ink);
-  border-radius: 8px;
-  padding: 13px 15px;
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--ink);
-  background: var(--card);
-}
+/* The flat step list / notes prose / safety callout were retired when the
+   instruction document moved to the Run List (.rl); see the Run List section. */
 .detail__actions {
   flex: none;
   display: flex;
@@ -2774,6 +2735,17 @@ body {
 .form__playbook {
   display: grid;
   gap: 10px;
+}
+.form__blockgrid {
+  display: grid;
+  gap: 12px;
+}
+.form__runlist {
+  margin-top: -2px;
+  padding: 10px 0 2px;
+}
+.form__runlist .rl-toolbar {
+  padding-top: 0;
 }
 
 /* ---------- empty states ---------- */
@@ -3712,14 +3684,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: clamp(18px, 3vw, 34px);
+    padding: clamp(14px, 2.2vw, 28px);
   }
+  /* A large single page floating on the desk — fills an iPad, capped on desktop. */
   .overlay--viewer {
     position: relative;
     inset: auto;
-    width: min(1040px, calc(100vw - 64px));
-    height: min(820px, calc(100vh - 48px));
-    max-height: calc(100vh - 48px);
+    width: min(1100px, calc(100vw - 28px));
+    height: min(980px, calc(100vh - 28px));
+    max-height: calc(100vh - 28px);
     overflow: visible;
     border: 0;
     border-radius: 0;
@@ -3727,57 +3700,17 @@ body {
     box-shadow: none;
     animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .overlay--viewer[data-viewer-view="book"] .overlay__body {
-    background: transparent;
-  }
-  .book-spread {
-    height: 100%;
-    padding: 0;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-    max-width: 1040px;
-    margin-inline: auto;
-  }
-  .book-page {
-    min-height: min(650px, calc(100vh - 158px));
-    /* Each leaf is a fixed-height column in the spread, so let a page whose
-       content runs long (e.g. a full materials checklist) scroll on its own
-       instead of clipping under the page edge. */
+  .overlay--viewer .rlv-body {
+    background: color-mix(in srgb, var(--card) 72%, var(--paper));
+    border: 2px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: var(--e4);
     overflow: hidden auto;
-    scrollbar-width: none;
   }
-  .book-page::-webkit-scrollbar {
-    display: none;
-  }
-  .book-page--summary {
-    border-radius: 16px 0 0 16px;
-  }
-  .book-page--instructions {
-    border-top: 1.5px solid var(--ink);
-    border-radius: 0 16px 16px 0;
-  }
-  .book-page--instructions .detail__pad {
-    min-height: 100%;
-  }
-  .overlay--viewer .detail__actions {
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 12px 0 0;
-    border: 0;
-    background: transparent;
-  }
-  .overlay--viewer .detail__owner {
-    flex: 0 0 auto;
-    width: auto;
-  }
-  .overlay--viewer .detail__owner-btn {
-    min-width: 110px;
-  }
-  .overlay--viewer .btn--block {
-    width: auto;
-    min-width: min(260px, 100%);
-    margin-left: auto;
+  .rlv {
+    --rl-bg: color-mix(in srgb, var(--card) 72%, var(--paper));
+    max-width: 940px;
+    padding: 26px 40px 76px;
   }
 }
 
@@ -5952,6 +5885,1090 @@ body {
   .tabbar button svg {
     width: 21px;
     height: 21px;
+  }
+}
+
+/* ============================================================
+ * The Run List — the activity's instruction document.
+ * One editable stack: collapsible numbered steps that own attached detail
+ * (note / safety / video / variation / sub-step), plus materials and field
+ * diagram blocks. No modes — click any line to edit, drag a block to move it.
+ * Earthy, cozy, scannable. Lives in the single-column viewer (.rlv).
+ * ============================================================ */
+
+/* ---------- single-column viewer shell ---------- */
+.rlv-body {
+  background: var(--paper);
+}
+.rlv {
+  --rl-bg: var(--paper);
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px 16px 64px;
+}
+
+/* ---------- viewer header (compact, prototype-style) ---------- */
+.rlv-head {
+  padding-bottom: 18px;
+}
+.rlv-head__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.rlv-head__sp {
+  flex: 1 1 auto;
+}
+.rlv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 4px 6px 4px 2px;
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.rlv-back:hover {
+  color: var(--ink);
+}
+.rlv-back svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-headbtn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.rlv-headbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rlv-headbtn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-headbtn--danger {
+  color: var(--clay);
+  border-color: color-mix(in srgb, var(--clay) 42%, var(--line));
+}
+.rlv-eyebrow {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.rlv-title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: clamp(34px, 5vw, 46px);
+  line-height: 1;
+  color: var(--ink);
+}
+.rlv-blurb {
+  max-width: 760px;
+  margin: 10px 0 0;
+  font-family: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.rlv-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-top: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.rlv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rlv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-family: var(--hand-sc);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1.3px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 9px;
+  background: var(--card);
+}
+.rlv-chip svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.75;
+}
+
+/* ---------- compact dot rating ---------- */
+.ratingdots {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.ratingdots__dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.ratingdots__dot {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.6px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.ratingdots__dot:hover {
+  transform: scale(1.12);
+}
+.ratingdots__word {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rl {
+  --rl-note: var(--ink-soft);
+  --rl-safety: var(--clay);
+  --rl-video: var(--dusk);
+  --rl-variation: var(--wood-soft);
+  --rl-substep: var(--accent-ink);
+  --rl-node-size: 34px;
+  --rl-detail-node-size: 30px;
+  --rl-rail-x: calc(var(--rl-node-size) / 2);
+  --rl-rail-line-x: calc(var(--rl-rail-x) - 1px);
+  --rl-block-gap: 22px;
+  --rl-detail-gap: 16px;
+  --rl-subtree-exit-gap: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--hand);
+}
+
+/* ---------- toolbar (only collapse / expand) ---------- */
+.rl-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 4px;
+  padding: 12px 0 6px;
+}
+.rl-toolbar:empty {
+  display: none;
+}
+.rl-tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 11px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.rl-tbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+  background: var(--paper-2);
+}
+.rl-tbtn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- the document spine ---------- */
+.rl-doc {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.rl-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  position: relative;
+}
+.rl-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.rl-rail span {
+  position: absolute;
+  width: 2px;
+  background: var(--line-soft);
+  border-radius: 2px;
+}
+.rl-block {
+  --rl-next-gap: var(--rl-block-gap);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 var(--rl-block-gap);
+  padding-bottom: 0;
+  position: relative;
+}
+.rl-block__main {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* ---------- nodes (numbered steps + typed glyphs) ---------- */
+.rl-node {
+  flex: none;
+  width: var(--rl-node-size);
+  height: var(--rl-node-size);
+  border-radius: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  background: var(--accent);
+  color: #fff;
+  border: 3px solid var(--rl-bg);
+  font-family: var(--hand-sc);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: none;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+button.rl-node {
+  appearance: none;
+  cursor: pointer;
+}
+.rl-node__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.rl-node--type {
+  background: var(--rl-bg);
+  color: var(--accent-ink);
+  border: 1.6px solid var(--line);
+}
+.rl-node--type svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-node--playbook {
+  color: var(--accent-ink);
+}
+.rl-node--note {
+  color: var(--rl-note);
+}
+.rl-node--safety {
+  color: var(--rl-safety);
+}
+.rl-node--video {
+  color: var(--rl-video);
+}
+.rl-node--variation {
+  color: var(--rl-variation);
+}
+.rl-node--substep {
+  color: var(--rl-substep);
+}
+.rl-node--details {
+  color: var(--accent-ink);
+}
+
+/* ---------- rows (the cards) ---------- */
+.rl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+  border: 2px solid var(--ink);
+  border-radius: 11px;
+  background: var(--card);
+  padding: 13px 54px 13px 14px;
+  box-shadow: var(--e2);
+  cursor: grab;
+  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease,
+    background 140ms ease, transform 140ms ease;
+}
+.rl-block[draggable="true"]:active > .rl-block__main > .rl-row {
+  cursor: grabbing;
+}
+.rl-block--step > .rl-block__main > .rl-row {
+  background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 80%, var(--paper)) 100%);
+}
+.rl-block--step.has-children:not(.is-collapsed) > .rl-block__main > .rl-row {
+  box-shadow: var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.rl-row .rl-ed {
+  cursor: text;
+}
+.rl-body {
+  flex: 1;
+  min-width: 0;
+}
+.rl-time {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin-bottom: 7px;
+}
+.rl-text {
+  font-family: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.rl-block.is-collapsed .rl-node--step {
+  background: var(--card);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.rl-block--step.is-closing .rl-node--step {
+  transform: scale(0.97);
+}
+
+/* ---------- attached detail children ---------- */
+.rl-block--detail {
+  --rl-next-gap: var(--rl-detail-gap);
+  gap: 16px;
+  margin-top: -2px;
+  margin-bottom: var(--rl-detail-gap);
+  padding-bottom: 0;
+  animation: rl-detail-enter 180ms ease-out both;
+}
+.rl-block--detail + .rl-block--step,
+.rl-block--detail + .rl-block--materials,
+.rl-block--detail + .rl-block--heading {
+  padding-top: var(--rl-subtree-exit-gap);
+}
+.rl-block--detail.is-closing {
+  pointer-events: none;
+  animation: rl-detail-exit 160ms ease-in both;
+}
+.rl-block--detail .rl-node--type {
+  width: var(--rl-detail-node-size);
+  height: var(--rl-detail-node-size);
+  margin-inline: calc((var(--rl-node-size) - var(--rl-detail-node-size)) / 2);
+  background: var(--rl-bg);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 0 0 3px var(--rl-bg);
+}
+.rl-block--detail .rl-node--type svg {
+  width: 14px;
+  height: 14px;
+}
+.rl-block--detail .rl-block__main {
+  margin-left: 0;
+}
+.rl-row--detail {
+  background: color-mix(in srgb, var(--card) 60%, var(--paper));
+  border: 1.5px solid var(--line);
+  box-shadow: none;
+  padding: 10px 12px;
+}
+.rl-row--detail .rl-text {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.rl-row--detail .rl-time {
+  color: var(--ink-faint);
+}
+.rl-row--detail.rl-row--safety {
+  background: color-mix(in srgb, var(--clay) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--clay) 34%, var(--line));
+}
+.rl-row--details {
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  box-shadow: var(--e1);
+}
+.rl-detailtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.rl-detailtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  border: 1.4px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--card) 82%, var(--paper));
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rl-detailtag svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-detailrating {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1.3px dashed var(--line-soft);
+}
+.rl-detailform,
+.rl-materialform {
+  margin-top: 2px;
+}
+.rl-detailform__grid {
+  display: grid;
+  gap: 12px;
+}
+.rl-detailform__grid .field {
+  margin: 0;
+}
+.rl-detailform__wide {
+  grid-column: 1 / -1;
+}
+.rl-materialform .field {
+  margin: 0;
+}
+
+/* ---------- collapsed summary pills ---------- */
+.rl-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1.4px solid var(--line-soft);
+  animation: rl-summary-enter 170ms ease-out both;
+}
+.rl-pill {
+  font-family: var(--hand-sc);
+  font-size: 8.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  min-height: 24px;
+  border: 1.3px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  background: var(--card);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, currentColor 38%, transparent);
+}
+.rl-pill svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-pill--note {
+  color: var(--rl-note);
+}
+.rl-pill--safety {
+  color: var(--rl-safety);
+}
+.rl-pill--video {
+  color: var(--rl-video);
+}
+.rl-pill--variation {
+  color: var(--rl-variation);
+}
+.rl-pill--substep {
+  color: var(--rl-substep);
+}
+
+/* ---------- row tools (hover-only, top right) ---------- */
+.rl-rowtools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.rl-iconbtn {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-faint);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rl-iconbtn:hover {
+  background: rgba(44, 40, 36, 0.08);
+  color: var(--ink);
+}
+.rl-iconbtn--quiet {
+  cursor: default;
+}
+.rl-iconbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-row:hover .rl-rowtools,
+.rl-row:focus-within .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- video child ---------- */
+.rl-vid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rl-vid__thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 7px;
+  background: var(--ink);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.rl-vid__thumb::before {
+  content: "";
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--paper);
+  background: rgba(243, 236, 221, 0.12);
+}
+.rl-vid__thumb::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-36%, -50%);
+  border-left: 15px solid var(--paper);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+.rl-vid__tag {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+.rl-vid__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rl-vid__url {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--ink-soft);
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--card);
+}
+
+/* ---------- playbook cross-link block ---------- */
+.rl-row--playbook {
+  align-items: center;
+  gap: 11px;
+}
+.rl-pb__spine {
+  flex: none;
+  width: 30px;
+  height: 40px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px 4px 3px 3px;
+  background: #aebe97;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 3px;
+}
+.rl-pb__spine svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--ink);
+  fill: none;
+  stroke-width: 1.5;
+}
+.rl-pb__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--ink);
+}
+.rl-pb__meta {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+/* ---------- heading block ---------- */
+.rl-row--heading {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 44px 4px 0;
+  cursor: grab;
+}
+.rl-block--heading {
+  display: block;
+  padding-top: 24px;
+  padding-left: calc(var(--rl-node-size) + 16px);
+  margin-top: 2px;
+}
+.rl-heading__t {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 23px;
+  color: var(--ink);
+}
+
+/* ---------- add controls + palettes ---------- */
+.rl-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rl-palette--flat {
+  margin: 2px 0 4px;
+  padding: 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.rl-palette--top {
+  margin-top: 2px;
+}
+.rl-ptype {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.rl-ptype:hover {
+  border-color: var(--ink);
+  background: var(--paper-2);
+}
+.rl-ptype svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-addwrap {
+  display: block;
+  margin-top: 6px;
+  padding-left: calc(var(--rl-node-size) + 16px);
+}
+.rl-addnode {
+  flex: none;
+  width: var(--rl-node-size, 34px);
+  height: var(--rl-node-size, 34px);
+  border-radius: 50%;
+  border: 1.6px dashed var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  background: var(--rl-bg);
+  z-index: 1;
+}
+.rl-addnode svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+.rl-addmain {
+  flex: 1;
+  min-width: 0;
+}
+.rl-addblock {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--ink-faint);
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.rl-addblock:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink-soft);
+}
+.rl-addblock svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+/* ---------- inline editable cells ---------- */
+.rl-ed {
+  outline: none;
+}
+.rl-ed:empty::before {
+  content: attr(data-ph);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.rl-ed[contenteditable="true"] {
+  border-radius: 5px;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.rl-ed[contenteditable="true"]:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.rl-ed[contenteditable="true"]:focus {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---------- drag affordances ---------- */
+.rl-block.is-dragging .rl-block__main {
+  opacity: 0.4;
+}
+.rl-block.is-over-before > .rl-block__main::before,
+.rl-block.is-over-after > .rl-block__main::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  z-index: 5;
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.rl-block.is-over-before > .rl-block__main::before {
+  top: calc(var(--rl-next-gap) / -2);
+}
+.rl-block.is-over-after > .rl-block__main::before {
+  bottom: calc(var(--rl-next-gap) / -2);
+}
+
+/* ---------- diagram + materials detail children ---------- */
+.rl-node--materials {
+  color: var(--accent-ink);
+}
+.rl-node--diagram {
+  color: var(--wood);
+}
+.rl-pill--diagram {
+  color: var(--wood);
+}
+.rl-pill--materials {
+  color: var(--accent-ink);
+}
+/* These details hold a wider payload (a checklist or an SVG field), so the
+   body runs the full width of the detail row. */
+.rl-row--materials,
+.rl-row--diagram {
+  align-items: stretch;
+}
+.rl-block--materials > .rl-block__main > .rl-row--materials {
+  background: color-mix(in srgb, var(--card) 62%, var(--paper));
+  border-color: var(--line);
+  box-shadow: var(--e1);
+}
+.rl-row--materials .matkit {
+  margin-top: 6px;
+}
+/* A diagram sub-item reads like the video sub-item: a clean embedded field, no
+   legend/summary chrome. It edits in place like text — tap the field to start,
+   click anywhere outside to finish. No edit/done buttons. */
+.rl-diagram {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2px;
+}
+.rl-diagram--open {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin: 2px 0 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: background 120ms ease;
+}
+.rl-diagram--open:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.rl-diagram--open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rl-diagram .playbook,
+.rl-diagram .playbook--compact {
+  margin-top: 0;
+  width: 100%;
+}
+/* Stages lay out as a uniform grid: every field renders at the same size no
+   matter how the count divides. A lone stage fills its row; two or three share
+   it; a fourth wraps to a fresh row at the SAME width as the rest instead of
+   ballooning to fill the gap. `--pb-cols` (set inline from the frame count,
+   capped at 3) fixes the column basis so the track size is identical on every
+   row, and auto-fill drops columns as the container narrows. */
+.rl-diagram .playbook--compact .playbook__frames {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(180px, (100% - (var(--pb-cols, 3) - 1) * 14px) / var(--pb-cols, 3)), 1fr)
+  );
+  gap: 16px 14px;
+  padding: 0;
+  align-items: start;
+}
+.rl-diagram .playbook--compact .playbook-frame__head {
+  margin-bottom: 6px;
+}
+.rl-diagram .playbook--compact .playbook-frame__head h4 {
+  font-size: 11px;
+}
+/* The per-stage caption duplicates the step text — drop it in the grid. */
+.rl-diagram .playbook--compact .playbook-frame__head p {
+  display: none;
+}
+.rl-diagram .playbook-field {
+  min-height: 0;
+}
+/* The inline editor reads as part of the document, not a tool that pops open:
+   it sits at roughly a single field's width, fades in instead of jumping, and
+   keeps its chrome low so the tapped stage just grows a touch and turns
+   interactive. */
+.rl-diagram--editing {
+  max-width: 360px;
+}
+.rl-diagram--editing .pbe {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 8px;
+  animation: rl-detail-enter 160ms ease;
+}
+.rl-diagram--editing .pbe__top,
+.rl-diagram--editing .pbe__stage-actions,
+.rl-diagram--editing .pbe__caption {
+  display: none;
+}
+/* Field tracks the reading frame's size and proportion, so entering edit grows
+   the stage modestly instead of exploding into a big square panel. */
+.rl-diagram--editing .playbook-field--edit {
+  min-height: 0;
+  aspect-ratio: 1.08;
+  border-radius: 10px;
+}
+/* Stage name reads as an inline caption rather than a boxed form field. */
+.rl-diagram--editing .pbe__meta {
+  gap: 0;
+}
+.rl-diagram--editing .pbe__name {
+  padding: 1px 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+/* Tabs and tools tighten so the toolbar doesn't tower over the field. */
+.rl-diagram--editing .pbe__stages {
+  gap: 5px;
+}
+.rl-diagram--editing .pbe__stage {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.rl-diagram--editing .pbe__tools {
+  gap: 6px;
+}
+/* Match the video sub-item's contained width. */
+.rl-row--detail .rl-vid {
+  max-width: 600px;
+}
+
+@keyframes rl-detail-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rl-detail-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+@keyframes rl-summary-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* On the wide two-page spread the leaf is comfortably roomy. */
+@media (min-width: 768px) {
+  .rl {
+    --rl-node-size: 36px;
+    --rl-detail-node-size: 32px;
+    --rl-block-gap: 24px;
+    --rl-detail-gap: 18px;
+    --rl-subtree-exit-gap: 14px;
+  }
+  .rl-block,
+  .rl-addwrap {
+    gap: 16px;
+  }
+  .rl-node,
+  .rl-addnode {
+    font-size: 17px;
   }
 }
 
