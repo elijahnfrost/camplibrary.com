@@ -78,6 +78,13 @@ export const CampIcon = {
       <path d="M7 9h10M7 12h7M7 15h5" />
     </>
   ),
+  Clipboard: svg(
+    <>
+      <path d="M8.5 5.5H6a2 2 0 0 0-2 2V20h16V7.5a2 2 0 0 0-2-2h-2.5" />
+      <path d="M9 4h6l1 3H8z" />
+      <path d="M8 11h8M8 15h6" />
+    </>
+  ),
   Calendar: svg(
     <>
       <rect x="4" y="5.5" width="16" height="15" />

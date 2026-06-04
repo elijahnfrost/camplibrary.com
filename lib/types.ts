@@ -105,4 +105,19 @@ export interface Slot {
 
 export type LibraryView = "shelf" | "deck" | "catalog";
 // "schedule" is the Run Sheet preview; "calendar" is the interactive Planner workspace.
-export type TabId = "home" | "library" | "schedule" | "calendar" | "saved" | "add" | "admin";
+export type TabId =
+  | "home"
+  | "library"
+  | "clipboard"
+  | "schedule"
+  | "calendar"
+  | "saved"
+  | "add"
+  | "admin";
+
+export interface ClipboardPin {
+  activityId: string;
+  dayIndex?: number;
+  blockId?: string;
+  pinnedAt: number;
+}
