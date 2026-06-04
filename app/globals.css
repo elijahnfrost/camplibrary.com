@@ -888,6 +888,182 @@ body {
   line-height: 1;
 }
 
+/* ---------- current activity clipboard ---------- */
+.clipboard-view {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 14px;
+}
+.clipboard-run,
+.clipboard-empty {
+  min-height: min(650px, calc(100dvh - 178px));
+}
+.clipboard-run {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.clipboard-run__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 4px 4px 0 rgba(44, 40, 36, 0.12);
+}
+.clipboard-run.is-pinned .clipboard-run__head {
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+.clipboard-run__titleblock {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.clipboard-run__kicker,
+.clipboard-run__time,
+.clipboard-empty__kicker,
+.clipboard-materials__status {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.clipboard-run__head h2,
+.clipboard-empty h2 {
+  margin: 0;
+  font-family: var(--script);
+  font-size: clamp(37px, 8vw, 66px);
+  line-height: 0.9;
+  color: var(--ink);
+  letter-spacing: 0;
+}
+.clipboard-run__time {
+  color: var(--ink-soft);
+}
+.clipboard-run__actions,
+.clipboard-empty__actions,
+.clipboard-materials__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.clipboard-run__actions {
+  justify-content: flex-end;
+}
+.clipboard-run__blurb {
+  margin: 0;
+  max-width: 62rem;
+  font-family: var(--text);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.clipboard-run__facts {
+  margin: 0;
+}
+.clipboard-run__grid {
+  display: grid;
+  gap: 16px;
+}
+.clipboard-run__panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0;
+}
+.clipboard-materials {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.clipboard-materials__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.clipboard-materials__row {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.clipboard-materials__status {
+  color: var(--accent-ink);
+}
+.clipboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 28px 18px;
+}
+.clipboard-empty__mark {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  color: var(--accent-ink);
+  background: var(--card);
+  box-shadow: 3px 3px 0 rgba(44, 40, 36, 0.12);
+}
+.clipboard-empty__mark svg {
+  width: 31px;
+  height: 31px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.clipboard-empty p {
+  margin: 0;
+  max-width: 32rem;
+  font-family: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+@media (max-width: 640px) {
+  .clipboard-run__head,
+  .clipboard-run__actions,
+  .clipboard-empty__actions,
+  .clipboard-materials__actions {
+    align-items: stretch;
+  }
+  .clipboard-run__head,
+  .clipboard-run__actions {
+    flex-direction: column;
+  }
+  .clipboard-run__actions .btn,
+  .clipboard-empty__actions .btn {
+    width: 100%;
+  }
+}
+@media (min-width: 768px) {
+  .clipboard-view {
+    padding: 22px clamp(18px, 3vw, 34px) 34px;
+  }
+  .clipboard-run__grid {
+    grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
+    align-items: start;
+  }
+}
+
 /* ---------- shelf headers ---------- */
 .shelfwrap {
   padding-top: 4px;
@@ -1423,6 +1599,7 @@ body {
 }
 .tabbar button {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -1449,6 +1626,11 @@ body {
 }
 .tabbar button.is-active {
   color: var(--accent);
+}
+.tabbar button span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- buttons ---------- */
@@ -5870,12 +6052,12 @@ body {
   }
 }
 
-/* Mobile bottom bar now carries six tabs — tighten below very narrow widths. */
+/* Mobile bottom bar now carries seven tabs — tighten below very narrow widths. */
 .tabbar button span,
 .tabbar button {
   white-space: nowrap;
 }
-@media (max-width: 380px) {
+@media (max-width: 430px) {
   .tabbar button {
     font-size: 9px;
     letter-spacing: 0.03em;
@@ -5885,6 +6067,19 @@ body {
   .tabbar button svg {
     width: 21px;
     height: 21px;
+  }
+}
+@media (max-width: 360px) {
+  .tabbar button {
+    padding-top: 9px;
+    gap: 0;
+  }
+  .tabbar button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
 }
 

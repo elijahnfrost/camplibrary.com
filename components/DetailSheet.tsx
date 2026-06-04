@@ -22,6 +22,7 @@ export function DetailSheet({
   onToggleMaterial,
   runDoc,
   onSaveRunDoc,
+  pinAction,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -36,6 +37,10 @@ export function DetailSheet({
   onToggleMaterial: (id: string) => void;
   runDoc: RunDoc;
   onSaveRunDoc?: (activityId: string, doc: RunDoc) => void;
+  pinAction?: {
+    isPinned: boolean;
+    onToggle: () => void;
+  };
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
@@ -94,6 +99,17 @@ export function DetailSheet({
                 Library
               </button>
               <span className="rlv-head__sp" />
+              {pinAction && (
+                <button
+                  type="button"
+                  className={"rlv-headbtn" + (pinAction.isPinned ? " is-on" : "")}
+                  onClick={pinAction.onToggle}
+                  aria-label={pinAction.isPinned ? "Unpin from Clipboard" : "Pin to Clipboard"}
+                  aria-pressed={pinAction.isPinned}
+                >
+                  <CampIcon.Pin />
+                </button>
+              )}
               {showOwner && (
                 <>
                   <button type="button" className="rlv-headbtn" onClick={() => onEdit(a)} aria-label="Edit activity">
