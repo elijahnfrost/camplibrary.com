@@ -27,6 +27,7 @@ export function DetailSheet({
   isCustom,
   onEdit,
   onDelete,
+  onPrint,
   showOwnerActions = true,
   playbook = null,
   onSavePlaybook,
@@ -40,6 +41,7 @@ export function DetailSheet({
   isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
+  onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
   playbook?: ActivityPlaybookData | null;
   onSavePlaybook?: (activityId: string, data: ActivityPlaybookData) => void;
@@ -116,8 +118,20 @@ export function DetailSheet({
 
   const titleSummary = (
     <>
-      <div className="detail__eyebrow">
-        {code(a)} · {a.type}
+      <div className="detail__eyebrow-row">
+        <div className="detail__eyebrow">
+          {code(a)} · {a.type}
+        </div>
+        <button
+          type="button"
+          className="book-print-chip"
+          onClick={() => onPrint(a)}
+          aria-label={"Print " + a.title}
+          title="Print this book"
+        >
+          <CampIcon.Print />
+          <span>Print</span>
+        </button>
       </div>
       <h2 className="detail__title">{a.title}</h2>
       <p className="detail__blurb">{a.blurb}</p>
