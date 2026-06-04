@@ -47,6 +47,7 @@ import { type EventDraft } from "./EventComposer";
 import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
 import { DetailSheet } from "./DetailSheet";
+import { PrintViews, type PrintIntent } from "./PrintViews";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
 import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
 import { AdminInviteCodes } from "./AdminInviteCodes";
@@ -432,6 +433,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   );
   const [detailMode, setDetailMode] = useState<"library" | "runSheet">("library");
   const [editing, setEditing] = useState<Activity | null>(null);
+  const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
@@ -888,13 +890,37 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setCalFocus({ min: atMin ?? DAY_START_MIN, nonce: focusNonceRef.current });
   }
 
+  useEffect(() => {
+    if (!printIntent) return;
+
+    const clearPrintIntent = () => setPrintIntent(null);
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => window.print());
+    });
+
+    window.addEventListener("afterprint", clearPrintIntent, { once: true });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+      window.removeEventListener("afterprint", clearPrintIntent);
+    };
+  }, [printIntent]);
+
+  function requestPrint(intent: PrintIntent) {
+    setPrintIntent(intent);
+    if (intent.type === "activity-book") {
+      const activity = byId[intent.activityId];
+      setLiveMsg("Preparing " + (activity?.title || "activity") + " for print");
+    } else {
+      const kind = intent.type === "run-sheet" ? "run sheet" : "planner";
+      setLiveMsg("Preparing " + DAYS[intent.dayIndex] + " " + kind + " for print");
+    }
+  }
+
   function openClipboardPlanner(targetDayIndex?: number) {
     if (targetDayIndex != null) selectDay(targetDayIndex);
     setTab("calendar");
-  }
-
-  function printCurrentView() {
-    window.print();
   }
 
   function openDetail(a: Activity) {
@@ -1041,6 +1067,20 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     },
   };
   const page = pageByTab[tab];
+  const topbarPrint =
+    tab === "schedule"
+      ? ({
+          label: "Print " + DAYS[dayIndex] + " Run Sheet",
+          title: "Print this run sheet",
+          intent: { type: "run-sheet", dayIndex } as PrintIntent,
+        })
+      : tab === "calendar"
+        ? ({
+            label: "Print " + DAYS[dayIndex] + " Planner",
+            title: "Print this planner",
+            intent: { type: "planner", dayIndex } as PrintIntent,
+          })
+        : null;
   const detailActivity = detail ? byId[detail.id] || detail : null;
   const detailScheduleBlock =
     detailScheduleContext == null
@@ -1139,16 +1179,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             </div>
             <div className="topbar__actions">
               <AuthButton session={auth.session} onOpen={openAuthForCurrentTab} onSignOut={auth.signOut} />
-              <button
-                type="button"
-                className="icon-btn print-btn"
-                onClick={printCurrentView}
-                aria-label={"Print " + page.title}
-                title="Print or export this view"
-                data-export-action="print-current-view"
-              >
-                <CampIcon.Print />
-              </button>
+              {topbarPrint && (
+                <button
+                  type="button"
+                  className="icon-btn print-btn"
+                  onClick={() => requestPrint(topbarPrint.intent)}
+                  aria-label={topbarPrint.label}
+                  title={topbarPrint.title}
+                  data-export-action={topbarPrint.intent.type}
+                >
+                  <CampIcon.Print />
+                </button>
+              )}
             </div>
           </div>
           )}
@@ -1379,6 +1421,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             isCustom={isCustomActivity(detailActivity.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
+            onPrint={(activity) => requestPrint({ type: "activity-book", activityId: activity.id })}
             showOwnerActions={detailMode !== "runSheet"}
             availableMaterials={activeAvailableMaterials}
             onToggleMaterial={toggleAvailableMaterial}
@@ -1387,6 +1430,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             pinAction={detailPinAction}
           />
         )}
+        <PrintViews
+          intent={printIntent}
+          byId={byId}
+          weekBlocks={weekBlocks}
+          resolveRunDoc={resolveRunDoc}
+        />
       </div>
     </div>
   );

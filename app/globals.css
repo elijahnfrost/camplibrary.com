@@ -2218,6 +2218,49 @@ body {
   color: var(--ink-soft);
   margin-bottom: 6px;
 }
+.detail__eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+.detail__eyebrow-row .detail__eyebrow {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.book-print-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.book-print-chip:hover {
+  background: var(--card);
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.book-print-chip svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .detail__title {
   font-family: var(--script);
   font-weight: 700;
@@ -3935,6 +3978,9 @@ body {
 .print-btn:hover {
   background: var(--paper-2);
 }
+.print-root {
+  display: none;
+}
 .sidenav__brand {
   display: flex;
   align-items: center;
@@ -4178,6 +4224,10 @@ body {
 }
 
 @media print {
+  @page {
+    size: letter;
+    margin: 0.45in;
+  }
   body {
     background: #fff;
     color: #000;
@@ -4228,6 +4278,332 @@ body {
   .planner {
     max-width: none;
     padding: 14px 0 0;
+  }
+  .app:has(.print-root) {
+    display: block;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  .app:has(.print-root) .sidenav,
+  .app:has(.print-root) .app__main,
+  .app:has(.print-root) .tabbar,
+  .app:has(.print-root) .modal-root {
+    display: none !important;
+  }
+  .app:has(.print-root) .print-root {
+    display: block !important;
+  }
+  .print-sheet {
+    display: block;
+    width: 100%;
+    color: #000;
+    background: #fff;
+    font-family: var(--text);
+    font-size: 10.5pt;
+    line-height: 1.32;
+  }
+  .print-header {
+    padding-bottom: 0.16in;
+    margin-bottom: 0.16in;
+    border-bottom: 1.5pt solid #000;
+    break-after: avoid;
+  }
+  .print-kicker {
+    display: block;
+    margin-bottom: 0.04in;
+    font-family: var(--hand-sc);
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .print-header h1 {
+    margin: 0;
+    font-family: var(--script);
+    font-size: 30pt;
+    line-height: 0.9;
+  }
+  .print-header p {
+    margin: 0.08in 0 0;
+    max-width: 7in;
+    font-size: 10.5pt;
+  }
+  .print-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1pt solid #000;
+    break-inside: avoid;
+  }
+  .print-fact {
+    min-height: 0.52in;
+    padding: 0.07in 0.09in;
+    border-right: 0.7pt solid #aaa;
+    border-bottom: 0.7pt solid #aaa;
+  }
+  .print-fact:nth-child(4n) {
+    border-right: 0;
+  }
+  .print-fact span,
+  .print-agenda-row__time,
+  .print-timeblock span,
+  .print-timeblock small,
+  .print-agenda-row small {
+    display: block;
+    font-family: var(--hand-sc);
+    font-size: 7.4pt;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .print-fact strong {
+    display: block;
+    margin-top: 0.02in;
+    font-family: var(--hand);
+    font-size: 12pt;
+    line-height: 1;
+  }
+  .print-section {
+    margin-top: 0.18in;
+    break-inside: avoid;
+  }
+  .print-section h2 {
+    margin: 0 0 0.07in;
+    padding-top: 0.08in;
+    border-top: 0.8pt dashed #999;
+    font-family: var(--hand-sc);
+    font-size: 9pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .print-section p {
+    margin: 0;
+  }
+  .print-run-list {
+    display: grid;
+    gap: 0.12in;
+    margin-top: 0.18in;
+    counter-reset: print-step;
+  }
+  .print-run-heading {
+    margin: 0.12in 0 0.02in;
+    padding-top: 0.08in;
+    border-top: 0.8pt dashed #999;
+    font-family: var(--hand-sc);
+    font-size: 9pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    break-after: avoid;
+  }
+  .print-run-details {
+    margin-top: 0;
+  }
+  .print-run-step,
+  .print-run-note {
+    break-inside: avoid;
+  }
+  .print-run-step {
+    display: grid;
+    gap: 0.08in;
+    padding: 0.1in 0;
+    border-bottom: 0.7pt solid #bbb;
+  }
+  .print-run-step__main {
+    display: grid;
+    grid-template-columns: 0.26in minmax(0, 1fr);
+    gap: 0.08in;
+  }
+  .print-run-step__main::before {
+    counter-increment: print-step;
+    content: counter(print-step);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.22in;
+    height: 0.22in;
+    border: 0.8pt solid #000;
+    border-radius: 999px;
+    font-family: var(--hand-sc);
+    font-size: 8pt;
+    line-height: 1;
+  }
+  .print-run-step__main span {
+    grid-column: 2;
+    font-family: var(--hand-sc);
+    font-size: 7.4pt;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .print-run-step__main p {
+    grid-column: 2;
+    margin: 0;
+    font-size: 11pt;
+    font-weight: 600;
+  }
+  .print-run-child {
+    margin-left: 0.34in;
+    padding: 0.07in 0.09in;
+    border-left: 2pt solid #999;
+    background: #fff;
+    break-inside: avoid;
+  }
+  .print-run-child h3,
+  .print-run-note h2 {
+    margin: 0 0 0.04in;
+    font-family: var(--hand-sc);
+    font-size: 8pt;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .print-run-child p,
+  .print-run-note p {
+    margin: 0;
+  }
+  .print-run-child small {
+    display: block;
+    margin-top: 0.03in;
+    overflow-wrap: anywhere;
+    font-size: 7.5pt;
+  }
+  .print-run-note {
+    padding: 0.08in 0;
+    border-bottom: 0.7pt solid #bbb;
+  }
+  .print-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.06in;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .print-chip-list li {
+    padding: 0.03in 0.07in;
+    border: 0.7pt solid #555;
+    border-radius: 2pt;
+    font-family: var(--hand-sc);
+    font-size: 7.6pt;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .print-steps {
+    margin: 0;
+    padding-left: 0.22in;
+  }
+  .print-steps li {
+    margin-bottom: 0.07in;
+    break-inside: avoid;
+  }
+  .print-two-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.22in;
+  }
+  .print-playbook .playbook {
+    margin-top: 0;
+  }
+  .print-playbook .playbook__intro,
+  .print-playbook .playbook__legend {
+    break-inside: avoid;
+  }
+  .print-playbook .playbook__editcue {
+    display: none !important;
+  }
+  .print-playbook .playbook__frames {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.12in;
+  }
+  .print-playbook .playbook-frame {
+    break-inside: avoid;
+  }
+  .print-playbook .playbook-field {
+    max-height: 2.2in;
+  }
+  .print-agenda {
+    display: grid;
+    gap: 0;
+    border-top: 1pt solid #000;
+  }
+  .print-agenda-row {
+    display: grid;
+    grid-template-columns: 1.2in minmax(0, 1fr);
+    gap: 0.12in;
+    padding: 0.09in 0;
+    border-bottom: 0.7pt solid #aaa;
+    break-inside: avoid;
+  }
+  .print-agenda-row__main strong {
+    display: block;
+    font-family: var(--hand);
+    font-size: 13pt;
+    line-height: 1.05;
+  }
+  .print-agenda-row small {
+    margin-top: 0.03in;
+  }
+  .print-empty {
+    margin: 0.2in 0;
+  }
+  .print-timeline {
+    display: grid;
+    grid-template-columns: 0.62in minmax(0, 1fr);
+    min-height: 8.2in;
+    border: 1pt solid #000;
+    break-inside: avoid;
+  }
+  .print-timeline__axis,
+  .print-timeline__grid {
+    position: relative;
+    min-height: 8.2in;
+  }
+  .print-timeline__axis {
+    border-right: 0.8pt solid #000;
+  }
+  .print-timeline__axis span {
+    position: absolute;
+    left: 0.06in;
+    transform: translateY(-50%);
+    font-family: var(--hand-sc);
+    font-size: 7pt;
+    letter-spacing: 0.03em;
+  }
+  .print-timeline__line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 0.5pt solid #d0d0d0;
+  }
+  .print-timeblock {
+    position: absolute;
+    left: 0.08in;
+    right: 0.08in;
+    overflow: hidden;
+    padding: 0.035in 0.06in;
+    border: 0.8pt solid #000;
+    border-left-width: 3pt;
+    background: #fff;
+    break-inside: avoid;
+  }
+  .print-timeblock--label {
+    border-style: dashed;
+    border-left-width: 0.8pt;
+  }
+  .print-timeblock strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--hand);
+    font-size: 10pt;
+    line-height: 1;
+  }
+  .print-timeblock small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 

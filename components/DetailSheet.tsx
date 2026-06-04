@@ -17,6 +17,7 @@ export function DetailSheet({
   isCustom,
   onEdit,
   onDelete,
+  onPrint,
   showOwnerActions = true,
   availableMaterials,
   onToggleMaterial,
@@ -32,6 +33,7 @@ export function DetailSheet({
   isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
+  onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
   availableMaterials: string[];
   onToggleMaterial: (id: string) => void;
@@ -125,6 +127,16 @@ export function DetailSheet({
                   </button>
                 </>
               )}
+              <button
+                type="button"
+                className="book-print-chip"
+                onClick={() => onPrint(a)}
+                aria-label={"Print " + a.title}
+                title="Print this book"
+              >
+                <CampIcon.Print />
+                <span>Print</span>
+              </button>
               <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
             </div>
 
