@@ -3,12 +3,13 @@
 import { useState } from "react";
 import type { ApplyMode, DaySchedule, DayTemplate } from "@/lib/types";
 import { DAYS } from "@/lib/data";
+import { hasPlannedActivity } from "@/lib/scheduleValidation";
 import { CampIcon } from "./icons";
 import { useDialogFocus } from "./useDialogFocus";
 
 const APPLY_MODES: { id: ApplyMode; label: string; hint: string }[] = [
   { id: "replace", label: "Replace each day", hint: "Clear the day, then stamp the template." },
-  { id: "fill", label: "Only empty days", hint: "Skip days that already have activities." },
+  { id: "fill", label: "Only empty days", hint: "Skip days that already have an activity planned." },
   { id: "merge", label: "Add to existing", hint: "Keep what's there; add blocks that don't clash." },
 ];
 
@@ -16,12 +17,14 @@ export function ApplyTemplateSheet({
   template,
   dayIndex,
   weekBlocks,
+  validActivityIds,
   onConfirm,
   onClose,
 }: {
   template: DayTemplate;
   dayIndex: number;
   weekBlocks: Record<number, DaySchedule>;
+  validActivityIds: Iterable<string>;
   onConfirm: (targetDays: number[], mode: ApplyMode) => void;
   onClose: () => void;
 }) {
@@ -36,9 +39,7 @@ export function ApplyTemplateSheet({
         : [...current, index].sort((a, b) => a - b)
     );
 
-  const withPlans = days.filter((index) =>
-    (weekBlocks[index] || []).some((block) => block.kind === "activity" && block.activityId)
-  ).length;
+  const withPlans = days.filter((index) => hasPlannedActivity(weekBlocks[index] || [], validActivityIds)).length;
   const openInTemplate = template.blocks.filter(
     (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
   ).length;
@@ -127,7 +128,7 @@ export function ApplyTemplateSheet({
           Stamps {blockCount} {blockCount === 1 ? "block" : "blocks"} onto {days.length}{" "}
           {days.length === 1 ? "day" : "days"}
           {openInTemplate ? " - leaves " + openInTemplate + " open to fill" : ""}
-          {withPlans ? " - " + withPlans + " already " + (withPlans === 1 ? "has" : "have") + " a plan" : ""}.
+          {withPlans ? " - " + withPlans + " already " + (withPlans === 1 ? "has" : "have") + " an activity planned" : ""}.
         </p>
 
         <footer className="composer__foot">

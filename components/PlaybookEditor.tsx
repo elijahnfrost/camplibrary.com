@@ -1,6 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   ArrowDefs,
   ArrowShape,
@@ -10,6 +16,11 @@ import {
   PlayerShape,
   ZoneShape,
 } from "./ActivityPlaybook";
+import {
+  describePlaybookSelection,
+  nudgePlaybookSelection,
+  type PlaybookSelection,
+} from "@/lib/playbookEditorKeyboard";
 import {
   newArrow,
   newFlag,
@@ -25,11 +36,7 @@ import {
   type PlaybookZoneKind,
 } from "@/lib/playbooks";
 
-type SelectionType = "player" | "flag" | "zone" | "arrow";
-interface Selection {
-  type: SelectionType;
-  id: string;
-}
+type Selection = PlaybookSelection;
 
 type Drag =
   | { kind: "player"; id: string; pointerId: number }
@@ -58,6 +65,7 @@ export function PlaybookEditor({
   const frame = value.frames[frameIndex];
   const clipId = baseId + "-clip";
   const markerBase = baseId + "-mk";
+  const keyboardHelpId = baseId + "-keyboard-help";
 
   /* ---- immutable updates -------------------------------------------------- */
 
@@ -155,6 +163,46 @@ export function PlaybookEditor({
       arrows: type === "arrow" ? f.arrows.filter((p) => p.id !== id) : f.arrows,
     }));
     setSelected(null);
+  }
+
+  function nudgeSelected(dx: number, dy: number) {
+    if (!selected) return;
+    updateFrame((f) => nudgePlaybookSelection(f, selected, { dx, dy }));
+  }
+
+  function onStageKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!selected) return;
+
+    const step = e.shiftKey ? 5 : 1;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      nudgeSelected(-step, 0);
+      return;
+    }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      nudgeSelected(step, 0);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      nudgeSelected(0, -step);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      nudgeSelected(0, step);
+      return;
+    }
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      deleteSelected();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setSelected(null);
+    }
   }
 
   /* ---- dragging ----------------------------------------------------------- */
@@ -265,6 +313,19 @@ export function PlaybookEditor({
   const selFlag = selected?.type === "flag" ? frame.flags.find((p) => p.id === selected.id) : undefined;
   const selZone = selected?.type === "zone" ? frame.zones.find((p) => p.id === selected.id) : undefined;
   const selArrow = selected?.type === "arrow" ? frame.arrows.find((p) => p.id === selected.id) : undefined;
+  const pieceA11y = (selection: Selection) => ({
+    tabIndex: 0,
+    role: "button",
+    "aria-label": describePlaybookSelection(frame, selection),
+    "aria-pressed": selected?.type === selection.type && selected.id === selection.id,
+    onFocus: () => setSelected(selection),
+    onKeyDown: (e: ReactKeyboardEvent<SVGElement>) => {
+      if (e.key === " " || e.key === "Enter") {
+        e.preventDefault();
+        setSelected(selection);
+      }
+    },
+  });
 
   return (
     <div className="pbe">
@@ -339,13 +400,11 @@ export function PlaybookEditor({
       <div
         className="pbe__stage-wrap"
         tabIndex={0}
-        onKeyDown={(e) => {
-          if ((e.key === "Delete" || e.key === "Backspace") && selected && e.target === e.currentTarget) {
-            e.preventDefault();
-            deleteSelected();
-          }
-        }}
+        onKeyDown={onStageKeyDown}
       >
+        <p id={keyboardHelpId} className="sr-only">
+          Tab through diagram pieces. Arrow keys move the selected piece. Hold Shift to move farther. Delete removes it.
+        </p>
         <svg
           ref={svgRef}
           className="playbook-field playbook-field--edit"
@@ -353,6 +412,7 @@ export function PlaybookEditor({
           preserveAspectRatio="xMidYMid meet"
           role="application"
           aria-label={frame.name + " — drag pieces to arrange the diagram"}
+          aria-describedby={keyboardHelpId}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
@@ -386,6 +446,7 @@ export function PlaybookEditor({
                 y={zone.y}
                 width={zone.w}
                 height={zone.h}
+                {...pieceA11y({ type: "zone", id: zone.id })}
                 onPointerDown={(e) => {
                   const { x, y } = toField(e);
                   startDrag(
@@ -421,6 +482,7 @@ export function PlaybookEditor({
               <path
                 className="pbe-hit-line"
                 d={"M" + arrow.from[0] + " " + arrow.from[1] + " L" + arrow.to[0] + " " + arrow.to[1]}
+                {...pieceA11y({ type: "arrow", id: arrow.id })}
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   setSelected({ type: "arrow", id: arrow.id });
@@ -471,6 +533,7 @@ export function PlaybookEditor({
                 y={flag.y - 5}
                 width="4.8"
                 height="10"
+                {...pieceA11y({ type: "flag", id: flag.id })}
                 onPointerDown={(e) =>
                   startDrag(e, { kind: "flag", id: flag.id, pointerId: e.pointerId }, { type: "flag", id: flag.id })
                 }
@@ -489,6 +552,7 @@ export function PlaybookEditor({
                 cx={player.x}
                 cy={player.y}
                 r="2.8"
+                {...pieceA11y({ type: "player", id: player.id })}
                 onPointerDown={(e) =>
                   startDrag(
                     e,

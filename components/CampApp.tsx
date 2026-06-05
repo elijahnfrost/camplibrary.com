@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   Activity,
   ApplyMode,
@@ -17,7 +17,7 @@ import type {
   TabId,
 } from "@/lib/types";
 import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } from "@/lib/data";
-import { clipboardRunKey, currentActivityForSchedule } from "@/lib/currentActivity";
+import { clipboardRunKey, currentActivityForSchedule, localDayIndex } from "@/lib/currentActivity";
 import {
   PLAYBOOKS_BY_ACTIVITY_ID,
   normalizePlaybook,
@@ -25,6 +25,8 @@ import {
 } from "@/lib/playbooks";
 import { buildRunDoc, ensureSectionHeadings, normalizeRunDoc, promoteMaterialsBlocks, type RunDoc } from "@/lib/runList";
 import {
+  blockEndMin,
+  blockStartMin,
   campMinutes,
   clampZoomIndex,
   DAY_END_MIN,
@@ -36,8 +38,11 @@ import {
   TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
+import { normalizeActivities } from "@/lib/activityValidation";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
+import { hasPlannedActivity, normalizeScheduleActivityRefs } from "@/lib/scheduleValidation";
 import { type StorageValidator, useLocalStorage } from "@/lib/store";
+import { migrateLegacyStorageKeys, scopedStorageKey } from "@/lib/storageScope";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
@@ -232,23 +237,8 @@ const ratingsStorage: StorageValidator<Record<string, number>> = (value, fallbac
   return out;
 };
 
-function isActivity(value: unknown): value is Activity {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.type === "string" &&
-    typeof value.place === "string" &&
-    typeof value.durationMin === "number" &&
-    Number.isFinite(value.durationMin) &&
-    Array.isArray(value.materials) &&
-    Array.isArray(value.steps) &&
-    Array.isArray(value.ages)
-  );
-}
-
 const activitiesStorage: StorageValidator<Activity[]> = (value, fallback) =>
-  Array.isArray(value) ? value.filter(isActivity) : fallback;
+  normalizeActivities(value, fallback);
 
 // Per-activity playbook overrides — lets any diagram (including built-in ones)
 // be edited and persisted without mutating the seed data.
@@ -383,23 +373,37 @@ function isLegacyOneDaySeed(raw: string | null): boolean {
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
-  const [view, setView] = useLocalStorage<LibraryView>("view", "deck", viewStorage);
+  const auth = usePreviewAuth();
+  const authLabel = useAuthLabel(auth.session);
+  const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
+  const isSignedIn = signedInUserId != null;
+  const storageScope = signedInUserId ? "user:" + signedInUserId : "anon";
+
+  useLayoutEffect(() => {
+    try {
+      migrateLegacyStorageKeys(window.localStorage, storageScope);
+    } catch {
+      /* private mode / quota — scoped storage starts fresh */
+    }
+  }, [storageScope]);
+
+  const [view, setView] = useLocalStorage<LibraryView>(scopedStorageKey(storageScope, "view"), "deck", viewStorage);
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [query, setQuery] = useState("");
   const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
-    "availableMaterials",
+    scopedStorageKey(storageScope, "availableMaterials"),
     [],
     stringArrayStorage
   );
   const [clipboardPin, setClipboardPin] = useLocalStorage<ClipboardPin | null>(
-    "clipboardPin",
+    scopedStorageKey(storageScope, "clipboardPin"),
     null,
     clipboardPinStorage
   );
   const [clipboardMaterials, setClipboardMaterials] = useLocalStorage<Record<string, string[]>>(
-    "clipboardReadyMaterials",
+    scopedStorageKey(storageScope, "clipboardReadyMaterials"),
     {},
     stringArrayMapStorage
   );
@@ -423,24 +427,36 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     return () => window.clearInterval(timer);
   }, [needsClock]);
 
-  const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
-  const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
+  const [favs, setFavs] = useLocalStorage<string[]>(scopedStorageKey(storageScope, "favs"), [], stringArrayStorage);
+  const [extra, setExtra] = useLocalStorage<Activity[]>(scopedStorageKey(storageScope, "extra"), [], activitiesStorage);
   const [playbookOverrides, setPlaybookOverrides] = useLocalStorage<Record<string, ActivityPlaybookData>>(
-    "playbooks",
+    scopedStorageKey(storageScope, "playbooks"),
     {},
     playbookOverridesStorage
   );
   // Key bumped to .v2 when the doc model moved diagram/materials into the Run
   // List. Older saved docs with child materials are promoted at render time.
   const [runListOverrides, setRunListOverrides] = useLocalStorage<Record<string, RunDoc>>(
-    "runLists.v2",
+    scopedStorageKey(storageScope, "runLists.v2"),
     {},
     runListOverridesStorage
   );
-  const [schedule, setSchedule] = useLocalStorage<Schedule>("schedule", DEFAULT_SCHEDULE, scheduleStorage);
-  const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
+  const [schedule, setSchedule] = useLocalStorage<Schedule>(
+    scopedStorageKey(storageScope, "schedule"),
+    DEFAULT_SCHEDULE,
+    scheduleStorage
+  );
+  const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>(
+    scopedStorageKey(storageScope, "schedulePlans"),
+    [],
+    savedPlansStorage
+  );
   const [dayIndex, setDayIndex] = useState(2);
-  const [zoomIdx, setZoomIdx] = useLocalStorage<number>("planZoom", DEFAULT_ZOOM, zoomStorage);
+  const [zoomIdx, setZoomIdx] = useLocalStorage<number>(
+    scopedStorageKey(storageScope, "planZoom"),
+    DEFAULT_ZOOM,
+    zoomStorage
+  );
   const activityDeepLinkOpenedRef = useRef(false);
 
   const [detail, setDetail] = useState<Activity | null>(null);
@@ -453,40 +469,59 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
-  const [ratings, setRatings] = useLocalStorage<Record<string, number>>("ratings", {}, ratingsStorage);
-  const auth = usePreviewAuth();
-  const authLabel = useAuthLabel(auth.session);
+  const [ratings, setRatings] = useLocalStorage<Record<string, number>>(
+    scopedStorageKey(storageScope, "ratings"),
+    {},
+    ratingsStorage
+  );
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
   const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
   const openAuthForCurrentTab = useCallback(() => {
     auth.openAuth();
   }, [auth]);
+  const requireStaff = useCallback(
+    (action: string) => {
+      if (isSignedIn) return true;
+      setLiveMsg("Sign in as staff to " + action + ".");
+      auth.openAuth();
+      return false;
+    },
+    [auth, isSignedIn]
+  );
+
+  useEffect(() => {
+    const today = localDayIndex(new Date());
+    if (today != null) setDayIndex(today);
+  }, []);
 
   // Safety snapshot + seed migration. If the browser still has the old
   // one-day demo schedule, upgrade it to the full Monday-Friday draft; leave
   // counselor-edited schedules alone.
   useEffect(() => {
     try {
-      if (window.localStorage.getItem("camp:scheduleVersion") === SCHEDULE_SEED_VERSION) return;
-      const prevSchedule = window.localStorage.getItem("camp:schedule");
-      const prevPlans = window.localStorage.getItem("camp:schedulePlans");
-      if (prevSchedule != null && window.localStorage.getItem("camp:schedule.bak") == null) {
-        window.localStorage.setItem("camp:schedule.bak", prevSchedule);
+      const versionKey = "camp:" + scopedStorageKey(storageScope, "scheduleVersion");
+      const scheduleKey = "camp:" + scopedStorageKey(storageScope, "schedule");
+      const plansKey = "camp:" + scopedStorageKey(storageScope, "schedulePlans");
+      if (window.localStorage.getItem(versionKey) === SCHEDULE_SEED_VERSION) return;
+      const prevSchedule = window.localStorage.getItem(scheduleKey);
+      const prevPlans = window.localStorage.getItem(plansKey);
+      if (prevSchedule != null && window.localStorage.getItem(scheduleKey + ".bak") == null) {
+        window.localStorage.setItem(scheduleKey + ".bak", prevSchedule);
       }
-      if (prevPlans != null && window.localStorage.getItem("camp:schedulePlans.bak") == null) {
-        window.localStorage.setItem("camp:schedulePlans.bak", prevPlans);
+      if (prevPlans != null && window.localStorage.getItem(plansKey + ".bak") == null) {
+        window.localStorage.setItem(plansKey + ".bak", prevPlans);
       }
       if (isLegacyOneDaySeed(prevSchedule)) {
-        window.localStorage.setItem("camp:schedule", JSON.stringify(DEFAULT_SCHEDULE));
+        window.localStorage.setItem(scheduleKey, JSON.stringify(DEFAULT_SCHEDULE));
         setSchedule(DEFAULT_SCHEDULE);
       }
-      window.localStorage.setItem("camp:scheduleVersion", SCHEDULE_SEED_VERSION);
+      window.localStorage.setItem(versionKey, SCHEDULE_SEED_VERSION);
     } catch {
       /* private mode / quota — non-fatal */
     }
     // The migration intentionally runs once after localStorage hydration.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [storageScope]);
 
   const all = useMemo(() => {
     const base = [...extra, ...ACTIVITIES];
@@ -500,19 +535,24 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }, [availableMaterials, materialOptions]);
   const toggleAvailableMaterial = useCallback(
     (id: string) => {
+      if (!requireStaff("update available kit")) return;
       setAvailableMaterials((previous) =>
         previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
       );
     },
-    [setAvailableMaterials]
+    [requireStaff, setAvailableMaterials]
   );
-  const clearAvailableMaterials = useCallback(() => setAvailableMaterials([]), [setAvailableMaterials]);
+  const clearAvailableMaterials = useCallback(() => {
+    if (!requireStaff("update available kit")) return;
+    setAvailableMaterials([]);
+  }, [requireStaff, setAvailableMaterials]);
 
   const byId = useMemo(() => {
     const m: Record<string, Activity> = {};
     all.forEach((a) => (m[a.id] = a));
     return m;
   }, [all]);
+  const validActivityIds = useMemo(() => new Set(Object.keys(byId)), [byId]);
 
   useEffect(() => {
     if (activityDeepLinkOpenedRef.current) return;
@@ -529,11 +569,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
   const toggleFav = useCallback(
     (id: string) => {
+      if (!requireStaff("save activities")) return;
       setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p.filter((x) => x !== id)]));
     },
-    [setFavs]
+    [requireStaff, setFavs]
   );
   const setRating = (id: string, val: number) => {
+    if (!requireStaff("rate activities")) return;
     setRatings((p) => ({ ...p, [id]: val }));
   };
 
@@ -548,10 +590,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     DAYS.forEach((_, index) => {
       days[index] = normalizeDaySchedule(schedule[index], index);
     });
-    return days;
-  }, [schedule]);
+    return normalizeScheduleActivityRefs(days, validActivityIds);
+  }, [schedule, validActivityIds]);
   const dayBlocks = useMemo(() => weekBlocks[dayIndex] || [], [dayIndex, weekBlocks]);
-  const plannedCount = dayBlocks.filter((block) => block.kind === "activity" && block.activityId).length;
+  const plannedCount = dayBlocks.filter((block) => block.kind === "activity" && block.activityId && byId[block.activityId]).length;
   const labelCount = dayBlocks.filter((block) => block.kind === "label").length;
   const openCount = dayBlocks.filter(
     (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
@@ -559,10 +601,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const weekPlannedCount = useMemo(
     () =>
       Object.values(weekBlocks).reduce(
-        (sum, day) => sum + day.filter((block) => block.kind === "activity" && block.activityId).length,
+        (sum, day) => sum + day.filter((block) => block.kind === "activity" && block.activityId && byId[block.activityId]).length,
         0
       ),
-    [weekBlocks]
+    [byId, weekBlocks]
   );
   const currentActivityResult = useMemo(
     () => (now ? currentActivityForSchedule(weekBlocks, now) : { status: "loading" as const }),
@@ -656,6 +698,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   );
 
   function saveBlocksForDay(targetDayIndex: number, blocks: DaySchedule, ordered = true) {
+    if (!requireStaff("change the schedule")) return;
     setSchedule((p) => ({ ...p, [targetDayIndex]: ordered ? orderBlocks(blocks) : blocks }));
   }
 
@@ -677,6 +720,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function addEventToDay(targetDayIndex: number, draft: EventDraft) {
+    if (!requireStaff("change the schedule")) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const block = createScheduleBlock({
       kind: draft.kind,
@@ -692,6 +736,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function updateEvent(targetDayIndex: number, blockId: string, patch: Partial<ScheduleBlock>) {
+    if (!requireStaff("change the schedule")) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const previousBlock = targetBlocks.find((block) => block.id === blockId);
     let changedActivity = false;
@@ -719,6 +764,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function removeEvent(targetDayIndex: number, blockId: string) {
+    if (!requireStaff("change the schedule")) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const previousBlock = targetBlocks.find((block) => block.id === blockId);
     saveBlocksForDay(
@@ -730,12 +776,22 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function quickAddActivity(targetDayIndex: number, activityId: string) {
+    if (!requireStaff("change the schedule")) return;
     const activity = byId[activityId];
     if (!activity) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const duration = Math.min(TOTAL_MIN, Math.max(MIN_DURATION_MIN, activity.durationMin));
     const start = nextFreeStart(targetBlocks, duration);
+    if (start == null) {
+      setLiveMsg("No open time for " + activity.title + " on " + DAYS[targetDayIndex]);
+      return;
+    }
     const end = Math.min(DAY_END_MIN, start + duration);
+    const overlaps = targetBlocks.some((block) => start < blockEndMin(block) && end > blockStartMin(block));
+    if (overlaps || end - start < duration) {
+      setLiveMsg("No open time for " + activity.title + " on " + DAYS[targetDayIndex]);
+      return;
+    }
     addEventToDay(targetDayIndex, {
       kind: "activity",
       activityId,
@@ -747,6 +803,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function saveCurrentDayPlan(name: string) {
+    if (!requireStaff("save day templates")) return;
     const trimmed = name.trim();
     const now = Date.now();
     setSchedulePlans((plans) => [
@@ -820,6 +877,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function applyTemplate(templateId: string, targetDays: number[], mode: ApplyMode) {
+    if (!requireStaff("change the schedule")) return;
     const tpl = schedulePlans.find((t) => t.id === templateId);
     if (!tpl || !targetDays.length) return;
     setUndoSnapshot(schedule);
@@ -832,8 +890,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         if (mode === "replace") {
           dayBlocksNext = stamped;
         } else if (mode === "fill") {
-          const hasActivities = existing.some((b) => b.kind === "activity" && b.activityId);
-          dayBlocksNext = hasActivities ? existing : stamped;
+          dayBlocksNext = hasPlannedActivity(existing, validActivityIds) ? existing : stamped;
         } else {
           const merged = [...existing];
           stamped.forEach((s) => {
@@ -854,6 +911,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function undoApply() {
+    if (!requireStaff("change the schedule")) return;
     if (!undoSnapshot) return;
     setSchedule(undoSnapshot);
     setUndoSnapshot(null);
@@ -861,6 +919,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function deleteDayPlan(planId: string) {
+    if (!requireStaff("delete day templates")) return;
+    const plan = schedulePlans.find((item) => item.id === planId);
+    if (plan && !window.confirm("Delete template “" + plan.name + "”?")) return;
     setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
@@ -869,6 +930,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function pinRun(run: ClipboardRun) {
+    if (!requireStaff("pin clipboard runs")) return;
     setClipboardPin({
       activityId: run.activity.id,
       dayIndex: run.dayIndex,
@@ -879,6 +941,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function pinScheduleBlock(targetDayIndex: number, block: ScheduleBlock) {
+    if (!requireStaff("pin clipboard runs")) return;
     if (block.kind !== "activity" || !block.activityId || !byId[block.activityId]) return;
     setClipboardPin({
       activityId: block.activityId,
@@ -890,11 +953,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function unpinClipboard() {
+    if (!requireStaff("pin clipboard runs")) return;
     setClipboardPin(null);
     setLiveMsg("Clipboard unpinned");
   }
 
   function toggleClipboardMaterial(id: string) {
+    if (!requireStaff("update clipboard materials")) return;
     if (!activeClipboardKey) return;
     setClipboardMaterials((previous) => {
       const current = previous[activeClipboardKey] || [];
@@ -904,6 +969,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function clearClipboardMaterials() {
+    if (!requireStaff("update clipboard materials")) return;
     if (!activeClipboardKey) return;
     setClipboardMaterials((previous) => {
       const next = { ...previous };
@@ -986,12 +1052,14 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const saveRunDoc = useCallback(
     (activityId: string, doc: RunDoc) => {
+      if (!requireStaff("edit run lists")) return;
       setRunListOverrides((p) => ({ ...p, [activityId]: doc }));
     },
-    [setRunListOverrides]
+    [requireStaff, setRunListOverrides]
   );
 
   function editActivity(a: Activity) {
+    if (!requireStaff("edit activities")) return;
     setEditing(a);
     setDetail(null);
     setDetailScheduleContext(null);
@@ -999,6 +1067,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function deleteActivity(a: Activity) {
+    if (!requireStaff("delete activities")) return;
+    if (!window.confirm("Delete “" + a.title + "” and remove it from every schedule?")) return;
     // Remove the custom entry and clean up every reference so nothing is orphaned.
     setExtra((p) => p.filter((x) => x.id !== a.id));
     setFavs((p) => p.filter((id) => id !== a.id));
@@ -1318,6 +1388,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onUnpin={unpinClipboard}
                 onOpenActivity={openDetail}
                 onOpenPlanner={openClipboardPlanner}
+                runDoc={activeClipboardRun ? resolveRunDoc(activeClipboardRun.activity) : null}
               />
             )}
             {tab === "schedule" && (
@@ -1387,9 +1458,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                   setTab("library");
                 }}
                 onSubmit={(a, runDoc) => {
+                  if (!requireStaff(editing ? "edit activities" : "add activities")) return;
                   if (editing) {
                     setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
                     if (runDoc) setRunListOverrides((p) => ({ ...p, [a.id]: runDoc }));
+                    setRatings((p) => {
+                      if (a.rating > 0) return { ...p, [a.id]: a.rating };
+                      if (p[a.id] == null) return p;
+                      const next = { ...p };
+                      delete next[a.id];
+                      return next;
+                    });
                     setEditing(null);
                     setLiveMsg("Updated " + a.title);
                   } else {

@@ -28,6 +28,10 @@ type DeactivateResult =
   | { ok: true; record: InviteCodeRecord }
   | { ok: false; reason: "missing" | "invalid" | "not_found" | "used" };
 
+type ReleaseResult =
+  | { ok: true }
+  | { ok: false; reason: "missing" | "invalid" | "not_found" | "used" };
+
 const RESERVATION_MINUTES = 30;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_INVITE_USES = 2147483647;
@@ -540,6 +544,118 @@ export async function consumeInviteCode({
     LIMIT 1
   `;
   return existing.length === 1;
+}
+
+export async function releaseInviteCode({
+  code,
+  reservationId,
+}: {
+  code: string;
+  reservationId: string;
+}): Promise<ReleaseResult> {
+  if (!validateInviteCodeInput(code)) return { ok: false, reason: "invalid" };
+  if (!reservationId) return { ok: false, reason: "missing" };
+  if (!UUID_PATTERN.test(reservationId)) return { ok: false, reason: "invalid" };
+  const normalized = normalizeInviteCode(code);
+  if (!normalized) return { ok: false, reason: "missing" };
+
+  await ensureInviteCodeSchema();
+  const sql = getSql();
+  const digest = codeDigest(normalized);
+  const rows = await sql.begin(async (tx) => {
+    const found = await tx`
+      SELECT
+        invite_codes.id,
+        invite_codes.reservation_id,
+        invite_codes.status AS invite_status,
+        invite_codes.active,
+        invite_codes.usage_count,
+        invite_codes.max_uses,
+        invite_code_reservations.id AS reservation_row_id,
+        invite_code_reservations.status AS reservation_status
+      FROM invite_codes
+      JOIN invite_code_reservations
+        ON invite_code_reservations.invite_code_id = invite_codes.id
+      WHERE invite_codes.code_hash = ${digest}
+        AND invite_code_reservations.reservation_id = ${reservationId}
+      FOR UPDATE OF invite_codes, invite_code_reservations
+    `;
+
+    if (!found.length) return [];
+
+    const item = found[0];
+    if (item.reservation_status === "used") return [{ failure_reason: "used" }];
+    if (item.reservation_status !== "reserved") return [{ released: true }];
+
+    await tx`
+      UPDATE invite_code_reservations
+      SET status = 'revoked'
+      WHERE id = ${item.reservation_row_id}
+        AND status = 'reserved'
+    `;
+
+    const shouldClearLegacyReservation = String(item.reservation_id) === reservationId;
+    await tx`
+      UPDATE invite_codes
+      SET status = CASE
+            WHEN status = 'reserved'
+              AND active = true
+              AND usage_count < max_uses
+            THEN 'active'
+            ELSE status
+          END,
+          reservation_id = CASE WHEN ${shouldClearLegacyReservation} THEN null ELSE reservation_id END,
+          reserved_until = CASE WHEN ${shouldClearLegacyReservation} THEN null ELSE reserved_until END
+      WHERE id = ${item.id}
+        AND status IN ('active', 'reserved')
+        AND active = true
+        AND usage_count < max_uses
+    `;
+
+    return [{ released: true }];
+  });
+
+  if (rows.length) {
+    const failureReason = "failure_reason" in rows[0] ? rows[0].failure_reason : undefined;
+    if (failureReason === "used") return { ok: false, reason: "used" };
+    return { ok: true };
+  }
+
+  const legacyRows = await sql`
+    UPDATE invite_codes
+    SET status = 'active',
+        reservation_id = null,
+        reserved_until = null
+    WHERE code_hash = ${digest}
+      AND reservation_id = ${reservationId}
+      AND status = 'reserved'
+      AND active = true
+      AND usage_count < max_uses
+    RETURNING id
+  `;
+
+  if (legacyRows.length === 1) return { ok: true };
+
+  const existing = await sql`
+    SELECT invite_codes.status AS invite_status,
+           invite_code_reservations.status AS reservation_status
+    FROM invite_codes
+    LEFT JOIN invite_code_reservations
+      ON invite_code_reservations.invite_code_id = invite_codes.id
+      AND invite_code_reservations.reservation_id = ${reservationId}
+    WHERE invite_codes.code_hash = ${digest}
+      AND (
+        invite_codes.reservation_id = ${reservationId}
+        OR invite_code_reservations.reservation_id = ${reservationId}
+      )
+    LIMIT 1
+  `;
+
+  if (!existing.length) return { ok: false, reason: "not_found" };
+  if (existing[0].invite_status === "used" || existing[0].reservation_status === "used") {
+    return { ok: false, reason: "used" };
+  }
+  return { ok: true };
 }
 
 export async function listInviteCodes() {

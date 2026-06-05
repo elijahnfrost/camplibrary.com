@@ -33,8 +33,13 @@ export function materialTagsFromMaterials(materials: string[]): string[] {
   return unique(materials.map(materialTagId).filter(Boolean));
 }
 
+function stringTags(values: unknown): string[] {
+  return Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
+}
+
 function rawMaterialTags(activity: Activity): string[] {
-  return activity.materialTags?.length ? activity.materialTags : activity.materials;
+  const materialTags = stringTags(activity.materialTags);
+  return materialTags.length ? materialTags : stringTags(activity.materials);
 }
 
 export function requiredMaterialTagIds(activity: Activity): string[] {

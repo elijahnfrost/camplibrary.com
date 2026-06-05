@@ -1,8 +1,8 @@
-import { AuthenticateWithRedirectCallback } from "@clerk/nextjs";
-import { isClerkPublicKeyUsable } from "@/lib/auth";
+import { SsoCallback } from "@/components/SsoCallback";
+import { getBackendEnvStatus } from "@/lib/server/env";
 
 export default function SsoCallbackPage() {
-  if (!isClerkPublicKeyUsable()) {
+  if (!getBackendEnvStatus().capabilities.clerkAuth) {
     return (
       <main className="auth-route">
         <div className="auth-route__status">
@@ -12,5 +12,5 @@ export default function SsoCallbackPage() {
     );
   }
 
-  return <AuthenticateWithRedirectCallback />;
+  return <SsoCallback />;
 }

@@ -85,13 +85,23 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ query: "missing" }))).toBe(false);
   });
 
+  it("searches material tags shown in material filters and checklists", () => {
+    const base = activity({
+      title: "Nature journaling",
+      materials: ["Notebook or paper per camper", "Pencil per camper"],
+      materialTags: ["Notebook or paper", "Pencils", "Clipboards"],
+    });
+
+    expect(matchesActivityFilters(base, filters({ query: "pencils" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "clipboard" }))).toBe(true);
+  });
+
   it("does not search hidden implementation fields", () => {
     const base = activity({
       id: "needle-id",
       title: "Plain title",
       blurb: "Plain blurb",
       materials: ["Rope"],
-      materialTags: ["tag-needle"],
       notes: "notes-needle",
       safety: "safety-needle",
       steps: ["steps-needle"],

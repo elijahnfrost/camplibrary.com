@@ -7,6 +7,8 @@ import postgres from "postgres";
 
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const maxPostgresInteger = 2147483647;
+const maxInviteEmailLength = 320;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function parseDotenv(filePath) {
   if (!existsSync(filePath)) return {};
@@ -24,6 +26,10 @@ function parseDotenv(filePath) {
 function argValue(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
+function hasArg(name) {
+  return process.argv.includes(name);
 }
 
 function normalize(code) {
@@ -50,6 +56,26 @@ function parseMaxUses(value) {
   return maxUses;
 }
 
+function parseInvitedEmail(value) {
+  if (value == null || value === "") return null;
+  const email = value.trim().toLowerCase();
+  if (!email || email.length > maxInviteEmailLength || !emailPattern.test(email)) {
+    console.error("--email must be a valid email address.");
+    process.exit(1);
+  }
+  return email;
+}
+
+const code = argValue("--code") || generateCode();
+const label = argValue("--label") || null;
+if (hasArg("--email") && argValue("--email") == null) {
+  console.error("--email requires a value.");
+  process.exit(1);
+}
+const invitedEmail = parseInvitedEmail(argValue("--email"));
+const expiresAt = argValue("--expires-at") || null;
+const maxUses = parseMaxUses(argValue("--max-uses"));
+
 const env = {
   ...parseDotenv(resolve(".env")),
   ...parseDotenv(resolve(".env.local")),
@@ -64,11 +90,6 @@ if (!databaseUrl || !secret || secret.length < 32) {
   process.exit(1);
 }
 
-const code = argValue("--code") || generateCode();
-const label = argValue("--label") || null;
-const invitedEmail = argValue("--email")?.trim().toLowerCase() || null;
-const expiresAt = argValue("--expires-at") || null;
-const maxUses = parseMaxUses(argValue("--max-uses"));
 const codeHash = createHmac("sha256", secret).update(normalize(code)).digest("hex");
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
 

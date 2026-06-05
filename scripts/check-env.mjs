@@ -23,6 +23,14 @@ const optional = [
 ];
 
 const placeholderRe = /^(|<.*>|.*placeholder.*|changeme|change-me|example|replace-me|todo|your-.+)$/i;
+const dummyClerkMarkers = [
+  "pk_test_zm9vlwjhci0xmjmu",
+  "sk_test_dgvzdhnly3jldgtlewzvcmxvy2fszgv2",
+  "foo-bar-123.clerk.accounts.dev",
+  "testsecretkeyforlocaldevonly",
+  "localdevonly",
+  "local-dev",
+];
 
 function parseDotenv(filePath) {
   if (!existsSync(filePath)) return {};
@@ -50,11 +58,43 @@ function loadLocalEnv() {
   };
 }
 
+function decodeClerkPayload(value) {
+  const encoded = value.replace(/^pk_(?:test|live)_/, "").replace(/^sk_(?:test|live)_/, "").replace(/\$$/, "");
+  if (!encoded || encoded === value) return value;
+
+  try {
+    return Buffer.from(encoded, "base64").toString() || value;
+  } catch {
+    return value;
+  }
+}
+
+function isUsableClerkKey(value) {
+  const trimmed = value.trim();
+  if (placeholderRe.test(trimmed)) return false;
+  const raw = trimmed.toLowerCase();
+  if (dummyClerkMarkers.some((marker) => raw.includes(marker))) return false;
+  const decoded = decodeClerkPayload(trimmed).toLowerCase();
+  return !dummyClerkMarkers.some((marker) => decoded.includes(marker));
+}
+
+function isClerkPublicKeyUsable(value) {
+  const trimmed = value.trim();
+  return trimmed.startsWith("pk_") && isUsableClerkKey(trimmed);
+}
+
+function isClerkSecretKeyUsable(value) {
+  const trimmed = value.trim();
+  return trimmed.startsWith("sk_") && isUsableClerkKey(trimmed);
+}
+
 function isConfigured(env, key) {
   const value = env[key];
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (placeholderRe.test(trimmed)) return false;
+  if (key === "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY") return isClerkPublicKeyUsable(trimmed);
+  if (key === "CLERK_SECRET_KEY") return isClerkSecretKeyUsable(trimmed);
   if (key === "AUTH_SECRET" && trimmed.length < 32) return false;
   if (key === "INVITE_CODE_SECRET" && trimmed.length < 32) return false;
   if (key === "INVITE_CODE_ADMIN_TOKEN" && trimmed.length < 32) return false;
