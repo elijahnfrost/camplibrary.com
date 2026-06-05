@@ -24,12 +24,9 @@ export function usePreviewAuth() {
     return {
       session: ANONYMOUS_SESSION,
       signedIn: false,
-      authOpen: false,
       openAuth: () => {
         window.location.href = "/sign-in";
       },
-      closeAuth: () => undefined,
-      signIn: () => undefined,
       signOut: () => undefined,
     };
   }
@@ -56,12 +53,9 @@ export function usePreviewAuth() {
   return {
     session,
     signedIn: session.status === "authenticated",
-    authOpen: false,
     openAuth: (returnTo?: string) => {
       window.location.href = currentSignInUrl(returnTo);
     },
-    closeAuth: () => undefined,
-    signIn: () => undefined,
     signOut: () => {
       void clerk.signOut({ redirectUrl: "/" });
     },
@@ -98,16 +92,6 @@ export function AuthButton({
       <span>Staff</span>
     </button>
   );
-}
-
-export function AuthDialog(_props: {
-  session?: AuthSession;
-  open?: boolean;
-  onClose?: () => void;
-  onSignIn?: unknown;
-  onSignOut?: () => void;
-}) {
-  return null;
 }
 
 export function useAuthLabel(session: AuthSession) {

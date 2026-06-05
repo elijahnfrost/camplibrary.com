@@ -24,6 +24,7 @@ export function DetailSheet({
   runDoc,
   onSaveRunDoc,
   pinAction,
+  backLabel = "Library",
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -43,6 +44,8 @@ export function DetailSheet({
     isPinned: boolean;
     onToggle: () => void;
   };
+  /** Where closing the viewer returns to (the surface it was opened from). */
+  backLabel?: string;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
@@ -96,9 +99,9 @@ export function DetailSheet({
         <article className="rlv">
           <header className="rlv-head">
             <div className="rlv-head__row">
-              <button type="button" className="rlv-back" onClick={onClose}>
+              <button type="button" className="rlv-back" onClick={onClose} aria-label={"Back to " + backLabel}>
                 <CampIcon.ChevronLeft />
-                Library
+                {backLabel}
               </button>
               <span className="rlv-head__sp" />
               {pinAction && (

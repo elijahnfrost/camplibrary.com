@@ -8,6 +8,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:design-tokens": "node scripts/check-design-tokens.mjs",
     "env:check": "node scripts/check-env.mjs",
     "invite:create": "node scripts/create-invite-code.mjs"
   },
@@ -23,7 +26,8 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "postcss": "8.5.15"

@@ -1,5 +1,6 @@
 import { getBackendEnvStatus } from "@/lib/server/env";
-import { getAuthBackendStatus } from "@/lib/server/auth";
+import { getAuthBackendStatus, requireAdminSession } from "@/lib/server/auth";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,8 +22,29 @@ function publicCapabilities(capabilities: ReturnType<typeof getBackendEnvStatus>
   };
 }
 
-export async function GET() {
+function shouldShowDiagnostics() {
+  return process.env.VERCEL_ENV !== "production" && process.env.NODE_ENV !== "production";
+}
+
+export async function GET(request: NextRequest) {
   const env = getBackendEnvStatus();
+  const showDiagnostics = shouldShowDiagnostics() || (await requireAdminSession(request)).ok;
+  if (!showDiagnostics) {
+    return Response.json(
+      {
+        ok: true,
+        service: "camp-library",
+        status: env.ready ? "ready" : "degraded",
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   const auth = getAuthBackendStatus();
 
   return Response.json(

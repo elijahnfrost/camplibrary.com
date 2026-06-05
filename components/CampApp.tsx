@@ -27,12 +27,13 @@ import { buildRunDoc, ensureSectionHeadings, normalizeRunDoc, promoteMaterialsBl
 import {
   campMinutes,
   clampZoomIndex,
-  DAY_START_MIN,
+  DAY_END_MIN,
   DEFAULT_ZOOM,
   MIN_DURATION_MIN,
   minutesToCamp,
   nextFreeStart,
   normalizeTimeString,
+  TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
@@ -174,6 +175,13 @@ function freshId(prefix: string): string {
   return prefix + "-" + Date.now().toString(36) + "-" + blockSeq.toString(36);
 }
 
+function capEventEnd(start: string, end: string): string {
+  const startMin = campMinutes(start);
+  const endMin = campMinutes(end);
+  if (startMin < DAY_END_MIN && endMin > DAY_END_MIN) return minutesToCamp(DAY_END_MIN);
+  return end.trim();
+}
+
 function createScheduleBlock({
   kind,
   start,
@@ -197,7 +205,7 @@ function createScheduleBlock({
   const block: ScheduleBlock = {
     id: freshId("custom-" + kind),
     start: start.trim(),
-    end: end.trim(),
+    end: capEventEnd(start, end),
     kind,
     label: label.trim() || fallback,
   };
@@ -209,7 +217,9 @@ function createScheduleBlock({
 }
 
 const stringArrayStorage: StorageValidator<string[]> = (value, fallback) =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : fallback;
+  Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === "string" && Boolean(item)))]
+    : fallback;
 
 const ratingsStorage: StorageValidator<Record<string, number>> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
@@ -277,6 +287,9 @@ const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
       out[day] = normalizeDaySchedule(raw, day);
     }
   }
+  DAYS.forEach((_, day) => {
+    if (!(day in out)) out[day] = defaultBlocksForDay(day);
+  });
   return out;
 };
 
@@ -398,12 +411,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setQuery("");
   }, [tab]);
 
+  const needsClock = tab === "home" || tab === "clipboard";
   useEffect(() => {
+    if (!needsClock) {
+      setNow(null);
+      return;
+    }
     const tick = () => setNow(new Date());
     tick();
     const timer = window.setInterval(tick, 30 * 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [needsClock]);
 
   const [favs, setFavs] = useLocalStorage<string[]>("favs", [], stringArrayStorage);
   const [extra, setExtra] = useLocalStorage<Activity[]>("extra", [], activitiesStorage);
@@ -423,9 +441,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [schedulePlans, setSchedulePlans] = useLocalStorage<DayTemplate[]>("schedulePlans", [], savedPlansStorage);
   const [dayIndex, setDayIndex] = useState(2);
   const [zoomIdx, setZoomIdx] = useLocalStorage<number>("planZoom", DEFAULT_ZOOM, zoomStorage);
-  const focusNonceRef = useRef(0);
   const activityDeepLinkOpenedRef = useRef(false);
-  const [calFocus, setCalFocus] = useState<{ min: number; nonce: number } | null>(null);
 
   const [detail, setDetail] = useState<Activity | null>(null);
   const [detailScheduleContext, setDetailScheduleContext] = useState<{ dayIndex: number; blockId: string } | null>(
@@ -511,16 +527,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
-  const requireEditAccess = useCallback(() => true, []);
   const toggleFav = useCallback(
     (id: string) => {
-      if (!requireEditAccess()) return;
-      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p]));
+      setFavs((p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p.filter((x) => x !== id)]));
     },
-    [requireEditAccess, setFavs]
+    [setFavs]
   );
   const setRating = (id: string, val: number) => {
-    if (!requireEditAccess()) return;
     setRatings((p) => ({ ...p, [id]: val }));
   };
 
@@ -530,10 +543,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     );
   }, [all, cat, place, age, query, activeAvailableMaterials]);
 
-  const dayBlocks = useMemo(
-    () => normalizeDaySchedule(schedule[dayIndex], dayIndex),
-    [dayIndex, schedule]
-  );
   const weekBlocks = useMemo(() => {
     const days: Record<number, DaySchedule> = {};
     DAYS.forEach((_, index) => {
@@ -541,6 +550,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     });
     return days;
   }, [schedule]);
+  const dayBlocks = useMemo(() => weekBlocks[dayIndex] || [], [dayIndex, weekBlocks]);
   const plannedCount = dayBlocks.filter((block) => block.kind === "activity" && block.activityId).length;
   const labelCount = dayBlocks.filter((block) => block.kind === "label").length;
   const openCount = dayBlocks.filter(
@@ -555,19 +565,24 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     [weekBlocks]
   );
   const currentActivityResult = useMemo(
-    () => (now ? currentActivityForSchedule(schedule, now) : { status: "loading" as const }),
-    [now, schedule]
+    () => (now ? currentActivityForSchedule(weekBlocks, now) : { status: "loading" as const }),
+    [now, weekBlocks]
   );
   const pinnedBlock = useMemo(() => {
     if (!clipboardPin || clipboardPin.dayIndex == null || !clipboardPin.blockId) return null;
-    return (
-      normalizeDaySchedule(schedule[clipboardPin.dayIndex], clipboardPin.dayIndex).find(
-        (block) => block.id === clipboardPin.blockId
-      ) || null
-    );
-  }, [clipboardPin, schedule]);
+    return weekBlocks[clipboardPin.dayIndex]?.find((block) => block.id === clipboardPin.blockId) || null;
+  }, [clipboardPin, weekBlocks]);
+  const staleSchedulePin = Boolean(
+    clipboardPin?.blockId &&
+      clipboardPin.dayIndex != null &&
+      (!pinnedBlock || pinnedBlock.kind !== "activity" || pinnedBlock.activityId !== clipboardPin.activityId)
+  );
+  useEffect(() => {
+    if (staleSchedulePin) setClipboardPin(null);
+  }, [setClipboardPin, staleSchedulePin]);
   const clipboardState = useMemo<ClipboardState>(() => {
     if (clipboardPin) {
+      if (staleSchedulePin) return { kind: "empty", empty: { status: "loading" } };
       const activity = byId[clipboardPin.activityId];
       if (!activity) {
         return {
@@ -619,7 +634,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         block: currentActivityResult.block,
       },
     };
-  }, [byId, clipboardPin, currentActivityResult, pinnedBlock]);
+  }, [byId, clipboardPin, currentActivityResult, pinnedBlock, staleSchedulePin]);
   const activeClipboardRun = clipboardState.kind === "run" ? clipboardState.run : null;
   const activeClipboardKey = activeClipboardRun
     ? clipboardRunKey(activeClipboardRun.dayIndex, activeClipboardRun.block?.id, activeClipboardRun.activity.id)
@@ -644,8 +659,24 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setSchedule((p) => ({ ...p, [targetDayIndex]: ordered ? orderBlocks(blocks) : blocks }));
   }
 
+  function clearClipboardBlockState(targetDayIndex: number, blockId: string) {
+    const prefix = "day-" + targetDayIndex + ":" + blockId + ":";
+    setClipboardMaterials((previous) => {
+      let changed = false;
+      const next: Record<string, string[]> = {};
+      for (const [key, value] of Object.entries(previous)) {
+        if (key.startsWith(prefix)) {
+          changed = true;
+        } else {
+          next[key] = value;
+        }
+      }
+      return changed ? next : previous;
+    });
+    setClipboardPin((pin) => (pin?.dayIndex === targetDayIndex && pin.blockId === blockId ? null : pin));
+  }
+
   function addEventToDay(targetDayIndex: number, draft: EventDraft) {
-    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
     const block = createScheduleBlock({
       kind: draft.kind,
@@ -661,59 +692,61 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function updateEvent(targetDayIndex: number, blockId: string, patch: Partial<ScheduleBlock>) {
-    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
-    saveBlocksForDay(
-      targetDayIndex,
-      targetBlocks.map((block) => {
-        if (block.id !== blockId) return block;
-        const merged: ScheduleBlock = { ...block, ...patch };
-        const fill: BlockFill = merged.kind === "label" ? "fixed" : merged.fill ?? "fixed";
-        // Keep the block internally consistent with its fill mode.
-        if (merged.kind === "label" || fill === "fixed") {
-          delete merged.fill;
-          delete merged.category;
-          delete merged.rule;
-        }
-        if (fill === "open" || fill === "conditional") {
-          // An unfilled/typed slot holds no concrete activity.
-          delete merged.activityId;
-          if (fill === "open") delete merged.rule;
-        }
-        return merged;
-      })
-    );
+    const previousBlock = targetBlocks.find((block) => block.id === blockId);
+    let changedActivity = false;
+    const nextBlocks = targetBlocks.map((block) => {
+      if (block.id !== blockId) return block;
+      const merged: ScheduleBlock = { ...block, ...patch };
+      const fill: BlockFill = merged.kind === "label" ? "fixed" : merged.fill ?? "fixed";
+      // Keep the block internally consistent with its fill mode.
+      if (merged.kind === "label" || fill === "fixed") {
+        delete merged.fill;
+        delete merged.category;
+        delete merged.rule;
+      }
+      if (fill === "open" || fill === "conditional") {
+        // An unfilled/typed slot holds no concrete activity.
+        delete merged.activityId;
+        if (fill === "open") delete merged.rule;
+      }
+      merged.end = capEventEnd(merged.start, merged.end);
+      changedActivity = block.activityId !== merged.activityId;
+      return merged;
+    });
+    saveBlocksForDay(targetDayIndex, nextBlocks);
+    if (previousBlock && changedActivity) clearClipboardBlockState(targetDayIndex, previousBlock.id);
   }
 
   function removeEvent(targetDayIndex: number, blockId: string) {
-    if (!requireEditAccess()) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
+    const previousBlock = targetBlocks.find((block) => block.id === blockId);
     saveBlocksForDay(
       targetDayIndex,
       targetBlocks.filter((block) => block.id !== blockId),
       false
     );
+    if (previousBlock) clearClipboardBlockState(targetDayIndex, previousBlock.id);
   }
 
   function quickAddActivity(targetDayIndex: number, activityId: string) {
-    if (!requireEditAccess()) return;
     const activity = byId[activityId];
     if (!activity) return;
     const targetBlocks = normalizeDaySchedule(schedule[targetDayIndex], targetDayIndex);
-    const duration = Math.max(MIN_DURATION_MIN, activity.durationMin);
+    const duration = Math.min(TOTAL_MIN, Math.max(MIN_DURATION_MIN, activity.durationMin));
     const start = nextFreeStart(targetBlocks, duration);
+    const end = Math.min(DAY_END_MIN, start + duration);
     addEventToDay(targetDayIndex, {
       kind: "activity",
       activityId,
       label: activity.title,
       start: minutesToCamp(start),
-      end: minutesToCamp(start + duration),
+      end: minutesToCamp(end),
     });
     setLiveMsg(activity.title + " added to " + DAYS[targetDayIndex]);
   }
 
   function saveCurrentDayPlan(name: string) {
-    if (!requireEditAccess()) return;
     const trimmed = name.trim();
     const now = Date.now();
     setSchedulePlans((plans) => [
@@ -787,7 +820,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function applyTemplate(templateId: string, targetDays: number[], mode: ApplyMode) {
-    if (!requireEditAccess()) return;
     const tpl = schedulePlans.find((t) => t.id === templateId);
     if (!tpl || !targetDays.length) return;
     setUndoSnapshot(schedule);
@@ -829,7 +861,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function deleteDayPlan(planId: string) {
-    if (!requireEditAccess()) return;
     setSchedulePlans((plans) => plans.filter((plan) => plan.id !== planId));
   }
 
@@ -879,15 +910,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       delete next[activeClipboardKey];
       return next;
     });
-  }
-
-  // Drill from the overview into the single-day workspace, optionally scrolling
-  // the calendar to a specific time.
-  function openDayInCalendar(day: number, atMin?: number) {
-    selectDay(day);
-    setTab("calendar");
-    focusNonceRef.current += 1;
-    setCalFocus({ min: atMin ?? DAY_START_MIN, nonce: focusNonceRef.current });
   }
 
   useEffect(() => {
@@ -951,24 +973,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // activity — its steps/notes/safety plus a materials block and (when the
   // activity has one) the field diagram seeded in as a diagram block.
   const resolveRunDoc = useCallback(
-    (activity: Activity): RunDoc =>
-      ensureSectionHeadings(
-        activity,
-        promoteMaterialsBlocks(runListOverrides[activity.id] ?? buildRunDoc(activity, resolvePlaybook(activity)))
-      ),
+    (activity: Activity): RunDoc => {
+      const hasOverride = Object.prototype.hasOwnProperty.call(runListOverrides, activity.id);
+      const doc = hasOverride
+        ? promoteMaterialsBlocks(runListOverrides[activity.id])
+        : buildRunDoc(activity, resolvePlaybook(activity));
+      if (hasOverride && doc.blocks.length === 0) return doc;
+      return ensureSectionHeadings(activity, doc);
+    },
     [runListOverrides, resolvePlaybook]
   );
 
   const saveRunDoc = useCallback(
     (activityId: string, doc: RunDoc) => {
-      if (!requireEditAccess()) return;
       setRunListOverrides((p) => ({ ...p, [activityId]: doc }));
     },
-    [requireEditAccess, setRunListOverrides]
+    [setRunListOverrides]
   );
 
   function editActivity(a: Activity) {
-    if (!requireEditAccess()) return;
     setEditing(a);
     setDetail(null);
     setDetailScheduleContext(null);
@@ -976,7 +999,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }
 
   function deleteActivity(a: Activity) {
-    if (!requireEditAccess()) return;
     // Remove the custom entry and clean up every reference so nothing is orphaned.
     setExtra((p) => p.filter((x) => x.id !== a.id));
     setFavs((p) => p.filter((id) => id !== a.id));
@@ -1051,7 +1073,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         (labelCount === 1 ? " break" : " breaks"),
     },
     saved: {
-      kicker: favs.length + " saved",
+      kicker: savedActivities.length + " saved",
       title: "Saved",
       summary: "A shortlist for quick substitutions and rainy-day planning.",
     },
@@ -1156,7 +1178,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             />
           )}
           <div className="sidenav__foot">
-            <span>{all.length} in the library · {favs.length} saved</span>
+            <span>{all.length} in the library · {savedActivities.length} saved</span>
             <span>{authLabel}</span>
           </div>
         </nav>
@@ -1263,7 +1285,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 saved={savedActivities}
                 recent={recentActivities}
                 activityCount={all.length}
-                savedCount={favs.length}
+                savedCount={savedActivities.length}
                 plansCount={schedulePlans.length}
                 onOpen={openDetail}
                 onGo={(target) => {
@@ -1346,14 +1368,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 byId={byId}
                 zoomIdx={zoomIdx}
                 onZoom={(idx) => setZoomIdx(clampZoomIndex(idx))}
-                focus={calFocus}
+                focus={null}
               />
             )}
             {tab === "saved" && (
               <SavedView
-                items={all}
+                items={savedActivities}
                 onOpen={openDetail}
-                isFav={isFav}
                 onToggleFav={toggleFav}
               />
             )}
@@ -1390,7 +1411,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {navTabs.map((t) => (
+          {navTabs.filter((t) => t.id !== "home").map((t) => (
             <button
               key={t.id}
               type="button"
@@ -1428,6 +1449,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             runDoc={resolveRunDoc(detailActivity)}
             onSaveRunDoc={saveRunDoc}
             pinAction={detailPinAction}
+            backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
           />
         )}
         <PrintViews

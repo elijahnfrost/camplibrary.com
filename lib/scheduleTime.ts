@@ -107,20 +107,9 @@ export function blockEndMin(block: ScheduleBlock): number {
   return end > start ? end : start + DEFAULT_DURATION_MIN;
 }
 
-export function blockDuration(block: ScheduleBlock): number {
-  return blockEndMin(block) - blockStartMin(block);
-}
-
 // "9:00 am – 9:45 am" style range for display.
 export function formatRange(startMin: number, endMin: number): string {
   return formatClock(startMin) + " – " + formatClock(endMin);
-}
-
-export function durationLabel(minutes: number): string {
-  if (minutes < 60) return minutes + " min";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? h + "h " + m + "m" : h + "h";
 }
 
 // Hour marks for the calendar axis across the visible window.

@@ -1,8 +1,11 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import type { NextRequest } from "next/server";
 import type { AuthSession } from "@/lib/auth";
 import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable } from "@/lib/auth";
 import { getBackendEnvStatus } from "./env";
+
+const INVITE_ACCEPTED_METADATA_KEY = "campLibraryInviteAccepted";
+const INVITE_ACCEPTED_AT_METADATA_KEY = "campLibraryInviteAcceptedAt";
 
 export type AuthBackendStatus = {
   connected: boolean;
@@ -29,6 +32,26 @@ export function getAuthBackendStatus(): AuthBackendStatus {
   };
 }
 
+function hasAcceptedInvite(metadata: Record<string, unknown> | null | undefined): boolean {
+  return metadata?.[INVITE_ACCEPTED_METADATA_KEY] === true;
+}
+
+export async function markUserInviteAccepted(
+  clerkUserId: string,
+  existingPrivateMetadata?: Record<string, unknown> | null,
+) {
+  const metadata = {
+    ...(existingPrivateMetadata || {}),
+    [INVITE_ACCEPTED_METADATA_KEY]: true,
+    [INVITE_ACCEPTED_AT_METADATA_KEY]:
+      typeof existingPrivateMetadata?.[INVITE_ACCEPTED_AT_METADATA_KEY] === "string"
+        ? existingPrivateMetadata[INVITE_ACCEPTED_AT_METADATA_KEY]
+        : new Date().toISOString(),
+  };
+  const client = await clerkClient();
+  await client.users.updateUserMetadata(clerkUserId, { privateMetadata: metadata });
+}
+
 export async function getServerAuthSession(_request?: NextRequest): Promise<AuthSession> {
   if (!isClerkAuthUsable()) return ANONYMOUS_SESSION;
 
@@ -36,13 +59,16 @@ export async function getServerAuthSession(_request?: NextRequest): Promise<Auth
   if (!user) return ANONYMOUS_SESSION;
 
   const email = user.primaryEmailAddress?.emailAddress || "";
+  const isAdmin = isAdminEmail(email);
+  if (!isAdmin && !hasAcceptedInvite(user.privateMetadata)) return ANONYMOUS_SESSION;
+
   return {
     status: "authenticated",
     user: {
       id: user.id,
       name: user.fullName || user.firstName || email || "Camp staff",
       email,
-      role: isAdminEmail(email) ? "admin" : "editor",
+      role: isAdmin ? "admin" : "editor",
     },
     mode: "provider",
     authenticatedAt: user.lastSignInAt ? new Date(user.lastSignInAt).toISOString() : new Date().toISOString(),

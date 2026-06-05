@@ -280,13 +280,12 @@ export function PlaybookEditor({
         <PlaybookLegend />
       </div>
 
-      <div className="pbe__stages" role="tablist" aria-label="Diagram stages">
+      <div className="pbe__stages" role="group" aria-label="Diagram stages">
         {value.frames.map((f, i) => (
           <button
             key={f.id}
             type="button"
-            role="tab"
-            aria-selected={i === frameIndex}
+            aria-pressed={i === frameIndex}
             className={"pbe__stage" + (i === frameIndex ? " is-active" : "")}
             onClick={() => {
               setActiveIdx(i);
@@ -321,10 +320,10 @@ export function PlaybookEditor({
 
       <div className="pbe__tools" role="group" aria-label="Add pieces">
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => addPlayer("blue")}>
-          <i className="pbe__swatch pbe__swatch--blue" />Blue
+          <i className="pbe__swatch pbe__swatch--blue" />Teal
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => addPlayer("red")}>
-          <i className="pbe__swatch pbe__swatch--red" />Red
+          <i className="pbe__swatch pbe__swatch--red" />Clay
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={addFlag}>
           Flag

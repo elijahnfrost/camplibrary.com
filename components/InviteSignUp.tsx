@@ -63,13 +63,15 @@ export function InviteSignUp() {
   const [error, setError] = useState("");
 
   const hasInviteCode = form.inviteCode.trim().length > 0;
-  const hasValidCredentials = form.email.includes("@") && form.password.length >= 8;
+  const hasValidEmail = form.email.trim().includes("@");
+  const hasValidCredentials = hasValidEmail && form.password.length >= 8;
   const canSubmitCredentials =
     Boolean(signUp) &&
     hasValidCredentials &&
     !pending &&
     fetchStatus !== "fetching";
   const canSubmit = canSubmitCredentials && hasInviteCode;
+  const disableGoogleSubmit = pending || fetchStatus === "fetching" || !signUp || !hasInviteCode || !hasValidEmail;
   const disablePasswordSubmit = pending || fetchStatus === "fetching" || (hasInviteCode && (!signUp || !hasValidCredentials));
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -85,10 +87,11 @@ export function InviteSignUp() {
     setPending(true);
     setError("");
     try {
-      const reservationId = await reserveInviteCode(form.inviteCode, form.email);
+      const email = form.email.trim().toLowerCase();
+      const reservationId = await reserveInviteCode(form.inviteCode, email);
       const nameParts = form.name.trim().split(/\s+/).filter(Boolean);
       const created = await signUp.password({
-        emailAddress: form.email.trim().toLowerCase(),
+        emailAddress: email,
         password: form.password,
         firstName: nameParts[0] || undefined,
         lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined,
@@ -139,11 +142,15 @@ export function InviteSignUp() {
       setError("Enter your invite code to continue with Google.");
       return;
     }
+    if (!hasValidEmail) {
+      setError("Enter the email address for this invite before continuing with Google.");
+      return;
+    }
     if (!signUp) return;
     setPending(true);
     setError("");
     try {
-      const reservationId = await reserveInviteCode(form.inviteCode);
+      const reservationId = await reserveInviteCode(form.inviteCode, form.email.trim().toLowerCase());
       const result = await signUp.sso({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
@@ -175,9 +182,14 @@ export function InviteSignUp() {
             value={verificationCode}
             onChange={(event) => setVerificationCode(event.target.value)}
             autoComplete="one-time-code"
+            aria-describedby={error ? "invite-signup-error" : undefined}
           />
         </div>
-        {error && <div className="auth-form__error">{error}</div>}
+        {error && (
+          <div className="auth-form__error" id="invite-signup-error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
         <button type="button" className="btn btn--primary btn--block" disabled={pending} onClick={verifyEmail}>
           <CampIcon.Check />
           Verify email
@@ -200,10 +212,26 @@ export function InviteSignUp() {
           value={form.inviteCode}
           onChange={(event) => update("inviteCode", event.target.value)}
           autoComplete="off"
+          aria-describedby={error ? "invite-signup-error" : undefined}
         />
       </div>
 
-      <button type="button" className="btn btn--primary btn--block" disabled={pending} onClick={createWithGoogle}>
+      <div className="field">
+        <label className="field__label" htmlFor="staff-email">
+          Email
+        </label>
+        <input
+          id="staff-email"
+          className="input"
+          type="email"
+          value={form.email}
+          onChange={(event) => update("email", event.target.value)}
+          autoComplete="email"
+          aria-describedby={error ? "invite-signup-error" : undefined}
+        />
+      </div>
+
+      <button type="button" className="btn btn--primary btn--block" disabled={disableGoogleSubmit} onClick={createWithGoogle}>
         <CampIcon.User />
         Continue with Google
       </button>
@@ -223,19 +251,6 @@ export function InviteSignUp() {
         />
       </div>
       <div className="field">
-        <label className="field__label" htmlFor="staff-email">
-          Email
-        </label>
-        <input
-          id="staff-email"
-          className="input"
-          type="email"
-          value={form.email}
-          onChange={(event) => update("email", event.target.value)}
-          autoComplete="email"
-        />
-      </div>
-      <div className="field">
         <label className="field__label" htmlFor="staff-password">
           Password
         </label>
@@ -246,9 +261,14 @@ export function InviteSignUp() {
           value={form.password}
           onChange={(event) => update("password", event.target.value)}
           autoComplete="new-password"
+          aria-describedby={error ? "invite-signup-error" : undefined}
         />
       </div>
-      {error && <div className="auth-form__error">{error}</div>}
+      {error && (
+        <div className="auth-form__error" id="invite-signup-error" role="alert" aria-live="assertive">
+          {error}
+        </div>
+      )}
       <button type="button" className="btn btn--primary btn--block" disabled={disablePasswordSubmit} onClick={createWithPassword}>
         <CampIcon.Check />
         Create account

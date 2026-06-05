@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { Activity, DaySchedule, ScheduleBlock } from "@/lib/types";
 import { activityMeta, categoryTint, DAYS } from "@/lib/data";
 import {
@@ -39,6 +39,19 @@ export function WeekGrid({
   onOpenBlock: (day: number, block: ScheduleBlock) => void;
 }) {
   const marks = hourMarks();
+  const positionedByDay = useMemo(
+    () =>
+      WEEK_DAYS.map((day) => {
+        const dayBlocks = weekBlocks[day] || [];
+        const items: LaidInput[] = dayBlocks.map((block) => ({
+          block,
+          startMin: blockStartMin(block),
+          endMin: blockEndMin(block),
+        }));
+        return layoutEvents(items, MAX_COLS_WEEK);
+      }),
+    [weekBlocks, zoomIdx]
+  );
   const style = {
     "--hour-px": hourPx || ZOOM_LEVELS[zoomIdx] + "px",
     "--day-hours": TOTAL_MIN / 60,
@@ -74,14 +87,8 @@ export function WeekGrid({
         ))}
       </div>
 
-      {WEEK_DAYS.map((day) => {
-        const dayBlocks = weekBlocks[day] || [];
-        const items: LaidInput[] = dayBlocks.map((block) => ({
-          block,
-          startMin: blockStartMin(block),
-          endMin: blockEndMin(block),
-        }));
-        const positioned = layoutEvents(items, MAX_COLS_WEEK);
+      {WEEK_DAYS.map((day, index) => {
+        const positioned = positionedByDay[index];
         return (
           <div
             key={"col-" + day}
