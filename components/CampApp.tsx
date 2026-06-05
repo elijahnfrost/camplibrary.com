@@ -1411,13 +1411,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {navTabs.filter((t) => t.id !== "home").map((t) => (
+          {navTabs.map((t) => (
             <button
               key={t.id}
               type="button"
               className={tab === t.id ? "is-active" : ""}
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id ? "page" : undefined}
+              aria-label={t.label}
+              title={t.label}
             >
               <t.icon />
               <span>{t.label}</span>

@@ -87,7 +87,7 @@ export function AuthButton({
   }
 
   return (
-    <button type="button" className="auth-pill" onClick={onOpen}>
+    <button type="button" className="auth-pill" onClick={onOpen} aria-label="Sign in as staff" title="Sign in as staff">
       <CampIcon.User />
       <span>Staff</span>
     </button>

@@ -1,8 +1,9 @@
 "use client";
 
 import type { Activity } from "@/lib/types";
-import { ActivityCell } from "./ActivityCell";
+import { ageLabel, durLabel, ENERGY, monogram, ratingColor } from "@/lib/data";
 import { CampIcon } from "./icons";
+import { SaveButton } from "./primitives";
 
 export function SavedView({
   items,
@@ -28,21 +29,32 @@ export function SavedView({
     );
   }
   return (
-    <div className="catalog fadein" style={{ paddingTop: 14 }}>
+    <div className="saved-view fadein">
       <span className="label">{saved.length} saved</span>
-      {[...saved]
-        .sort((a, b) => a.title.localeCompare(b.title))
-        .map((a) => (
-          <ActivityCell
-            key={a.id}
-            tone="none"
-            activity={a}
-            saved
-            onOpen={onOpen}
-            onToggleSaved={onToggleFav}
-          />
-        ))}
-      <div style={{ height: 10 }} />
+      <div className="saved-grid">
+        {[...saved]
+          .sort((a, b) => a.title.localeCompare(b.title))
+          .map((a) => (
+            <div className="saved-card" key={a.id}>
+              <button type="button" className="saved-card__open stretch" onClick={() => onOpen(a)} aria-label={a.title}>
+                <span className="saved-card__mark" style={{ background: ratingColor(a.rating) }} aria-hidden="true">
+                  {monogram(a.title)}
+                </span>
+                <span className="saved-card__body">
+                  <span className="saved-card__type">{a.type}</span>
+                  <span className="saved-card__title">{a.title}</span>
+                  <span className="cat-stamps">
+                    <span className="stamp">{a.place}</span>
+                    <span className="stamp">{ageLabel(a)}</span>
+                    <span className="stamp">{durLabel(a)}</span>
+                    <span className="stamp">{ENERGY[a.energy]}</span>
+                  </span>
+                </span>
+              </button>
+              <SaveButton on onToggle={() => onToggleFav(a.id)} />
+            </div>
+          ))}
+      </div>
     </div>
   );
 }

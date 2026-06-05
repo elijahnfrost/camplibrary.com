@@ -847,11 +847,11 @@ export function ActivityRunList({
           <>
             <button type="button" className="rl-tbtn" onClick={() => allCollapse(true)}>
               <CampIcon.CollapseAll />
-              Collapse
+              Collapse all
             </button>
             <button type="button" className="rl-tbtn" onClick={() => allCollapse(false)}>
               <CampIcon.ExpandAll />
-              Expand
+              Expand all
             </button>
           </>
         )}

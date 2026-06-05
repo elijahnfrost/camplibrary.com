@@ -246,7 +246,7 @@ export function AddView({
   }
 
   return (
-    <div className="form fadein">
+    <div className="form form--activity fadein">
       {isEdit && (
         <div className="form__editbar">
           <span>Editing “{initial?.title}”</span>
