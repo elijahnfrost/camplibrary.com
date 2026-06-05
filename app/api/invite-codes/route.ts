@@ -1,5 +1,5 @@
 import { authorizeInviteAdmin } from "@/lib/server/inviteCodeAdmin";
-import { createInviteCode, listInviteCodes, normalizeInviteMaxUses } from "@/lib/server/inviteCodes";
+import { createInviteCode, InviteCodeValidationError, listInviteCodes, normalizeInviteMaxUses } from "@/lib/server/inviteCodes";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +28,20 @@ export async function POST(request: NextRequest) {
   } catch {
     return Response.json({ error: "maxUses must be a positive integer" }, { status: 400 });
   }
-  const invite = await createInviteCode({
-    label: body.label,
-    invitedEmail: body.invitedEmail,
-    expiresAt: body.expiresAt,
-    maxUses,
-  });
+  let invite: Awaited<ReturnType<typeof createInviteCode>>;
+  try {
+    invite = await createInviteCode({
+      label: body.label,
+      invitedEmail: body.invitedEmail,
+      expiresAt: body.expiresAt,
+      maxUses,
+    });
+  } catch (error) {
+    if (error instanceof InviteCodeValidationError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
   return Response.json(invite, {
     status: 201,
     headers: { "Cache-Control": "no-store" },

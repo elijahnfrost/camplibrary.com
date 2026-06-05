@@ -17,7 +17,7 @@
   --card: #f4ead0;
   --ink: #2c2824;
   --ink-soft: #5f574a;
-  --ink-faint: #6e6557;
+  --ink-faint: #665d4f;
   /* Resting component borders now ~3:1 on paper (WCAG 1.4.11); --line-soft stays
      for purely decorative hairlines (calendar rules, dividers). */
   --line: #8f8470;
@@ -52,6 +52,50 @@
   --hand: var(--font-hand), "Patrick Hand", "Comic Sans MS", cursive;
   --hand-sc: var(--font-hand-sc), var(--font-hand), "Patrick Hand SC", cursive;
   --script: var(--font-script), "Caveat", cursive;
+
+  /* Token-scale guardrail: compact aliases for new CSS only; existing selectors are unchanged. */
+  --s-0: 0;
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 24px;
+  --s-8: 32px;
+
+  --page-x: 18px;
+  --tap: 44px;
+  --control-sm: 34px;
+  --control-md: 40px;
+
+  --r-none: 0;
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+  --r-round: 50%;
+
+  --fs-micro: 9px;
+  --fs-meta: 10.5px;
+  --fs-label: 11px;
+  --fs-ui: 13px;
+  --fs-body: 15px;
+  --fs-body-lg: 17px;
+  --fs-title-sm: 21px;
+  --fs-title: 34px;
+  --fs-display: 44px;
+  --fs-book-title: clamp(34px, 5vw, 46px);
+
+  --e0: none;
+
+  --bp-phone: 420px;
+  --bp-wide-phone: 640px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
+  --bp-wide: 1320px;
 }
 
 * {
@@ -367,7 +411,9 @@ body {
   background: var(--paper-2);
 }
 .chip.is-on {
-  background: var(--chip-on, var(--accent));
+  /* Darken the (often light) category tint enough that white text clears WCAG AA
+     across every category — Song/amber otherwise sat at ~2.9:1. */
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 70%, var(--ink));
   color: #fff;
   border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 60%, var(--ink));
 }
@@ -3841,7 +3887,8 @@ body {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .homeview__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* Two quick-action cards exist; a 3-col track left a dangling empty column. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .homeview-card {
     grid-template-columns: 1fr;
@@ -5075,6 +5122,12 @@ body {
   .cal-event__resize::after {
     opacity: 0.55;
   }
+  /* Touch devices never hover: keep the run-list row tools (move/delete) visible
+     so blocks remain editable and reorderable on a phone. */
+  .rl-rowtools {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* Coarse-pointer (touch) hit-area enlargement — keep the visual size, expand the
@@ -5095,13 +5148,19 @@ body {
   .daynav .icon-btn,
   .schedule-activity__add,
   .plan-chip__delete,
+  .ratingdots__dot,
+  .rl-iconbtn,
+  .pbe__stage,
   .icon-btn {
     position: relative;
   }
   .cal-event__remove::before,
   .daynav .icon-btn::before,
   .schedule-activity__add::before,
-  .plan-chip__delete::before {
+  .plan-chip__delete::before,
+  .ratingdots__dot::before,
+  .rl-iconbtn::before,
+  .pbe__stage::before {
     content: "";
     position: absolute;
     inset: 50%;
@@ -6621,6 +6680,7 @@ body {
   gap: 5px;
 }
 .ratingdots__dot {
+  position: relative;
   width: 15px;
   height: 15px;
   padding: 0;
@@ -6629,6 +6689,14 @@ body {
   background: var(--card);
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.ratingdots__dot::after {
+  content: "";
+  position: absolute;
+  inset: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
 }
 .ratingdots__dot:hover {
   transform: scale(1.12);
@@ -7071,6 +7139,18 @@ button.rl-node {
 .rl-row:focus-within .rl-rowtools {
   opacity: 1;
   pointer-events: auto;
+}
+.rl-iconbtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.rl-iconbtn:disabled:hover {
+  background: transparent;
+  color: var(--ink-faint);
+}
+.rl-ptype--cancel {
+  color: var(--ink-faint);
+  margin-left: auto;
 }
 
 /* ---------- video child ---------- */

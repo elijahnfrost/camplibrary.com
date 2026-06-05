@@ -41,24 +41,6 @@ export const CampIcon = {
       <path d="M9 6h11M9 12h11M9 18h11" />
     </>
   ),
-  PanelSmall: svg(
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1.5" />
-      <path d="M15.5 5v14" />
-    </>
-  ),
-  PanelMedium: svg(
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1.5" />
-      <path d="M12 5v14" />
-    </>
-  ),
-  PanelLarge: svg(
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1.5" />
-      <path d="M8.5 5v14" />
-    </>
-  ),
   Library: svg(
     <>
       <path d="M12 6.5C10.5 5 8 4.7 5 5.2V18c3-.5 5.5-.2 7 1.3 1.5-1.5 4-1.8 7-1.3V5.2c-3-.5-5.5-.2-7 1.3z" />
@@ -118,14 +100,6 @@ export const CampIcon = {
       <path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" />
     </>
   ),
-  Lock: svg(
-    <>
-      <rect x="5" y="10" width="14" height="10" rx="2" />
-      <path d="M8 10V7.5a4 4 0 0 1 8 0V10" />
-      <path d="M12 14v2.5" />
-    </>
-  ),
-  Spark: svg(<path d="M13 3 5 13h6l-1 8 8-10h-6z" />),
   Pin: svg(
     <>
       <path d="M12 21c4-4.5 6-7.8 6-11a6 6 0 1 0-12 0c0 3.2 2 6.5 6 11z" />
@@ -156,13 +130,6 @@ export const CampIcon = {
       <path d="M6.5 13A6.5 6.5 0 1 0 8 5.8L5 8" />
     </>
   ),
-  Sun: svg(
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8" />
-    </>
-  ),
-  Moon: svg(<path d="M20 13.5A8 8 0 1 1 10.5 4 6.3 6.3 0 0 0 20 13.5z" />),
   Grip: svg(
     <>
       <circle cx="8" cy="6" r="1" />
@@ -172,9 +139,6 @@ export const CampIcon = {
       <circle cx="8" cy="18" r="1" />
       <circle cx="16" cy="18" r="1" />
     </>
-  ),
-  Shuffle: svg(
-    <path d="M4 6h3.5l9 12H20M4 18h3.5l3-4M14 9l2.5-3H20M17 3l3 3-3 3M17 15l3 3-3 3" />
   ),
   // ---- Run List detail glyphs (note / safety / video / variation / sub-step) ----
   Note: svg(<path d="M5 6h14M5 11h14M5 16h9" />),
@@ -196,5 +160,3 @@ export const CampIcon = {
   CollapseAll: svg(<path d="M6 9l6-6 6 6M6 15l6 6 6-6" />),
   ExpandAll: svg(<path d="M6 15l6 6 6-6M6 9l6-6 6 6" />),
 } as const;
-
-export type CampIconName = keyof typeof CampIcon;

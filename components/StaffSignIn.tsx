@@ -163,9 +163,14 @@ export function StaffSignIn() {
             value={form.code}
             onChange={(event) => update("code", event.target.value)}
             autoComplete="one-time-code"
+            aria-describedby={error ? "staff-signin-error" : undefined}
           />
         </div>
-        {error && <div className="auth-form__error">{error}</div>}
+        {error && (
+          <div className="auth-form__error" id="staff-signin-error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
         <button type="button" className="btn btn--primary btn--block" disabled={busy} onClick={verifyCode}>
           <CampIcon.Check />
           Verify
@@ -199,6 +204,7 @@ export function StaffSignIn() {
           value={form.email}
           onChange={(event) => update("email", event.target.value)}
           autoComplete="email"
+          aria-describedby={error ? "staff-signin-error" : undefined}
         />
       </div>
       <div className="field">
@@ -213,6 +219,7 @@ export function StaffSignIn() {
             value={form.password}
             onChange={(event) => update("password", event.target.value)}
             autoComplete="current-password"
+            aria-describedby={error ? "staff-signin-error" : undefined}
           />
           <button
             type="button"
@@ -225,7 +232,11 @@ export function StaffSignIn() {
           </button>
         </div>
       </div>
-      {error && <div className="auth-form__error">{error}</div>}
+      {error && (
+        <div className="auth-form__error" id="staff-signin-error" role="alert" aria-live="assertive">
+          {error}
+        </div>
+      )}
       <button type="submit" className="btn btn--primary btn--block" disabled={!canSubmit}>
         <CampIcon.Check />
         Sign in

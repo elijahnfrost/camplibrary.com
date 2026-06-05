@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { Activity, DaySchedule, ScheduleBlock } from "@/lib/types";
 import { activityMeta, DAYS } from "@/lib/data";
 import { blockEndMin, blockStartMin, formatRange } from "@/lib/scheduleTime";
@@ -24,8 +25,9 @@ export function ScheduleOverview({
   onSelectDay: (index: number) => void;
   onOpenBlock: (day: number, block: ScheduleBlock) => void;
 }) {
-  const dayBlocks: DaySchedule = [...(weekBlocks[dayIndex] || [])].sort(
-    (a, b) => blockStartMin(a) - blockStartMin(b)
+  const dayBlocks: DaySchedule = useMemo(
+    () => [...(weekBlocks[dayIndex] || [])].sort((a, b) => blockStartMin(a) - blockStartMin(b)),
+    [dayIndex, weekBlocks]
   );
 
   return (

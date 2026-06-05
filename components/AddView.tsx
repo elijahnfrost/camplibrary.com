@@ -12,10 +12,10 @@ import {
   materialsBlock,
   playHeadingBlock,
   runId,
-  type RunBlock,
   type RunChild,
   type RunDoc,
 } from "@/lib/runList";
+import { TOTAL_MIN } from "@/lib/scheduleTime";
 import { CampIcon } from "./icons";
 import { RatingPicker, Seg } from "./primitives";
 import { ActivityRunList } from "./ActivityRunList";
@@ -98,7 +98,7 @@ function lines(value: string): string[] {
 function activityFromForm(f: FormState, id: string, extracted?: ExtractedRunText): Activity {
   const ages = f.ages.length ? f.ages : (["g46"] as AgeGroupId[]);
   const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
-  const duration = parsePositiveInt(f.durationMin) || DEFAULT_DURATION;
+  const duration = Math.min(parsePositiveInt(f.durationMin) || DEFAULT_DURATION, TOTAL_MIN);
   const materials = lines(f.materials);
 
   return {
@@ -222,6 +222,7 @@ export function AddView({
     }));
 
   const duration = parsePositiveInt(f.durationMin);
+  const durationInvalid = duration == null || duration > TOTAL_MIN;
   const groupMin = parseOptionalPositiveInt(f.groupMin);
   const groupMax = parseOptionalPositiveInt(f.groupMax);
   const groupMinInvalid = f.groupMin.trim().length > 0 && groupMin == null;
@@ -229,7 +230,7 @@ export function AddView({
   const groupRangeInvalid = groupMin != null && groupMax != null && groupMin > groupMax;
   const valid =
     f.title.trim().length > 0 &&
-    duration != null &&
+    !durationInvalid &&
     !groupMinInvalid &&
     !groupMaxInvalid &&
     !groupRangeInvalid;
@@ -321,10 +322,16 @@ export function AddView({
                   inputMode="numeric"
                   value={f.durationMin}
                   onChange={onIn("durationMin")}
-                  aria-invalid={duration == null}
-                  aria-describedby={duration == null ? "activity-duration-error" : undefined}
+                  aria-invalid={durationInvalid}
+                  aria-describedby={durationInvalid ? "activity-duration-error" : undefined}
                 />
-                {duration == null && <span className="field__error" id="activity-duration-error">Enter a positive whole number.</span>}
+                {durationInvalid && (
+                  <span className="field__error" id="activity-duration-error" role="alert">
+                    {duration == null
+                      ? "Enter a positive whole number."
+                      : "Duration must fit inside the camp day."}
+                  </span>
+                )}
               </div>
               <div className="field">
                 <span className="field__label">Energy</span>
@@ -362,6 +369,9 @@ export function AddView({
                     value={f.groupMin}
                     onChange={onIn("groupMin")}
                     aria-invalid={groupMinInvalid || groupRangeInvalid}
+                    aria-describedby={
+                      groupMinInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
+                    }
                   />
                   <label className="sr-only" htmlFor="activity-group-max">Maximum group size</label>
                   <input
@@ -372,10 +382,13 @@ export function AddView({
                     value={f.groupMax}
                     onChange={onIn("groupMax")}
                     aria-invalid={groupMaxInvalid || groupRangeInvalid}
+                    aria-describedby={
+                      groupMaxInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
+                    }
                   />
                 </div>
                 {(groupMinInvalid || groupMaxInvalid || groupRangeInvalid) && (
-                  <span className="field__error">
+                  <span className="field__error" id="activity-group-size-error" role="alert">
                     {groupRangeInvalid ? "Minimum group size cannot exceed maximum." : "Group sizes must be positive whole numbers."}
                   </span>
                 )}

@@ -218,8 +218,6 @@ export function CalendarView({
     setDragInternal(next);
   }
 
-  const filled = blocks.length;
-
   function timeRatio(min: number): number {
     const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN, min));
     return (clamped - DAY_START_MIN) / TOTAL_MIN;
@@ -702,13 +700,9 @@ export function CalendarView({
     <div className="planner planner--calendar fadein">
       <div className="cal-head">
         <div className="cal-head__copy">
-          <span className="cal-head__kicker">Build the day</span>
-	          <h1 ref={headingRef} tabIndex={-1} className="cal-head__title">
-	            {DAYS[dayIndex]}
-	          </h1>
-          <span className="cal-head__sub">
-            {filled} {filled === 1 ? "event" : "events"} planned
-          </span>
+          <h1 ref={headingRef} tabIndex={-1} className="cal-head__title">
+            {DAYS[dayIndex]}
+          </h1>
         </div>
         <div className="cal-head__tools">
           <div className="cal-zoom" role="group" aria-label="Zoom timeline">

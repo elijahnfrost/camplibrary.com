@@ -153,10 +153,6 @@ export function ageLabel(a: Pick<Activity, "ages">): string {
   return ageSpan(a);
 }
 
-export function ageStamps(a: Pick<Activity, "ages">): string[] {
-  return ageGroups(a).map((g) => g.short);
-}
-
 function codeAge(a: Pick<Activity, "ages">): string {
   const gs = ageGroups(a);
   const grades = gs.filter((g) => g.lo > 0);
@@ -186,18 +182,14 @@ export function activityMeta(a: Pick<Activity, "type" | "place" | "ages" | "dura
   return code(a) + " · " + durLabel(a) + " · " + ENERGY[a.energy];
 }
 
-export function metaLine(a: Activity): string {
-  return [durLabel(a), ageLabel(a), a.place].join("  ·  ");
-}
-
-// Category → earthy accent, used to color-code calendar events and open slots
-// so a planned day reads at a glance (game / craft / song / water / quiet).
+// Category color is centralized here so calendar events, chips, and open slots
+// share one earthy source of truth.
 const CATEGORY_TINTS: Record<CategoryId, string> = {
   Game: "#3f6b45", // pine
   Craft: "#b3603f", // terracotta
-  Song: "#c98a2e", // amber
+  Song: "#d99a3c", // amber
   Water: "#4d7a86", // muted river
-  Quiet: "#6a6486", // dusk
+  Quiet: "#4a4660", // dusk
 };
 export function categoryTint(id: CategoryId | undefined): string {
   return id ? CATEGORY_TINTS[id] : "#8f8470";

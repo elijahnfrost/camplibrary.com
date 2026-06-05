@@ -324,6 +324,17 @@ export function ActivityRunList({
 
   const rmTop = (id: string) => commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
 
+  // Reorder a top-level block by one slot. Touch/keyboard-friendly counterpart to
+  // the HTML5 drag handles (which never fire on touch devices).
+  const moveTopBy = (id: string, dir: -1 | 1) => {
+    const idx = doc.blocks.findIndex((b) => b.id === id);
+    const swap = idx + dir;
+    if (idx < 0 || swap < 0 || swap >= doc.blocks.length) return;
+    const blocks = [...doc.blocks];
+    [blocks[idx], blocks[swap]] = [blocks[swap], blocks[idx]];
+    commit({ blocks });
+  };
+
   const rmKid = (pid: string, kid: string) => {
     if (diagramEditing === kid) setDiagramEditing(null);
     commit({
@@ -664,16 +675,38 @@ export function ActivityRunList({
     };
   }, [railSections]);
 
-  // Hover tools, with optional extra actions (e.g. attach-detail).
-  const handles = (id: string, extra?: ReactNode) =>
-    editable ? (
+  // Row tools, with optional extra actions (e.g. attach-detail). Revealed on
+  // hover/focus on pointer devices and always shown on touch (see globals.css).
+  const handles = (id: string, extra?: ReactNode) => {
+    if (!editable) return null;
+    const idx = doc.blocks.findIndex((b) => b.id === id);
+    return (
       <div className="rl-rowtools">
         {extra}
+        <button
+          type="button"
+          className="rl-iconbtn"
+          onClick={() => moveTopBy(id, -1)}
+          disabled={idx <= 0}
+          aria-label="Move block up"
+        >
+          <CampIcon.ChevronUp />
+        </button>
+        <button
+          type="button"
+          className="rl-iconbtn"
+          onClick={() => moveTopBy(id, 1)}
+          disabled={idx < 0 || idx >= doc.blocks.length - 1}
+          aria-label="Move block down"
+        >
+          <CampIcon.ChevronDown />
+        </button>
         <button type="button" className="rl-iconbtn" onClick={() => rmTop(id)} aria-label="Remove block">
           <CampIcon.Trash />
         </button>
       </div>
-    ) : null;
+    );
+  };
 
   const detailIcon = (icon: string | undefined) => {
     if (icon === "pin") return <CampIcon.Pin />;
@@ -838,7 +871,7 @@ export function ActivityRunList({
               />
             ))}
           </li>
-          {doc.blocks.map((b, i) => {
+          {doc.blocks.map((b) => {
             // ---- SECTION HEADING ----
             if (b.type === "heading") {
               stepNo = 0;
@@ -1146,6 +1179,14 @@ export function ActivityRunList({
                             </button>
                           );
                         })}
+                        <button
+                          type="button"
+                          className="rl-ptype rl-ptype--cancel"
+                          onClick={() => setOpenKid(null)}
+                        >
+                          <CampIcon.Close />
+                          Cancel
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -1166,6 +1207,14 @@ export function ActivityRunList({
                       {label}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className="rl-ptype rl-ptype--cancel"
+                    onClick={() => setOpenTop(false)}
+                  >
+                    <CampIcon.Close />
+                    Cancel
+                  </button>
                 </div>
               ) : (
                 <button type="button" className="rl-addblock" onClick={() => setOpenTop(true)}>

@@ -101,17 +101,24 @@ export function ApplyTemplateSheet({
           <span className="field__label">If a day already has a plan</span>
           <div className="apply-modes" role="radiogroup" aria-label="Conflict handling">
             {APPLY_MODES.map((item) => (
-              <button
+              <label
                 key={item.id}
-                type="button"
-                role="radio"
-                aria-checked={mode === item.id}
                 className={"apply-mode" + (mode === item.id ? " is-on" : "")}
-                onClick={() => setMode(item.id)}
+                style={{ gridTemplateColumns: "auto 1fr", columnGap: 10, alignItems: "start" }}
               >
-                <strong>{item.label}</strong>
-                <small>{item.hint}</small>
-              </button>
+                <input
+                  type="radio"
+                  name="apply-template-mode"
+                  value={item.id}
+                  checked={mode === item.id}
+                  onChange={() => setMode(item.id)}
+                  style={{ margin: "2px 0 0" }}
+                />
+                <span style={{ display: "grid", gap: 2 }}>
+                  <strong>{item.label}</strong>
+                  <small>{item.hint}</small>
+                </span>
+              </label>
             ))}
           </div>
         </div>

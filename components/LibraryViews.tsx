@@ -5,13 +5,13 @@ import type { Activity } from "@/lib/types";
 import {
   ageLabel,
   CATEGORIES,
-  code,
   durLabel,
   ENERGY,
   monogram,
   ratingColor,
 } from "@/lib/data";
 import type { CSSProperties } from "react";
+import { ActivityCell } from "./ActivityCell";
 import { EmptyResults, SaveButton } from "./primitives";
 
 interface ViewProps {
@@ -150,23 +150,14 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
         </button>
       </div>
       {sorted.map((a) => (
-        <div className="cat-row" key={a.id}>
-          <button type="button" className="cat-row__open stretch" aria-label={a.title} onClick={() => onOpen(a)}>
-            <span className="cat-code" style={{ background: ratingColor(a.rating) }}>
-              {code(a)}
-            </span>
-            <span className="cat-main">
-              <span className="cat-title">{a.title}</span>
-              <span className="cat-stamps">
-                <span className="stamp">{a.type}</span>
-                <span className="stamp">{a.place}</span>
-                <span className="stamp">{durLabel(a)}</span>
-                <span className="stamp">{ENERGY[a.energy]}</span>
-              </span>
-            </span>
-          </button>
-          <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} />
-        </div>
+        <ActivityCell
+          key={a.id}
+          tone="rating"
+          activity={a}
+          saved={isFav(a.id)}
+          onOpen={onOpen}
+          onToggleSaved={onToggleFav}
+        />
       ))}
       <div style={{ height: 10 }} />
     </div>

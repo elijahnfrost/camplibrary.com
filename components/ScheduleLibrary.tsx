@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { Activity, DayTemplate } from "@/lib/types";
 import { activityMeta } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
@@ -63,23 +63,31 @@ export function ScheduleLibrary({
 }) {
   const [planName, setPlanName] = useState("");
 
+  const templateSummaries = useMemo(
+    () =>
+      new Map(
+        plans.map((plan) => {
+          const activities = plan.blocks.filter(
+            (block) => block.kind === "activity" && block.activityId && block.fill !== "open"
+          ).length;
+          const open = plan.blocks.filter(
+            (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
+          ).length;
+          const breaks = plan.blocks.filter((block) => block.kind === "label").length;
+          const parts = [];
+          if (activities) parts.push(activities + " set");
+          if (open) parts.push(open + " open");
+          if (breaks) parts.push(breaks + (breaks === 1 ? " break" : " breaks"));
+          return [plan.id, parts.join(" - ") || "empty"];
+        })
+      ),
+    [plans]
+  );
+
   function submitPlan(event: FormEvent) {
     event.preventDefault();
     onSavePlan(planName || dayName + " template");
     setPlanName("");
-  }
-
-  function templateSummary(plan: DayTemplate): string {
-    const activities = plan.blocks.filter((block) => block.kind === "activity" && block.activityId && block.fill !== "open").length;
-    const open = plan.blocks.filter(
-      (block) => (block.fill === "open" || block.fill === "conditional") && !block.activityId
-    ).length;
-    const breaks = plan.blocks.filter((block) => block.kind === "label").length;
-    const parts = [];
-    if (activities) parts.push(activities + " set");
-    if (open) parts.push(open + " open");
-    if (breaks) parts.push(breaks + (breaks === 1 ? " break" : " breaks"));
-    return parts.join(" - ") || "empty";
   }
 
   return (
@@ -169,7 +177,7 @@ export function ScheduleLibrary({
                 <div className="template-card" key={plan.id}>
                   <div className="template-card__body">
                     <span className="template-card__name">{plan.name}</span>
-                    <span className="template-card__meta">{templateSummary(plan)}</span>
+                    <span className="template-card__meta">{templateSummaries.get(plan.id)}</span>
                   </div>
                   <button
                     type="button"

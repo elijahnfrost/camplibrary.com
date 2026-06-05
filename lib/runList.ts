@@ -182,10 +182,6 @@ function headingText(block: RunBlock): string {
   return block.type === "heading" ? (block.text || "").trim().toLowerCase() : "";
 }
 
-function isDetailsBlock(block: RunBlock): boolean {
-  return block.type === "details" || block.type === "materials";
-}
-
 function isInstructionBlock(block: RunBlock): boolean {
   return block.type === "step" || block.type === "playbook";
 }
@@ -401,7 +397,6 @@ export function normalizeRunDoc(raw: unknown): RunDoc | null {
   const r = raw as Record<string, unknown>;
   if (!Array.isArray(r.blocks)) return null;
   const blocks = r.blocks.map((b, i) => normalizeBlock(b, i)).filter((b): b is RunBlock => Boolean(b));
-  if (!blocks.length) return null;
   return { blocks };
 }
 

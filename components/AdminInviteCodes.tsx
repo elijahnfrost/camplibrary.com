@@ -110,6 +110,7 @@ export function AdminInviteCodes() {
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState("");
   const [error, setError] = useState("");
+  const usageLimitInvalid = form.usageLimit.trim() !== "" && !coercePositiveNumber(form.usageLimit);
 
   async function loadInvites() {
     setError("");
@@ -249,8 +250,14 @@ export function AdminInviteCodes() {
             inputMode="numeric"
             value={form.usageLimit}
             onChange={(event) => update("usageLimit", event.target.value)}
-            aria-invalid={form.usageLimit.trim() !== "" && !coercePositiveNumber(form.usageLimit)}
+            aria-invalid={usageLimitInvalid}
+            aria-describedby={usageLimitInvalid ? "invite-usage-limit-error" : undefined}
           />
+          {usageLimitInvalid && (
+            <span className="field__error" id="invite-usage-limit-error" role="alert">
+              Usage limit must be at least 1.
+            </span>
+          )}
         </div>
 
         {createdCode && (
@@ -263,7 +270,11 @@ export function AdminInviteCodes() {
           </div>
         )}
 
-        {error && <div className="auth-form__error">{error}</div>}
+        {error && (
+          <div className="auth-form__error" id="admin-invite-error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
 
         <button type="button" className="btn btn--primary btn--block" disabled={saving} onClick={createInvite}>
           <CampIcon.Plus />
