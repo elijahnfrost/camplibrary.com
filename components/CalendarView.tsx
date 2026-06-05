@@ -112,6 +112,11 @@ function nearestZoomIndex(px: number): number {
   return best;
 }
 
+function scheduledActivityMeta(activity: Activity, durationMin: number): string {
+  const scheduleDuration = Math.max(MIN_DURATION_MIN, Math.round(durationMin));
+  return activityMeta({ ...activity, durationMin: scheduleDuration });
+}
+
 // ============================================================
 // Calendar workspace
 // ============================================================
@@ -896,7 +901,7 @@ export function CalendarView({
                     <span className="cal-event__body" aria-hidden="true">
 	                      <span className="cal-event__time">{formatRange(item.startMin, item.endMin)}</span>
 	                      <span className="cal-event__title">{name}</span>
-	                      {activity && <span className="cal-event__meta">{activityMeta(activity)}</span>}
+                      {activity && <span className="cal-event__meta">{scheduledActivityMeta(activity, duration)}</span>}
 	                      {isOpen && <span className="cal-event__meta">tap to choose</span>}
 	                    </span>
 	                  </button>
