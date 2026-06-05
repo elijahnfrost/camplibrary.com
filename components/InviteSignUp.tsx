@@ -2,7 +2,7 @@
 
 import { useSignUp } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CampIcon } from "./icons";
 
 type FormState = {
@@ -19,7 +19,17 @@ const initialForm: FormState = {
   password: "",
 };
 
+const PENDING_GOOGLE_INVITE_RESERVATION_KEY = "camp-library:pending-google-invite-reservation";
+
+type PendingInviteReservation = {
+  inviteCode: string;
+  reservationId: string;
+};
+
 function errorMessage(reason: string) {
+  if (reason === "backend_unavailable") {
+    return "Invite-code account creation is temporarily unavailable. Ask a camp admin to finish setup.";
+  }
   if (reason === "email_mismatch") return "That invite code was issued for a different email.";
   if (reason === "expired") return "That invite code has expired.";
   if (reason === "unavailable") return "That invite code is no longer available.";
@@ -36,11 +46,41 @@ async function reserveInviteCode(inviteCode: string, email?: string) {
     ok?: boolean;
     reservationId?: string;
     reason?: string;
+    message?: string;
   };
   if (!response.ok || !body.ok || !body.reservationId) {
-    throw new Error(errorMessage(body.reason || "invalid"));
+    throw new Error(body.message || errorMessage(body.reason || "invalid"));
   }
   return body.reservationId;
+}
+
+async function releaseInviteCode(inviteCode: string, reservationId: string) {
+  await fetch("/api/invite-codes/release", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: inviteCode, reservationId }),
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
+function pendingGoogleReservationFromStorage(): PendingInviteReservation | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingInviteReservation>;
+    if (typeof parsed.inviteCode !== "string" || typeof parsed.reservationId !== "string") return null;
+    return { inviteCode: parsed.inviteCode, reservationId: parsed.reservationId };
+  } catch {
+    return null;
+  }
+}
+
+function rememberPendingGoogleReservation(reservation: PendingInviteReservation) {
+  window.sessionStorage.setItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY, JSON.stringify(reservation));
+}
+
+function clearPendingGoogleReservation() {
+  window.sessionStorage.removeItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
 }
 
 async function completeInviteCode(inviteCode: string, reservationId: string) {
@@ -74,6 +114,13 @@ export function InviteSignUp() {
   const disableGoogleSubmit = pending || fetchStatus === "fetching" || !signUp || !hasInviteCode || !hasValidEmail;
   const disablePasswordSubmit = pending || fetchStatus === "fetching" || (hasInviteCode && (!signUp || !hasValidCredentials));
 
+  useEffect(() => {
+    const pendingGoogleReservation = pendingGoogleReservationFromStorage();
+    if (!pendingGoogleReservation) return;
+    clearPendingGoogleReservation();
+    void releaseInviteCode(pendingGoogleReservation.inviteCode, pendingGoogleReservation.reservationId);
+  }, []);
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -86,9 +133,14 @@ export function InviteSignUp() {
     if (!signUp || !canSubmit) return;
     setPending(true);
     setError("");
+    let reservedInvite: PendingInviteReservation | null = null;
+    let shouldRelease = false;
     try {
       const email = form.email.trim().toLowerCase();
-      const reservationId = await reserveInviteCode(form.inviteCode, email);
+      const inviteCode = form.inviteCode;
+      const reservationId = await reserveInviteCode(inviteCode, email);
+      reservedInvite = { inviteCode, reservationId };
+      shouldRelease = true;
       const nameParts = form.name.trim().split(/\s+/).filter(Boolean);
       const created = await signUp.password({
         emailAddress: email,
@@ -96,16 +148,20 @@ export function InviteSignUp() {
         firstName: nameParts[0] || undefined,
         lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined,
         unsafeMetadata: {
-          inviteCode: form.inviteCode,
+          inviteCode,
           inviteReservationId: reservationId,
         },
       });
       if (created.error) throw new Error(created.error.longMessage || created.error.message);
       const sent = await signUp.verifications.sendEmailCode();
       if (sent.error) throw new Error(sent.error.longMessage || sent.error.message);
-      setReserved({ inviteCode: form.inviteCode, reservationId });
+      shouldRelease = false;
+      setReserved({ inviteCode, reservationId });
       setVerifying(true);
     } catch (err) {
+      if (reservedInvite && shouldRelease) {
+        await releaseInviteCode(reservedInvite.inviteCode, reservedInvite.reservationId);
+      }
       setError(err instanceof Error ? err.message : "Could not create that account.");
     } finally {
       setPending(false);
@@ -137,6 +193,26 @@ export function InviteSignUp() {
     }
   }
 
+  async function cancelReservedSignUp() {
+    if (!reserved) return;
+    setPending(true);
+    setError("");
+    try {
+      await releaseInviteCode(reserved.inviteCode, reserved.reservationId);
+      if (signUp) {
+        const reset = await signUp.reset();
+        if (reset.error) throw new Error(reset.error.longMessage || reset.error.message);
+      }
+      setReserved(null);
+      setVerificationCode("");
+      setVerifying(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not release that invite code.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function createWithGoogle() {
     if (!hasInviteCode) {
       setError("Enter your invite code to continue with Google.");
@@ -149,19 +225,31 @@ export function InviteSignUp() {
     if (!signUp) return;
     setPending(true);
     setError("");
+    let reservedInvite: PendingInviteReservation | null = null;
     try {
-      const reservationId = await reserveInviteCode(form.inviteCode, form.email.trim().toLowerCase());
+      const inviteCode = form.inviteCode;
+      const reservationId = await reserveInviteCode(inviteCode, form.email.trim().toLowerCase());
+      reservedInvite = { inviteCode, reservationId };
+      rememberPendingGoogleReservation(reservedInvite);
+      const callbackParams = new URLSearchParams({
+        inviteCode,
+        inviteReservationId: reservationId,
+      });
       const result = await signUp.sso({
         strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectCallbackUrl: "/sso-callback",
+        redirectUrl: `/sso-callback?${callbackParams.toString()}`,
+        redirectCallbackUrl: "/auth/complete",
         unsafeMetadata: {
-          inviteCode: form.inviteCode,
+          inviteCode,
           inviteReservationId: reservationId,
         },
       });
       if (result.error) throw new Error(result.error.longMessage || result.error.message);
     } catch (err) {
+      clearPendingGoogleReservation();
+      if (reservedInvite) {
+        await releaseInviteCode(reservedInvite.inviteCode, reservedInvite.reservationId);
+      }
       setError(err instanceof Error ? err.message : "Could not start Google sign-up.");
       setPending(false);
     }
@@ -193,6 +281,9 @@ export function InviteSignUp() {
         <button type="button" className="btn btn--primary btn--block" disabled={pending} onClick={verifyEmail}>
           <CampIcon.Check />
           Verify email
+        </button>
+        <button type="button" className="btn btn--ghost btn--block" disabled={pending} onClick={cancelReservedSignUp}>
+          Start over
         </button>
       </div>
     );

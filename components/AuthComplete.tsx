@@ -4,6 +4,8 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+const PENDING_GOOGLE_INVITE_RESERVATION_KEY = "camp-library:pending-google-invite-reservation";
+
 export function AuthComplete() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
@@ -33,6 +35,7 @@ export function AuthComplete() {
     })
       .then((response) => {
         if (!response.ok) throw new Error("Could not finalize invite code.");
+        window.sessionStorage.removeItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
         if (!cancelled) router.replace("/");
       })
       .catch((error: unknown) => {

@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { isClerkAuthUsable } from "@/lib/auth";
+import { getBackendEnvStatus } from "@/lib/server/env";
 import { consumeInviteCode } from "@/lib/server/inviteCodes";
 import { markUserInviteAccepted } from "@/lib/server/auth";
 import { parseJsonObject, readTextBodyWithLimit } from "@/lib/server/requestBody";
@@ -13,6 +14,16 @@ const MAX_COMPLETE_BODY_BYTES = 2048;
 export async function POST(request: NextRequest) {
   if (!isClerkAuthUsable()) {
     return Response.json({ error: "Authentication provider is not configured", code: "AUTH_DISABLED" }, { status: 503 });
+  }
+  if (!getBackendEnvStatus().capabilities.inviteCodes) {
+    return Response.json(
+      {
+        ok: false,
+        error: "Invite-code account creation is temporarily unavailable. Ask a camp admin to finish setup.",
+        code: "INVITE_BACKEND_DISABLED",
+      },
+      { status: 503 },
+    );
   }
 
   const { userId } = await auth();

@@ -13,6 +13,10 @@ export interface ActivityFilterState {
   availableMaterialTags?: string[];
 }
 
+function searchableArray(values: unknown): string[] {
+  return Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : [];
+}
+
 export function matchesActivityFilters(a: Activity, filters: ActivityFilterState): boolean {
   if (filters.cat !== "All" && a.type !== filters.cat) return false;
   if (filters.place === "Inside" && !(a.place === "Inside" || a.place === "Both")) return false;
@@ -32,7 +36,9 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
     " " +
     a.blurb +
     " " +
-    a.materials.join(" ")
+    searchableArray(a.materials).join(" ") +
+    " " +
+    searchableArray(a.materialTags).join(" ")
   ).toLowerCase();
   return hay.includes(q);
 }

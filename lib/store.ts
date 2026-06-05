@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Client-side persistence layer.
@@ -54,7 +54,7 @@ export function useLocalStorage<T>(key: string, initial: T, validate?: StorageVa
   const skippedInitialWrite = useRef(false);
 
   // Hydrate once on the client.
-  useEffect(() => {
+  useLayoutEffect(() => {
     skippedInitialWrite.current = false;
     setValue(read<T>(key, initial, validate));
     hydrated.current = true;

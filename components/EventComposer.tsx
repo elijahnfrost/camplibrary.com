@@ -77,6 +77,10 @@ export function EventComposer({
     () => allActivities.filter((activity) => activity.type === category),
     [allActivities, category]
   );
+  const categoryActivityIds = useMemo(
+    () => new Set(categoryActivities.map((activity) => activity.id)),
+    [categoryActivities]
+  );
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -136,7 +140,7 @@ export function EventComposer({
       const map: Partial<Record<number, string>> = {};
       if (varyByDay) {
         for (const [day, id] of Object.entries(byDay)) {
-          if (id) map[Number(day)] = id;
+          if (id && categoryActivityIds.has(id)) map[Number(day)] = id;
         }
       }
       const hasRule = Object.keys(map).length > 0;
@@ -282,7 +286,10 @@ export function EventComposer({
                   type="button"
                   className={"chip" + (category === c.id ? " is-on" : "")}
                   aria-pressed={category === c.id}
-                  onClick={() => setCategory(c.id)}
+                  onClick={() => {
+                    if (c.id !== category) setByDay({});
+                    setCategory(c.id);
+                  }}
                   style={category === c.id ? ({ "--chip-on": categoryTint(c.id) } as CSSProperties) : undefined}
                 >
                   {c.label}

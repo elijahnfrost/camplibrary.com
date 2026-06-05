@@ -1,4 +1,7 @@
-import { INVITE_CODE_INPUT_MAX_LENGTH, INVITE_EMAIL_MAX_LENGTH, reserveInviteCode } from "@/lib/server/inviteCodes";
+import {
+  INVITE_CODE_INPUT_MAX_LENGTH,
+  releaseInviteCode,
+} from "@/lib/server/inviteCodes";
 import { getBackendEnvStatus } from "@/lib/server/env";
 import { parseJsonObject, readTextBodyWithLimit } from "@/lib/server/requestBody";
 import type { NextRequest } from "next/server";
@@ -6,7 +9,8 @@ import type { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_RESERVE_BODY_BYTES = 2048;
+const MAX_RELEASE_BODY_BYTES = 2048;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVITE_BACKEND_DISABLED = {
   ok: false,
   reason: "backend_unavailable",
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const payload = await readTextBodyWithLimit(request, MAX_RESERVE_BODY_BYTES);
+  const payload = await readTextBodyWithLimit(request, MAX_RELEASE_BODY_BYTES);
   if (payload == null) {
     return Response.json({ ok: false, reason: "invalid" }, { status: 413 });
   }
@@ -33,26 +37,28 @@ export async function POST(request: NextRequest) {
   if (typeof body.code === "string" && body.code.length > INVITE_CODE_INPUT_MAX_LENGTH) {
     return Response.json({ ok: false, reason: "invalid" }, { status: 400 });
   }
-  if (body.email != null && typeof body.email !== "string") {
-    return Response.json({ ok: false, reason: "invalid" }, { status: 400 });
-  }
-  if (typeof body.email === "string" && body.email.length > INVITE_EMAIL_MAX_LENGTH) {
+  if (body.reservationId != null && typeof body.reservationId !== "string") {
     return Response.json({ ok: false, reason: "invalid" }, { status: 400 });
   }
 
   const code = typeof body.code === "string" ? body.code : "";
-  const email = typeof body.email === "string" ? body.email : undefined;
-  const result = await reserveInviteCode({
-    code,
-    email,
-  });
-
-  if (!result.ok) {
-    const status = result.reason === "missing" ? 400 : 403;
-    return Response.json({ ok: false, reason: result.reason }, { status });
+  const reservationId = typeof body.reservationId === "string" ? body.reservationId : "";
+  if (!code || !reservationId) {
+    return Response.json({ ok: false, reason: "missing" }, { status: 400 });
+  }
+  if (!UUID_PATTERN.test(reservationId)) {
+    return Response.json({ ok: false, reason: "invalid" }, { status: 400 });
   }
 
-  return Response.json(result, {
-    headers: { "Cache-Control": "no-store" },
-  });
+  const result = await releaseInviteCode({ code, reservationId });
+  if (!result.ok && (result.reason === "missing" || result.reason === "invalid")) {
+    return Response.json({ ok: false, reason: result.reason }, { status: 400 });
+  }
+
+  return Response.json(
+    { ok: true },
+    {
+      headers: { "Cache-Control": "no-store" },
+    },
+  );
 }

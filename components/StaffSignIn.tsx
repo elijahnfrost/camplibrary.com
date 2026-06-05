@@ -11,6 +11,8 @@ type FormState = {
   code: string;
 };
 
+type AuthMode = "sign-in" | "reset-code" | "reset-password";
+
 const initialForm: FormState = {
   email: "",
   password: "",
@@ -57,6 +59,7 @@ export function StaffSignIn() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [pending, setPending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [mode, setMode] = useState<AuthMode>("sign-in");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
@@ -69,6 +72,9 @@ export function StaffSignIn() {
   );
   const busy = pending || fetchStatus === "fetching";
   const canSubmit = Boolean(signIn) && form.email.includes("@") && form.password.length > 0 && !busy;
+  const canRequestPasswordReset = Boolean(signIn) && form.email.includes("@") && !busy;
+  const canVerifyResetCode = Boolean(signIn) && form.code.trim().length > 0 && !busy;
+  const canSubmitNewPassword = Boolean(signIn) && form.password.length >= 8 && !busy;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -109,6 +115,76 @@ export function StaffSignIn() {
     } finally {
       setPending(false);
     }
+  }
+
+  async function requestPasswordReset() {
+    if (!signIn) return;
+    if (!form.email.includes("@")) {
+      setError("Enter your email address first.");
+      return;
+    }
+    setPending(true);
+    setError("");
+    try {
+      const email = form.email.trim().toLowerCase();
+      const created = await signIn.create({ identifier: email });
+      if (created.error) throw created.error;
+      const sent = await signIn.resetPasswordEmailCode.sendCode();
+      if (sent.error) throw sent.error;
+      setForm((current) => ({ ...current, email, password: "", code: "" }));
+      setMode("reset-code");
+    } catch (err) {
+      setError(errorMessage(err, "Could not send a password reset code."));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function verifyPasswordResetCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signIn || !canVerifyResetCode) return;
+    setPending(true);
+    setError("");
+    try {
+      const result = await signIn.resetPasswordEmailCode.verifyCode({ code: form.code.trim() });
+      if (result.error) throw result.error;
+      setForm((current) => ({ ...current, password: "" }));
+      setMode("reset-password");
+    } catch (err) {
+      setError(errorMessage(err, "Could not verify that reset code."));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function submitNewPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signIn || !canSubmitNewPassword) return;
+    setPending(true);
+    setError("");
+    try {
+      const result = await signIn.resetPasswordEmailCode.submitPassword({
+        password: form.password,
+        signOutOfOtherSessions: true,
+      });
+      if (result.error) throw result.error;
+      if (signIn.status !== "complete") {
+        throw new Error("Password reset needs another verification step. Contact the camp admin.");
+      }
+      await finishSignIn();
+    } catch (err) {
+      setError(errorMessage(err, "Could not reset that password."));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function backToSignIn() {
+    setMode("sign-in");
+    setVerifying(false);
+    setError("");
+    update("code", "");
+    update("password", "");
   }
 
   async function verifyCode() {
@@ -175,10 +251,90 @@ export function StaffSignIn() {
           <CampIcon.Check />
           Verify
         </button>
-        <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={() => setVerifying(false)}>
+        <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={backToSignIn}>
           Back to sign in
         </button>
       </div>
+    );
+  }
+
+  if (mode === "reset-code") {
+    return (
+      <form className="auth-form" onSubmit={verifyPasswordResetCode}>
+        <div className="auth-form__section">Reset password</div>
+        <p className="auth-form__copy">We sent a reset code to {form.email.trim()}.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="staff-reset-code">
+            Reset code
+          </label>
+          <input
+            id="staff-reset-code"
+            className="input"
+            value={form.code}
+            onChange={(event) => update("code", event.target.value)}
+            autoComplete="one-time-code"
+            aria-describedby={error ? "staff-signin-error" : undefined}
+          />
+        </div>
+        {error && (
+          <div className="auth-form__error" id="staff-signin-error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
+        <button type="submit" className="btn btn--primary btn--block" disabled={!canVerifyResetCode}>
+          <CampIcon.Check />
+          Verify code
+        </button>
+        <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={backToSignIn}>
+          Back to sign in
+        </button>
+      </form>
+    );
+  }
+
+  if (mode === "reset-password") {
+    return (
+      <form className="auth-form" onSubmit={submitNewPassword}>
+        <div className="auth-form__section">Choose new password</div>
+        <p className="auth-form__copy">Enter a new password for {form.email.trim()}.</p>
+        <div className="field">
+          <label className="field__label" htmlFor="staff-new-password">
+            New password
+          </label>
+          <div className="password-input">
+            <input
+              id="staff-new-password"
+              className="input password-input__control"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              onChange={(event) => update("password", event.target.value)}
+              autoComplete="new-password"
+              aria-describedby={error ? "staff-signin-error" : undefined}
+            />
+            <button
+              type="button"
+              className="password-input__toggle"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((current) => !current)}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+        </div>
+        {error && (
+          <div className="auth-form__error" id="staff-signin-error" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
+        <button type="submit" className="btn btn--primary btn--block" disabled={!canSubmitNewPassword}>
+          <CampIcon.Check />
+          Reset password
+        </button>
+        <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={backToSignIn}>
+          Back to sign in
+        </button>
+      </form>
     );
   }
 
@@ -240,6 +396,9 @@ export function StaffSignIn() {
       <button type="submit" className="btn btn--primary btn--block" disabled={!canSubmit}>
         <CampIcon.Check />
         Sign in
+      </button>
+      <button type="button" className="btn btn--ghost btn--block" disabled={!canRequestPasswordReset} onClick={requestPasswordReset}>
+        Reset password
       </button>
       <p className="auth-form__hint">
         New staff need an invite code to <a href="/sign-up">create an account</a>.

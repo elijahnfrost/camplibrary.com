@@ -296,8 +296,8 @@ body {
 }
 
 .icon-btn {
-  width: 40px;
-  height: 40px;
+  width: var(--tap);
+  height: var(--tap);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -374,7 +374,7 @@ body {
 .filterbar {
   display: flex;
   gap: 7px;
-  padding: 12px 28px 4px 18px;
+  padding: var(--s-5) calc(var(--s-7) + var(--s-2)) var(--s-2) var(--page-x);
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
@@ -1532,18 +1532,18 @@ body {
 
 /* ---------- saved shortlist ---------- */
 .saved-view {
-  padding: 14px 18px 22px;
+  padding: calc(var(--s-5) + var(--s-1)) var(--page-x) calc(var(--s-7) - var(--s-1));
 }
 .saved-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: 12px;
+  gap: var(--s-5);
   margin-top: 14px;
 }
 .saved-card {
   position: relative;
   border: 1.5px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--card);
   box-shadow: var(--e1);
   transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
@@ -1559,8 +1559,8 @@ body {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   align-items: stretch;
-  gap: 12px;
-  padding: 12px 48px 12px 12px;
+  gap: var(--s-5);
+  padding: var(--s-5) calc(var(--s-8) + var(--s-6)) var(--s-5) var(--s-5);
 }
 .saved-card__mark {
   align-self: stretch;
@@ -1569,10 +1569,10 @@ body {
   justify-content: center;
   min-height: 82px;
   border: 1.5px solid var(--ink);
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   color: color-mix(in srgb, var(--ink) 72%, transparent);
   font-family: var(--script);
-  font-size: 34px;
+  font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1;
 }
@@ -1581,11 +1581,11 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: var(--s-4);
 }
 .saved-card__type {
   font-family: var(--hand-sc);
-  font-size: 10px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -1593,7 +1593,7 @@ body {
 .saved-card__title {
   font-family: var(--script);
   font-weight: 700;
-  font-size: 25px;
+  font-size: calc(var(--fs-title-sm) + var(--s-2));
   line-height: 1;
   color: var(--ink);
 }
@@ -3297,14 +3297,14 @@ body {
   --rl-detail-gap: 14px;
 }
 .form--activity .rl-toolbar {
-  padding-top: 4px;
+  padding-top: var(--s-2);
 }
 .form--activity .rl-block,
 .form--activity .rl-addwrap {
-  gap: 10px;
+  gap: calc(var(--s-4) + var(--s-1));
 }
 .form--activity .rl-row {
-  padding-right: 14px;
+  padding-right: calc(var(--s-5) + var(--s-1));
 }
 .form--activity .rl-rowtools {
   opacity: 1;
@@ -3316,7 +3316,7 @@ body {
 .form--activity .rl-block--heading,
 .form--activity .rl-block--details,
 .form--activity .rl-block--materials {
-  gap: 0;
+  gap: var(--s-0);
 }
 .form--activity .rl-block--heading > .rl-node,
 .form--activity .rl-block--details > .rl-node,
@@ -4199,8 +4199,8 @@ body {
   background: var(--card);
 }
 .daynav .icon-btn {
-  width: 34px;
-  height: 34px;
+  width: var(--tap);
+  height: var(--tap);
 }
 
 .day-carousel {
@@ -4980,7 +4980,7 @@ body {
   color: var(--ink);
   overflow: hidden;
   cursor: grab;
-  touch-action: none;
+  touch-action: pan-y;
   user-select: none;
   box-shadow: 0 1px 0 rgba(44, 40, 36, 0.05);
 }
@@ -5006,7 +5006,7 @@ body {
   font: inherit;
   text-align: left;
   cursor: inherit;
-  touch-action: none;
+  touch-action: pan-y;
 }
 .cal-event:has(.cal-event__open:focus-visible) {
   outline: 2px solid var(--accent);
@@ -5198,7 +5198,7 @@ body {
   text-transform: uppercase;
   text-align: center;
   padding: 2px;
-  touch-action: none;
+  touch-action: pan-y;
 }
 .cal-event--more:hover {
   background: color-mix(in srgb, var(--accent) 16%, var(--card));
@@ -5286,6 +5286,7 @@ body {
   }
   .cal-event__remove,
   .daynav .icon-btn,
+  .cal-zoom__btn,
   .schedule-activity__add,
   .plan-chip__delete,
   .ratingdots__dot,
@@ -5294,13 +5295,20 @@ body {
   .icon-btn {
     position: relative;
   }
+  .rl-iconbtn,
+  .pbe__stage {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
   .cal-event__remove::before,
   .daynav .icon-btn::before,
+  .cal-zoom__btn::before,
   .schedule-activity__add::before,
   .plan-chip__delete::before,
   .ratingdots__dot::before,
   .rl-iconbtn::before,
-  .pbe__stage::before {
+  .pbe__stage::before,
+  .icon-btn::before {
     content: "";
     position: absolute;
     inset: 50%;
@@ -6133,8 +6141,8 @@ body {
   background: var(--card);
 }
 .cal-zoom__btn {
-  width: 34px;
-  height: 34px;
+  width: var(--tap);
+  height: var(--tap);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6641,7 +6649,7 @@ body {
     min-height: 52px;
     font-size: 9px;
     letter-spacing: 0.03em;
-    padding: 8px 0 6px;
+    padding: var(--s-4) 0 var(--s-3);
     gap: 0;
   }
   .tabbar button svg {
@@ -6657,7 +6665,7 @@ body {
   }
   .tabbar button.is-active {
     flex-basis: 76px;
-    gap: 3px;
+    gap: var(--s-2);
   }
   .tabbar button.is-active span {
     position: static;

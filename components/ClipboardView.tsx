@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import type { Activity, ScheduleBlock } from "@/lib/types";
+import type { RunDoc } from "@/lib/runList";
 import { activityMeta, DAYS, ENERGY, groupLabel } from "@/lib/data";
 import { blockEndMin, blockStartMin, formatClock, formatRange } from "@/lib/scheduleTime";
 import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
 import { CampIcon } from "./icons";
 import { Block, EnergyMeter, Fact } from "./primitives";
+import { ActivityRunList } from "./ActivityRunList";
 
 export interface ClipboardRun {
   source: "auto" | "pinned";
@@ -198,6 +200,7 @@ export function ClipboardView({
   onUnpin,
   onOpenActivity,
   onOpenPlanner,
+  runDoc,
 }: {
   state: ClipboardState;
   readyMaterialIds: string[];
@@ -207,6 +210,7 @@ export function ClipboardView({
   onUnpin: () => void;
   onOpenActivity: (activity: Activity) => void;
   onOpenPlanner: (dayIndex?: number) => void;
+  runDoc: RunDoc | null;
 }) {
   if (state.kind === "empty") {
     const empty = state.empty;
@@ -305,17 +309,29 @@ export function ClipboardView({
             />
           </section>
           <section className="clipboard-run__panel">
-            <Block num="ii" name="How to run">
-              <ol className="steps">
-                {activity.steps.map((step, index) => (
-                  <li key={index}>{step}</li>
-                ))}
-              </ol>
-            </Block>
-            <Block num="iii" name="Notes & safety">
-              <p className="prose">{activity.notes}</p>
-              <div className="safety">{activity.safety}</div>
-            </Block>
+            {runDoc ? (
+              <ActivityRunList
+                doc={runDoc}
+                editable={false}
+                activity={activity}
+                availableMaterials={readyMaterialIds}
+                onToggleMaterial={onToggleMaterial}
+              />
+            ) : (
+              <>
+                <Block num="ii" name="How to run">
+                  <ol className="steps">
+                    {activity.steps.map((step, index) => (
+                      <li key={index}>{step}</li>
+                    ))}
+                  </ol>
+                </Block>
+                <Block num="iii" name="Notes & safety">
+                  <p className="prose">{activity.notes}</p>
+                  <div className="safety">{activity.safety}</div>
+                </Block>
+              </>
+            )}
           </section>
         </div>
       </section>

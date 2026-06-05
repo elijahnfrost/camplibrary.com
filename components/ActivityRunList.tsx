@@ -151,6 +151,8 @@ function Editable({
   editable,
   tag = "div",
   className = "",
+  ariaLabel,
+  ariaLabelledBy,
 }: {
   value: string;
   onCommit: (next: string) => void;
@@ -158,12 +160,15 @@ function Editable({
   editable: boolean;
   tag?: "div" | "span";
   className?: string;
+  ariaLabel?: string;
+  ariaLabelledBy?: string;
 }) {
   const ref = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (ref.current && ref.current.textContent !== value) ref.current.textContent = value || "";
   }, [value]);
   const Tag = tag as "div";
+  const label = ariaLabel || placeholder;
   return (
     <Tag
       ref={ref as React.RefObject<HTMLDivElement>}
@@ -172,6 +177,9 @@ function Editable({
       suppressContentEditableWarning
       data-ph={placeholder || ""}
       role={editable ? "textbox" : undefined}
+      aria-label={editable && label ? label : undefined}
+      aria-labelledby={editable && !label ? ariaLabelledBy : undefined}
+      aria-placeholder={editable && placeholder ? placeholder : undefined}
       onBlur={editable ? (e) => onCommit(e.currentTarget.textContent || "") : undefined}
     />
   );
@@ -812,6 +820,7 @@ export function ActivityRunList({
               value={k.title || ""}
               editable={editable}
               placeholder="Caption"
+              ariaLabel="Video detail caption"
               onCommit={(v) => patchKid(stepId, k.id, { title: v })}
             />
             <Editable
@@ -820,6 +829,7 @@ export function ActivityRunList({
               value={k.url || ""}
               editable={editable}
               placeholder="youtu.be/…"
+              ariaLabel="Video detail URL"
               onCommit={(v) => patchKid(stepId, k.id, { url: v })}
             />
           </div>
@@ -833,6 +843,7 @@ export function ActivityRunList({
         value={k.text || ""}
         editable={editable}
         placeholder={RUN_CHILD_META[k.type].placeholder}
+        ariaLabel={label + " detail text"}
         onCommit={(v) => patchKid(stepId, k.id, { text: v })}
       />
     );
@@ -891,6 +902,7 @@ export function ActivityRunList({
                           value={b.text || ""}
                           editable={editable}
                           placeholder="Section"
+                          ariaLabel="Section heading"
                           onCommit={(v) => patchTop(b.id, { text: v })}
                         />
                       </div>
@@ -975,6 +987,7 @@ export function ActivityRunList({
                           value={b.title || ""}
                           editable={editable}
                           placeholder="Linked activity"
+                          ariaLabel="Playbook card title"
                           onCommit={(v) => patchTop(b.id, { title: v })}
                         />
                         <Editable
@@ -983,6 +996,7 @@ export function ActivityRunList({
                           value={b.meta || ""}
                           editable={editable}
                           placeholder="meta"
+                          ariaLabel="Playbook card meta"
                           onCommit={(v) => patchTop(b.id, { meta: v })}
                         />
                       </div>
@@ -1061,6 +1075,7 @@ export function ActivityRunList({
                           value={b.text || ""}
                           editable={editable}
                           placeholder={label}
+                          ariaLabel={label + " text"}
                           onCommit={(v) => patchTop(b.id, { text: v })}
                         />
                       </div>
@@ -1140,6 +1155,7 @@ export function ActivityRunList({
                             value={b.time}
                             editable={editable}
                             placeholder="time / cue"
+                            ariaLabel={"Step " + stepNo + " time or cue"}
                             onCommit={(v) => patchTop(b.id, { time: v })}
                           />
                         ) : null}
@@ -1148,6 +1164,7 @@ export function ActivityRunList({
                           value={b.text || ""}
                           editable={editable}
                           placeholder="Describe this step…"
+                          ariaLabel={"Step " + stepNo + " instructions"}
                           onCommit={(v) => patchTop(b.id, { text: v })}
                         />
                         {collapsedNow && summary.length > 0 && (

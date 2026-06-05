@@ -6,6 +6,7 @@ import {
   DEFAULT_DURATION_MIN,
   DEFAULT_PLANNING_START_MIN,
   SNAP_MIN,
+  TOTAL_MIN,
   blockEndMin,
   blockStartMin,
   campMinutes,
@@ -35,7 +36,8 @@ describe("schedule time helpers", () => {
     expect(campMinutes("09:30")).toBe(570);
     expect(campMinutes("1:30")).toBe(810);
     expect(campMinutes("5")).toBe(1020);
-    expect(campMinutes("6")).toBe(360);
+    expect(campMinutes("6")).toBe(1080);
+    expect(campMinutes("6:00")).toBe(1080);
     expect(campMinutes("bad")).toBe(DEFAULT_PLANNING_START_MIN);
     expect(campMinutes("9x")).toBe(540);
   });
@@ -87,6 +89,7 @@ describe("schedule time helpers", () => {
     expect(DEFAULT_DURATION_MIN).toBe(30);
     expect(blockStartMin(block({ start: "09:00" }))).toBe(540);
     expect(blockStartMin(block({ start: "bad" }))).toBe(DEFAULT_PLANNING_START_MIN);
+    expect(blockEndMin(block({ start: "5:00", end: "6:00" }))).toBe(1080);
     expect(blockEndMin(block({ start: "09:00", end: "" }))).toBe(570);
     expect(blockEndMin(block({ start: "10:00", end: "09:00" }))).toBe(630);
     expect(blockEndMin(block({ start: "10:00", end: "bad" }))).toBe(630);
@@ -104,7 +107,9 @@ describe("schedule time helpers", () => {
       )
     ).toBe(615);
     expect(nextFreeStart([block({ start: "09:00", end: "18:00" })], 30)).toBe(480);
-    expect(nextFreeStart([block({ start: "08:00", end: "18:00" })], 30)).toBe(1050);
+    expect(nextFreeStart([block({ start: "08:00", end: "18:00" })], 30)).toBeNull();
     expect(nextFreeStart([block({ start: "09:00", end: "09:30" })], 30)).toBe(570);
+    expect(nextFreeStart([], TOTAL_MIN)).toBe(DAY_START_MIN);
+    expect(nextFreeStart([], TOTAL_MIN + SNAP_MIN)).toBeNull();
   });
 });
