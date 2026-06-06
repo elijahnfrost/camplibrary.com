@@ -75,6 +75,13 @@ export const CampIcon = {
   ),
   Bookmark: svg(<path d="M6 4.5h12v15l-6-4-6 4z" />),
   Plus: svg(<path d="M12 5v14M5 12h14" />),
+  More: svg(
+    <>
+      <circle cx="5.5" cy="12" r="1.4" />
+      <circle cx="12" cy="12" r="1.4" />
+      <circle cx="18.5" cy="12" r="1.4" />
+    </>
+  ),
   Search: svg(
     <>
       <circle cx="10.5" cy="10.5" r="6.5" />

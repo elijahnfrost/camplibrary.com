@@ -1718,9 +1718,11 @@ body {
 
 /* ---------- bottom tab bar (phone) ---------- */
 .tabbar {
+  position: relative;
+  z-index: 24;
   flex: none;
   display: flex;
-  justify-content: space-around;
+  justify-content: stretch;
   align-items: stretch;
   border-top: 2px solid var(--ink);
   background: var(--card);
@@ -1760,6 +1762,83 @@ body {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.mobile-more-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  padding: 0;
+  border: 0;
+  background: rgba(44, 40, 36, 0.2);
+  cursor: pointer;
+}
+.mobile-more-panel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(82px + env(safe-area-inset-bottom));
+  z-index: 23;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 14px 14px 8px 8px;
+  background: var(--card);
+  box-shadow: var(--e3);
+  animation: mobile-more-rise 160ms ease both;
+}
+.mobile-more-panel__item {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--paper) 74%, #fff);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.mobile-more-panel__item svg {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mobile-more-panel__item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-more-panel__item:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.mobile-more-panel__item.is-active {
+  border-color: var(--accent-ink);
+  background: var(--accent);
+  color: #fff;
+}
+@keyframes mobile-more-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ---------- buttons ---------- */
@@ -3799,6 +3878,10 @@ body {
     background: var(--paper);
   }
   .tabbar {
+    display: none;
+  }
+  .mobile-more-scrim,
+  .mobile-more-panel {
     display: none;
   }
   .filterbar {
@@ -6635,7 +6718,7 @@ body {
   }
 }
 
-/* Mobile bottom bar now carries seven tabs — tighten below very narrow widths. */
+/* Mobile bottom bar carries four primary tabs plus More. */
 .tabbar button span,
 .tabbar button {
   white-space: nowrap;
@@ -6645,45 +6728,23 @@ body {
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
   .tabbar button {
-    flex: 1 1 40px;
+    flex: 1 1 56px;
     min-height: 52px;
-    font-size: 9px;
-    letter-spacing: 0.03em;
+    font-size: 9.5px;
+    letter-spacing: 0.04em;
     padding: var(--s-4) 0 var(--s-3);
-    gap: 0;
+    gap: 3px;
   }
   .tabbar button svg {
     width: 21px;
     height: 21px;
   }
-  .tabbar button span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-  }
-  .tabbar button.is-active {
-    flex-basis: 76px;
-    gap: var(--s-2);
-  }
-  .tabbar button.is-active span {
-    position: static;
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    overflow: hidden;
-    clip: auto;
-    text-overflow: ellipsis;
-  }
 }
 @media (max-width: 360px) {
   .tabbar button {
     padding-top: 9px;
-    flex-basis: 36px;
-  }
-  .tabbar button.is-active {
-    flex-basis: 68px;
+    font-size: 9px;
+    letter-spacing: 0.02em;
   }
 }
 
