@@ -58,7 +58,9 @@ import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Fil
 import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 
-const TABS: { id: Exclude<TabId, "admin">; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
+type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
+
+const TABS: NavTab[] = [
   { id: "home", label: "Home", icon: CampIcon.Home },
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "clipboard", label: "Clipboard", icon: CampIcon.Clipboard },
@@ -67,11 +69,12 @@ const TABS: { id: Exclude<TabId, "admin">; label: string; icon: (typeof CampIcon
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
-const ADMIN_TAB: { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] } = {
+const ADMIN_TAB: NavTab = {
   id: "admin",
   label: "Admin",
   icon: CampIcon.Tool,
 };
+const MOBILE_PRIMARY_TAB_IDS = new Set<TabId>(["home", "library", "clipboard", "calendar"]);
 
 function cloneBlocks(blocks: DaySchedule): DaySchedule {
   return blocks.map((block) => ({ ...block }));
@@ -373,6 +376,7 @@ function isLegacyOneDaySeed(raw: string | null): boolean {
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const auth = usePreviewAuth();
   const authLabel = useAuthLabel(auth.session);
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
@@ -413,6 +417,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // library count and the schedule activity tray aren't silently pre-filtered.
   useEffect(() => {
     setQuery("");
+    setMobileMenuOpen(false);
   }, [tab]);
 
   const needsClock = tab === "home" || tab === "clipboard";
@@ -476,6 +481,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   );
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
   const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
+  const mobilePrimaryTabs = useMemo(
+    () => navTabs.filter((item) => MOBILE_PRIMARY_TAB_IDS.has(item.id)),
+    [navTabs]
+  );
+  const mobileOverflowTabs = useMemo(
+    () => navTabs.filter((item) => !MOBILE_PRIMARY_TAB_IDS.has(item.id)),
+    [navTabs]
+  );
+  const activeMobileOverflowTab = mobileOverflowTabs.find((item) => item.id === tab) || null;
   const openAuthForCurrentTab = useCallback(() => {
     auth.openAuth();
   }, [auth]);
@@ -1489,13 +1503,46 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           </div>
         </main>
 
+        {mobileMenuOpen && mobileOverflowTabs.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="mobile-more-scrim"
+              aria-label="Close more sections"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <div id="mobile-more-nav" className="mobile-more-panel" role="menu" aria-label="More sections">
+              {mobileOverflowTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="menuitem"
+                  className={"mobile-more-panel__item" + (tab === t.id ? " is-active" : "")}
+                  onClick={() => {
+                    setTab(t.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  aria-current={tab === t.id ? "page" : undefined}
+                  title={t.label}
+                >
+                  <t.icon />
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         <nav className="tabbar" aria-label="Sections">
-          {navTabs.map((t) => (
+          {mobilePrimaryTabs.map((t) => (
             <button
               key={t.id}
               type="button"
               className={tab === t.id ? "is-active" : ""}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id);
+                setMobileMenuOpen(false);
+              }}
               aria-current={tab === t.id ? "page" : undefined}
               aria-label={t.label}
               title={t.label}
@@ -1504,6 +1551,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               <span>{t.label}</span>
             </button>
           ))}
+          {mobileOverflowTabs.length > 0 && (
+            <button
+              type="button"
+              className={mobileMenuOpen || activeMobileOverflowTab ? "is-active" : ""}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-controls="mobile-more-nav"
+              aria-expanded={mobileMenuOpen}
+              aria-haspopup="menu"
+              aria-label={
+                activeMobileOverflowTab
+                  ? "More sections, current section " + activeMobileOverflowTab.label
+                  : "More sections"
+              }
+              title="More sections"
+            >
+              <CampIcon.More />
+              <span>More</span>
+            </button>
+          )}
         </nav>
 
         <div className="sr-only" role="status" aria-live="polite">
