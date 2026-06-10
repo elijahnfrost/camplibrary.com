@@ -4203,6 +4203,53 @@ body {
 }
 
 /* ============================================================
+ * Book viewer — edit mode
+ * The reading view flips into editing in place, without leaving the
+ * book: a bottom sheet on phones, a centered card on larger screens.
+ * The embedded form stays a single calm column, overriding the
+ * page-level multi-column "Add" form.
+ * ============================================================ */
+.overlay--viewer[data-viewer-view="edit"] {
+  background: var(--paper);
+}
+.overlay--viewer .form {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  max-width: none;
+  margin-inline: 0;
+}
+.overlay--viewer .form > .btn--block {
+  width: 100%;
+  min-width: 0;
+  margin-left: 0;
+}
+
+@media (max-width: 767px) {
+  .overlay--viewer[data-viewer-view="edit"] {
+    top: 76px;
+    overflow: hidden;
+    background: var(--paper);
+    border-top: 2.5px solid var(--ink);
+    border-radius: 24px 24px 0 0;
+  }
+  .overlay--viewer[data-viewer-view="edit"] .form {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 768px) {
+  .overlay--viewer[data-viewer-view="edit"] {
+    width: min(660px, calc(100vw - 64px));
+    height: min(800px, calc(100vh - 48px));
+    overflow: hidden;
+    border: 2.5px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: 0 30px 60px -28px rgba(44, 40, 36, 0.5);
+  }
+}
+
+/* ============================================================
  * Calendar planner, rating picker, and print/export refinements
  * ============================================================ */
 .topbar {
