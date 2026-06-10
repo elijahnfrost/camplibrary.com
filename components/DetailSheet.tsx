@@ -1,23 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useRef, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
-import {
-  ageSpan,
-  ageStamps,
-  code,
-  ENERGY,
-  groupLabel,
-  monogram,
-  ratingColor,
-} from "@/lib/data";
-import { blankPlaybook, type ActivityPlaybookData } from "@/lib/playbooks";
+import type { RunDoc } from "@/lib/runList";
 import { CampIcon } from "./icons";
-import { Block, EnergyMeter, Fact, RatingPicker, SaveButton } from "./primitives";
-import { AddView } from "./AddView";
+import { SaveButton } from "./primitives";
 import { Modal } from "./Modal";
-import { ActivityPlaybook } from "./ActivityPlaybook";
-import { PlaybookEditor } from "./PlaybookEditor";
+import { ActivityRunList } from "./ActivityRunList";
 
 export function DetailSheet({
   activity: a,
@@ -26,12 +15,16 @@ export function DetailSheet({
   onClose,
   onSetRating,
   isCustom,
-  isEdited,
-  onSave,
-  onReset,
+  onEdit,
   onDelete,
+  onPrint,
   showOwnerActions = true,
-  onSavePlaybook,
+  availableMaterials,
+  onToggleMaterial,
+  runDoc,
+  onSaveRunDoc,
+  pinAction,
+  backLabel = "Library",
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -39,51 +32,30 @@ export function DetailSheet({
   onClose: () => void;
   onSetRating: (id: string, val: number) => void;
   isCustom: boolean;
-  isEdited: boolean;
-  onSave: (a: Activity) => void;
-  onReset: (a: Activity) => void;
+  onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
+  onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
-  onSavePlaybook?: (activityId: string, data: ActivityPlaybookData) => void;
+  availableMaterials: string[];
+  onToggleMaterial: (id: string) => void;
+  runDoc: RunDoc;
+  onSaveRunDoc?: (activityId: string, doc: RunDoc) => void;
+  pinAction?: {
+    isPinned: boolean;
+    onToggle: () => void;
+  };
+  /** Where closing the viewer returns to (the surface it was opened from). */
+  backLabel?: string;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
-  const [mode, setMode] = useState<"view" | "edit">("view");
-  const [playbookEditing, setPlaybookEditing] = useState(false);
-  const [playbookDraft, setPlaybookDraft] = useState<ActivityPlaybookData | null>(null);
-  const canEditPlaybook = Boolean(onSavePlaybook);
 
-  // Always reopen on the reading view — even if the same modal is reused for a
-  // different book — and scroll the body back to the top when the mode flips.
-  useEffect(() => {
-    setMode("view");
-    setPlaybookEditing(false);
-    setPlaybookDraft(null);
-  }, [a.id]);
-  useEffect(() => {
-    bodyRef.current?.scrollTo({ top: 0 });
-  }, [mode]);
+  const editable = Boolean(onSaveRunDoc);
+  const showOwner = showOwnerActions && isCustom;
 
-  const isEditing = mode === "edit";
-
-  function startPlaybookEdit() {
-    setPlaybookDraft(a.playbook ?? blankPlaybook(a.id, a.title));
-    setPlaybookEditing(true);
-  }
-
-  function savePlaybookEdit() {
-    if (playbookDraft) onSavePlaybook?.(a.id, playbookDraft);
-    setPlaybookEditing(false);
-    setPlaybookDraft(null);
-  }
-
-  function cancelPlaybookEdit() {
-    setPlaybookEditing(false);
-    setPlaybookDraft(null);
-  }
-
+  // On phones, a downward swipe from the very top of the (scrolled-to-top) sheet
+  // closes the viewer.
   const onBodyTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (isEditing || playbookEditing) return;
     if (event.touches.length !== 1 || typeof window === "undefined" || window.innerWidth >= 768) return;
     const body = bodyRef.current;
     if (!body || body.scrollTop > 4) {
@@ -98,7 +70,6 @@ export function DetailSheet({
     const start = swipeStartRef.current;
     swipeStartRef.current = null;
     if (!start || start.scrollTop > 4 || event.changedTouches.length !== 1) return;
-
     const touch = event.changedTouches[0];
     const dx = Math.abs(touch.clientX - start.x);
     const dy = touch.clientY - start.y;
@@ -109,218 +80,84 @@ export function DetailSheet({
     swipeStartRef.current = null;
   };
 
-  const hero = (
-    <div className="detail__hero" style={{ background: ratingColor(a.rating) }}>
-      <div className="plate__grid" />
-      <span className="detail__mono">{monogram(a.title)}</span>
-      <span className="detail__ribbon">
-        <SaveButton
-          on={isFav(a.id)}
-          onToggle={() => onToggleFav(a.id)}
-          stop={false}
-          variant="ribbon"
-        />
-      </span>
-    </div>
-  );
-
-  const titleSummary = (
-    <>
-      <div className="detail__eyebrow">
-        {code(a)} · {a.type}
-      </div>
-      <h2 className="detail__title">{a.title}</h2>
-      <p className="detail__blurb">{a.blurb}</p>
-
-      <div className="detail__stamps">
-        <span className="stamp stamp--accent">{a.place}</span>
-        {ageStamps(a).map((s, i) => (
-          <span className="stamp" key={i}>
-            {s}
-          </span>
-        ))}
-        <span className="stamp">{ENERGY[a.energy]}</span>
-        <span className="stamp">{a.prep === "None" ? "No prep" : a.prep + " prep"}</span>
-      </div>
-    </>
-  );
-
-  const facts = (
-    <div className="facts">
-      <Fact k="Ages">{ageSpan(a)}</Fact>
-      <Fact k="Group size">{groupLabel(a)}</Fact>
-      <Fact k="Time">
-        <span>{a.durationMin}</span>
-        <small>min</small>
-      </Fact>
-      <Fact k="Energy">
-        <EnergyMeter level={a.energy} />
-        <small>{ENERGY[a.energy]}</small>
-      </Fact>
-      <Fact k="Place">{a.place}</Fact>
-      <Fact k="Prep">{a.prep}</Fact>
-    </div>
-  );
-
-  const materials = (
-    <Block num="i" name="Materials">
-      {a.materials.length === 0 ? (
-        <span className="stamp">None needed</span>
-      ) : (
-        <div className="matlist">
-          {a.materials.map((m, i) => (
-            <span className="stamp" key={i}>
-              {m}
-            </span>
-          ))}
-        </div>
-      )}
-    </Block>
-  );
-
-  const steps = (num = "ii") => (
-    <Block num={num} name="How to play">
-      {playbookEditing && playbookDraft ? (
-        <div className="pb-editwrap">
-          <PlaybookEditor value={playbookDraft} onChange={setPlaybookDraft} />
-          <div className="pb-editwrap__actions">
-            <button type="button" className="btn btn--primary btn--sm" onClick={savePlaybookEdit}>
-              <CampIcon.Check />
-              Save diagram
-            </button>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={cancelPlaybookEdit}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : a.playbook ? (
-        <ActivityPlaybook
-          playbook={a.playbook}
-          onRequestEdit={canEditPlaybook ? startPlaybookEdit : undefined}
-        />
-      ) : (
-        <>
-          <ol className="steps">
-            {a.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
-          {canEditPlaybook ? (
-            <button type="button" className="btn btn--ghost btn--sm pb-add" onClick={startPlaybookEdit}>
-              <CampIcon.Plus />
-              Add a diagram
-            </button>
-          ) : null}
-        </>
-      )}
-    </Block>
-  );
-
-  const notes = (num = "iii") => (
-    <Block num={num} name="Notes & variations">
-      <p className="prose">{a.notes}</p>
-    </Block>
-  );
-
-  const safety = (num = "iv") => (
-    <Block num={num} name="Safety">
-      <div className="safety">{a.safety}</div>
-    </Block>
-  );
-
-  const bookView = (
-    <div className="book-spread" aria-label="Book spread view">
-      <section className="book-page book-page--summary">
-        {hero}
-        <div className="detail__pad">
-          {titleSummary}
-          <RatingPicker value={a.rating || 0} onChange={(value) => onSetRating(a.id, value)} />
-          {facts}
-        </div>
-      </section>
-      <section className="book-page book-page--instructions">
-        <div className="detail__pad">
-          {materials}
-          {steps("ii")}
-          {notes("iii")}
-          {safety("iv")}
-        </div>
-      </section>
-    </div>
-  );
-
   return (
     <Modal
-      label={isEditing ? "Editing " + a.title : a.title}
+      label={a.title}
       onClose={onClose}
       overlayProps={{
         className: "overlay--viewer",
-        "data-viewer-view": isEditing ? "edit" : "book",
+        "data-viewer-view": "stack",
       }}
     >
       <div
-        className="overlay__body"
+        className="overlay__body rlv-body"
         ref={bodyRef}
         onTouchStart={onBodyTouchStart}
         onTouchEnd={onBodyTouchEnd}
         onTouchCancel={onBodyTouchCancel}
       >
-        {isEditing ? (
-          <AddView
-            initial={a}
-            onCancelEdit={() => setMode("view")}
-            onSubmit={(updated) => {
-              onSave(updated);
-              setMode("view");
-            }}
-          />
-        ) : (
-          bookView
-        )}
-      </div>
+        <article className="rlv">
+          <header className="rlv-head">
+            <div className="rlv-head__row">
+              <button type="button" className="rlv-back" onClick={onClose} aria-label={"Back to " + backLabel}>
+                <CampIcon.ChevronLeft />
+                {backLabel}
+              </button>
+              <span className="rlv-head__sp" />
+              {pinAction && (
+                <button
+                  type="button"
+                  className={"rlv-headbtn" + (pinAction.isPinned ? " is-on" : "")}
+                  onClick={pinAction.onToggle}
+                  aria-label={pinAction.isPinned ? "Unpin from Clipboard" : "Pin to Clipboard"}
+                  aria-pressed={pinAction.isPinned}
+                >
+                  <CampIcon.Pin />
+                </button>
+              )}
+              {showOwner && (
+                <>
+                  <button type="button" className="rlv-headbtn" onClick={() => onEdit(a)} aria-label="Edit activity">
+                    <CampIcon.Tool />
+                  </button>
+                  <button
+                    type="button"
+                    className="rlv-headbtn rlv-headbtn--danger"
+                    onClick={() => onDelete(a)}
+                    aria-label="Delete activity"
+                  >
+                    <CampIcon.Trash />
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="book-print-chip"
+                onClick={() => onPrint(a)}
+                aria-label={"Print " + a.title}
+                title="Print this book"
+              >
+                <CampIcon.Print />
+                <span>Print</span>
+              </button>
+              <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
+            </div>
 
-      {showOwnerActions && !isEditing && (
-        <div className="detail__actions">
-          <div className="detail__owner">
-            <button
-              type="button"
-              className="btn btn--quiet detail__owner-btn"
-              onClick={() => {
-                setPlaybookEditing(false);
-                setPlaybookDraft(null);
-                setMode("edit");
-              }}
-            >
-              <CampIcon.Pencil />
-              Edit
-            </button>
-            {isEdited && (
-              <button
-                type="button"
-                className="btn btn--quiet detail__owner-btn"
-                onClick={() => {
-                  setPlaybookEditing(false);
-                  setPlaybookDraft(null);
-                  onReset(a);
-                }}
-              >
-                <CampIcon.Reset />
-                Reset
-              </button>
-            )}
-            {isCustom && (
-              <button
-                type="button"
-                className="btn btn--quiet detail__owner-btn detail__owner-btn--danger"
-                onClick={() => onDelete(a)}
-              >
-                <CampIcon.Trash />
-                Delete
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+            <h2 className="rlv-title">{a.title}</h2>
+            {a.blurb ? <p className="rlv-blurb">{a.blurb}</p> : null}
+          </header>
+
+          <ActivityRunList
+            doc={runDoc}
+            editable={editable}
+            onChange={(next) => onSaveRunDoc?.(a.id, next)}
+            activity={a}
+            availableMaterials={availableMaterials}
+            onToggleMaterial={onToggleMaterial}
+            onSetRating={(value) => onSetRating(a.id, value)}
+          />
+        </article>
+      </div>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type CSSProperties } from "react";
 import type {
   ActivityPlaybookData,
   PlaybookArrow,
@@ -138,10 +138,12 @@ function FieldFrame({
   frame,
   split,
   markerBase,
+  showHead = true,
 }: {
   frame: PlaybookFrame;
   split?: boolean;
   markerBase: string;
+  showHead?: boolean;
 }) {
   const descId = markerBase + "-desc";
   const clipId = markerBase + "-clip";
@@ -149,10 +151,12 @@ function FieldFrame({
 
   return (
     <article className="playbook-frame">
-      <header className="playbook-frame__head">
-        <h4>{frame.name}</h4>
-        {frame.caption ? <p>{frame.caption}</p> : null}
-      </header>
+      {showHead ? (
+        <header className="playbook-frame__head">
+          <h4>{frame.name}</h4>
+          {frame.caption ? <p>{frame.caption}</p> : null}
+        </header>
+      ) : null}
       <svg
         className="playbook-field"
         viewBox="0 0 100 100"
@@ -209,23 +213,31 @@ export function PlaybookLegend() {
 export function ActivityPlaybook({
   playbook,
   onRequestEdit,
+  compact = false,
 }: {
   playbook: ActivityPlaybookData;
   onRequestEdit?: () => void;
+  // Compact: drop the legend + summary chrome and (for a single-stage diagram)
+  // the frame header, so the diagram reads as a clean embedded field — the way a
+  // video sub-item reads as a clean embedded player.
+  compact?: boolean;
 }) {
   const safeId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const showHead = !compact || playbook.frames.length > 1;
 
   return (
     <div
-      className={"playbook" + (onRequestEdit ? " playbook--editable" : "")}
+      className={"playbook" + (onRequestEdit ? " playbook--editable" : "") + (compact ? " playbook--compact" : "")}
       aria-label={playbook.title}
       onDoubleClick={onRequestEdit}
       title={onRequestEdit ? "Double-click to edit this diagram" : undefined}
     >
-      <div className="playbook__intro">
-        {playbook.summary ? <p>{playbook.summary}</p> : <p />}
-        <PlaybookLegend />
-      </div>
+      {compact ? null : (
+        <div className="playbook__intro">
+          {playbook.summary ? <p>{playbook.summary}</p> : <p />}
+          <PlaybookLegend />
+        </div>
+      )}
       {onRequestEdit ? (
         <div className="playbook__editcue">
           <button type="button" className="btn btn--ghost btn--sm" onClick={onRequestEdit}>
@@ -234,12 +246,16 @@ export function ActivityPlaybook({
           <span className="playbook__editcue-hint">or double-click a stage</span>
         </div>
       ) : null}
-      <div className="playbook__frames">
+      <div
+        className="playbook__frames"
+        style={{ "--pb-cols": Math.min(3, Math.max(2, playbook.frames.length)) } as CSSProperties}
+      >
         {playbook.frames.map((frame) => (
           <FieldFrame
             key={frame.id}
             frame={frame}
             split={playbook.surface?.split}
+            showHead={showHead}
             markerBase={"playbook-" + playbook.id + "-" + frame.id + "-" + safeId}
           />
         ))}

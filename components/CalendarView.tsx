@@ -20,6 +20,7 @@ import {
   DAY_END_MIN,
   DAY_START_MIN,
   DEFAULT_DURATION_MIN,
+  DEFAULT_PLANNING_START_MIN,
   DEFAULT_ZOOM,
   DRAW_THRESHOLD_PX,
   formatClock,
@@ -62,6 +63,7 @@ type DragState =
       moved: boolean;
       downX: number;
       downY: number;
+      pointerType: string;
     }
   | {
       type: "resize";
@@ -110,6 +112,11 @@ function nearestZoomIndex(px: number): number {
     }
   }
   return best;
+}
+
+function scheduledActivityMeta(activity: Activity, durationMin: number): string {
+  const scheduleDuration = Math.max(MIN_DURATION_MIN, Math.round(durationMin));
+  return activityMeta({ ...activity, durationMin: scheduleDuration });
 }
 
 // ============================================================
@@ -198,6 +205,7 @@ export function CalendarView({
   const [composer, setComposer] = useState<ComposerState | null>(null);
   const [overflow, setOverflow] = useState<{ items: Laid[]; startMin: number; endMin: number } | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
+  const validActivityIds = useMemo(() => new Set(Object.keys(byId)), [byId]);
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const calScrollRef = useRef<HTMLElement | null>(null);
@@ -217,8 +225,6 @@ export function CalendarView({
     dragRef.current = next;
     setDragInternal(next);
   }
-
-  const filled = blocks.length;
 
   function timeRatio(min: number): number {
     const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN, min));
@@ -359,9 +365,22 @@ export function CalendarView({
 	      if (!current) return;
 	      if (event.pointerId !== current.pointerId) return;
 
-	      // A one-finger draw on blank grid must yield to native scrolling on touch;
-      // the press is resolved as a tap on pointerup instead.
-      if (current.type === "draw" && current.pointerType === "touch") return;
+      // Touch panning must stay native. Track movement so scrolls do not resolve
+      // as taps, while mouse/stylus gestures still use the drag path below.
+      if (current.type === "draw" && current.pointerType === "touch") {
+        const dist = Math.hypot(event.clientX - current.downX, event.clientY - current.downY);
+        if (!current.hasMoved && dist >= dragThreshold()) {
+          setDrag({ ...current, hasMoved: true });
+        }
+        return;
+      }
+      if (current.type === "move" && current.pointerType === "touch") {
+        const dist = Math.hypot(event.clientX - current.downX, event.clientY - current.downY);
+        if (!current.moved && dist >= dragThreshold()) {
+          setDrag({ ...current, moved: true });
+        }
+        return;
+      }
 
       event.preventDefault();
 
@@ -522,6 +541,7 @@ export function CalendarView({
       moved: false,
       downX: event.clientX,
       downY: event.clientY,
+      pointerType: event.pointerType,
     });
   }
 
@@ -579,7 +599,11 @@ export function CalendarView({
 
   // ---- composer ----
   function openAddComposer(startMin?: number) {
-    const start = startMin == null ? nextFreeStart(blocks, DEFAULT_DURATION_MIN) : startMin;
+    const freeStart = startMin == null ? nextFreeStart(blocks, DEFAULT_DURATION_MIN) : startMin;
+    const start = freeStart ?? DEFAULT_PLANNING_START_MIN;
+    if (startMin == null && freeStart == null) {
+      setStatusMsg("No empty " + DEFAULT_DURATION_MIN + "-minute slot; choose a start time.");
+    }
     setComposer({
       tab: "library",
       label: "",
@@ -702,13 +726,9 @@ export function CalendarView({
     <div className="planner planner--calendar fadein">
       <div className="cal-head">
         <div className="cal-head__copy">
-          <span className="cal-head__kicker">Build the day</span>
-	          <h1 ref={headingRef} tabIndex={-1} className="cal-head__title">
-	            {DAYS[dayIndex]}
-	          </h1>
-          <span className="cal-head__sub">
-            {filled} {filled === 1 ? "event" : "events"} planned
-          </span>
+          <h1 ref={headingRef} tabIndex={-1} className="cal-head__title">
+            {DAYS[dayIndex]}
+          </h1>
         </div>
         <div className="cal-head__tools">
           <div className="cal-zoom" role="group" aria-label="Zoom timeline">
@@ -902,7 +922,7 @@ export function CalendarView({
                     <span className="cal-event__body" aria-hidden="true">
 	                      <span className="cal-event__time">{formatRange(item.startMin, item.endMin)}</span>
 	                      <span className="cal-event__title">{name}</span>
-	                      {activity && <span className="cal-event__meta">{activityMeta(activity)}</span>}
+                      {activity && <span className="cal-event__meta">{scheduledActivityMeta(activity, duration)}</span>}
 	                      {isOpen && <span className="cal-event__meta">tap to choose</span>}
 	                    </span>
 	                  </button>
@@ -1003,45 +1023,46 @@ export function CalendarView({
         />
       )}
 
-	      {composer && (
-	        <EventComposer
+      {composer && (
+        <EventComposer
           dayName={DAYS[dayIndex]}
           allActivities={allActivities}
           initial={composer}
           onSubmit={submitComposer}
           onClose={() => setComposer(null)}
-	        />
-	      )}
+        />
+      )}
 
-	      {applyTemplateId &&
-	        (() => {
-	          const template = plans.find((plan) => plan.id === applyTemplateId);
-	          if (!template) return null;
-	          return (
-	            <ApplyTemplateSheet
-	              template={template}
-	              dayIndex={dayIndex}
-	              weekBlocks={weekBlocks}
-	              onConfirm={(targetDays, mode) => {
-	                onApplyTemplate(template.id, targetDays, mode);
-	                setApplyTemplateId(null);
-	              }}
-	              onClose={() => setApplyTemplateId(null)}
-	            />
-	          );
-	        })()}
+      {applyTemplateId &&
+        (() => {
+          const template = plans.find((plan) => plan.id === applyTemplateId);
+          if (!template) return null;
+          return (
+            <ApplyTemplateSheet
+              template={template}
+              dayIndex={dayIndex}
+              weekBlocks={weekBlocks}
+              validActivityIds={validActivityIds}
+              onConfirm={(targetDays, mode) => {
+                onApplyTemplate(template.id, targetDays, mode);
+                setApplyTemplateId(null);
+              }}
+              onClose={() => setApplyTemplateId(null)}
+            />
+          );
+        })()}
 
-	      {applyToast && (
-	        <div className="apply-toast" role="status">
-	          <span>{applyToast}</span>
-	          <button type="button" onClick={onUndoApply}>
-	            Undo
-	          </button>
-	          <button type="button" className="apply-toast__close" onClick={onDismissToast} aria-label="Dismiss">
-	            <CampIcon.Close />
-	          </button>
-	        </div>
-	      )}
-	    </div>
-	  );
-	}
+      {applyToast && (
+        <div className="apply-toast" role="status">
+          <span>{applyToast}</span>
+          <button type="button" onClick={onUndoApply}>
+            Undo
+          </button>
+          <button type="button" className="apply-toast__close" onClick={onDismissToast} aria-label="Dismiss">
+            <CampIcon.Close />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

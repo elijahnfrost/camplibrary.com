@@ -28,15 +28,75 @@ type DeactivateResult =
   | { ok: true; record: InviteCodeRecord }
   | { ok: false; reason: "missing" | "invalid" | "not_found" | "used" };
 
+type ReleaseResult =
+  | { ok: true }
+  | { ok: false; reason: "missing" | "invalid" | "not_found" | "used" };
+
 const RESERVATION_MINUTES = 30;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_INVITE_USES = 2147483647;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_INVITE_EXPIRY_MS = Date.UTC(2100, 0, 1);
+
+export const INVITE_CODE_INPUT_MAX_LENGTH = 128;
+export const INVITE_EMAIL_MAX_LENGTH = 320;
+export const INVITE_LABEL_MAX_LENGTH = 120;
+
+export class InviteCodeValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InviteCodeValidationError";
+  }
+}
 
 let schemaReady: Promise<void> | null = null;
 
 export function normalizeInviteCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function validateInviteCodeInput(code: string): boolean {
+  return code.length <= INVITE_CODE_INPUT_MAX_LENGTH;
+}
+
+function normalizeInviteEmail(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new InviteCodeValidationError("invitedEmail must be a valid email address");
+  }
+  const email = value.trim().toLowerCase() || null;
+  if (!email) return null;
+  if (email.length > INVITE_EMAIL_MAX_LENGTH || !EMAIL_PATTERN.test(email)) {
+    throw new InviteCodeValidationError("invitedEmail must be a valid email address");
+  }
+  return email;
+}
+
+function normalizeInviteLabel(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new InviteCodeValidationError("label must be 120 characters or fewer");
+  }
+  const label = value.trim() || null;
+  if (!label) return null;
+  if (label.length > INVITE_LABEL_MAX_LENGTH) {
+    throw new InviteCodeValidationError("label must be 120 characters or fewer");
+  }
+  return label;
+}
+
+function normalizeInviteExpiry(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new InviteCodeValidationError("expiresAt must be a valid date");
+  }
+  const expiresAt = new Date(value);
+  const time = expiresAt.getTime();
+  if (!Number.isFinite(time) || time > MAX_INVITE_EXPIRY_MS) {
+    throw new InviteCodeValidationError("expiresAt must be a valid date");
+  }
+  return expiresAt;
 }
 
 function displayInviteCode(normalized: string): string {
@@ -207,14 +267,18 @@ export async function createInviteCode({
   expiresAt,
   maxUses,
 }: {
-  label?: string;
-  invitedEmail?: string;
-  expiresAt?: string | null;
-  maxUses?: number;
+  label?: unknown;
+  invitedEmail?: unknown;
+  expiresAt?: unknown;
+  maxUses?: unknown;
 }) {
+  const normalizedMaxUses = normalizeInviteMaxUses(maxUses);
+  const normalizedLabel = normalizeInviteLabel(label);
+  const normalizedEmail = normalizeInviteEmail(invitedEmail);
+  const normalizedExpiresAt = normalizeInviteExpiry(expiresAt);
+
   await ensureInviteCodeSchema();
   const sql = getSql();
-  const normalizedMaxUses = normalizeInviteMaxUses(maxUses);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = randomCode();
@@ -224,9 +288,9 @@ export async function createInviteCode({
         VALUES (
           ${randomUUID()},
           ${codeDigest(code)},
-          ${label?.trim() || null},
-          ${invitedEmail?.trim().toLowerCase() || null},
-          ${expiresAt ? new Date(expiresAt) : null},
+          ${normalizedLabel},
+          ${normalizedEmail},
+          ${normalizedExpiresAt},
           ${normalizedMaxUses}
         )
         RETURNING id, label, invited_email, status, active, usage_count, max_uses, created_at, expires_at, reserved_at, reserved_until, used_at, used_by_clerk_user_id, revoked_at, deactivated_at
@@ -247,6 +311,10 @@ export async function reserveInviteCode({
   code: string;
   email?: string;
 }): Promise<ReserveResult> {
+  if (!validateInviteCodeInput(code)) return { ok: false, reason: "invalid" };
+  if (email && email.length > INVITE_EMAIL_MAX_LENGTH) return { ok: false, reason: "invalid" };
+  const providedEmail = email?.trim().toLowerCase() || null;
+  if (providedEmail && !EMAIL_PATTERN.test(providedEmail)) return { ok: false, reason: "invalid" };
   const normalized = normalizeInviteCode(code);
   if (!normalized) return { ok: false, reason: "missing" };
 
@@ -267,11 +335,11 @@ export async function reserveInviteCode({
     const expiresAt = item.expires_at ? new Date(String(item.expires_at)).getTime() : null;
     const reservedUntil = item.reserved_until ? new Date(String(item.reserved_until)).getTime() : null;
     const invitedEmail = item.invited_email == null ? null : String(item.invited_email).toLowerCase();
-    const providedEmail = email?.trim().toLowerCase() || null;
     const usageCount = Number(item.usage_count ?? 0);
     const maxUses = Number(item.max_uses ?? 1);
 
     if (expiresAt != null && expiresAt < now) return [{ failure_reason: "expired" }];
+    if (invitedEmail && !providedEmail) return [{ failure_reason: "email_mismatch" }];
     if (invitedEmail && providedEmail && invitedEmail !== providedEmail) return [{ failure_reason: "email_mismatch" }];
     if (item.status === "used" || item.status === "revoked") return [{ failure_reason: "unavailable" }];
     if (!item.active || usageCount >= maxUses) {
@@ -355,12 +423,15 @@ export async function consumeInviteCode({
   clerkUserId: string;
   userEmail?: string | null;
 }) {
-  await ensureInviteCodeSchema();
+  if (!validateInviteCodeInput(code) || !UUID_PATTERN.test(reservationId) || clerkUserId.length > 256) return false;
+  if (userEmail && userEmail.length > INVITE_EMAIL_MAX_LENGTH) return false;
   const normalized = normalizeInviteCode(code);
   if (!normalized || !reservationId || !clerkUserId) return false;
 
+  await ensureInviteCodeSchema();
   const sql = getSql();
   const normalizedEmail = userEmail?.trim().toLowerCase() || null;
+  if (normalizedEmail && !EMAIL_PATTERN.test(normalizedEmail)) return false;
   const digest = codeDigest(normalized);
   const rows = await sql.begin(async (tx) => {
     const found = await tx`
@@ -473,6 +544,118 @@ export async function consumeInviteCode({
     LIMIT 1
   `;
   return existing.length === 1;
+}
+
+export async function releaseInviteCode({
+  code,
+  reservationId,
+}: {
+  code: string;
+  reservationId: string;
+}): Promise<ReleaseResult> {
+  if (!validateInviteCodeInput(code)) return { ok: false, reason: "invalid" };
+  if (!reservationId) return { ok: false, reason: "missing" };
+  if (!UUID_PATTERN.test(reservationId)) return { ok: false, reason: "invalid" };
+  const normalized = normalizeInviteCode(code);
+  if (!normalized) return { ok: false, reason: "missing" };
+
+  await ensureInviteCodeSchema();
+  const sql = getSql();
+  const digest = codeDigest(normalized);
+  const rows = await sql.begin(async (tx) => {
+    const found = await tx`
+      SELECT
+        invite_codes.id,
+        invite_codes.reservation_id,
+        invite_codes.status AS invite_status,
+        invite_codes.active,
+        invite_codes.usage_count,
+        invite_codes.max_uses,
+        invite_code_reservations.id AS reservation_row_id,
+        invite_code_reservations.status AS reservation_status
+      FROM invite_codes
+      JOIN invite_code_reservations
+        ON invite_code_reservations.invite_code_id = invite_codes.id
+      WHERE invite_codes.code_hash = ${digest}
+        AND invite_code_reservations.reservation_id = ${reservationId}
+      FOR UPDATE OF invite_codes, invite_code_reservations
+    `;
+
+    if (!found.length) return [];
+
+    const item = found[0];
+    if (item.reservation_status === "used") return [{ failure_reason: "used" }];
+    if (item.reservation_status !== "reserved") return [{ released: true }];
+
+    await tx`
+      UPDATE invite_code_reservations
+      SET status = 'revoked'
+      WHERE id = ${item.reservation_row_id}
+        AND status = 'reserved'
+    `;
+
+    const shouldClearLegacyReservation = String(item.reservation_id) === reservationId;
+    await tx`
+      UPDATE invite_codes
+      SET status = CASE
+            WHEN status = 'reserved'
+              AND active = true
+              AND usage_count < max_uses
+            THEN 'active'
+            ELSE status
+          END,
+          reservation_id = CASE WHEN ${shouldClearLegacyReservation} THEN null ELSE reservation_id END,
+          reserved_until = CASE WHEN ${shouldClearLegacyReservation} THEN null ELSE reserved_until END
+      WHERE id = ${item.id}
+        AND status IN ('active', 'reserved')
+        AND active = true
+        AND usage_count < max_uses
+    `;
+
+    return [{ released: true }];
+  });
+
+  if (rows.length) {
+    const failureReason = "failure_reason" in rows[0] ? rows[0].failure_reason : undefined;
+    if (failureReason === "used") return { ok: false, reason: "used" };
+    return { ok: true };
+  }
+
+  const legacyRows = await sql`
+    UPDATE invite_codes
+    SET status = 'active',
+        reservation_id = null,
+        reserved_until = null
+    WHERE code_hash = ${digest}
+      AND reservation_id = ${reservationId}
+      AND status = 'reserved'
+      AND active = true
+      AND usage_count < max_uses
+    RETURNING id
+  `;
+
+  if (legacyRows.length === 1) return { ok: true };
+
+  const existing = await sql`
+    SELECT invite_codes.status AS invite_status,
+           invite_code_reservations.status AS reservation_status
+    FROM invite_codes
+    LEFT JOIN invite_code_reservations
+      ON invite_code_reservations.invite_code_id = invite_codes.id
+      AND invite_code_reservations.reservation_id = ${reservationId}
+    WHERE invite_codes.code_hash = ${digest}
+      AND (
+        invite_codes.reservation_id = ${reservationId}
+        OR invite_code_reservations.reservation_id = ${reservationId}
+      )
+    LIMIT 1
+  `;
+
+  if (!existing.length) return { ok: false, reason: "not_found" };
+  if (existing[0].invite_status === "used" || existing[0].reservation_status === "used") {
+    return { ok: false, reason: "used" };
+  }
+  return { ok: true };
 }
 
 export async function listInviteCodes() {

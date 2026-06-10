@@ -33,12 +33,37 @@ export function materialTagsFromMaterials(materials: string[]): string[] {
   return unique(materials.map(materialTagId).filter(Boolean));
 }
 
+function stringTags(values: unknown): string[] {
+  return Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
+}
+
 function rawMaterialTags(activity: Activity): string[] {
-  return activity.materialTags?.length ? activity.materialTags : activity.materials;
+  const materialTags = stringTags(activity.materialTags);
+  return materialTags.length ? materialTags : stringTags(activity.materials);
 }
 
 export function requiredMaterialTagIds(activity: Activity): string[] {
   return unique(rawMaterialTags(activity).map(materialTagId).filter(Boolean));
+}
+
+export interface MaterialNeed {
+  id: string;
+  label: string;
+}
+
+// One row per distinct material an activity needs, in authored order, with a
+// human label. Ids match the global "materials I have" set, so the detail-view
+// checklist and the library "Available kit" filter stay in sync.
+export function materialNeedsForActivity(activity: Activity): MaterialNeed[] {
+  const seen = new Set<string>();
+  const out: MaterialNeed[] = [];
+  rawMaterialTags(activity).forEach((raw) => {
+    const id = materialTagId(raw);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push({ id, label: compact(raw) });
+  });
+  return out;
 }
 
 export function materialOptionsForActivities(activities: Activity[]): MaterialOption[] {

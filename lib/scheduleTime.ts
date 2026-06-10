@@ -47,8 +47,8 @@ function parseCampMinutes(time: string): number | null {
   const hourText = match[1];
   let hour = parseInt(hourText, 10);
   const minute = Math.max(0, Math.min(59, match[2] ? parseInt(match[2], 10) : 0));
-  if (hourText.length === 1 && hour > 0 && hour < 6) {
-    hour += 12; // Legacy unpadded 1-5 o'clock are afternoon at camp.
+  if (hourText.length === 1 && hour > 0 && hour <= 6) {
+    hour += 12; // Legacy unpadded 1-6 o'clock are afternoon/evening at camp.
   }
   if (hour === 24) return minute === 0 ? ABS_MAX_MIN : ABS_MAX_MIN - 1;
   hour = Math.max(0, Math.min(23, hour));
@@ -107,20 +107,9 @@ export function blockEndMin(block: ScheduleBlock): number {
   return end > start ? end : start + DEFAULT_DURATION_MIN;
 }
 
-export function blockDuration(block: ScheduleBlock): number {
-  return blockEndMin(block) - blockStartMin(block);
-}
-
 // "9:00 am – 9:45 am" style range for display.
 export function formatRange(startMin: number, endMin: number): string {
   return formatClock(startMin) + " – " + formatClock(endMin);
-}
-
-export function durationLabel(minutes: number): string {
-  if (minutes < 60) return minutes + " min";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? h + "h " + m + "m" : h + "h";
 }
 
 // Hour marks for the calendar axis across the visible window.
@@ -145,23 +134,29 @@ export function startOptions(): { value: string; label: string }[] {
 export const DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
 
 // Find the first free start time that fits `durationMin`, scanning the day on the snap grid.
-export function nextFreeStart(blocks: ScheduleBlock[], durationMin: number): number {
+export function nextFreeStart(blocks: ScheduleBlock[], durationMin: number): number | null {
+  if (!Number.isFinite(durationMin)) return null;
+  const duration = Math.max(MIN_DURATION_MIN, Math.round(durationMin));
+  if (duration > TOTAL_MIN) return null;
+
   const busy = blocks
     .map((b) => ({ start: blockStartMin(b), end: blockEndMin(b) }))
     .sort((a, b) => a.start - b.start);
-  const searchRanges = [
-    [DEFAULT_PLANNING_START_MIN, DAY_END_MIN],
-    [DAY_START_MIN, DEFAULT_PLANNING_START_MIN],
-  ] as const;
-  for (const [from, to] of searchRanges) {
-    for (let start = from; start + durationMin <= to; start += SNAP_MIN) {
-      const end = start + durationMin;
-      const overlaps = busy.some((b) => start < b.end && end > b.start);
-      if (!overlaps) return start;
-    }
+
+  const latestStart = DAY_END_MIN - duration;
+  const starts: number[] = [];
+  for (let start = DEFAULT_PLANNING_START_MIN; start <= latestStart; start += SNAP_MIN) {
+    starts.push(start);
   }
-  // Nothing free in the window — append right after the last block so the new
-  // event stays near the visible day rather than dropping into dead hours.
-  const lastEnd = busy.length ? Math.max(...busy.map((b) => b.end)) : DAY_START_MIN;
-  return clampStart(snapMinutes(lastEnd), durationMin);
+  for (let start = DAY_START_MIN; start < DEFAULT_PLANNING_START_MIN && start <= latestStart; start += SNAP_MIN) {
+    starts.push(start);
+  }
+
+  for (const start of starts) {
+    const end = start + duration;
+    const overlaps = busy.some((b) => start < b.end && end > b.start);
+    if (!overlaps) return start;
+  }
+
+  return null;
 }

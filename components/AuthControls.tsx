@@ -1,9 +1,9 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AuthSession } from "@/lib/auth";
-import { ANONYMOUS_SESSION, isAdminEmail, isClerkPublicKeyUsable } from "@/lib/auth";
+import { ANONYMOUS_SESSION, isClerkPublicKeyUsable } from "@/lib/auth";
 import { CampIcon } from "./icons";
 
 const CLERK_ENABLED = isClerkPublicKeyUsable();
@@ -24,44 +24,46 @@ export function usePreviewAuth() {
     return {
       session: ANONYMOUS_SESSION,
       signedIn: false,
-      authOpen: false,
       openAuth: () => {
         window.location.href = "/sign-in";
       },
-      closeAuth: () => undefined,
-      signIn: () => undefined,
       signOut: () => undefined,
     };
   }
 
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
+  const [serverSession, setServerSession] = useState<AuthSession>(ANONYMOUS_SESSION);
 
-  const session: AuthSession = useMemo(() => {
-    if (!isLoaded || !isSignedIn || !user) return ANONYMOUS_SESSION;
-    const email = user.primaryEmailAddress?.emailAddress || "";
-    return {
-      status: "authenticated",
-      user: {
-        id: user.id,
-        name: user.fullName || user.firstName || email || "Camp staff",
-        email,
-        role: isAdminEmail(email) ? "admin" : "editor",
-      },
-      mode: "provider",
-      authenticatedAt: user.lastSignInAt?.toISOString() || new Date().toISOString(),
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) {
+      setServerSession(ANONYMOUS_SESSION);
+      return;
+    }
+
+    let cancelled = false;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { session?: AuthSession } | null) => {
+        if (!cancelled) setServerSession(body?.session ?? ANONYMOUS_SESSION);
+      })
+      .catch(() => {
+        if (!cancelled) setServerSession(ANONYMOUS_SESSION);
+      });
+
+    return () => {
+      cancelled = true;
     };
   }, [isLoaded, isSignedIn, user]);
+
+  const session = useMemo(() => serverSession, [serverSession]);
 
   return {
     session,
     signedIn: session.status === "authenticated",
-    authOpen: false,
     openAuth: (returnTo?: string) => {
       window.location.href = currentSignInUrl(returnTo);
     },
-    closeAuth: () => undefined,
-    signIn: () => undefined,
     signOut: () => {
       void clerk.signOut({ redirectUrl: "/" });
     },
@@ -93,21 +95,11 @@ export function AuthButton({
   }
 
   return (
-    <button type="button" className="auth-pill" onClick={onOpen}>
+    <button type="button" className="auth-pill" onClick={onOpen} aria-label="Sign in as staff" title="Sign in as staff">
       <CampIcon.User />
       <span>Staff</span>
     </button>
   );
-}
-
-export function AuthDialog(_props: {
-  session?: AuthSession;
-  open?: boolean;
-  onClose?: () => void;
-  onSignIn?: unknown;
-  onSignOut?: () => void;
-}) {
-  return null;
 }
 
 export function useAuthLabel(session: AuthSession) {

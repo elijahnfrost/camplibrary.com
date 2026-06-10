@@ -76,6 +76,41 @@ export function RatingPicker({
   );
 }
 
+// Compact approval rating — five dots that fill with the warm rating colour,
+// plus the rating word. A fraction of the height of the full RatingPicker, so it
+// sits inline in the viewer header. Tap a filled dot again to clear.
+export function RatingDots({
+  value,
+  onChange,
+  label = "Approval rating",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  label?: string;
+}) {
+  const color = value ? ratingColor(value) : "var(--ink-faint)";
+  return (
+    <div className="ratingdots" role="group" aria-label={label}>
+      <span className="ratingdots__dots">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={"ratingdots__dot" + (value >= n ? " is-on" : "")}
+            aria-label={"Set approval " + n + " of 5"}
+            aria-pressed={value === n}
+            style={value >= n ? { background: color, borderColor: color } : undefined}
+            onClick={() => onChange(n === value ? 0 : n)}
+          />
+        ))}
+      </span>
+      <span className="ratingdots__word" style={{ color }}>
+        {RATING_WORD[value || 0]}
+      </span>
+    </div>
+  );
+}
+
 // A bookmark drawn tall, so it reads as a ribbon hanging down from a top edge.
 export function RibbonMark() {
   return (

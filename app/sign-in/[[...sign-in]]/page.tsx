@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { StaffSignIn } from "@/components/StaffSignIn";
+import { getBackendEnvStatus } from "@/lib/server/env";
 
 export const metadata: Metadata = {
   title: "Staff access",
 };
 
 export default function SignInPage() {
-  const authEnabled = isClerkPublicKeyUsable();
+  const authEnabled = getBackendEnvStatus().capabilities.clerkAuth;
 
   return (
     <main className="auth-route">

@@ -1,4 +1,4 @@
-import { getAuthBackendStatus, getServerAuthSession } from "@/lib/server/auth";
+import { getAuthBackendStatus, getServerAuthSession, requireAdminSession } from "@/lib/server/auth";
 import { getBackendEnvStatus } from "@/lib/server/env";
 import type { NextRequest } from "next/server";
 
@@ -15,10 +15,34 @@ function publicCapabilities(capabilities: ReturnType<typeof getBackendEnvStatus>
   };
 }
 
+function shouldShowDiagnostics() {
+  return process.env.VERCEL_ENV !== "production" && process.env.NODE_ENV !== "production";
+}
+
 export async function GET(request: NextRequest) {
   const backend = getBackendEnvStatus();
   const auth = getAuthBackendStatus();
   const session = await getServerAuthSession(request);
+  const showDiagnostics = shouldShowDiagnostics() || (await requireAdminSession(request)).ok;
+  if (!showDiagnostics) {
+    return Response.json(
+      {
+        ok: true,
+        auth: {
+          connected: auth.connected,
+        },
+        session: {
+          status: session.status,
+        },
+        status: backend.ready ? "ready" : "degraded",
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
 
   return Response.json(
     {

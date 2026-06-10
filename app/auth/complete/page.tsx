@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { AuthComplete } from "@/components/AuthComplete";
-import { isClerkPublicKeyUsable } from "@/lib/auth";
+import { getBackendEnvStatus } from "@/lib/server/env";
 
 export const metadata: Metadata = {
   title: "Finalizing sign in",
 };
 
 export default function AuthCompletePage() {
-  const authEnabled = isClerkPublicKeyUsable();
+  const authEnabled = getBackendEnvStatus().capabilities.clerkAuth;
 
   return (
     <main className="auth-route">
