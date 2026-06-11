@@ -96,15 +96,25 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ query: "clipboard" }))).toBe(true);
   });
 
+  it("searches step and note text so play details are findable", () => {
+    const base = activity({
+      title: "Plain title",
+      blurb: "Plain blurb",
+      notes: "Works well after lunch",
+      steps: ["Line campers up behind the sponge line"],
+    });
+
+    expect(matchesActivityFilters(base, filters({ query: "sponge line" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "after lunch" }))).toBe(true);
+  });
+
   it("does not search hidden implementation fields", () => {
     const base = activity({
       id: "needle-id",
       title: "Plain title",
       blurb: "Plain blurb",
       materials: ["Rope"],
-      notes: "notes-needle",
       safety: "safety-needle",
-      steps: ["steps-needle"],
     });
 
     expect(matchesActivityFilters(base, filters({ query: "needle" }))).toBe(false);

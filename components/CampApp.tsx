@@ -52,6 +52,7 @@ import { ClipboardView, type ClipboardRun, type ClipboardState } from "./Clipboa
 import { type EventDraft } from "./EventComposer";
 import { SavedView } from "./SavedView";
 import { AddView } from "./AddView";
+import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { DetailSheet } from "./DetailSheet";
 import { PrintViews, type PrintIntent } from "./PrintViews";
 import { Filters, type AgeFilter, type CatFilter, type PlaceFilter } from "./Filters";
@@ -395,6 +396,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
+  const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
     scopedStorageKey(storageScope, "availableMaterials"),
@@ -470,6 +472,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   );
   const [detailMode, setDetailMode] = useState<"library" | "runSheet">("library");
   const [editing, setEditing] = useState<Activity | null>(null);
+  // The in-Library add/edit sheet. null = closed; { activity: null } = adding new.
+  const [editorSheet, setEditorSheet] = useState<{ activity: Activity | null } | null>(null);
   const [printIntent, setPrintIntent] = useState<PrintIntent | null>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
@@ -598,6 +602,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       matchesActivityFilters(a, { cat, place, age, query, availableMaterialTags: activeAvailableMaterials })
     );
   }, [all, cat, place, age, query, activeAvailableMaterials]);
+  // Starred is a library-only lens; matchesActivityFilters stays fav-agnostic.
+  const libraryItems = useMemo(
+    () => (starredOnly ? filtered.filter((a) => favSet.has(a.id)) : filtered),
+    [filtered, starredOnly, favSet]
+  );
 
   const weekBlocks = useMemo(() => {
     const days: Record<number, DaySchedule> = {};
@@ -1074,10 +1083,38 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   function editActivity(a: Activity) {
     if (!requireStaff("edit activities")) return;
-    setEditing(a);
     setDetail(null);
     setDetailScheduleContext(null);
-    setTab("add");
+    setEditorSheet({ activity: a });
+  }
+
+  function openAddActivity() {
+    if (!requireStaff("add activities")) return;
+    setEditorSheet({ activity: null });
+  }
+
+  function submitEditorSheet(a: Activity, runDoc?: RunDoc) {
+    const isEditing = Boolean(editorSheet?.activity);
+    if (!requireStaff(isEditing ? "edit activities" : "add activities")) return;
+    if (isEditing) {
+      setExtra((p) => p.map((x) => (x.id === a.id ? a : x)));
+      if (runDoc) setRunListOverrides((p) => ({ ...p, [a.id]: runDoc }));
+      setRatings((p) => {
+        if (a.rating > 0) return { ...p, [a.id]: a.rating };
+        if (p[a.id] == null) return p;
+        const next = { ...p };
+        delete next[a.id];
+        return next;
+      });
+      setLiveMsg("Updated " + a.title);
+    } else {
+      setExtra((p) => [a, ...p]);
+      if (runDoc) setRunListOverrides((p) => ({ ...p, [a.id]: runDoc }));
+      setCat("All");
+      setView("catalog");
+      setLiveMsg("Added " + a.title + " to the library");
+    }
+    setEditorSheet(null);
   }
 
   function deleteActivity(a: Activity) {
@@ -1124,7 +1161,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       summary: "Find, save, rate, and schedule camp activities.",
     },
     library: {
-      kicker: "Camp Library · " + filtered.length + " activities",
+      kicker: "Camp Library · " + libraryItems.length + " activities",
       title: "Library",
       summary: "Browse, filter, rate, and save dependable camp activities.",
     },
@@ -1252,11 +1289,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               cat={cat}
               place={place}
               age={age}
+              starredOnly={starredOnly}
               materialOptions={materialOptions}
               availableMaterials={activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onStarredOnly={setStarredOnly}
               onToggleMaterial={toggleAvailableMaterial}
               onClearMaterials={clearAvailableMaterials}
             />
@@ -1337,23 +1376,34 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                   <CampIcon.Search />
                   <input
                     className="toolbar__search-input"
-                    placeholder="Search titles, tags, materials..."
+                    placeholder="Search titles, steps, materials..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     aria-label="Search the library"
                   />
                 </div>
+                <button
+                  type="button"
+                  className="btn btn--primary toolbar__add"
+                  onClick={openAddActivity}
+                  title="Catalog a new activity"
+                >
+                  <CampIcon.Plus />
+                  <span>Add</span>
+                </button>
               </div>
               <Filters
                 variant="bar"
                 cat={cat}
                 place={place}
                 age={age}
+                starredOnly={starredOnly}
                 materialOptions={materialOptions}
                 availableMaterials={activeAvailableMaterials}
                 onCat={setCat}
                 onPlace={setPlace}
                 onAge={setAge}
+                onStarredOnly={setStarredOnly}
                 onToggleMaterial={toggleAvailableMaterial}
                 onClearMaterials={clearAvailableMaterials}
               />
@@ -1382,13 +1432,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               />
             )}
             {tab === "library" && view === "shelf" && (
-              <ShelfView items={filtered} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
+              <ShelfView items={libraryItems} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "library" && view === "deck" && (
-              <DeckView items={filtered} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
+              <DeckView items={libraryItems} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "library" && view === "catalog" && (
-              <CatalogView items={filtered} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
+              <CatalogView items={libraryItems} onOpen={openDetail} isFav={isFav} onToggleFav={toggleFav} />
             )}
             {tab === "clipboard" && (
               <ClipboardView
@@ -1576,6 +1626,14 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           {liveMsg}
         </div>
 
+        {editorSheet && (
+          <ActivityEditorSheet
+            editing={editorSheet.activity}
+            initialRunDoc={editorSheet.activity ? resolveRunDoc(editorSheet.activity) : null}
+            onClose={() => setEditorSheet(null)}
+            onSubmit={submitEditorSheet}
+          />
+        )}
         {detailActivity && (
           <DetailSheet
             activity={detailActivity}

@@ -27,6 +27,8 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   const q = filters.query.trim().toLowerCase();
   if (!q) return true;
 
+  // Steps and notes are searchable on purpose: counselors remember activities
+  // by play details ("the one with the sponge line"), not just titles.
   const hay = (
     a.title +
     " " +
@@ -38,7 +40,11 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
     " " +
     searchableArray(a.materials).join(" ") +
     " " +
-    searchableArray(a.materialTags).join(" ")
+    searchableArray(a.materialTags).join(" ") +
+    " " +
+    searchableArray(a.steps).join(" ") +
+    " " +
+    (typeof a.notes === "string" ? a.notes : "")
   ).toLowerCase();
   return hay.includes(q);
 }

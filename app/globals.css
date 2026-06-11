@@ -3618,6 +3618,11 @@ body {
 .toolbar__search-input::placeholder {
   color: var(--ink-faint);
 }
+.toolbar__add {
+  height: 40px;
+  justify-self: start;
+  flex: none;
+}
 
 /* ============================================================
  * DESKTOP APP (>= 1024px)

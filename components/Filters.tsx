@@ -16,11 +16,14 @@ interface FiltersProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  /** Omit both starred props to hide the Starred chip (surfaces without favorites). */
+  starredOnly?: boolean;
   materialOptions: MaterialOption[];
   availableMaterials: string[];
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
+  onStarredOnly?: (v: boolean) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
 }
@@ -166,16 +169,25 @@ export function Filters({
   cat,
   place,
   age,
+  starredOnly,
   materialOptions,
   availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onStarredOnly,
   onToggleMaterial,
   onClearMaterials,
 }: FiltersProps) {
-  const anyOn = cat !== "All" || place !== "All" || age !== "All" || availableMaterials.length > 0;
+  const anyOn =
+    cat !== "All" || place !== "All" || age !== "All" || Boolean(starredOnly) || availableMaterials.length > 0;
 
+  const starredChip = onStarredOnly ? (
+    <Chip on={Boolean(starredOnly)} onClick={() => onStarredOnly(!starredOnly)}>
+      <CampIcon.Bookmark />
+      Starred
+    </Chip>
+  ) : null;
   const typeChips = (
     <>
       <Chip on={cat === "All"} onClick={() => onCat("All")}>
@@ -212,6 +224,7 @@ export function Filters({
                 onCat("All");
                 onPlace("All");
                 onAge("All");
+                onStarredOnly?.(false);
                 onClearMaterials();
               }}
             >
@@ -219,6 +232,7 @@ export function Filters({
             </button>
           )}
         </div>
+        {starredChip && <Group label="Saved">{starredChip}</Group>}
         <Group label="Type">{typeChips}</Group>
         <Group label="Where">{placeChips}</Group>
         <Group label="Ages">{ageChips}</Group>
@@ -239,6 +253,14 @@ export function Filters({
   return (
     <>
       <div className="filterbar">
+        {starredChip && (
+          <>
+            <span className="filterbar__cluster" role="group" aria-label="Saved">
+              {starredChip}
+            </span>
+            <span className="filterbar__div" aria-hidden="true" />
+          </>
+        )}
         <span className="filterbar__cluster" role="group" aria-label="Type">
           {typeChips}
         </span>
