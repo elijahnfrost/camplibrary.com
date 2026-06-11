@@ -1,6 +1,6 @@
 import { AGE_GROUPS, CATEGORIES } from "./data";
 import { normalizePlaybook } from "./playbooks";
-import { TOTAL_MIN } from "./scheduleTime";
+import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "./types";
 
 const AGE_GROUP_IDS = new Set<string>(AGE_GROUPS.map((group) => group.id));

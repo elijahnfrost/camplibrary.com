@@ -1,16 +1,17 @@
+// Keys the anon→user-scope migration copies. The old planner's "schedule" and
+// "schedulePlans" stay listed so historical plans keep following the account
+// scope on disk (nothing reads them anymore, but nothing destroys them either).
 export const SCOPED_STORAGE_KEYS = [
   "view",
   "availableMaterials",
-  "clipboardPin",
-  "clipboardReadyMaterials",
   "favs",
   "extra",
   "playbooks",
   "runLists.v2",
   "schedule",
   "schedulePlans",
-  "planZoom",
   "ratings",
+  "calendarEvents.v1",
 ] as const;
 
 type StorageLike = {

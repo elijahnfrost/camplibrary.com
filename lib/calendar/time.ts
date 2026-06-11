@@ -16,6 +16,9 @@ export const DAY_END_MIN = 18 * 60;
 // Where tap-to-place starts scanning — the real start of camp programming.
 export const DEFAULT_PLANNING_START_MIN = 9 * 60;
 
+// Longest sensible single activity: it has to fit inside one camp day.
+export const MAX_ACTIVITY_DURATION_MIN = DAY_END_MIN - DAY_START_MIN;
+
 export const DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
 
 // 540 -> "9:00 am"; hourOnly drops ":00" for axis-style labels.

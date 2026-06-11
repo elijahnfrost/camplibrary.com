@@ -1,7 +1,7 @@
 // Camp Library — seed data + display helpers.
 // Ported from the Claude Design prototype (camp-data.js) and tightened for practical camp setup.
 
-import type { Activity, AgeGroup, Category, CategoryId, Place, Schedule, ScheduleBlock, Slot } from "./types";
+import type { Activity, AgeGroup, Category, CategoryId, Place } from "./types";
 
 // Category order drives the shelves.
 export const CATEGORIES: Category[] = [
@@ -22,116 +22,6 @@ export const AGE_GROUPS: AgeGroup[] = [
   { id: "g13", label: "Grades 1–3", short: "Gr 1–3", lo: 1, hi: 3, min: 6, max: 9 },
   { id: "g46", label: "Grades 4–6", short: "Gr 4–6", lo: 4, hi: 6, min: 9, max: 12 },
 ];
-
-// Schedule scaffolding (ported from camp-schedule.jsx).
-export const SLOTS: Slot[] = [
-  { id: "dropoff", time: "8:00", label: "Drop-off" },
-  { id: "activity-1", time: "9:00" },
-  { id: "snack-am", time: "10:30", label: "Snack" },
-  { id: "activity-2", time: "10:45" },
-  { id: "lunch", time: "11:45", meal: true, label: "Lunch" },
-  { id: "recess", time: "12:15", label: "Recess" },
-  { id: "large-block", time: "12:45" },
-  { id: "snack-pm", time: "15:25", label: "Snack" },
-  { id: "free-time", time: "15:40", label: "Free time" },
-  { id: "pickup", time: "17:00", label: "Pick-up" },
-];
-
-// A day camp runs Monday–Friday.
-export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-
-// A fresh day starts with the full 8-6 camp rhythm in place; counselors can
-// replace the open activity blocks with concrete programming.
-// Times are canonical zero-padded 24h.
-export const DAY_BLOCK_TEMPLATE: ScheduleBlock[] = [
-  { id: "dropoff", start: "08:00", end: "09:00", kind: "label", label: "Drop-off & morning choice" },
-  { id: "activity-1", start: "09:00", end: "10:30", kind: "activity", label: "Activity one", fill: "open" },
-  { id: "snack-am", start: "10:30", end: "10:45", kind: "label", label: "Snack" },
-  { id: "activity-2", start: "10:45", end: "11:45", kind: "activity", label: "Activity two", fill: "open" },
-  { id: "lunch", start: "11:45", end: "12:15", kind: "label", label: "Lunch" },
-  { id: "recess", start: "12:15", end: "12:45", kind: "label", label: "Recess" },
-  { id: "large-block", start: "12:45", end: "15:25", kind: "activity", label: "Large activity block", fill: "open" },
-  { id: "snack-pm", start: "15:25", end: "15:40", kind: "label", label: "Snack" },
-  { id: "free-time", start: "15:40", end: "17:00", kind: "label", label: "Free play & counselor choice" },
-  { id: "pickup", start: "17:00", end: "18:00", kind: "label", label: "Pick-up" },
-];
-
-function labelBlock(id: string, start: string, end: string, label: string): ScheduleBlock {
-  return { id, start, end, kind: "label", label };
-}
-
-function activityBlock(
-  id: string,
-  start: string,
-  end: string,
-  label: string,
-  activityId: string,
-): ScheduleBlock {
-  return { id, start, end, kind: "activity", label, activityId };
-}
-
-type ScheduledActivity = { label: string; activityId: string };
-
-function campDay(
-  day: string,
-  activityOne: ScheduledActivity,
-  activityTwo: ScheduledActivity,
-  largeActivity: ScheduledActivity,
-  lateDayLabel: string,
-): ScheduleBlock[] {
-  return [
-    labelBlock(day + "-dropoff", "08:00", "09:00", "Drop-off & morning choice"),
-    activityBlock(day + "-activity-1", "09:00", "10:30", activityOne.label, activityOne.activityId),
-    labelBlock(day + "-snack-am", "10:30", "10:45", "Snack"),
-    activityBlock(day + "-activity-2", "10:45", "11:45", activityTwo.label, activityTwo.activityId),
-    labelBlock(day + "-lunch", "11:45", "12:15", "Lunch"),
-    labelBlock(day + "-recess", "12:15", "12:45", "Recess"),
-    activityBlock(day + "-large-activity", "12:45", "15:25", largeActivity.label, largeActivity.activityId),
-    labelBlock(day + "-snack-pm", "15:25", "15:40", "Snack"),
-    labelBlock(day + "-free-time", "15:40", "17:00", lateDayLabel),
-    labelBlock(day + "-pickup", "17:00", "18:00", "Pick-up"),
-  ];
-}
-
-// Full worked week: the rhythm stays predictable while the programmed blocks
-// rotate across games, crafts, water play, songs, and quiet resets.
-export const DEFAULT_SCHEDULE: Schedule = {
-  0: campDay(
-    "mon",
-    { label: "Gaga Ball", activityId: "gaga-ball" },
-    { label: "Friendship Bracelets", activityId: "friendship-bracelets" },
-    { label: "Capture the Flag", activityId: "capture-flag" },
-    "Free play & counselor choice",
-  ),
-  1: campDay(
-    "tue",
-    { label: "Camouflage", activityId: "camouflage" },
-    { label: "Leaf Rubbings", activityId: "leaf-rubbings" },
-    { label: "Sponge Relay", activityId: "sponge-relay" },
-    "Recess & free choice",
-  ),
-  2: campDay(
-    "wed",
-    { label: "Tie-Dye Shirts", activityId: "tie-dye" },
-    { label: "Boom Chicka Boom", activityId: "boom-chicka-boom" },
-    { label: "Sharks & Minnows", activityId: "sharks-minnows" },
-    "Nature journaling & quiet choice",
-  ),
-  3: campDay(
-    "thu",
-    { label: "Painted Rocks", activityId: "painted-rocks" },
-    { label: "Gaga Ball", activityId: "gaga-ball" },
-    { label: "Drip Drip Drop", activityId: "drip-drip-drop" },
-    "Story circle & free play",
-  ),
-  4: campDay(
-    "fri",
-    { label: "Capture the Flag", activityId: "capture-flag" },
-    { label: "Friendship Bracelets", activityId: "friendship-bracelets" },
-    { label: "Sponge Relay", activityId: "sponge-relay" },
-    "Closing circle & free time",
-  ),
-};
 
 export function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {
   return AGE_GROUPS.filter((g) => (a.ages || []).indexOf(g.id) >= 0);

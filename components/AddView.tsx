@@ -15,7 +15,7 @@ import {
   type RunChild,
   type RunDoc,
 } from "@/lib/runList";
-import { TOTAL_MIN } from "@/lib/scheduleTime";
+import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "@/lib/calendar/time";
 import { CampIcon } from "./icons";
 import { RatingPicker, Seg } from "./primitives";
 import { ActivityRunList } from "./ActivityRunList";
