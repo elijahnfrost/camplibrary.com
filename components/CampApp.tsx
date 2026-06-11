@@ -45,7 +45,7 @@ import { migrateLegacyStorageKeys, scopedStorageKey } from "@/lib/storageScope";
 import { CampIcon } from "./icons";
 import { HomeView } from "./HomeView";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
-import { CalendarView } from "./CalendarView";
+import { CalendarShell } from "./calendar/CalendarShell";
 import { ScheduleOverview } from "./ScheduleOverview";
 import { ClipboardView, type ClipboardRun, type ClipboardState } from "./ClipboardView";
 import { type EventDraft } from "./EventComposer";
@@ -65,7 +65,7 @@ const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "clipboard", label: "Clipboard", icon: CampIcon.Clipboard },
   { id: "schedule", label: "Run Sheet", icon: CampIcon.List },
-  { id: "calendar", label: "Planner", icon: CampIcon.Calendar },
+  { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
   { id: "saved", label: "Saved", icon: CampIcon.Bookmark },
   { id: "add", label: "Add", icon: CampIcon.Plus },
 ];
@@ -1150,15 +1150,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         weekPlannedCount + (weekPlannedCount === 1 ? " activity" : " activities") + " ready to run",
     },
     calendar: {
-      kicker: "Build " + DAYS[dayIndex],
-      title: "Planner",
+      kicker: "Plan camp",
+      title: "Calendar",
       summary:
-        plannedCount +
-        " planned" +
-        (openCount ? " · " + openCount + " to fill" : "") +
-        " · " +
-        labelCount +
-        (labelCount === 1 ? " break" : " breaks"),
+        Object.keys(cloud.events).length +
+        (Object.keys(cloud.events).length === 1 ? " event" : " events") +
+        " on the calendar",
     },
     saved: {
       kicker: savedActivities.length + " saved",
@@ -1184,13 +1181,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           title: "Print this run sheet",
           intent: { type: "run-sheet", dayIndex } as PrintIntent,
         })
-      : tab === "calendar"
-        ? ({
-            label: "Print " + DAYS[dayIndex] + " Planner",
-            title: "Print this planner",
-            intent: { type: "planner", dayIndex } as PrintIntent,
-          })
-        : null;
+      : null;
   const detailActivity = detail ? byId[detail.id] || detail : null;
   const detailScheduleBlock =
     detailScheduleContext == null
@@ -1442,44 +1433,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               />
             )}
             {tab === "calendar" && (
-              <CalendarView
-                dayIndex={dayIndex}
-                onSelectDay={selectDay}
-                blocks={dayBlocks}
-                weekBlocks={weekBlocks}
-                activities={filtered}
-                allActivities={all}
-                query={query}
-                onQueryChange={setQuery}
-                cat={cat}
-                place={place}
-                age={age}
-                materialOptions={materialOptions}
-                availableMaterials={activeAvailableMaterials}
-                onCat={setCat}
-                onPlace={setPlace}
-                onAge={setAge}
-                onToggleMaterial={toggleAvailableMaterial}
-                onClearMaterials={clearAvailableMaterials}
-                plans={schedulePlans}
-                openCount={openCount}
-                onAddEvent={(draft) => addEventToDay(dayIndex, draft)}
-                onUpdateEvent={(blockId, patch) => updateEvent(dayIndex, blockId, patch)}
-                onRemoveEvent={(blockId) => removeEvent(dayIndex, blockId)}
-                onQuickAdd={(activityId) => quickAddActivity(dayIndex, activityId)}
-                onSavePlan={saveCurrentDayPlan}
-                onApplyTemplate={applyTemplate}
-                onDeletePlan={deleteDayPlan}
-                applyToast={applyToast}
-                onUndoApply={undoApply}
-                onDismissToast={() => setApplyToast(null)}
-                onOpenActivity={openDetail}
-                isFav={isFav}
-                onToggleFav={toggleFav}
+              <CalendarShell
+                events={cloud.events}
+                upsertEvent={cloud.upsertEvent}
+                removeEvent={cloud.removeEvent}
+                activities={all}
                 byId={byId}
-                zoomIdx={zoomIdx}
-                onZoom={(idx) => setZoomIdx(clampZoomIndex(idx))}
-                focus={null}
+                requireStaff={requireStaff}
+                onOpenActivity={(activity) => openDetail(activity)}
+                announce={setLiveMsg}
               />
             )}
             {tab === "saved" && (

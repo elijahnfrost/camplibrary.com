@@ -3,6 +3,7 @@ import { Caveat, Nunito_Sans, Patrick_Hand, Patrick_Hand_SC } from "next/font/go
 import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
 import "./globals.css";
+import "./calendar.css";
 
 // The design's three handwriting faces, loaded as CSS variables.
 const caveat = Caveat({
