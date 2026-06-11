@@ -35,6 +35,10 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
     const frame = window.requestAnimationFrame(focusFirst);
 
     function onKeyDown(event: KeyboardEvent) {
+      // Inner widgets (palettes, inline editors) claim a key by preventing its
+      // default — stopPropagation can't help them, since React's root handlers
+      // and this listener both live on `document` in the App Router.
+      if (event.defaultPrevented) return;
       if (dialogStack[dialogStack.length - 1] !== activeDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();

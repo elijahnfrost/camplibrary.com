@@ -14,11 +14,25 @@
      rise, so cards lift by getting LIGHTER (not yellower). Deep tones now
      concentrate in four places — ink, accent CTAs, the stage desk, and
      category tints — instead of washing every surface.
-     card 1.16:1 over paper · paper-2 1.31:1 under card · stage 1.58:1. */
+     card 1.16:1 over paper · paper-2 1.31:1 under card · stage 1.58:1.
+
+     VALUE LADDER (warm frame, light paper) — surfaces reference a ROLE, not a
+     raw tone, so dark/light reads deliberately:
+       stage-bg (desk)  →  chrome/paper (the warm FRAME: sidebar, top/tab bars,
+       calendar header)  →  chrome-well/paper-2 (insets that sit ON chrome)  →
+       content/card (the light PAPER that lifts off the frame: cards, calendar
+       grid, sheets, inputs, popovers, AND raised controls like view switchers).
+       ink · accent · category tints stay reserved for marks, not surfaces. */
   --card: #fcf9f1; /* lightest: cards, sheets, inputs, controls */
   --paper: #efe8d8; /* app canvas */
   --paper-2: #e4dbc6; /* wells, hover fills, insets */
   --stage-bg: #d3c8ad; /* desktop desk ONLY — the deepest neutral */
+  /* Semantic surface roles (aliases into the ramp above). Flip a surface's
+     role here, not its raw hex. content == card today, so existing
+     var(--card) content surfaces need no change. */
+  --chrome: var(--paper); /* the warm frame: sidebar, top/tab bars, cal header */
+  --chrome-well: var(--paper-2); /* hover/inset fills that sit ON chrome */
+  --content: var(--card); /* the light paper: cards, grid, sheets, inputs, popovers */
   --ink: #2c2824; /* 12.0:1 paper, 13.9:1 card */
   --ink-soft: #5d5547; /* 6.0:1 paper, 7.0:1 card — AA everywhere */
   --ink-faint: #6f6656; /* 4.6:1 paper, 5.4:1 card; card/paper surfaces only */
@@ -100,6 +114,27 @@
   --bp-tablet: 768px;
   --bp-desktop: 1024px;
   --bp-wide: 1320px;
+
+  /* ---- Interaction tokens ----
+     Canonical state recipes (apply these, don't invent new ones):
+     · Primary selected (mutually-exclusive controls — view switches, segs,
+       nav items): solid accent fill + --on-accent text.
+     · Secondary selected (additive toggles — kit items, saves): 11–28% tint
+       fill + colored border + an explicit indicator (check/fill).
+     · Pressed, flat controls: one-step background darken
+       (color-mix(in srgb, var(--ink) 8%, var(--paper-2))); selected variants
+       darken their own fill (accent → --accent-ink).
+     · Pressed, elevated controls: translate into the offset shadow.
+     · Focus: global accent ring; ink ring on accent/selected fills;
+       inset rings inside overflow-clipped segmented containers. */
+  --on-accent: #fff; /* text/icons on accent or ink fills */
+  --danger: #a45a4f; /* error borders, destructive icons */
+  --danger-ink: #6d332c; /* error text on light surfaces */
+  --t-fast: 120ms; /* hover/pressed color shifts */
+  --t-med: 180ms; /* reveals, fades */
+  --t-slow: 240ms; /* overlays, sheet rise */
+  --ease: cubic-bezier(0.2, 0, 0, 1); /* standard decelerate */
+  --ease-overlay: cubic-bezier(0.16, 1, 0.3, 1); /* overlay entrances ONLY, never hover */
 }
 
 * {
@@ -136,7 +171,6 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 .sr-only {
   position: absolute;
@@ -306,6 +340,10 @@ body {
 .icon-btn:hover {
   color: var(--ink);
 }
+.icon-btn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+  border-radius: var(--r-md);
+}
 .icon-btn svg {
   width: 21px;
   height: 21px;
@@ -327,7 +365,7 @@ body {
 .viewswitch {
   display: flex;
   border: 1.5px solid var(--line);
-  border-radius: 13px;
+  border-radius: var(--r-lg);
   overflow: hidden;
   margin: 0 18px;
   background: var(--card);
@@ -348,10 +386,21 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  transition: background-color 120ms, color 120ms;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .viewswitch button:last-child {
   border-right: 0;
+}
+.viewswitch button:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.viewswitch button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+/* The container clips overflow, so focus rings sit inset. */
+.viewswitch button:focus-visible {
+  outline-offset: -2px;
 }
 .viewswitch button svg {
   width: 15px;
@@ -364,32 +413,125 @@ body {
 }
 .viewswitch button.is-active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+}
+.viewswitch button.is-active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.viewswitch button.is-active:active {
+  background: var(--accent-ink);
+}
+.viewswitch button.is-active:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -3px;
 }
 
-/* ---------- filter bar ---------- */
-.filterbar {
+/* ---------- filters: mobile trigger + shared primitives ----------
+   Mobile gets ONE "Filters" entry (opening a sheet) plus an always-visible
+   removable active-filter row, so applied filters are never hidden and the
+   "pick one per dimension" model reads clearly. The dimension group + active
+   summary are shared verbatim with the desktop rail. */
+.filtertrigger {
   display: flex;
-  gap: 7px;
-  padding: var(--s-5) calc(var(--s-7) + var(--s-2)) var(--s-2) var(--page-x);
+  align-items: center;
+  gap: 8px;
+  padding: var(--s-5) var(--page-x) var(--s-2);
+  min-width: 0;
+}
+.filtertrigger__btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  background: var(--content);
+  border-radius: var(--r-pill);
+  padding: var(--s-3) var(--s-5);
+  min-height: var(--control-md);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.filtertrigger__btn svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.filtertrigger__btn:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.filtertrigger__btn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.filtertrigger__btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.filtertrigger__count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  line-height: 1;
+}
+/* Active-filter summary — removable chips. Wraps in the rail/sheet, scrolls
+   horizontally in the mobile trigger row. */
+.activefilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.activefilters__chip {
+  flex: none;
+}
+.filtertrigger__active {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
-  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
 }
-.filterbar::-webkit-scrollbar {
+.filtertrigger__active::-webkit-scrollbar {
   display: none;
 }
-/* Group wrappers add screen-reader structure without changing the flex layout. */
-.filterbar__cluster {
-  display: contents;
+/* Shared dimension group — desktop rail AND mobile sheet render these. */
+.filtergroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.filterbar__div {
-  flex: none;
-  align-self: stretch;
-  width: 1.5px;
-  background: var(--line-soft);
-  margin: 3px 4px;
+.filtergroup__label {
+  font-family: var(--hand-sc);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.filtergroup__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .chip {
   flex: none;
@@ -401,13 +543,14 @@ body {
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-soft);
+  color: var(--ink);
   border: 1.5px solid var(--line);
   background: var(--card);
-  border-radius: 14px;
-  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  padding: var(--s-3) var(--s-5);
   white-space: nowrap;
-  transition: all 120ms;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
 }
 .chip svg {
   width: 13px;
@@ -419,28 +562,46 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.chip--clear {
-  color: var(--accent-ink);
-  border-style: dashed;
-}
 .chip:hover {
-  background: var(--paper-2);
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.chip:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .chip.is-on {
   /* Darken the (often light) category tint enough that white text clears WCAG AA
      across every category — Song/amber otherwise sat at ~2.9:1. */
   background: color-mix(in srgb, var(--chip-on, var(--accent)) 70%, var(--ink));
-  color: #fff;
+  color: var(--on-accent);
   border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 60%, var(--ink));
 }
-.filterbar__kit {
-  padding: 0 18px 8px;
+.chip.is-on:hover {
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 64%, var(--ink));
+  border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 54%, var(--ink));
 }
-.filterbar__kit .material-filter__summary {
-  width: 100%;
-  justify-content: flex-start;
-  min-height: 40px;
-  padding-inline: 14px;
+.chip.is-on:active {
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 56%, var(--ink));
+}
+.chip.is-on:focus-visible {
+  outline-color: var(--ink);
+}
+/* The "All" option is the cleared/resting state — selected, but quiet, so an
+   unfiltered view never reads as a wall of accent. */
+.chip--all.is-on {
+  background: var(--chrome-well);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.chip--all.is-on:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+  border-color: var(--ink-soft);
+}
+.chip--all.is-on:active {
+  background: color-mix(in srgb, var(--ink) 12%, var(--chrome-well));
+}
+.chip--all.is-on:focus-visible {
+  outline-color: var(--accent);
 }
 .material-filter {
   width: 100%;
@@ -449,8 +610,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 5px 12px;
+  min-height: var(--control-md);
+  padding: var(--s-3) var(--s-5);
   cursor: pointer;
   list-style: none;
   font-family: var(--hand-sc);
@@ -468,11 +629,24 @@ body {
 }
 .material-filter__summary:hover {
   background: var(--paper-2);
+  border-color: var(--ink-soft);
+}
+.material-filter__summary:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .material-filter__summary.is-on {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent-ink);
+}
+.material-filter__summary.is-on:hover {
+  background: var(--accent);
+}
+.material-filter__summary.is-on:active {
+  background: var(--accent-ink);
+}
+.material-filter__summary.is-on:focus-visible {
+  outline-color: var(--ink);
 }
 .material-filter__panel {
   margin-top: 8px;
@@ -516,7 +690,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
+  min-height: var(--tap);
   margin-bottom: 12px;
   padding: 0 10px;
   border: 1.5px solid var(--line);
@@ -572,7 +746,7 @@ body {
 }
 .material-filter__item {
   min-height: 46px;
-  padding: 8px 11px;
+  padding: var(--s-4) var(--s-5);
   font-size: 14px;
 }
 .material-filter__count {
@@ -656,6 +830,43 @@ body {
   padding: 6px 9px;
 }
 
+/* ---------- mobile filter sheet ---------- */
+.overlay--filters {
+  max-height: 88dvh;
+}
+.filtersheet {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px var(--page-x) 14px;
+}
+.filtersheet__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.filtersheet__done {
+  flex: none;
+  margin: 0 var(--page-x) calc(14px + env(safe-area-inset-bottom));
+  justify-content: center;
+}
+/* In a kit group the picker is always-open inline; its own summary toggle is
+   redundant with the group label. */
+.filtergroup--kit .material-filter__summary {
+  display: none;
+}
+.filtersheet .material-filter__panel {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.filtersheet .material-filter__list {
+  max-height: 40vh;
+}
+
 /* ---------- shelf headers ---------- */
 .shelfwrap {
   padding-top: 4px;
@@ -717,10 +928,13 @@ body {
   border: 1.5px solid var(--ink);
   border-bottom: none;
   border-radius: 5px 5px 0 0;
-  transition: filter 140ms ease, transform 140ms ease;
+  transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .spine:hover {
   filter: brightness(0.93);
+}
+.spine:active {
+  filter: brightness(0.88);
 }
 .spine__title {
   position: relative;
@@ -878,10 +1092,15 @@ body {
   flex-direction: column;
   overflow: hidden;
   box-shadow: 3px 3px 0 var(--shadow);
-  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 .deck-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
+  box-shadow: 4px 5px 0 var(--shadow);
+}
+.deck-card:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--shadow);
 }
 .plate {
   position: relative;
@@ -995,6 +1214,10 @@ body {
   font-size: 23px;
   line-height: 1.05;
   color: var(--ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .cat-stamps {
   display: flex;
@@ -1015,7 +1238,7 @@ body {
   white-space: nowrap;
 }
 .stamp--accent {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent-ink);
 }
@@ -1115,11 +1338,12 @@ body {
   height: 30px;
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--card) 80%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--ink) 20%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--ink) 32%, transparent);
   border-radius: 50%;
   box-shadow: 2px 2px 0 var(--shadow);
-  transition: transform 130ms cubic-bezier(0.16, 1, 0.3, 1),
-    background 130ms ease, border-color 130ms ease, color 130ms ease;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .star--chip svg {
   width: 16px;
@@ -1135,7 +1359,8 @@ body {
   transform: translateY(-1px);
 }
 .star--chip:active {
-  transform: scale(0.93);
+  transform: translateY(1px);
+  box-shadow: 1px 1px 0 var(--shadow);
 }
 .star--chip.is-on {
   color: var(--tone-edge, var(--star-ink));
@@ -1154,16 +1379,12 @@ body {
   /* unsaved: a faint paper ghost, inviting a tap */
   --rb-fill: color-mix(in srgb, var(--card) 60%, transparent);
   --rb-edge: color-mix(in srgb, var(--ink) 34%, transparent);
-  /* grow downward from the fixed top edge, so it reads as the ribbon being
-     tugged further out — without ever detaching from the top */
-  transform-origin: top center;
-  transition: transform 170ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .star--ribbon:hover {
-  transform: scaleY(1.1);
+  --rb-edge: color-mix(in srgb, var(--ink) 55%, transparent);
 }
 .star--ribbon:active {
-  transform: scaleY(1.04);
+  --rb-fill: color-mix(in srgb, var(--card) 85%, transparent);
 }
 .star--ribbon.is-on {
   --rb-fill: var(--tone-fill, var(--star-gold));
@@ -1177,6 +1398,7 @@ body {
   stroke: var(--rb-edge, var(--star-ink));
   stroke-width: 1.5;
   stroke-linejoin: round;
+  transition: fill var(--t-fast) var(--ease), stroke var(--t-fast) var(--ease);
 }
 
 /* ---------- bottom tab bar (phone) ---------- */
@@ -1188,7 +1410,7 @@ body {
   justify-content: stretch;
   align-items: stretch;
   border-top: 2px solid var(--ink);
-  background: var(--card);
+  background: var(--chrome);
   padding-bottom: calc(14px + env(safe-area-inset-bottom));
 }
 .tabbar button {
@@ -1207,7 +1429,7 @@ body {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  transition: color 120ms;
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 .tabbar button svg {
   width: 23px;
@@ -1217,6 +1439,15 @@ body {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.tabbar button:hover {
+  color: var(--ink-soft);
+}
+.tabbar button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.tabbar button:focus-visible {
+  outline-offset: -2px;
 }
 .tabbar button.is-active {
   color: var(--accent);
@@ -1242,10 +1473,16 @@ body {
   font-family: var(--hand);
   font-size: 15px;
   line-height: 1;
-  transition: all 120ms;
+  text-decoration: none; /* .btn renders on <a> too (e.g. back-to-app links) */
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .btn:hover {
   background: var(--paper-2);
+}
+.btn:active {
+  transform: translateY(1px);
 }
 .btn svg {
   width: 18px;
@@ -1263,11 +1500,19 @@ body {
   background: var(--accent);
   border-width: 2px;
   border-color: var(--accent-ink);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 3px 3px 0 var(--shadow);
 }
 .btn--primary:hover {
   background: var(--accent-ink);
+}
+.btn--primary:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow);
+  background: var(--accent-ink);
+}
+.btn--primary:focus-visible {
+  outline-color: var(--ink);
 }
 .btn--quiet,
 .btn--ghost {
@@ -1284,6 +1529,11 @@ body {
   border-color: var(--line);
   color: var(--ink-soft);
 }
+.btn--quiet:active,
+.btn--ghost:active {
+  transform: none;
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
 .btn--sm {
   height: 34px;
   padding: 0 13px;
@@ -1299,6 +1549,9 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
+}
+.btn:disabled:active {
+  transform: none;
 }
 .btn--primary:disabled,
 .btn--primary:disabled:hover {
@@ -1332,6 +1585,9 @@ body {
 .auth-pill:hover {
   background: var(--paper-2);
   color: var(--ink);
+}
+.auth-pill:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .auth-pill svg {
   flex: none;
@@ -1436,10 +1692,10 @@ body {
 }
 .auth-form__error {
   padding: 10px 12px;
-  border: 1.5px solid #a45a4f;
+  border: 1.5px solid var(--danger);
   border-radius: 10px;
-  background: color-mix(in srgb, #a45a4f 10%, var(--card));
-  color: #6d332c;
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+  color: var(--danger-ink);
 }
 .admin-page {
   min-height: 100dvh;
@@ -1610,6 +1866,9 @@ body {
 .admin-action:hover {
   background: var(--paper-2);
 }
+.admin-action:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
 .admin-action svg {
   width: 15px;
   height: 15px;
@@ -1621,8 +1880,8 @@ body {
   stroke-linejoin: round;
 }
 .admin-action--danger {
-  border-color: color-mix(in srgb, #a45a4f 55%, var(--line));
-  color: #8f3525;
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  color: var(--danger-ink);
 }
 .admin-action:disabled {
   opacity: 0.42;
@@ -2025,10 +2284,14 @@ body {
   font-size: 15px;
   line-height: 1.3;
   color: var(--ink);
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .matkit__item:hover {
   border-color: var(--ink-soft);
+  background: color-mix(in srgb, var(--accent) 5%, var(--card));
+}
+.matkit__item:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .matkit__check {
   flex: none;
@@ -2039,7 +2302,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-accent);
   background: transparent;
 }
 .matkit__check svg {
@@ -2452,12 +2715,30 @@ body {
   font-family: var(--hand);
   font-size: 14px;
   cursor: pointer;
-  transition: all 120ms;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.pbe__stage:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.pbe__stage:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .pbe__stage.is-active {
   border-color: var(--accent-ink);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+}
+.pbe__stage.is-active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pbe__stage.is-active:active {
+  background: var(--accent-ink);
+}
+.pbe__stage.is-active:focus-visible {
+  outline-color: var(--ink);
 }
 .pbe__stage--add {
   border-style: dashed;
@@ -2672,7 +2953,7 @@ body {
 .input[aria-invalid="true"],
 .textarea[aria-invalid="true"],
 .select[aria-invalid="true"] {
-  border-color: #a8422e;
+  border-color: var(--danger);
 }
 .password-input {
   position: relative;
@@ -2712,7 +2993,7 @@ body {
   line-height: 1.4;
 }
 .field__error {
-  color: #8f3525;
+  color: var(--danger-ink);
   font-size: 13px;
   line-height: 1.25;
 }
@@ -2734,14 +3015,36 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  transition: all 120ms;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.seg button:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.seg button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+/* The container clips overflow, so focus rings sit inset. */
+.seg button:focus-visible {
+  outline-offset: -2px;
 }
 .seg button:last-child {
   border-right: 0;
 }
 .seg button.is-on {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+}
+.seg button.is-on:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.seg button.is-on:active {
+  background: var(--accent-ink);
+}
+.seg button.is-on:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -3px;
 }
 .seg--sm button {
   padding: 6px 9px;
@@ -2900,6 +3203,9 @@ body {
 }
 .sortbtn:hover {
   background: var(--paper-2);
+}
+.sortbtn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 
 /* ---------- approval rating ---------- */
@@ -3069,7 +3375,7 @@ body {
     width: clamp(272px, 22vw, 312px);
     display: flex;
     flex-direction: column;
-    background: var(--card);
+    background: var(--chrome);
     border-right: 2px solid var(--ink);
     padding: 26px 18px 16px;
     overflow-y: auto;
@@ -3126,7 +3432,8 @@ body {
     letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--ink-soft);
-    transition: all 120ms;
+    transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease);
   }
   .sidenav__item svg {
     width: 20px;
@@ -3139,13 +3446,26 @@ body {
     flex: none;
   }
   .sidenav__item:hover {
-    background: var(--paper-2);
+    background: var(--chrome-well);
     color: var(--ink);
+  }
+  .sidenav__item:active {
+    background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
   }
   .sidenav__item.is-active {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     border-color: var(--accent-ink);
+  }
+  .sidenav__item.is-active:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .sidenav__item.is-active:active {
+    background: var(--accent-ink);
+  }
+  .sidenav__item.is-active:focus-visible {
+    outline-color: var(--ink);
   }
   .sidenav__foot {
     flex: none;
@@ -3199,22 +3519,9 @@ body {
     color: var(--accent-ink);
     text-decoration: underline;
   }
-  .sidefilters__group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .sidefilters__label {
-    font-family: var(--hand-sc);
-    font-size: 9.5px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-  }
-  .sidefilters__chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  /* The active-filter summary sits between the head and the dimension groups. */
+  .sidefilters__active {
+    margin-bottom: 2px;
   }
   .sidefilters .chip {
     font-size: 10.5px;
@@ -3287,10 +3594,8 @@ body {
   .tabbar {
     display: none;
   }
-    .filterbar {
-    display: none;
-  }
-  .app__main > .filterbar__kit {
+  /* The mobile Filters trigger is replaced by the sidebar rail on desktop. */
+  .filtertrigger {
     display: none;
   }
   .searchrow {
@@ -3393,10 +3698,6 @@ body {
     padding: 14px 32px 10px;
   }
 
-    .overlay .filterbar {
-    display: flex;
-    padding-top: 10px;
-  }
   .form {
     max-width: 680px;
     margin-inline: auto;
@@ -3615,10 +3916,25 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.rating-reset:hover {
+  background: var(--paper-2);
+  border-color: var(--ink-soft);
+}
+.rating-reset:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
 .rating-reset.is-on {
   background: var(--ink);
   border-color: var(--ink);
   color: var(--card);
+}
+.rating-reset.is-on:hover,
+.rating-reset.is-on:active {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.rating-reset.is-on:focus-visible {
+  outline-color: var(--ink);
 }
 .rating-picker__word {
   min-width: 0;
@@ -3653,6 +3969,15 @@ body {
   background: var(--card);
   color: var(--ink-soft);
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+.rating-dot:hover {
+  background: var(--paper-2);
+  border-color: var(--ink-soft);
+}
+.rating-dot:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .rating-dot span {
   font-family: var(--hand-sc);
@@ -3691,7 +4016,7 @@ body {
   .sidenav,
   .tabbar,
   .toolbar,
-  .filterbar,
+  .filtertrigger,
   .topbar__actions,
   .modal-root {
     display: none !important;
@@ -3969,7 +4294,14 @@ body {
   .ratingdots__dot,
   .rl-iconbtn,
   .pbe__stage,
-  .icon-btn {
+  .icon-btn,
+  .chip,
+  .material-filter__summary,
+  .btn--sm,
+  .admin-action,
+  .sortbtn,
+  .rl-ptype,
+  .toolbar__search-clear {
     position: relative;
   }
   .rl-iconbtn,
@@ -3988,7 +4320,31 @@ body {
     height: 44px;
     transform: translate(-50%, -50%);
   }
-  .filterbar .chip,
+  /* Vertical-only expansion for controls packed tightly side-by-side:
+     full tap height, but width stays the visual box (+ a hair) so
+     neighbouring hit areas never overlap. */
+  .chip::before,
+  .material-filter__summary::before,
+  .btn--sm::before,
+  .admin-action::before,
+  .sortbtn::before,
+  .rl-ptype::before,
+  .toolbar__search-clear::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(100% + var(--s-2));
+    height: max(100%, var(--tap));
+    transform: translate(-50%, -50%);
+  }
+  .rating-dot {
+    min-height: var(--tap);
+  }
+  .sidefilters .material-filter__item {
+    min-height: var(--tap);
+  }
+  .chip,
   .viewswitch button {
     padding-top: 9px;
     padding-bottom: 9px;
@@ -4320,6 +4676,12 @@ body {
 }
 
 /* ---------- nodes (numbered steps + typed glyphs) ---------- */
+/* The step-number circle is accent-filled — the accent focus ring vanishes
+   on it, so it gets an ink ring instead. */
+button.rl-node:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
 .rl-node {
   flex: none;
   width: var(--rl-node-size);
@@ -4332,7 +4694,7 @@ body {
   box-sizing: border-box;
   padding: 0;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: 3px solid var(--rl-bg);
   font-family: var(--hand-sc);
   font-size: 16px;
@@ -4633,8 +4995,29 @@ button.rl-node {
   background: rgba(44, 40, 36, 0.08);
   color: var(--ink);
 }
+.rl-iconbtn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+  color: var(--ink);
+}
 .rl-iconbtn--quiet {
   cursor: default;
+}
+/* Advertises that the whole row drags — sized like its sibling icon buttons. */
+.rl-grip {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  cursor: grab;
+}
+.rl-grip svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
 }
 .rl-iconbtn svg {
   width: 15px;
@@ -4810,18 +5193,21 @@ button.rl-node {
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: var(--s-3) var(--s-5);
   font-family: var(--hand-sc);
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink);
   white-space: nowrap;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
 }
 .rl-ptype:hover {
   border-color: var(--ink);
   background: var(--paper-2);
+}
+.rl-ptype:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 .rl-ptype svg {
   width: 14px;
@@ -5146,296 +5532,6 @@ button.rl-node {
   }
 }
 
-/* ============================================================
- * PRESENT MODE — full-screen projector view of the Run List.
- * Big type, high contrast, tap-right to advance (diagram frames
- * build one tap at a time), wake-lock held while open.
- * ============================================================ */
-.present {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  background: var(--paper);
-  color: var(--ink);
-}
-.present__top {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-5) var(--page-x);
-  border-bottom: 1.5px solid var(--line-soft);
-}
-.present__crumb {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-body);
-  color: var(--ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.present__count {
-  margin-left: auto;
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  color: var(--ink-faint);
-  flex: none;
-}
-.present__exit {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex: none;
-  height: var(--control-sm);
-  padding: 0 var(--s-5);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-pill);
-  background: var(--card);
-  color: var(--ink);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  cursor: pointer;
-}
-.present__exit svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-}
-.present__stage {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  padding: var(--s-7) var(--page-x);
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-}
-/* Auto margins center like justify-content but stay scrollable when a slide
-   overflows — a tall step can never clip its own step number off-screen. */
-.present__stage > * {
-  margin-block: auto;
-}
-.present__kicker {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-body-lg);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-}
-.present__title {
-  margin: var(--s-3) 0 0;
-  font-family: var(--script);
-  font-size: var(--fs-display);
-  line-height: 1.02;
-  color: var(--ink);
-}
-.present__blurb {
-  margin: var(--s-5) 0 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  color: var(--ink-soft);
-  max-width: 26em;
-}
-.present__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-top: var(--s-7);
-}
-.present__tag {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-body);
-  padding: var(--s-2) var(--s-5);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-pill);
-  background: var(--card);
-}
-.present__section {
-  margin: 0;
-  font-family: var(--script);
-  font-size: var(--fs-title);
-  color: var(--ink);
-  text-align: center;
-}
-.present__step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  max-width: 880px;
-  width: 100%;
-  margin: 0 auto;
-}
-.present__step-head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-6);
-}
-.present__stepnum {
-  flex: none;
-  width: 56px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--ink);
-  border-radius: var(--r-round);
-  background: var(--card);
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  box-shadow: var(--e2);
-}
-.present__step-copy {
-  min-width: 0;
-  flex: 1;
-}
-.present__time {
-  display: inline-block;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-body);
-  color: var(--accent-ink);
-  margin-bottom: var(--s-2);
-}
-.present__text {
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  line-height: 1.35;
-  color: var(--ink);
-}
-.present__step.has-diagram .present__text {
-  font-size: var(--fs-body-lg);
-}
-.present__diagram {
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-}
-.present__bullets {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-.present__bullet {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-4);
-  font-family: var(--hand);
-  font-size: var(--fs-body-lg);
-  color: var(--ink-soft);
-}
-.present__bullet--safety {
-  color: var(--clay);
-}
-.present__bullet-label {
-  flex: none;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: var(--s-1) var(--s-3);
-  border: 1.5px solid currentColor;
-  border-radius: var(--r-pill);
-}
-.present__note {
-  max-width: 720px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  align-items: flex-start;
-}
-.present__note--safety .present__bullet-label {
-  color: var(--clay);
-}
-.present__materials {
-  max-width: 720px;
-  width: 100%;
-  margin: 0 auto;
-}
-.present__heading {
-  margin: 0 0 var(--s-6);
-  font-family: var(--script);
-  font-size: var(--fs-title);
-}
-.present__matlist {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-}
-.present__mat {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  width: 100%;
-  padding: var(--s-4) var(--s-5);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  font-family: var(--hand);
-  font-size: var(--fs-body-lg);
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-}
-.present__mat.is-have {
-  border-color: var(--accent);
-  background: var(--accent-tint);
-}
-.present__matcheck {
-  flex: none;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--ink);
-  border-radius: var(--r-sm);
-  background: var(--paper);
-}
-.present__matcheck svg {
-  width: 16px;
-  height: 16px;
-  stroke: var(--accent-ink);
-  fill: none;
-  stroke-width: 2.4;
-}
-.present__foot {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-4) var(--page-x) calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
-  border-top: 1.5px solid var(--line-soft);
-}
-.present__dots {
-  display: flex;
-  gap: var(--s-2);
-  flex-wrap: wrap;
-}
-.present__dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-round);
-  background: var(--line-soft);
-}
-.present__dots span.is-on {
-  background: var(--accent);
-}
-.present__hint {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  color: var(--ink-faint);
-}
-
 /* ---------- diagram lightbox + shared frame stepper ---------- */
 .lightbox-root {
   position: fixed;
@@ -5597,32 +5693,7 @@ button.rl-node {
   cursor: pointer;
 }
 
-/* ---------- viewer header: present chip + event context ---------- */
-.present-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: var(--control-sm);
-  padding: 0 var(--s-5);
-  border: 1.5px solid var(--accent-ink);
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  color: #fff;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  cursor: pointer;
-  box-shadow: var(--e1);
-}
-.present-chip:hover {
-  background: var(--accent-ink);
-}
-.present-chip svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-}
+/* ---------- viewer header: event context ---------- */
 .rlv-eventchip {
   display: inline-flex;
   align-items: center;
@@ -5677,19 +5748,8 @@ button.rl-node {
   .toolbar__add {
     flex: none;
   }
-  .filterbar {
-    flex-wrap: wrap;
-    row-gap: var(--s-3);
-    padding: var(--s-4) var(--s-7) var(--s-2);
-    overflow-x: visible;
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-  .filterbar__kit {
-    padding: 0 var(--s-7) var(--s-4);
-  }
-  .filterbar__kit .material-filter__summary {
-    width: auto;
+  .filtertrigger {
+    padding-inline: var(--s-7);
   }
 }
 /* desktop re-assertions (the sidebar rail replaces the bar there) */
@@ -5824,7 +5884,7 @@ button.rl-node {
   border: 1.5px solid var(--accent-ink);
   border-radius: var(--r-pill);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-family: var(--hand-sc);
   font-size: var(--fs-ui);
   cursor: pointer;
@@ -5847,6 +5907,12 @@ button.rl-node {
   padding: clamp(48px, 12vh, 120px) var(--page-x);
   text-align: center;
 }
+.library-empty__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-3);
+}
 .library-empty__title {
   margin: 0;
   font-family: var(--script);
@@ -5860,57 +5926,3 @@ button.rl-node {
   color: var(--ink-soft);
 }
 
-/* ---- present mode: projector-scale type + a real ending ---- */
-.present__title {
-  font-size: clamp(var(--fs-display), 7vw, 110px);
-}
-.present__section {
-  font-size: clamp(var(--fs-title), 4vw, 72px);
-}
-.present__heading {
-  font-size: clamp(var(--fs-title), 4vw, 72px);
-}
-.present__text {
-  font-size: clamp(var(--fs-title-sm), 2.2vw + 12px, 44px);
-  max-width: 28ch;
-}
-.present__step.has-diagram .present__text {
-  font-size: clamp(var(--fs-body-lg), 1.6vw + 10px, 32px);
-}
-.present__bullet {
-  font-size: clamp(var(--fs-body-lg), 1.6vw + 9px, 30px);
-}
-.present__blurb {
-  font-size: clamp(var(--fs-title-sm), 1.8vw + 10px, 34px);
-}
-.present__mat {
-  font-size: clamp(var(--fs-body-lg), 1.5vw + 10px, 28px);
-}
-.present__stepnum {
-  width: clamp(56px, 6vw, 96px);
-  height: clamp(56px, 6vw, 96px);
-  font-size: clamp(var(--fs-title-sm), 2.4vw, 40px);
-}
-.present__done {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin-left: auto;
-  min-height: var(--control-md);
-  padding: 0 var(--s-7);
-  border: 1.5px solid var(--accent-ink);
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  color: #fff;
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  cursor: pointer;
-  box-shadow: var(--e1);
-}
-.present__done svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-}

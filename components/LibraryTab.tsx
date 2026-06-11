@@ -8,7 +8,7 @@ import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import type { MaterialOption } from "@/lib/materials";
 import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
-import { Filters } from "./Filters";
+import { ActiveFilters, Filters } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
 
 export function LibraryTab({
@@ -130,6 +130,7 @@ export function LibraryTab({
         starredOnly={starredOnly}
         materialOptions={materialOptions}
         availableMaterials={availableMaterials}
+        resultCount={items.length}
         onCat={onCat}
         onPlace={onPlace}
         onAge={onAge}
@@ -159,6 +160,19 @@ export function LibraryTab({
             ) : (
               <>
                 <p className="library-empty__title">No activities match these filters.</p>
+                {/* Each active filter is removable on its own, so narrowing
+                    doesn't mean starting over. */}
+                <ActiveFilters
+                  className="library-empty__chips"
+                  cat={cat}
+                  place={place}
+                  age={age}
+                  availableMaterials={availableMaterials}
+                  onCat={onCat}
+                  onPlace={onPlace}
+                  onAge={onAge}
+                  onClearMaterials={onClearMaterials}
+                />
                 <button
                   type="button"
                   className="btn btn--quiet"

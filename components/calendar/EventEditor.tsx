@@ -1,7 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { formatClock, formatDuration, DURATION_OPTIONS, SNAP_MIN, type DayWindow } from "@/lib/calendar/time";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  formatClock,
+  formatDuration,
+  DURATION_OPTIONS,
+  MINUTES_PER_DAY,
+  SNAP_MIN,
+  type DayWindow,
+} from "@/lib/calendar/time";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Activity } from "@/lib/types";
 import { durLabel } from "@/lib/data";
@@ -17,6 +24,9 @@ export type EditorDraft = {
   allDay: boolean;
   activityId?: string;
   title: string;
+  /** The user dragged out a specific span — treat the length as deliberate and
+   *  never overwrite it with an activity's recommended duration. */
+  explicitDuration?: boolean;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -28,6 +38,7 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     allDay: Boolean(event.allDay),
     activityId: event.activityId,
     title: event.title,
+    explicitDuration: true,
   };
 }
 
@@ -83,6 +94,19 @@ export function EventEditor({
   }, [durationMin]);
 
   const valid = tab === "Library" ? Boolean(selectedActivity) : Boolean(title.trim());
+  const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
+  const overflowsDay = startMin + durationMin > MINUTES_PER_DAY;
+
+  // Switching the source tab moves focus into that tab's primary field —
+  // data-autofocus only runs on mount, when the dialog first opens.
+  const tabTouched = useRef(false);
+  useEffect(() => {
+    if (!tabTouched.current) {
+      tabTouched.current = true;
+      return;
+    }
+    document.getElementById(tab === "Library" ? "cal-editor-activity" : "cal-editor-title")?.focus();
+  }, [tab]);
 
   function save() {
     if (!valid) return;
@@ -133,7 +157,9 @@ export function EventEditor({
               onChange={(e) => {
                 setActivityId(e.target.value);
                 const activity = sortedActivities.find((a) => a.id === e.target.value);
-                if (activity && !isEdit) setDurationMin(activity.durationMin);
+                // Seed the recommended length only when the user hasn't already
+                // dragged out a deliberate span — the drag always wins.
+                if (activity && !isEdit && !initial.explicitDuration) setDurationMin(activity.durationMin);
               }}
             >
               <option value="">Pick an activity…</option>
@@ -208,6 +234,13 @@ export function EventEditor({
           )}
         </div>
 
+        {!allDay && (
+          <p className="cal-editor__endtime">
+            {formatClock(startMin)} – {formatClock(clampedEnd)}
+            {overflowsDay ? " (ends at midnight)" : ""}
+          </p>
+        )}
+
         <label className="cal-editor__allday">
           <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
           All day
@@ -220,7 +253,13 @@ export function EventEditor({
               Delete
             </button>
           )}
-          <span className="cal-editor__sp" />
+          {valid ? (
+            <span className="cal-editor__sp" />
+          ) : (
+            <p className="cal-editor__hint" role="status">
+              {tab === "Library" ? "Pick an activity to add it." : "Give the event a name."}
+            </p>
+          )}
           <button type="submit" className="btn btn--primary" disabled={!valid}>
             <CampIcon.Check />
             {isEdit ? "Save" : "Add to calendar"}
