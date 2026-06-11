@@ -20,10 +20,42 @@
 }
 
 .calshell__grid {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
   padding: 0 var(--s-5) var(--s-5);
+}
+
+/* Zero-event invitation, floating over the grid without blocking it. */
+.calshell__empty {
+  position: absolute;
+  left: 50%;
+  top: 96px;
+  translate: -50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-7);
+  background: var(--card);
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e2);
+  pointer-events: none;
+  text-align: center;
+  max-width: min(420px, 86%);
+}
+.calshell__empty-title {
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.calshell__empty-hint {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
 }
 
 /* ---------- header chrome ---------- */
@@ -80,8 +112,8 @@
 .calshell .fc {
   --fc-border-color: var(--line-soft);
   --fc-page-bg-color: transparent;
-  --fc-neutral-bg-color: var(--paper-2);
-  --fc-today-bg-color: color-mix(in srgb, var(--hl) 18%, transparent);
+  --fc-neutral-bg-color: color-mix(in srgb, var(--paper-2) 55%, var(--card));
+  --fc-today-bg-color: color-mix(in srgb, var(--hl) 30%, transparent);
   --fc-now-indicator-color: var(--clay);
   --fc-event-bg-color: var(--card);
   --fc-event-border-color: var(--line);
@@ -95,7 +127,7 @@
   border-radius: var(--r-lg);
   overflow: hidden;
   background: var(--card);
-  border: 1.5px solid var(--line);
+  border: 1px solid var(--line);
 }
 .calshell .fc .fc-timegrid-slot-label,
 .calshell .fc .fc-col-header-cell {
@@ -136,10 +168,17 @@
 }
 /* The all-day strip stays a slim shelf, not a second header. */
 .calshell .fc .fc-timegrid-axis-cushion {
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
+  color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   max-width: 64px;
+}
+/* Let the browser pan vertically but never claim horizontal swipes — they
+ * navigate between days (see CalendarShell touch handlers). */
+.calshell .fc .fc-scroller {
+  touch-action: pan-y;
 }
 .calshell .fc .fc-timegrid-divider {
   padding: 0;
@@ -186,14 +225,13 @@
 .calshell .fc-timegrid-event,
 .calshell .fc-daygrid-event {
   border-radius: var(--r-sm);
-  border: 1.5px solid color-mix(in srgb, var(--cal-tint, var(--line)) 60%, var(--ink) 12%);
-  background: color-mix(in srgb, var(--cal-tint, var(--card)) 30%, var(--card));
-  box-shadow: var(--e1);
+  border: 1px solid color-mix(in srgb, var(--cal-tint, var(--line)) 45%, var(--line-soft));
+  border-left: 3px solid var(--cal-tint, var(--accent));
+  background: color-mix(in srgb, var(--cal-tint, var(--card)) 16%, var(--card));
   transition: box-shadow 120ms, transform 120ms;
 }
-.calshell .fc-timegrid-event:hover,
-.calshell .fc-daygrid-event:hover {
-  box-shadow: var(--e2);
+.calshell .fc-timegrid-event:hover {
+  box-shadow: var(--e1);
 }
 .calshell .fc-event.fc-event-dragging,
 .calshell .fc-event.fc-event-resizing {
@@ -297,7 +335,7 @@
   margin: var(--s-4) var(--s-5) 0;
   padding: 0 var(--s-4);
   height: var(--control-sm);
-  border: 1.5px solid var(--line-soft);
+  border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   color: var(--ink-soft);
 }
@@ -420,7 +458,7 @@
   color: #fff;
   box-shadow: var(--e3);
   cursor: pointer;
-  z-index: 40;
+  z-index: 26; /* above the tabbar (24), below every overlay (scrim 30) */
 }
 .calshell__fab svg {
   width: 22px;
@@ -429,28 +467,20 @@
   fill: none;
   stroke-width: 2;
 }
-.cal-sheet-root {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-.cal-sheet__scrim {
-  position: absolute;
-  inset: 0;
+.overlay--picker .cal-lib--sheet {
+  flex: 1;
+  min-height: 0;
   border: 0;
-  background: var(--shadow);
-  cursor: pointer;
-}
-.cal-lib--sheet {
-  position: relative;
-  max-height: 70vh;
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
-  border-bottom: 0;
-  box-shadow: var(--e4);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.cal-lib__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
 }
 
 /* ---------- event quick-view popover ---------- */
@@ -576,7 +606,7 @@
   font-family: var(--hand);
   font-size: var(--fs-body);
   box-shadow: var(--e3);
-  z-index: 80;
+  z-index: 29; /* under open overlays — an undo toast never covers an editor */
 }
 .calshell__toast button {
   border: 0;
@@ -585,25 +615,6 @@
   font-family: var(--hand-sc);
   font-size: var(--fs-body);
   cursor: pointer;
-}
-
-/* The event editor is always a compact card/sheet — never a tall side
- * drawer. Phone: bottom sheet (Modal default). Tablet/desktop: centered. */
-@media (min-width: 768px) {
-  .overlay--editor {
-    position: fixed;
-    inset: auto;
-    left: 50%;
-    top: 50%;
-    translate: -50% -50%;
-    animation: none;
-    width: min(480px, 92vw);
-    height: auto;
-    max-height: min(640px, 88vh);
-    overflow-y: auto;
-    border-radius: var(--r-xl);
-    box-shadow: var(--e4);
-  }
 }
 
 /* Swipe-between-days feedback: the grid nudges in from the swipe direction. */
@@ -663,11 +674,24 @@
     font-size: var(--fs-body-lg);
   }
   .cal-popover {
-    left: var(--s-4) !important;
-    right: var(--s-4);
+    left: 0 !important;
+    right: 0;
     top: auto !important;
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     width: auto;
+    border-bottom: 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
+    animation: cl-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .cal-popover__scrim {
+    background: var(--scrim-bg);
+    animation: cl-fade 180ms ease both;
+  }
+  /* month chips need a real touch target */
+  .calshell .fc-daygrid-event {
+    min-height: 24px;
+    align-items: center;
   }
   .cal-editor__when {
     grid-template-columns: 1fr;

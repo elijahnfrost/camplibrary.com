@@ -72,10 +72,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
 
-  // One search field, never stale: clear it whenever the tab changes.
-  useEffect(() => {
-    setQuery("");
-  }, [tab]);
+  // The search query persists across tab switches — a quick Calendar
+  // round-trip shouldn't cost you your search.
 
   const filtered = useMemo(
     () =>
@@ -164,14 +162,29 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   useEffect(() => {
     if (!printActivity) return;
     const clearPrintIntent = () => setPrintActivityId(null);
+    let fallback = 0;
     let secondFrame = 0;
+    // iOS Safari fires afterprint unreliably — belt and braces so a stale
+    // hidden book can never hijack a later Cmd+P.
+    const printMedia = window.matchMedia("print");
+    const onPrintMediaChange = (e: MediaQueryListEvent) => {
+      if (!e.matches) clearPrintIntent();
+    };
+    printMedia.addEventListener?.("change", onPrintMediaChange);
     const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => window.print());
+      secondFrame = window.requestAnimationFrame(() => {
+        window.print();
+        // window.print() blocks while the dialog is open in most browsers,
+        // so this fires once it's dismissed.
+        fallback = window.setTimeout(clearPrintIntent, 1000);
+      });
     });
     window.addEventListener("afterprint", clearPrintIntent, { once: true });
     return () => {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
+      if (fallback) window.clearTimeout(fallback);
+      printMedia.removeEventListener?.("change", onPrintMediaChange);
       window.removeEventListener("afterprint", clearPrintIntent);
     };
   }, [printActivity]);
@@ -375,6 +388,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onClose={() => {
               setDetail(null);
               setDetailEventContext(null);
+              setPrintActivityId(null); // a stale book never outlives its viewer
             }}
             onSetRating={lib.setRating}
             isCustom={lib.isCustomActivity(detailActivity.id)}

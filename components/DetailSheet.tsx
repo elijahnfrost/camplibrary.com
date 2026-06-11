@@ -60,12 +60,14 @@ export function DetailSheet({
 
   const slides = useMemo(() => buildPresentSlides(a, runDoc), [a, runDoc]);
 
-  // On phones, a downward swipe from the very top of the (scrolled-to-top) sheet
-  // closes the viewer.
+  // On phones, a downward swipe that STARTS on the header closes the viewer —
+  // scoping it to the header keeps iOS rubber-band overscroll in the step list
+  // from accidentally dismissing the whole sheet mid-activity.
   const onBodyTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     if (event.touches.length !== 1 || typeof window === "undefined" || window.innerWidth >= 768) return;
     const body = bodyRef.current;
-    if (!body || body.scrollTop > 4) {
+    const onHeader = Boolean((event.target as HTMLElement).closest(".rlv-head, .overlay__handle"));
+    if (!body || body.scrollTop > 4 || !onHeader) {
       swipeStartRef.current = null;
       return;
     }
@@ -123,7 +125,9 @@ export function DetailSheet({
                   <CampIcon.Pencil />
                 </button>
               )}
-              {showOwner && (
+              {showOwner && editing && (
+                // Owner actions live inside edit mode — read mode keeps the
+                // header to the essentials so it fits one row on a phone.
                 <>
                   <button type="button" className="rlv-headbtn" onClick={() => onEdit(a)} aria-label="Edit activity">
                     <CampIcon.Tool />
@@ -142,11 +146,11 @@ export function DetailSheet({
                 type="button"
                 className="book-print-chip"
                 onClick={() => onPrint(a)}
-                aria-label={"Print " + a.title}
-                title="Print this book"
+                aria-label={"Print or save " + a.title + " as a PDF"}
+                title="Print this book — or save it as a PDF from the print dialog"
               >
                 <CampIcon.Print />
-                <span>Print</span>
+                <span>Print / PDF</span>
               </button>
               <button
                 type="button"

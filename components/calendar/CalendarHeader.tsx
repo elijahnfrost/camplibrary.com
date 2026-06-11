@@ -16,6 +16,7 @@ const VIEW_LABELS: { id: CalendarViewId; label: string }[] = [
 export function CalendarHeader({
   title,
   view,
+  todayInView,
   onView,
   onToday,
   onPrev,
@@ -23,6 +24,7 @@ export function CalendarHeader({
 }: {
   title: string;
   view: CalendarViewId;
+  todayInView: boolean;
   onView: (view: CalendarViewId) => void;
   onToday: () => void;
   onPrev: () => void;
@@ -31,7 +33,13 @@ export function CalendarHeader({
   return (
     <div className="calhead">
       <div className="calhead__nav">
-        <button type="button" className="btn btn--quiet calhead__today" onClick={onToday} title="Jump to today (t)">
+        <button
+          type="button"
+          className="btn btn--quiet calhead__today"
+          onClick={onToday}
+          disabled={todayInView}
+          title={todayInView ? "You're looking at today" : "Jump to today (t)"}
+        >
           Today
         </button>
         <button type="button" className="icon-btn" onClick={onPrev} aria-label="Previous" title="Previous (←)">

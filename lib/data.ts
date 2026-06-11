@@ -85,15 +85,17 @@ export function categoryTint(id: CategoryId | undefined): string {
   return id ? CATEGORY_TINTS[id] : "#8f8470";
 }
 
-// Approval rating → warm sequential color scale (low = clay, high = green) so the shelf ranks by color.
+// Approval rating → warm sequential color scale (low = clay, high = green) so
+// the shelf ranks by color. One step more chroma at the low end so the scale
+// survives the light desaturated paper.
 const RATING_COLORS: Record<number, string> = {
-  1: "#cda08a",
-  2: "#d8b78f",
-  3: "#dcc587",
+  1: "#c4906f",
+  2: "#d2a87a",
+  3: "#d4bc74",
   4: "#aebf86",
   5: "#85a45f",
 };
-const RATING_NEUTRAL = "#e6dcc6"; // unrated / not run yet — a plain, blank cover
+const RATING_NEUTRAL = "#ddd2b8"; // unrated — a blank kraft cover, not a hole in the shelf
 export const RATING_WORD: Record<number, string> = {
   0: "Not run yet",
   1: "Rough day",

@@ -110,9 +110,15 @@ export function LibraryPanel({
             data-title={activity.title}
             data-duration={minutesToDuration(activity.durationMin)}
           >
-            <span className="cal-lib__grip" aria-hidden="true" style={{ color: categoryTint(activity.type) }}>
-              <CampIcon.Grip />
-            </span>
+            {variant === "rail" ? (
+              // The grip advertises drag — only honest on the desktop rail,
+              // where dragging onto the grid actually works.
+              <span className="cal-lib__grip" aria-hidden="true" style={{ color: categoryTint(activity.type) }}>
+                <CampIcon.Grip />
+              </span>
+            ) : (
+              <span className="cal-lib__dot" aria-hidden="true" style={{ background: categoryTint(activity.type) }} />
+            )}
             <button
               type="button"
               className="cal-lib__open"

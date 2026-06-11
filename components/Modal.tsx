@@ -32,7 +32,7 @@ export function Modal({
 
   return (
     <div className="modal-root">
-      <div className="scrim" onClick={onClose} />
+      <button type="button" className="scrim" aria-label="Close" onClick={onClose} />
       <div
         {...restOverlayProps}
         ref={dialogRef}
@@ -42,6 +42,7 @@ export function Modal({
         aria-label={label}
         tabIndex={-1}
       >
+        <div className="overlay__handle" aria-hidden="true" />
         {children}
       </div>
     </div>

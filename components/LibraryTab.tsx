@@ -96,7 +96,21 @@ export function LibraryTab({
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             aria-label="Search the library"
+            enterKeyHint="search"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+            }}
           />
+          {query && (
+            <button
+              type="button"
+              className="toolbar__search-clear"
+              onClick={() => onQuery("")}
+              aria-label="Clear search"
+            >
+              <CampIcon.Close />
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -124,10 +138,51 @@ export function LibraryTab({
         onClearMaterials={onClearMaterials}
       />
       <div className="app__scroll">
-        {view === "shelf" && <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
-        {view === "deck" && <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
-        {view === "catalog" && (
-          <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />
+        {items.length === 0 ? (
+          // Say WHY it's empty and offer the one-tap way back.
+          <div className="library-empty">
+            {query ? (
+              <>
+                <p className="library-empty__title">Nothing matches &ldquo;{query}&rdquo;.</p>
+                <button type="button" className="btn btn--quiet" onClick={() => onQuery("")}>
+                  Clear search
+                </button>
+              </>
+            ) : starredOnly ? (
+              <>
+                <p className="library-empty__title">No starred activities yet.</p>
+                <p className="library-empty__hint">Tap the bookmark on any activity to star it.</p>
+                <button type="button" className="btn btn--quiet" onClick={() => onStarredOnly(false)}>
+                  Show all activities
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="library-empty__title">No activities match these filters.</p>
+                <button
+                  type="button"
+                  className="btn btn--quiet"
+                  onClick={() => {
+                    onCat("All");
+                    onPlace("All");
+                    onAge("All");
+                    onStarredOnly(false);
+                    onClearMaterials();
+                  }}
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {view === "shelf" && <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
+            {view === "deck" && <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
+            {view === "catalog" && (
+              <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />
+            )}
+          </>
         )}
       </div>
     </>

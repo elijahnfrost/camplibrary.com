@@ -37,6 +37,15 @@ export function formatRangeLabel(startMin: number, endMin: number): string {
   return formatClock(startMin) + " – " + formatClock(endMin);
 }
 
+// "45 min", "1 hr", "1 hr 15 min" — humanized duration for pickers.
+export function formatDuration(min: number): string {
+  const safe = Math.max(0, Math.round(min));
+  if (safe < 60) return safe + " min";
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return m ? h + " hr " + m + " min" : h + " hr";
+}
+
 // Ultra-compact clock for tight event chips: "10a", "10:30a", "1:15p".
 export function formatClockCompact(min: number): string {
   const clamped = Math.max(0, Math.min(MINUTES_PER_DAY, Math.round(min))) % MINUTES_PER_DAY;

@@ -48,7 +48,12 @@ export function EventPopover({
     if (left + POPOVER_WIDTH > window.innerWidth - MARGIN) left = anchor.left - POPOVER_WIDTH - MARGIN;
     if (left < MARGIN) left = Math.min(Math.max(anchor.left, MARGIN), window.innerWidth - POPOVER_WIDTH - MARGIN);
     let top = anchor.top;
-    if (top + height > window.innerHeight - MARGIN) top = Math.max(MARGIN, window.innerHeight - height - MARGIN);
+    if (top + height > window.innerHeight - MARGIN) {
+      // Flip above the anchor when there's room, so bottom-of-screen events
+      // aren't covered by their own popover; otherwise clamp to the viewport.
+      const above = anchor.top - height - MARGIN;
+      top = above >= MARGIN ? above : Math.max(MARGIN, window.innerHeight - height - MARGIN);
+    }
     setPosition({ left, top });
   }, [anchor]);
 

@@ -7,6 +7,8 @@ import type { ActivityPlaybookData } from "./playbooks";
 import { detailTagsForActivity, type RunChild, type RunDoc } from "./runList";
 import type { Activity } from "./types";
 
+const MAX_BULLETS_PER_SLIDE = 4;
+
 export type PresentBullet = {
   id: string;
   type: "note" | "safety" | "variation" | "substep" | "video";
@@ -79,10 +81,21 @@ export function buildPresentSlides(activity: Activity, doc: RunDoc): PresentSlid
       const hasMaterialsChild = children.some((child) => child.type === "materials");
       if (text || bullets.length || diagram) {
         stepNumber += 1;
-        const slide: PresentSlide = { kind: "step", number: stepNumber, text, bullets };
+        // A heavily-annotated step would become a wall of text on the
+        // projector — cap bullets per slide and continue on the next tap.
+        const first = bullets.slice(0, MAX_BULLETS_PER_SLIDE);
+        const slide: PresentSlide = { kind: "step", number: stepNumber, text, bullets: first };
         if (block.time && block.time.trim()) slide.time = block.time.trim();
         if (diagram) slide.diagram = diagram;
         slides.push(slide);
+        for (let i = MAX_BULLETS_PER_SLIDE; i < bullets.length; i += MAX_BULLETS_PER_SLIDE) {
+          slides.push({
+            kind: "step",
+            number: stepNumber,
+            text: text ? text + " (continued)" : "(continued)",
+            bullets: bullets.slice(i, i + MAX_BULLETS_PER_SLIDE),
+          });
+        }
       }
       if (hasMaterialsChild && !materialsShown) {
         slides.push({ kind: "materials" });

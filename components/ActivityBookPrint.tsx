@@ -85,15 +85,9 @@ function PrintRunBlock({ block, activity }: { block: RunBlock; activity: Activit
     return <h2 className="print-run-heading">{block.text}</h2>;
   }
 
-  if (block.type === "details") {
-    return (
-      <section className="print-facts print-run-details" aria-label="Activity details">
-        {(block.tags || []).map((tag) => (
-          <PrintFact key={tag.id} label={tag.icon || "Detail"} value={tag.label} />
-        ))}
-      </section>
-    );
-  }
+  // The header's facts section already prints every activity fact — the
+  // doc's details block would repeat it (with icon ids as labels, no less).
+  if (block.type === "details") return null;
 
   if (block.type === "materials") {
     return (

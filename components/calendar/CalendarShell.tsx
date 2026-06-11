@@ -34,6 +34,7 @@ import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
+import { Modal } from "../Modal";
 import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
 import { EventEditor, draftFromEvent, type EditorDraft } from "./EventEditor";
 import { EventPopover } from "./EventPopover";
@@ -80,10 +81,13 @@ export function CalendarShell({
     "auto",
     viewStorage
   );
-  const [activeView, setActiveView] = useState<CalendarViewId>(
-    storedView === "auto" ? "timeGridWeek" : storedView
-  );
+  // The initial view resolves client-side (coarse pointer → Day); the grid
+  // mounts only after resolution so phones never flash Week first.
+  const [resolvedView, setResolvedView] = useState<CalendarViewId | null>(null);
+  const [activeView, setActiveView] = useState<CalendarViewId>("timeGridWeek");
   const [title, setTitle] = useState("");
+  const [todayInView, setTodayInView] = useState(true);
+  const [visibleRange, setVisibleRange] = useState<{ start: DateKey; end: DateKey } | null>(null);
   const [editor, setEditor] = useState<EditorDraft | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -95,11 +99,16 @@ export function CalendarShell({
 
   // Coarse pointers (phones) default to Day; everything else to Week.
   useEffect(() => {
-    if (storedView !== "auto" || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+    if (storedView !== "auto") {
+      setResolvedView(storedView);
+      setActiveView(storedView);
+      return;
+    }
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const resolved: CalendarViewId = coarse ? "timeGridDay" : "timeGridWeek";
+    setResolvedView(resolved);
     setActiveView(resolved);
-    calendarRef.current?.getApi().changeView(resolved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -109,7 +118,14 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
-  const window_ = useMemo(() => effectiveWindow(healedEvents), [healedEvents]);
+  // The day window auto-extends only around events in the VISIBLE range — a
+  // stray 6am event last month shouldn't stretch every day's grid forever.
+  const window_ = useMemo(() => {
+    const scoped = visibleRange
+      ? healedEvents.filter((event) => event.date >= visibleRange.start && event.date < visibleRange.end)
+      : healedEvents;
+    return effectiveWindow(scoped);
+  }, [healedEvents, visibleRange]);
 
   const fcEvents = useMemo(() => healedEvents.map((event) => toFcEvent(event, byId)), [healedEvents, byId]);
 
@@ -147,7 +163,10 @@ export function CalendarShell({
     const start = arg.view.currentStart;
     const end = arg.view.currentEnd;
     const now = new Date();
-    focusDateRef.current = now >= start && now < end ? toDateKey(now) : toDateKey(start);
+    const todayVisible = now >= start && now < end;
+    focusDateRef.current = todayVisible ? toDateKey(now) : toDateKey(start);
+    setTodayInView(todayVisible);
+    setVisibleRange({ start: toDateKey(start), end: toDateKey(end) });
   }, []);
 
   const saveDraft = useCallback(
@@ -323,25 +342,39 @@ export function CalendarShell({
       const start = info.event.start;
       // Our store is the source of truth — drop FC's temporary event either way.
       info.event.remove();
+      setSheetOpen(false); // reveal the calendar so the drop (and toast) is visible
       if (!start || !requireStaff("plan the calendar")) return;
       const date = toDateKey(start);
-      const startMin = info.event.allDay ? 0 : snapMinutes(minutesOfDay(start), SNAP_MIN);
       const duration = Math.max(SNAP_MIN, activity?.durationMin ?? DEFAULT_DURATION_MIN);
+
+      // A month-cell drop means "put it on this day", not "make it all-day":
+      // place it at the day's next free time like the tap-to-place flow.
+      let allDay = info.event.allDay;
+      let startMin = allDay ? 0 : snapMinutes(minutesOfDay(start), SNAP_MIN);
+      if (allDay && info.view.type === "dayGridMonth") {
+        const dayEvents = healedEvents.filter((event) => event.date === date);
+        const freeStart = nextFreeStartForDay(dayEvents, duration, DEFAULT_PLANNING_START_MIN, window_);
+        if (freeStart != null) {
+          allDay = false;
+          startMin = freeStart;
+        }
+      }
+
       const event: CalendarEvent = {
         id: crypto.randomUUID(),
         date,
-        startMin: info.event.allDay ? 0 : startMin,
-        endMin: info.event.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + duration),
+        startMin: allDay ? 0 : startMin,
+        endMin: allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + duration),
         kind: activity ? "activity" : "custom",
         title: activity?.title ?? info.event.title ?? "Untitled",
         updatedAt: Date.now(),
       };
       if (activity) event.activityId = activity.id;
-      if (info.event.allDay) event.allDay = true;
+      if (allDay) event.allDay = true;
       upsertEvent(event);
       announce(event.title + " scheduled at " + (event.allDay ? "all day" : formatClock(event.startMin)));
     },
-    [announce, byId, requireStaff, upsertEvent]
+    [announce, byId, healedEvents, requireStaff, upsertEvent, window_]
   );
 
   // Tint flows through a CSS variable so the stylesheet can mix it with paper.
@@ -431,7 +464,7 @@ export function CalendarShell({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
-      if (editor || popover) return;
+      if (editor || popover || sheetOpen) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -460,7 +493,7 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, editor, popover]);
+  }, [changeView, editor, popover, sheetOpen]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -469,6 +502,7 @@ export function CalendarShell({
       <CalendarHeader
         title={title}
         view={activeView}
+        todayInView={todayInView}
         onView={changeView}
         onToday={() => calendarRef.current?.getApi().today()}
         onPrev={() => calendarRef.current?.getApi().prev()}
@@ -480,10 +514,19 @@ export function CalendarShell({
           onTouchStart={onGridTouchStart}
           onTouchEnd={onGridTouchEnd}
         >
+          {healedEvents.length === 0 && (
+            <div className="calshell__empty" aria-hidden="true">
+              <span className="calshell__empty-title">Nothing planned yet</span>
+              <span className="calshell__empty-hint">
+                Pull an activity in from the library — or tap an empty slot to start.
+              </span>
+            </div>
+          )}
+          {resolvedView && (
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView={activeView}
+            initialView={resolvedView}
             headerToolbar={false}
             firstDay={1}
             height="100%"
@@ -491,8 +534,12 @@ export function CalendarShell({
             editable
             selectable
             selectMirror
+            selectMinDistance={8}
             droppable
             dayMaxEvents={3}
+            slotEventOverlap={false}
+            eventShortHeight={46}
+            eventMinHeight={22}
             snapDuration="00:15:00"
             slotDuration="00:30:00"
             slotMinTime={minutesToTimeString(window_.startMin)}
@@ -515,6 +562,7 @@ export function CalendarShell({
             dayHeaderContent={renderDayHeader}
             events={fcEvents}
           />
+          )}
         </div>
         <LibraryPanel variant="rail" activities={activities} onPlace={placeActivity} onPick={pickActivity} />
       </div>
@@ -530,8 +578,11 @@ export function CalendarShell({
       </button>
 
       {sheetOpen && (
-        <div className="cal-sheet-root">
-          <button type="button" className="cal-sheet__scrim" aria-label="Close library" onClick={() => setSheetOpen(false)} />
+        <Modal
+          label="Add from the library"
+          onClose={() => setSheetOpen(false)}
+          overlayProps={{ className: "overlay--picker" }}
+        >
           <LibraryPanel
             variant="sheet"
             activities={activities}
@@ -539,7 +590,7 @@ export function CalendarShell({
             onPick={pickActivity}
             onClose={() => setSheetOpen(false)}
           />
-        </div>
+        </Modal>
       )}
 
       {editor && (

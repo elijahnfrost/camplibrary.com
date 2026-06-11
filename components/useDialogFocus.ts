@@ -9,6 +9,10 @@ function focusWithoutScroll(element: HTMLElement) {
   element.focus({ preventScroll: true });
 }
 
+// Stacked dialogs (sheet → lightbox → present…) each listen on document; only
+// the TOPMOST layer may handle keys, so Escape closes one layer at a time.
+const dialogStack: HTMLElement[] = [];
+
 export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T | null>(null);
   const onCloseRef = useRef(onClose);
@@ -18,20 +22,20 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
     const dialog = ref.current;
     if (!dialog) return;
     const activeDialog = dialog;
+    dialogStack.push(activeDialog);
 
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusFirst = () => {
-      const first = activeDialog.querySelector<HTMLElement>(FOCUSABLE);
+      // A [data-autofocus] field wins (e.g. the editor's main input) so focus
+      // never lands on the Close button just because it's first in the DOM.
+      const preferred = activeDialog.querySelector<HTMLElement>("[data-autofocus]");
+      const first = preferred || activeDialog.querySelector<HTMLElement>(FOCUSABLE);
       focusWithoutScroll(first || activeDialog);
     };
     const frame = window.requestAnimationFrame(focusFirst);
 
     function onKeyDown(event: KeyboardEvent) {
-      // Stacked dialogs (sheet → lightbox/present) each listen on document;
-      // only the layer that owns focus may handle the key, so Escape closes
-      // one layer at a time instead of the whole stack.
-      const active = document.activeElement;
-      if (active && active !== document.body && !activeDialog.contains(active)) return;
+      if (dialogStack[dialogStack.length - 1] !== activeDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -61,6 +65,8 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => {
+      const stackIndex = dialogStack.lastIndexOf(activeDialog);
+      if (stackIndex !== -1) dialogStack.splice(stackIndex, 1);
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
       if (previouslyFocused?.isConnected) focusWithoutScroll(previouslyFocused);

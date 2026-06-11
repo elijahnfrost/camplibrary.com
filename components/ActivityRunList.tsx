@@ -174,8 +174,8 @@ function Editable({
   ariaLabelledBy?: string;
   /** Marks the cell focusable-by-id after structural edits (data-rl-focus). */
   focusKey?: string;
-  /** Enter commits the current text and lets the parent insert what follows. */
-  onEnter?: (currentText: string) => void;
+  /** Enter splits at the caret: text before stays, text after moves on. */
+  onEnter?: (beforeText: string, afterText: string) => void;
   /** Backspace in an already-empty cell (e.g. remove the empty step). */
   onBackspaceEmpty?: () => void;
 }) {
@@ -214,8 +214,25 @@ function Editable({
           ? (e) => {
               if (e.key === "Enter" && !e.shiftKey && onEnter) {
                 e.preventDefault();
-                onEnter(e.currentTarget.textContent || "");
+                // Split at the caret like a text document: "before|after"
+                // keeps "before" here and carries "after" into the new step.
+                const el = e.currentTarget as HTMLElement;
+                const full = el.textContent || "";
+                let before = full;
+                let after = "";
+                const selection = window.getSelection();
+                if (selection && selection.rangeCount && el.contains(selection.anchorNode)) {
+                  const range = selection.getRangeAt(0);
+                  const pre = range.cloneRange();
+                  pre.selectNodeContents(el);
+                  pre.setEnd(range.startContainer, range.startOffset);
+                  before = pre.toString();
+                  after = full.slice(before.length);
+                }
+                onEnter(before, after);
               } else if (e.key === "Escape") {
+                // Cancel this edit only — never bubble up and close the viewer.
+                e.stopPropagation();
                 cancelRef.current = true;
                 e.currentTarget.textContent = value || "";
                 (e.currentTarget as HTMLElement).blur();
@@ -345,23 +362,24 @@ export function ActivityRunList({
   const railNodes = useRef<Map<string, HTMLElement>>(new Map());
   const closeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const diagramRef = useRef<HTMLDivElement | null>(null);
-  const pendingFocusRef = useRef<string | null>(null);
+  const pendingFocusRef = useRef<{ id: string; caret: "start" | "end" } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Focus the step a structural edit just created (Enter-split) or revealed
-  // (Backspace-join), with the caret at the end of its text.
+  // (Backspace-join). Splits carry text into the new step, so the caret goes
+  // to its start; joins put the caret at the end of the previous step.
   useEffect(() => {
-    const id = pendingFocusRef.current;
-    if (!id) return;
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
     pendingFocusRef.current = null;
-    const node = listRef.current?.querySelector<HTMLElement>('[data-rl-focus="' + id + '"]');
+    const node = listRef.current?.querySelector<HTMLElement>('[data-rl-focus="' + pending.id + '"]');
     if (!node) return;
     node.focus();
     const selection = window.getSelection();
     if (selection) {
       const range = document.createRange();
       range.selectNodeContents(node);
-      range.collapse(false);
+      range.collapse(pending.caret === "start");
       selection.removeAllRanges();
       selection.addRange(range);
     }
@@ -379,17 +397,20 @@ export function ActivityRunList({
     return () => Object.values(timers).forEach((t) => clearTimeout(t));
   }, []);
 
-  // A diagram edits in place like text: click the field to start, click anywhere
-  // outside it to finish. No edit/done buttons.
+  // A diagram edits in place like text: click the field to start, hit the
+  // pinned Done chip (or click away) to finish. The closing outside-tap is
+  // swallowed so it can't also pop a keyboard or fire a trash button.
   useEffect(() => {
     if (!diagramEditing) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       if (diagramRef.current && !diagramRef.current.contains(e.target as Node)) {
+        e.preventDefault();
+        e.stopPropagation();
         setDiagramEditing(null);
       }
     };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("pointerdown", onDown, { capture: true });
+    return () => document.removeEventListener("pointerdown", onDown, { capture: true });
   }, [diagramEditing]);
 
   const materialNeeds = useMemo(() => materialNeedsForActivity(activity), [activity]);
@@ -432,11 +453,12 @@ export function ActivityRunList({
     commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
   };
 
-  // Enter inside a step: commit its text and open a fresh step right after it.
-  const splitStep = (id: string, text: string) => {
-    const fresh = blankStepBlock();
-    pendingFocusRef.current = fresh.id;
-    commit(insertBlockAfter(doc, id, fresh, { text }));
+  // Enter inside a step: split at the caret — text before stays, text after
+  // moves into a fresh step that takes focus.
+  const splitStep = (id: string, beforeText: string, afterText: string) => {
+    const fresh = { ...blankStepBlock(), text: afterText };
+    pendingFocusRef.current = { id: fresh.id, caret: "start" };
+    commit(insertBlockAfter(doc, id, fresh, { text: beforeText }));
   };
 
   // Backspace in an empty step: remove it and put the caret back on the
@@ -445,7 +467,7 @@ export function ActivityRunList({
     const index = doc.blocks.findIndex((b) => b.id === id);
     if (index < 0) return;
     const previousStep = [...doc.blocks.slice(0, index)].reverse().find((b) => b.type === "step");
-    if (previousStep) pendingFocusRef.current = previousStep.id;
+    if (previousStep) pendingFocusRef.current = { id: previousStep.id, caret: "end" };
     commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
   };
 
@@ -458,6 +480,22 @@ export function ActivityRunList({
     const blocks = [...doc.blocks];
     [blocks[idx], blocks[swap]] = [blocks[swap], blocks[idx]];
     commit({ blocks });
+  };
+
+  // Same for a step's attached details — without this, touch devices have no
+  // way to reorder a note/diagram under a step at all.
+  const moveChildBy = (parentId: string, childId: string, dir: -1 | 1) => {
+    commit({
+      blocks: doc.blocks.map((b) => {
+        if (b.id !== parentId) return b;
+        const children = [...(b.children || [])];
+        const idx = children.findIndex((k) => k.id === childId);
+        const swap = idx + dir;
+        if (idx < 0 || swap < 0 || swap >= children.length) return b;
+        [children[idx], children[swap]] = [children[swap], children[idx]];
+        return { ...b, children };
+      }),
+    });
   };
 
   const rmKid = (pid: string, kid: string) => {
@@ -502,7 +540,7 @@ export function ActivityRunList({
   // The between-rows "+" affordance: insert any block type at that gap.
   const addTopAt = (type: RunBlockType, index: number) => {
     const block = makeTopBlock(type);
-    if (block.type === "step") pendingFocusRef.current = block.id;
+    if (block.type === "step") pendingFocusRef.current = { id: block.id, caret: "end" };
     commit(insertBlockAt(doc, index, block));
     setInsertAt(null);
   };
@@ -856,8 +894,29 @@ export function ActivityRunList({
   const renderChild = (stepId: string, k: RunChild, closingNow: boolean): ReactNode => {
     const Icon = TYPE_ICON[k.type];
     const label = RUN_CHILD_META[k.type].label;
+    const parentBlock = doc.blocks.find((b) => b.id === stepId);
+    const childIndex = (parentBlock?.children || []).findIndex((c) => c.id === k.id);
+    const childCount = parentBlock?.children?.length ?? 0;
     const removeBtn = editable ? (
       <div className="rl-rowtools">
+        <button
+          type="button"
+          className="rl-iconbtn"
+          onClick={() => moveChildBy(stepId, k.id, -1)}
+          disabled={childIndex <= 0}
+          aria-label="Move detail up"
+        >
+          <CampIcon.ChevronUp />
+        </button>
+        <button
+          type="button"
+          className="rl-iconbtn"
+          onClick={() => moveChildBy(stepId, k.id, 1)}
+          disabled={childIndex < 0 || childIndex >= childCount - 1}
+          aria-label="Move detail down"
+        >
+          <CampIcon.ChevronDown />
+        </button>
         <button type="button" className="rl-iconbtn" onClick={() => rmKid(stepId, k.id)} aria-label="Remove detail">
           <CampIcon.Trash />
         </button>
@@ -900,6 +959,14 @@ export function ActivityRunList({
       if (editable && diagramEditing === k.id) {
         return shell(
           <div className="rl-diagram rl-diagram--editing" ref={diagramRef}>
+            <button
+              type="button"
+              className="rl-diagram__done"
+              onClick={() => setDiagramEditing(null)}
+            >
+              <CampIcon.Check />
+              Done
+            </button>
             <PlaybookEditor value={k.diagram} onChange={(next) => patchKid(stepId, k.id, { diagram: next })} />
           </div>
         );
@@ -1349,7 +1416,7 @@ export function ActivityRunList({
                           ariaLabel={"Step " + stepNo + " instructions"}
                           focusKey={b.id}
                           onCommit={(v) => patchTop(b.id, { text: v })}
-                          onEnter={(text) => splitStep(b.id, text)}
+                          onEnter={(before, after) => splitStep(b.id, before, after)}
                           onBackspaceEmpty={() => removeEmptyStep(b.id)}
                         />
                         {collapsedNow && summary.length > 0 && (

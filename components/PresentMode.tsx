@@ -272,13 +272,22 @@ export function PresentMode({
         )}
       </div>
 
-      <div className="present__foot" aria-hidden="true">
-        <div className="present__dots">
+      <div className="present__foot">
+        <div className="present__dots" aria-hidden="true">
           {slides.map((s, i) => (
             <span key={i} className={i === slideIndex ? "is-on" : ""} />
           ))}
         </div>
-        <span className="present__hint">{atEnd ? "That's everything — go run it" : "Tap right to continue"}</span>
+        {atEnd ? (
+          <button type="button" className="present__done" onClick={onClose}>
+            <CampIcon.Check />
+            Done — go run it
+          </button>
+        ) : (
+          <span className="present__hint" aria-hidden="true">
+            Tap right to continue
+          </span>
+        )}
       </div>
     </div>,
     document.body

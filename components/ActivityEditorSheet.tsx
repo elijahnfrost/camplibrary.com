@@ -2,6 +2,7 @@
 
 import type { Activity } from "@/lib/types";
 import type { RunDoc } from "@/lib/runList";
+import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { AddView } from "./AddView";
 
@@ -30,6 +31,16 @@ export function ActivityEditorSheet({
       }}
     >
       <div className="overlay__body rlv-body">
+        {/* Always-visible escape hatch — on a phone the sheet covers the
+            whole screen and a scrim tap shouldn't be the only way out. */}
+        <div className="rlv-head__row sheet-head">
+          <button type="button" className="rlv-back" onClick={onClose} aria-label="Back to Library">
+            <CampIcon.ChevronLeft />
+            Library
+          </button>
+          <span className="rlv-head__sp" />
+          <span className="sheet-head__title">{editing ? "Edit activity" : "New activity"}</span>
+        </div>
         <AddView
           initial={editing}
           initialRunDoc={initialRunDoc}

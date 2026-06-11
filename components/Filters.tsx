@@ -253,6 +253,25 @@ export function Filters({
   return (
     <>
       <div className="filterbar">
+        {anyOn && (
+          <>
+            <button
+              type="button"
+              className="chip chip--clear"
+              onClick={() => {
+                onCat("All");
+                onPlace("All");
+                onAge("All");
+                onStarredOnly?.(false);
+                onClearMaterials();
+              }}
+            >
+              <CampIcon.Close />
+              Clear
+            </button>
+            <span className="filterbar__div" aria-hidden="true" />
+          </>
+        )}
         {starredChip && (
           <>
             <span className="filterbar__cluster" role="group" aria-label="Saved">

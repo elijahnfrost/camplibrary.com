@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatClock, DURATION_OPTIONS, SNAP_MIN, type DayWindow } from "@/lib/calendar/time";
+import { formatClock, formatDuration, DURATION_OPTIONS, SNAP_MIN, type DayWindow } from "@/lib/calendar/time";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Activity } from "@/lib/types";
 import { durLabel } from "@/lib/data";
@@ -101,9 +101,15 @@ export function EventEditor({
     <Modal
       label={isEdit ? "Edit event" : "New event"}
       onClose={onClose}
-      overlayProps={{ className: "overlay--editor" }}
+      overlayProps={{ className: "overlay--card" }}
     >
-      <div className="overlay__body cal-editor">
+      <form
+        className="overlay__body cal-editor"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
         <div className="cal-editor__head">
           <h2 className="cal-editor__title">{isEdit ? "Edit event" : "New event"}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
@@ -122,6 +128,7 @@ export function EventEditor({
             <select
               id="cal-editor-activity"
               className="select"
+              data-autofocus
               value={activityId}
               onChange={(e) => {
                 setActivityId(e.target.value);
@@ -143,6 +150,8 @@ export function EventEditor({
             <input
               id="cal-editor-title"
               className="input"
+              data-autofocus
+              enterKeyHint="done"
               placeholder="e.g. Lunch, Assembly, Free play"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -190,7 +199,7 @@ export function EventEditor({
                 >
                   {durationChoices.map((value) => (
                     <option key={value} value={value}>
-                      {value} min
+                      {formatDuration(value)}
                     </option>
                   ))}
                 </select>
@@ -212,12 +221,12 @@ export function EventEditor({
             </button>
           )}
           <span className="cal-editor__sp" />
-          <button type="button" className="btn btn--primary" disabled={!valid} onClick={save}>
+          <button type="submit" className="btn btn--primary" disabled={!valid}>
             <CampIcon.Check />
             {isEdit ? "Save" : "Add to calendar"}
           </button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
