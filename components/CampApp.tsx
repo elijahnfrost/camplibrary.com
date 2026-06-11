@@ -8,6 +8,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter } from "@/lib/activityFilters";
+import { formatEventDateLabel } from "@/lib/calendar/dates";
+import { formatRangeLabel } from "@/lib/calendar/time";
+import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
@@ -98,8 +101,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     [filtered, starredOnly, lib.favSet]
   );
 
-  // Activity viewer state.
+  // Activity viewer state. The event context is display-only strings from the
+  // calendar event the viewer was opened from (never calendar types).
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [detailEventContext, setDetailEventContext] = useState<{ dateLabel: string; timeLabel: string } | null>(
+    null
+  );
   const detailActivity = detail ? lib.byId[detail.id] || detail : null;
   const activityDeepLinkOpenedRef = useRef(false);
 
@@ -113,6 +120,15 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   }, [lib.byId]);
 
   const openDetail = useCallback((activity: Activity) => {
+    setDetailEventContext(null);
+    setDetail(activity);
+  }, []);
+
+  const openDetailFromEvent = useCallback((activity: Activity, calEvent: CalendarEvent) => {
+    setDetailEventContext({
+      dateLabel: formatEventDateLabel(calEvent.date),
+      timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
+    });
     setDetail(activity);
   }, []);
 
@@ -312,7 +328,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 activities={lib.all}
                 byId={lib.byId}
                 requireStaff={requireStaff}
-                onOpenActivity={(activity) => openDetail(activity)}
+                onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
               />
             </div>
@@ -361,7 +377,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             activity={detailActivity}
             isFav={lib.isFav}
             onToggleFav={lib.toggleFav}
-            onClose={() => setDetail(null)}
+            onClose={() => {
+              setDetail(null);
+              setDetailEventContext(null);
+            }}
             onSetRating={lib.setRating}
             isCustom={lib.isCustomActivity(detailActivity.id)}
             onEdit={editActivity}
@@ -371,6 +390,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onToggleMaterial={lib.toggleAvailableMaterial}
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSaveRunDoc={lib.saveRunDoc}
+            eventContext={detailEventContext ?? undefined}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
           />
         )}

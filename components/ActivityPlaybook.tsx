@@ -134,7 +134,7 @@ export function PlayerShape({ player }: { player: PlaybookPlayer }) {
  * Read-only diagram.
  * ------------------------------------------------------------------------- */
 
-function FieldFrame({
+export function FieldFrame({
   frame,
   split,
   markerBase,

@@ -27,6 +27,11 @@ export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
     const frame = window.requestAnimationFrame(focusFirst);
 
     function onKeyDown(event: KeyboardEvent) {
+      // Stacked dialogs (sheet → lightbox/present) each listen on document;
+      // only the layer that owns focus may handle the key, so Escape closes
+      // one layer at a time instead of the whole stack.
+      const active = document.activeElement;
+      if (active && active !== document.body && !activeDialog.contains(active)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();

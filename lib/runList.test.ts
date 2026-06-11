@@ -6,8 +6,11 @@ import {
   RUN_CHILD_TYPES,
   RUN_TOP_LABEL,
   blankDiagramChild,
+  blankStepBlock,
   buildRunDoc,
   cloneRunDoc,
+  insertBlockAfter,
+  insertBlockAt,
   detailTagsForActivity,
   detailsBlock,
   detailsHeadingBlock,
@@ -246,5 +249,41 @@ describe("run list model", () => {
 
     expect(source.blocks[0].text).toBe("Start");
     expect(source.blocks[0].children![0].text).toBe("Original");
+  });
+});
+
+describe("insertBlockAfter / insertBlockAt", () => {
+  const base: RunDoc = {
+    blocks: [
+      { id: "a", type: "step", text: "First", children: [] },
+      { id: "b", type: "step", text: "Second", children: [] },
+    ],
+  };
+
+  it("inserts immediately after the anchor", () => {
+    const fresh = blankStepBlock();
+    const next = insertBlockAfter(base, "a", fresh);
+    expect(next.blocks.map((b) => b.id)).toEqual(["a", fresh.id, "b"]);
+    expect(base.blocks).toHaveLength(2); // source untouched
+  });
+
+  it("patches the anchor in the same operation (Enter-to-split)", () => {
+    const fresh = blankStepBlock();
+    const next = insertBlockAfter(base, "a", fresh, { text: "First, committed" });
+    expect(next.blocks[0].text).toBe("First, committed");
+    expect(next.blocks[1].id).toBe(fresh.id);
+  });
+
+  it("appends when the anchor id is unknown", () => {
+    const fresh = blankStepBlock();
+    const next = insertBlockAfter(base, "missing", fresh);
+    expect(next.blocks.map((b) => b.id)).toEqual(["a", "b", fresh.id]);
+  });
+
+  it("inserts at a clamped top-level index", () => {
+    const fresh = blankStepBlock();
+    expect(insertBlockAt(base, 0, fresh).blocks[0].id).toBe(fresh.id);
+    expect(insertBlockAt(base, 99, fresh).blocks[2].id).toBe(fresh.id);
+    expect(insertBlockAt(base, -5, fresh).blocks[0].id).toBe(fresh.id);
   });
 });

@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, type TouchEvent } from "react";
+import { useMemo, useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
 import type { RunDoc } from "@/lib/runList";
+import { buildPresentSlides } from "@/lib/presentSlides";
 import { CampIcon } from "./icons";
 import { SaveButton } from "./primitives";
 import { Modal } from "./Modal";
 import { ActivityRunList } from "./ActivityRunList";
+import { PresentMode } from "./PresentMode";
 
 export function DetailSheet({
   activity: a,
@@ -23,7 +25,7 @@ export function DetailSheet({
   onToggleMaterial,
   runDoc,
   onSaveRunDoc,
-  pinAction,
+  eventContext,
   backLabel = "Library",
 }: {
   activity: Activity;
@@ -40,18 +42,23 @@ export function DetailSheet({
   onToggleMaterial: (id: string) => void;
   runDoc: RunDoc;
   onSaveRunDoc?: (activityId: string, doc: RunDoc) => void;
-  pinAction?: {
-    isPinned: boolean;
-    onToggle: () => void;
-  };
+  /** Display-only strings from the calendar event this was opened from. */
+  eventContext?: { dateLabel: string; timeLabel: string };
   /** Where closing the viewer returns to (the surface it was opened from). */
   backLabel?: string;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
 
-  const editable = Boolean(onSaveRunDoc);
+  // Read-only by default: on a phone mirrored to a projector, a stray tap must
+  // never pop the keyboard. The pencil toggle opts into editing explicitly.
+  const [editing, setEditing] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const canEdit = Boolean(onSaveRunDoc);
+  const editable = editing && canEdit;
   const showOwner = showOwnerActions && isCustom;
+
+  const slides = useMemo(() => buildPresentSlides(a, runDoc), [a, runDoc]);
 
   // On phones, a downward swipe from the very top of the (scrolled-to-top) sheet
   // closes the viewer.
@@ -104,15 +111,16 @@ export function DetailSheet({
                 {backLabel}
               </button>
               <span className="rlv-head__sp" />
-              {pinAction && (
+              {canEdit && (
                 <button
                   type="button"
-                  className={"rlv-headbtn" + (pinAction.isPinned ? " is-on" : "")}
-                  onClick={pinAction.onToggle}
-                  aria-label={pinAction.isPinned ? "Unpin from Clipboard" : "Pin to Clipboard"}
-                  aria-pressed={pinAction.isPinned}
+                  className={"rlv-headbtn" + (editing ? " is-on" : "")}
+                  onClick={() => setEditing((on) => !on)}
+                  aria-label={editing ? "Done editing" : "Edit run list"}
+                  aria-pressed={editing}
+                  title={editing ? "Done editing" : "Edit run list"}
                 >
-                  <CampIcon.Pin />
+                  <CampIcon.Pencil />
                 </button>
               )}
               {showOwner && (
@@ -140,8 +148,27 @@ export function DetailSheet({
                 <CampIcon.Print />
                 <span>Print</span>
               </button>
+              <button
+                type="button"
+                className={"present-chip" + (eventContext ? " present-chip--primary" : "")}
+                onClick={() => setPresenting(true)}
+                aria-label={"Present " + a.title}
+                title="Full-screen, step-by-step — for the projector"
+              >
+                <CampIcon.ExpandAll />
+                <span>Present</span>
+              </button>
               <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
             </div>
+
+            {eventContext && (
+              <div className="rlv-eventchip">
+                <CampIcon.Calendar />
+                <span>
+                  {eventContext.dateLabel} · {eventContext.timeLabel}
+                </span>
+              </div>
+            )}
 
             <h2 className="rlv-title">{a.title}</h2>
             {a.blurb ? <p className="rlv-blurb">{a.blurb}</p> : null}
@@ -158,6 +185,16 @@ export function DetailSheet({
           />
         </article>
       </div>
+
+      {presenting && (
+        <PresentMode
+          activity={a}
+          slides={slides}
+          availableMaterials={availableMaterials}
+          onToggleMaterial={onToggleMaterial}
+          onClose={() => setPresenting(false)}
+        />
+      )}
     </Modal>
   );
 }

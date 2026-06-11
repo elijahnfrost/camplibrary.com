@@ -400,6 +400,35 @@ export function normalizeRunDoc(raw: unknown): RunDoc | null {
   return { blocks };
 }
 
+// A fresh empty step (the unit Enter inserts while editing).
+export function blankStepBlock(): RunBlock {
+  return { id: runId("b"), type: "step", text: "", collapsed: false, children: [] };
+}
+
+// Insert a block immediately after `afterId` (append when the id is unknown).
+// Optionally patches the anchor block in the same operation — Enter-to-split
+// commits the current step's text and inserts the next step atomically, so a
+// single onChange fires.
+export function insertBlockAfter(
+  doc: RunDoc,
+  afterId: string,
+  block: RunBlock,
+  anchorPatch?: Partial<RunBlock>
+): RunDoc {
+  const index = doc.blocks.findIndex((b) => b.id === afterId);
+  const blocks = doc.blocks.map((b) =>
+    anchorPatch && b.id === afterId ? { ...b, ...anchorPatch } : b
+  );
+  if (index < 0) return { blocks: [...blocks, block] };
+  return { blocks: [...blocks.slice(0, index + 1), block, ...blocks.slice(index + 1)] };
+}
+
+// Insert a block at a top-level index (the between-rows "+" affordance).
+export function insertBlockAt(doc: RunDoc, index: number, block: RunBlock): RunDoc {
+  const at = Math.max(0, Math.min(doc.blocks.length, index));
+  return { blocks: [...doc.blocks.slice(0, at), block, ...doc.blocks.slice(at)] };
+}
+
 // A deep, id-preserving clone so the editor never mutates persisted state.
 export function cloneRunDoc(doc: RunDoc): RunDoc {
   return {

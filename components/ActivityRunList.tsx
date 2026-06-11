@@ -36,8 +36,11 @@ import {
   RUN_CHILD_TYPES,
   RUN_TOP_LABEL,
   blankDiagramChild,
+  blankStepBlock,
   cloneRunDoc,
   detailTagsForActivity,
+  insertBlockAfter,
+  insertBlockAt,
   runId,
   runPillLabel,
   type RunBlock,
@@ -46,6 +49,8 @@ import {
   type RunChildType,
   type RunDoc,
 } from "@/lib/runList";
+import type { ActivityPlaybookData } from "@/lib/playbooks";
+import { DiagramLightbox } from "./DiagramLightbox";
 
 const DETAIL_ANIM_MS = 170;
 
@@ -142,7 +147,9 @@ function dropPosition(e: DragEvent<HTMLElement>): "before" | "after" {
 
 // ----------------------------------------------------------------------------
 // Inline contentEditable cell. Commits on blur; only rewrites the DOM when the
-// value changes from the outside (never mid-keystroke).
+// value changes from the outside (never mid-keystroke). Escape restores the
+// pre-edit value instead of committing; Enter/Backspace hooks let step rows
+// split and join like a text document.
 // ----------------------------------------------------------------------------
 function Editable({
   value,
@@ -153,6 +160,9 @@ function Editable({
   className = "",
   ariaLabel,
   ariaLabelledBy,
+  focusKey,
+  onEnter,
+  onBackspaceEmpty,
 }: {
   value: string;
   onCommit: (next: string) => void;
@@ -162,8 +172,15 @@ function Editable({
   className?: string;
   ariaLabel?: string;
   ariaLabelledBy?: string;
+  /** Marks the cell focusable-by-id after structural edits (data-rl-focus). */
+  focusKey?: string;
+  /** Enter commits the current text and lets the parent insert what follows. */
+  onEnter?: (currentText: string) => void;
+  /** Backspace in an already-empty cell (e.g. remove the empty step). */
+  onBackspaceEmpty?: () => void;
 }) {
   const ref = useRef<HTMLElement | null>(null);
+  const cancelRef = useRef(false);
   useEffect(() => {
     if (ref.current && ref.current.textContent !== value) ref.current.textContent = value || "";
   }, [value]);
@@ -176,11 +193,43 @@ function Editable({
       contentEditable={editable}
       suppressContentEditableWarning
       data-ph={placeholder || ""}
+      data-rl-focus={focusKey}
       role={editable ? "textbox" : undefined}
       aria-label={editable && label ? label : undefined}
       aria-labelledby={editable && !label ? ariaLabelledBy : undefined}
       aria-placeholder={editable && placeholder ? placeholder : undefined}
-      onBlur={editable ? (e) => onCommit(e.currentTarget.textContent || "") : undefined}
+      onBlur={
+        editable
+          ? (e) => {
+              if (cancelRef.current) {
+                cancelRef.current = false;
+                return;
+              }
+              onCommit(e.currentTarget.textContent || "");
+            }
+          : undefined
+      }
+      onKeyDown={
+        editable
+          ? (e) => {
+              if (e.key === "Enter" && !e.shiftKey && onEnter) {
+                e.preventDefault();
+                onEnter(e.currentTarget.textContent || "");
+              } else if (e.key === "Escape") {
+                cancelRef.current = true;
+                e.currentTarget.textContent = value || "";
+                (e.currentTarget as HTMLElement).blur();
+              } else if (
+                e.key === "Backspace" &&
+                onBackspaceEmpty &&
+                !(e.currentTarget.textContent || "").trim()
+              ) {
+                e.preventDefault();
+                onBackspaceEmpty();
+              }
+            }
+          : undefined
+      }
     />
   );
 }
@@ -283,7 +332,10 @@ export function ActivityRunList({
   const [closing, setClosing] = useState<Record<string, boolean>>({});
   const [openKid, setOpenKid] = useState<string | null>(null);
   const [openTop, setOpenTop] = useState(false);
+  const [insertAt, setInsertAt] = useState<number | null>(null);
   const [diagramEditing, setDiagramEditing] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<ActivityPlaybookData | null>(null);
+  const [undoState, setUndoState] = useState<{ message: string; doc: RunDoc } | null>(null);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [railSegments, setRailSegments] = useState<RailSegment[]>([]);
@@ -293,6 +345,34 @@ export function ActivityRunList({
   const railNodes = useRef<Map<string, HTMLElement>>(new Map());
   const closeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const diagramRef = useRef<HTMLDivElement | null>(null);
+  const pendingFocusRef = useRef<string | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Focus the step a structural edit just created (Enter-split) or revealed
+  // (Backspace-join), with the caret at the end of its text.
+  useEffect(() => {
+    const id = pendingFocusRef.current;
+    if (!id) return;
+    pendingFocusRef.current = null;
+    const node = listRef.current?.querySelector<HTMLElement>('[data-rl-focus="' + id + '"]');
+    if (!node) return;
+    node.focus();
+    const selection = window.getSelection();
+    if (selection) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, [doc]);
+
+  useEffect(
+    () => () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     const timers = closeTimers.current;
@@ -330,7 +410,44 @@ export function ActivityRunList({
       ),
     });
 
-  const rmTop = (id: string) => commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+  // Destructive removals snapshot the doc for a 6-second Undo — a mis-tap on
+  // the trash can no longer silently destroys a step and all its details.
+  const offerUndo = (message: string) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    const snapshot = cloneRunDoc(doc);
+    setUndoState({ message, doc: snapshot });
+    undoTimerRef.current = setTimeout(() => setUndoState(null), 6000);
+  };
+
+  const undoRemoval = () => {
+    if (!undoState) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    commit(undoState.doc);
+    setUndoState(null);
+  };
+
+  const rmTop = (id: string) => {
+    const block = doc.blocks.find((b) => b.id === id);
+    offerUndo((block?.type === "step" ? "Step" : "Block") + " removed");
+    commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+  };
+
+  // Enter inside a step: commit its text and open a fresh step right after it.
+  const splitStep = (id: string, text: string) => {
+    const fresh = blankStepBlock();
+    pendingFocusRef.current = fresh.id;
+    commit(insertBlockAfter(doc, id, fresh, { text }));
+  };
+
+  // Backspace in an empty step: remove it and put the caret back on the
+  // previous step.
+  const removeEmptyStep = (id: string) => {
+    const index = doc.blocks.findIndex((b) => b.id === id);
+    if (index < 0) return;
+    const previousStep = [...doc.blocks.slice(0, index)].reverse().find((b) => b.type === "step");
+    if (previousStep) pendingFocusRef.current = previousStep.id;
+    commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+  };
 
   // Reorder a top-level block by one slot. Touch/keyboard-friendly counterpart to
   // the HTML5 drag handles (which never fire on touch devices).
@@ -345,6 +462,7 @@ export function ActivityRunList({
 
   const rmKid = (pid: string, kid: string) => {
     if (diagramEditing === kid) setDiagramEditing(null);
+    offerUndo("Detail removed");
     commit({
       blocks: doc.blocks.map((b) =>
         b.id === pid ? { ...b, children: (b.children || []).filter((c) => c.id !== kid) } : b
@@ -368,15 +486,25 @@ export function ActivityRunList({
     if (type === "diagram") setDiagramEditing(kid.id);
   };
 
+  const makeTopBlock = (type: RunBlockType): RunBlock => {
+    if (type === "step") return { id: runId("b"), type, text: "", collapsed: false, children: [] };
+    if (type === "heading") return { id: runId("b"), type, text: "New section", children: [] };
+    if (type === "materials") return { id: runId("b"), type, children: [] };
+    if (type === "details") return { id: runId("b"), type, children: [] };
+    return { id: runId("b"), type, text: "", children: [] };
+  };
+
   const addTop = (type: RunBlockType) => {
-    let blk: RunBlock;
-    if (type === "step") blk = { id: runId("b"), type, text: "", collapsed: false, children: [] };
-    else if (type === "heading") blk = { id: runId("b"), type, text: "New section", children: [] };
-    else if (type === "materials") blk = { id: runId("b"), type, children: [] };
-    else if (type === "details") blk = { id: runId("b"), type, children: [] };
-    else blk = { id: runId("b"), type, text: "", children: [] };
-    commit({ blocks: [...doc.blocks, blk] });
+    commit({ blocks: [...doc.blocks, makeTopBlock(type)] });
     setOpenTop(false);
+  };
+
+  // The between-rows "+" affordance: insert any block type at that gap.
+  const addTopAt = (type: RunBlockType, index: number) => {
+    const block = makeTopBlock(type);
+    if (block.type === "step") pendingFocusRef.current = block.id;
+    commit(insertBlockAt(doc, index, block));
+    setInsertAt(null);
   };
 
   const resolveDrop = (source: DragItem, target: DropTarget): DropDestination | null => {
@@ -787,9 +915,16 @@ export function ActivityRunList({
             <ActivityPlaybook playbook={k.diagram} compact />
           </button>
         ) : (
-          <div className="rl-diagram">
+          // Read mode: tap opens the full-screen one-frame-at-a-time viewer —
+          // the projector-friendly way to walk a field setup.
+          <button
+            type="button"
+            className="rl-diagram rl-diagram--open"
+            onClick={() => setLightbox(k.diagram ?? null)}
+            aria-label="View field diagram full screen"
+          >
             <ActivityPlaybook playbook={k.diagram} compact />
-          </div>
+          </button>
         )
       );
     }
@@ -851,6 +986,45 @@ export function ActivityRunList({
 
   let stepNo = 0;
 
+  // A slim "+" between rows: hover-revealed on pointers, always tappable on
+  // touch (CSS). Opens the block palette anchored at that gap, so inserting
+  // mid-document no longer means append-then-arrow-up.
+  const renderInsertZone = (index: number): ReactNode => {
+    if (!editable) return null;
+    if (insertAt === index) {
+      return (
+        <li className="rl-block rl-block--add rl-insertopen">
+          <div className="rl-block__main">
+            <div className="rl-palette rl-palette--flat">
+              {ADD_BLOCKS.map(({ type, label, icon: Icon }) => (
+                <button type="button" key={type} className="rl-ptype" onClick={() => addTopAt(type, index)}>
+                  <Icon />
+                  {label}
+                </button>
+              ))}
+              <button type="button" className="rl-ptype rl-ptype--cancel" onClick={() => setInsertAt(null)}>
+                <CampIcon.Close />
+                Cancel
+              </button>
+            </div>
+          </div>
+        </li>
+      );
+    }
+    return (
+      <li className="rl-insert" aria-hidden={false}>
+        <button
+          type="button"
+          className="rl-insert__btn"
+          onClick={() => setInsertAt(index)}
+          aria-label="Insert a block here"
+        >
+          <CampIcon.Plus />
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div className={"rl" + (editable ? "" : " is-readonly")}>
       <div className="rl-toolbar">
@@ -882,7 +1056,10 @@ export function ActivityRunList({
               />
             ))}
           </li>
-          {doc.blocks.map((b) => {
+          {doc.blocks.map((b, blockIndex) => (
+            <Fragment key={"wrap-" + b.id}>
+              {renderInsertZone(blockIndex)}
+              {(() => {
             // ---- SECTION HEADING ----
             if (b.type === "heading") {
               stepNo = 0;
@@ -1165,7 +1342,10 @@ export function ActivityRunList({
                           editable={editable}
                           placeholder="Describe this step…"
                           ariaLabel={"Step " + stepNo + " instructions"}
+                          focusKey={b.id}
                           onCommit={(v) => patchTop(b.id, { text: v })}
+                          onEnter={(text) => splitStep(b.id, text)}
+                          onBackspaceEmpty={() => removeEmptyStep(b.id)}
                         />
                         {collapsedNow && summary.length > 0 && (
                           <div className="rl-summary" contentEditable={false}>
@@ -1210,7 +1390,9 @@ export function ActivityRunList({
                 )}
               </Fragment>
             );
-          })}
+              })()}
+            </Fragment>
+          ))}
         </ul>
 
         {editable && (
@@ -1243,6 +1425,16 @@ export function ActivityRunList({
           </div>
         )}
       </div>
+
+      {undoState && (
+        <div className="rl-toast" role="status">
+          <span>{undoState.message}</span>
+          <button type="button" onClick={undoRemoval}>
+            Undo
+          </button>
+        </div>
+      )}
+      {lightbox && <DiagramLightbox playbook={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
