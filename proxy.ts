@@ -24,6 +24,10 @@ export const config = {
     "/api/auth/(.*)",
     "/api/invite-codes",
     "/api/invite-codes/(.*)",
+    "/api/user-data",
+    "/api/user-data/(.*)",
+    "/api/calendar-events",
+    "/api/calendar-events/(.*)",
     "/api/webhooks/clerk",
   ],
 };

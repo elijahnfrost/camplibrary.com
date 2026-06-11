@@ -20,10 +20,9 @@ import { ACTIVITIES, CATEGORIES, DAY_BLOCK_TEMPLATE, DAYS, DEFAULT_SCHEDULE } fr
 import { clipboardRunKey, currentActivityForSchedule, localDayIndex } from "@/lib/currentActivity";
 import {
   PLAYBOOKS_BY_ACTIVITY_ID,
-  normalizePlaybook,
   type ActivityPlaybookData,
 } from "@/lib/playbooks";
-import { buildRunDoc, ensureSectionHeadings, normalizeRunDoc, promoteMaterialsBlocks, type RunDoc } from "@/lib/runList";
+import { buildRunDoc, ensureSectionHeadings, promoteMaterialsBlocks, type RunDoc } from "@/lib/runList";
 import {
   blockEndMin,
   blockStartMin,
@@ -38,7 +37,14 @@ import {
   TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
-import { normalizeActivities } from "@/lib/activityValidation";
+import {
+  activitiesDoc as activitiesStorage,
+  playbookOverridesDoc as playbookOverridesStorage,
+  ratingsDoc as ratingsStorage,
+  runListOverridesDoc as runListOverridesStorage,
+  stringArrayDoc as stringArrayStorage,
+  viewDoc as viewStorage,
+} from "@/lib/userDataDocs";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
 import { hasPlannedActivity, normalizeScheduleActivityRefs } from "@/lib/scheduleValidation";
 import { type StorageValidator, useLocalStorage } from "@/lib/store";
@@ -225,53 +231,6 @@ function createScheduleBlock({
   return block;
 }
 
-const stringArrayStorage: StorageValidator<string[]> = (value, fallback) =>
-  Array.isArray(value)
-    ? [...new Set(value.filter((item): item is string => typeof item === "string" && Boolean(item)))]
-    : fallback;
-
-const ratingsStorage: StorageValidator<Record<string, number>> = (value, fallback) => {
-  if (!isRecord(value)) return fallback;
-  const out: Record<string, number> = {};
-  for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw === "number" && Number.isFinite(raw)) {
-      out[key] = Math.max(0, Math.min(5, Math.round(raw)));
-    }
-  }
-  return out;
-};
-
-const activitiesStorage: StorageValidator<Activity[]> = (value, fallback) =>
-  normalizeActivities(value, fallback);
-
-// Per-activity playbook overrides — lets any diagram (including built-in ones)
-// be edited and persisted without mutating the seed data.
-const playbookOverridesStorage: StorageValidator<Record<string, ActivityPlaybookData>> = (
-  value,
-  fallback
-) => {
-  if (!isRecord(value)) return fallback;
-  const out: Record<string, ActivityPlaybookData> = {};
-  for (const [key, raw] of Object.entries(value)) {
-    const normalized = normalizePlaybook(raw);
-    if (normalized) out[key] = normalized;
-  }
-  return out;
-};
-
-// Per-activity Run List overrides — hand-edited instruction documents that
-// supersede the doc derived from the activity's flat steps/notes/safety. Same
-// pattern as playbook overrides; built-in and custom books both persist here.
-const runListOverridesStorage: StorageValidator<Record<string, RunDoc>> = (value, fallback) => {
-  if (!isRecord(value)) return fallback;
-  const out: Record<string, RunDoc> = {};
-  for (const [key, raw] of Object.entries(value)) {
-    const normalized = normalizeRunDoc(raw);
-    if (normalized) out[key] = normalized;
-  }
-  return out;
-};
-
 const scheduleStorage: StorageValidator<Schedule> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Schedule = {};
@@ -303,9 +262,6 @@ const savedPlansStorage: StorageValidator<DayTemplate[]> = (value, fallback) => 
     };
   });
 };
-
-const viewStorage: StorageValidator<LibraryView> = (value, fallback) =>
-  value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
 
 const zoomStorage: StorageValidator<number> = (value, fallback) =>
   typeof value === "number" && Number.isFinite(value) ? clampZoomIndex(value) : fallback;
