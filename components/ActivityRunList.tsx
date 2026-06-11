@@ -944,20 +944,21 @@ export function ActivityRunList({
     }
 
     if (k.type === "video") {
+      // A clean caption + link row (the old fake player-preview box read as
+      // clutter). In read mode the URL is a real tappable link.
+      const rawUrl = (k.url || "").trim();
+      const href = rawUrl ? (/^https?:\/\//i.test(rawUrl) ? rawUrl : "https://" + rawUrl) : "";
       return shell(
         <div className="rl-vid">
-          <span className="rl-vid__thumb" contentEditable={false}>
-            <span className="rl-vid__tag">Video</span>
-          </span>
-          <div className="rl-vid__fields">
-            <Editable
-              className="rl-text"
-              value={k.title || ""}
-              editable={editable}
-              placeholder="Caption"
-              ariaLabel="Video detail caption"
-              onCommit={(v) => patchKid(stepId, k.id, { title: v })}
-            />
+          <Editable
+            className="rl-text"
+            value={k.title || ""}
+            editable={editable}
+            placeholder="Caption"
+            ariaLabel="Video detail caption"
+            onCommit={(v) => patchKid(stepId, k.id, { title: v })}
+          />
+          {editable ? (
             <Editable
               className="rl-vid__url"
               tag="span"
@@ -967,7 +968,11 @@ export function ActivityRunList({
               ariaLabel="Video detail URL"
               onCommit={(v) => patchKid(stepId, k.id, { url: v })}
             />
-          </div>
+          ) : href ? (
+            <a className="rl-vid__url" href={href} target="_blank" rel="noreferrer">
+              {rawUrl}
+            </a>
+          ) : null}
         </div>
       );
     }

@@ -54,15 +54,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   }, [storageScope]);
 
   const [liveMsg, setLiveMsg] = useState("");
-  const requireStaff = useCallback(
-    (action: string) => {
-      if (isSignedIn) return true;
-      setLiveMsg("Sign in as staff to " + action + ".");
-      auth.openAuth();
-      return false;
-    },
-    [auth, isSignedIn]
-  );
+  // Everything works without an account: anonymous edits live in this
+  // device's localStorage (lib/cloudStore anon mode). Signing in adds cloud
+  // sync across devices — it is never a gate on using the app.
+  const requireStaff = useCallback((_action: string) => true, []);
 
   // Synced user data: localStorage-backed for anon visitors, cloud-synced
   // (optimistic writes + offline outbox) once signed in.

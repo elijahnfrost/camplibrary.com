@@ -24,6 +24,7 @@ import {
   SNAP_MIN,
   effectiveWindow,
   formatClock,
+  formatClockCompact,
   minutesToTimeString,
   nextFreeStartForDay,
   nowMinutes,
@@ -89,6 +90,8 @@ export function CalendarShell({
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
+  const [swipeDir, setSwipeDir] = useState<"left" | "right" | null>(null);
+  const swipeRef = useRef<{ x: number; y: number; at: number; onEvent: boolean } | null>(null);
 
   // Coarse pointers (phones) default to Day; everything else to Week.
   useEffect(() => {
@@ -357,6 +360,19 @@ export function CalendarShell({
         </div>
       );
     }
+    // Short events get Google's one-line treatment ("Capture the Flag · 10a")
+    // instead of clipping a stacked title + range.
+    const calendarEvent = arg.event.extendedProps.calendarEvent as CalendarEvent | undefined;
+    const durationMin =
+      calendarEvent && !calendarEvent.allDay ? calendarEvent.endMin - calendarEvent.startMin : null;
+    if (durationMin != null && durationMin <= 30) {
+      return (
+        <div className="cal-card cal-card--compact">
+          <span className="cal-card__title">{arg.event.title}</span>
+          <span className="cal-card__time">{formatClockCompact(calendarEvent!.startMin)}</span>
+        </div>
+      );
+    }
     return (
       <div className="cal-card">
         <span className="cal-card__title">{arg.event.title}</span>
@@ -377,6 +393,37 @@ export function CalendarShell({
         <span className="cal-dayhead__num">{arg.date.getDate()}</span>
       </div>
     );
+  }, []);
+
+  // Swipe between days/weeks like the Google Calendar app: a quick,
+  // mostly-horizontal swipe on the grid background navigates prev/next.
+  // Touches that start on an event are ignored (long-press drag owns those),
+  // and the 2:1 horizontal-intent threshold keeps vertical scrolling free.
+  const onGridTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1) {
+      swipeRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    const onEvent = Boolean((event.target as HTMLElement).closest(".fc-event"));
+    swipeRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now(), onEvent };
+  }, []);
+
+  const onGridTouchEnd = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start || start.onEvent || event.changedTouches.length !== 1) return;
+    if (Date.now() - start.at > 600) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const api = calendarRef.current?.getApi();
+    if (!api || api.view.type === "dayGridMonth") return;
+    setSwipeDir(dx < 0 ? "left" : "right");
+    if (dx < 0) api.next();
+    else api.prev();
+    window.setTimeout(() => setSwipeDir(null), 240);
   }, []);
 
   // Keyboard shortcuts: t today, d/w/m views, arrows navigate.
@@ -428,7 +475,11 @@ export function CalendarShell({
         onNext={() => calendarRef.current?.getApi().next()}
       />
       <div className="calshell__body">
-        <div className="calshell__grid">
+        <div
+          className={"calshell__grid" + (swipeDir ? " is-swipe-" + swipeDir : "")}
+          onTouchStart={onGridTouchStart}
+          onTouchEnd={onGridTouchEnd}
+        >
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}

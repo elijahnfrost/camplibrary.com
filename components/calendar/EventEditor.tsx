@@ -98,7 +98,11 @@ export function EventEditor({
   }
 
   return (
-    <Modal label={isEdit ? "Edit event" : "New event"} onClose={onClose}>
+    <Modal
+      label={isEdit ? "Edit event" : "New event"}
+      onClose={onClose}
+      overlayProps={{ className: "overlay--editor" }}
+    >
       <div className="overlay__body cal-editor">
         <div className="cal-editor__head">
           <h2 className="cal-editor__title">{isEdit ? "Edit event" : "New event"}</h2>

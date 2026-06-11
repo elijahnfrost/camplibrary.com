@@ -134,6 +134,19 @@
   background: var(--paper-2);
   font-family: var(--hand-sc);
 }
+/* The all-day strip stays a slim shelf, not a second header. */
+.calshell .fc .fc-timegrid-axis-cushion {
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  max-width: 64px;
+}
+.calshell .fc .fc-timegrid-divider {
+  padding: 0;
+}
+.calshell .fc .fc-daygrid-body-natural .fc-daygrid-day-events {
+  margin-bottom: 0;
+}
 .calshell .fc .fc-timegrid-now-indicator-line {
   border-width: 2px 0 0;
 }
@@ -196,6 +209,21 @@
   padding: var(--s-2) var(--s-3);
   overflow: hidden;
   height: 100%;
+}
+/* Short events (<= 30 min): one Google-style line, no clipping. */
+.cal-card--compact {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
+}
+.cal-card--compact .cal-card__title {
+  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.cal-card--compact .cal-card__time {
+  flex: none;
 }
 .cal-card__title {
   font-family: var(--hand);
@@ -557,6 +585,59 @@
   font-family: var(--hand-sc);
   font-size: var(--fs-body);
   cursor: pointer;
+}
+
+/* The event editor is always a compact card/sheet — never a tall side
+ * drawer. Phone: bottom sheet (Modal default). Tablet/desktop: centered. */
+@media (min-width: 768px) {
+  .overlay--editor {
+    position: fixed;
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    animation: none;
+    width: min(480px, 92vw);
+    height: auto;
+    max-height: min(640px, 88vh);
+    overflow-y: auto;
+    border-radius: var(--r-xl);
+    box-shadow: var(--e4);
+  }
+}
+
+/* Swipe-between-days feedback: the grid nudges in from the swipe direction. */
+@keyframes cal-swipe-left {
+  from {
+    transform: translateX(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes cal-swipe-right {
+  from {
+    transform: translateX(-24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.calshell__grid.is-swipe-left .fc {
+  animation: cal-swipe-left 200ms ease-out;
+}
+.calshell__grid.is-swipe-right .fc {
+  animation: cal-swipe-right 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calshell__grid.is-swipe-left .fc,
+  .calshell__grid.is-swipe-right .fc {
+    animation: none;
+  }
 }
 
 /* ---------- responsive ---------- */

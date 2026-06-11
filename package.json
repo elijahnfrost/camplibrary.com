@@ -2,7 +2,7 @@
   "name": "camp-library",
   "version": "1.0.0",
   "private": true,
-  "description": "Camp Library — a warm, hand-drawn catalog of camp games, crafts, songs, and a day planner.",
+  "description": "Camp Library — a warm, hand-drawn catalog of camp games, crafts, and songs, with a calendar for planning the camp week.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
