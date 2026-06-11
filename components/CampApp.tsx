@@ -37,14 +37,7 @@ import {
   TOTAL_MIN,
 } from "@/lib/scheduleTime";
 import { matchesActivityFilters } from "@/lib/activityFilters";
-import {
-  activitiesDoc as activitiesStorage,
-  playbookOverridesDoc as playbookOverridesStorage,
-  ratingsDoc as ratingsStorage,
-  runListOverridesDoc as runListOverridesStorage,
-  stringArrayDoc as stringArrayStorage,
-  viewDoc as viewStorage,
-} from "@/lib/userDataDocs";
+import { useCloudUserData } from "@/lib/cloudStore";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
 import { hasPlannedActivity, normalizeScheduleActivityRefs } from "@/lib/scheduleValidation";
 import { type StorageValidator, useLocalStorage } from "@/lib/store";
@@ -348,17 +341,54 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     }
   }, [storageScope]);
 
-  const [view, setView] = useLocalStorage<LibraryView>(scopedStorageKey(storageScope, "view"), "deck", viewStorage);
+  // Synced user data: localStorage-backed for anon visitors, cloud-synced
+  // (optimistic writes + offline outbox) once signed in.
+  const cloud = useCloudUserData(signedInUserId);
+  const { setDoc } = cloud;
+  const view = cloud.docs.view;
+  const setView = useCallback(
+    (next: LibraryView | ((p: LibraryView) => LibraryView)) => setDoc("view", next),
+    [setDoc]
+  );
+  const availableMaterials = cloud.docs.availableMaterials;
+  const setAvailableMaterials = useCallback(
+    (next: string[] | ((p: string[]) => string[])) => setDoc("availableMaterials", next),
+    [setDoc]
+  );
+  const favs = cloud.docs.favs;
+  const setFavs = useCallback((next: string[] | ((p: string[]) => string[])) => setDoc("favs", next), [setDoc]);
+  const extra = cloud.docs.extra;
+  const setExtra = useCallback(
+    (next: Activity[] | ((p: Activity[]) => Activity[])) => setDoc("extra", next),
+    [setDoc]
+  );
+  const playbookOverrides = cloud.docs.playbookOverrides;
+  const setPlaybookOverrides = useCallback(
+    (
+      next:
+        | Record<string, ActivityPlaybookData>
+        | ((p: Record<string, ActivityPlaybookData>) => Record<string, ActivityPlaybookData>)
+    ) => setDoc("playbookOverrides", next),
+    [setDoc]
+  );
+  const runListOverrides = cloud.docs.runLists;
+  const setRunListOverrides = useCallback(
+    (next: Record<string, RunDoc> | ((p: Record<string, RunDoc>) => Record<string, RunDoc>)) =>
+      setDoc("runLists", next),
+    [setDoc]
+  );
+  const ratings = cloud.docs.ratings;
+  const setRatings = useCallback(
+    (next: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) =>
+      setDoc("ratings", next),
+    [setDoc]
+  );
+
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [availableMaterials, setAvailableMaterials] = useLocalStorage<string[]>(
-    scopedStorageKey(storageScope, "availableMaterials"),
-    [],
-    stringArrayStorage
-  );
   const [clipboardPin, setClipboardPin] = useLocalStorage<ClipboardPin | null>(
     scopedStorageKey(storageScope, "clipboardPin"),
     null,
@@ -390,20 +420,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     return () => window.clearInterval(timer);
   }, [needsClock]);
 
-  const [favs, setFavs] = useLocalStorage<string[]>(scopedStorageKey(storageScope, "favs"), [], stringArrayStorage);
-  const [extra, setExtra] = useLocalStorage<Activity[]>(scopedStorageKey(storageScope, "extra"), [], activitiesStorage);
-  const [playbookOverrides, setPlaybookOverrides] = useLocalStorage<Record<string, ActivityPlaybookData>>(
-    scopedStorageKey(storageScope, "playbooks"),
-    {},
-    playbookOverridesStorage
-  );
-  // Key bumped to .v2 when the doc model moved diagram/materials into the Run
-  // List. Older saved docs with child materials are promoted at render time.
-  const [runListOverrides, setRunListOverrides] = useLocalStorage<Record<string, RunDoc>>(
-    scopedStorageKey(storageScope, "runLists.v2"),
-    {},
-    runListOverridesStorage
-  );
   const [schedule, setSchedule] = useLocalStorage<Schedule>(
     scopedStorageKey(storageScope, "schedule"),
     DEFAULT_SCHEDULE,
@@ -434,11 +450,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [liveMsg, setLiveMsg] = useState("");
   const [undoSnapshot, setUndoSnapshot] = useState<Schedule | null>(null);
   const [applyToast, setApplyToast] = useState<string | null>(null);
-  const [ratings, setRatings] = useLocalStorage<Record<string, number>>(
-    scopedStorageKey(storageScope, "ratings"),
-    {},
-    ratingsStorage
-  );
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
   const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
   const mobilePrimaryTabs = useMemo(
@@ -1259,6 +1270,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           <div className="sidenav__foot">
             <span>{all.length} in the library · {savedActivities.length} saved</span>
             <span>{authLabel}</span>
+            {isSignedIn && cloud.status !== "local" && (
+              <span>
+                {cloud.status === "synced"
+                  ? "Synced"
+                  : cloud.status === "syncing"
+                    ? "Syncing…"
+                    : "Offline · " + cloud.pendingCount + " pending"}
+              </span>
+            )}
           </div>
         </nav>
 
