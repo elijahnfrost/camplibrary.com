@@ -128,6 +128,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // The in-Library add/edit sheet. null = closed; { activity: null } = adding new.
   const [editorSheet, setEditorSheet] = useState<{ activity: Activity | null } | null>(null);
 
+  // The desktop calendar shares the left sidebar: CalendarShell portals its
+  // activity library into this slot (the same place the Library filters live).
+  const [calRail, setCalRail] = useState<HTMLDivElement | null>(null);
+  const calRailRef = useCallback((node: HTMLDivElement | null) => setCalRail(node), []);
+
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
     setEditorSheet({ activity: null });
@@ -272,6 +277,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               onClearMaterials={lib.clearAvailableMaterials}
             />
           )}
+          {tab === "calendar" && <div className="sidenav__calrail" ref={calRailRef} />}
           <div className="sidenav__foot">
             <span>
               {lib.all.length} in the library · {savedCount} saved
@@ -297,7 +303,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               <span className="topbar__summary">{page.summary}</span>
             </div>
             <div className="topbar__actions">
-              <AuthButton session={auth.session} onOpen={() => auth.openAuth()} onSignOut={auth.signOut} />
+              {/* No accounts configured → no sign-in entry point at all, so the
+                  app reads as the fully-anonymous tool it is (no dead-ends). */}
+              {auth.enabled && (
+                <AuthButton session={auth.session} onOpen={() => auth.openAuth()} onSignOut={auth.signOut} />
+              )}
             </div>
           </div>
 
@@ -338,6 +348,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 requireStaff={requireStaff}
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
+                railSlot={calRail}
               />
             </div>
           )}

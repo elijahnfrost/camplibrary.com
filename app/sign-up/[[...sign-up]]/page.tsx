@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { InviteSignUp } from "@/components/InviteSignUp";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
 
 export default function SignUpPage() {
   const capabilities = getBackendEnvStatus().capabilities;
-  const authEnabled = capabilities.clerkAuth;
+  // No accounts in this workspace — go back into the app instead of a dead page.
+  if (!capabilities.clerkAuth) redirect("/");
   const inviteBackendEnabled = capabilities.inviteCodes;
 
   return (
@@ -18,16 +20,17 @@ export default function SignUpPage() {
         <span className="auth-route__kicker">Camp Library</span>
         <h1 className="auth-route__title">Create staff account</h1>
       </div>
-      {authEnabled && inviteBackendEnabled ? (
+      {inviteBackendEnabled ? (
         <InviteSignUp />
-      ) : authEnabled ? (
-        <div className="auth-route__status">
-          Account creation is temporarily unavailable because invite codes are not fully configured.
-        </div>
       ) : (
-        <div className="auth-route__status">
-          Account creation is disabled because Clerk is not configured with valid local keys.
-        </div>
+        <>
+          <div className="auth-route__status">
+            Account creation is temporarily unavailable because invite codes are not fully configured.
+          </div>
+          <a className="btn btn--quiet" href="/">
+            Back to the app
+          </a>
+        </>
       )}
     </main>
   );

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { AuthComplete } from "@/components/AuthComplete";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
@@ -7,7 +8,8 @@ export const metadata: Metadata = {
 };
 
 export default function AuthCompletePage() {
-  const authEnabled = getBackendEnvStatus().capabilities.clerkAuth;
+  // No accounts in this workspace — nothing to finalize, so return to the app.
+  if (!getBackendEnvStatus().capabilities.clerkAuth) redirect("/");
 
   return (
     <main className="auth-route">
@@ -16,13 +18,7 @@ export default function AuthCompletePage() {
         <span className="auth-route__kicker">Camp Library</span>
         <h1 className="auth-route__title">Almost done</h1>
       </div>
-      {authEnabled ? (
-        <AuthComplete />
-      ) : (
-        <div className="auth-route__status">
-          Account finalization is disabled because Clerk is not configured with valid local keys.
-        </div>
-      )}
+      <AuthComplete />
     </main>
   );
 }

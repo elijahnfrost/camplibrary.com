@@ -75,7 +75,7 @@ export function activityMeta(a: Pick<Activity, "type" | "place" | "ages" | "dura
 // Category color is centralized here so calendar events, chips, and open slots
 // share one earthy source of truth.
 const CATEGORY_TINTS: Record<CategoryId, string> = {
-  Game: "#3f6b45", // pine
+  Game: "#3f6b45", // pine — intentionally identical to --accent (the brand green); Game is the "green" category
   Craft: "#b3603f", // terracotta
   Song: "#d99a3c", // amber
   Water: "#4d7a86", // muted river

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
@@ -56,6 +56,24 @@ export function EventPopover({
     }
     setPosition({ left, top });
   }, [anchor]);
+
+  // Desktop-anchored mode: the position is computed once from the anchor rect,
+  // so any grid scroll detaches the card from its event — close instead of
+  // chasing the anchor through FullCalendar re-renders (Google Calendar does
+  // the same). The bottom-docked phone variant scrolls nothing behind it.
+  useEffect(() => {
+    if (!position) return;
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onClose);
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onClose);
+    };
+  }, [position, onClose]);
 
   const timeLabel = event.allDay ? "All day" : formatRangeLabel(event.startMin, event.endMin);
   const title = activity?.title || event.title || "Untitled";

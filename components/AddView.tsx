@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
-import { AGE_GROUPS, CATEGORIES } from "@/lib/data";
+import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
 import { materialTagsFromMaterials } from "@/lib/materials";
 import {
   buildRunDoc,
@@ -290,20 +290,26 @@ export function AddView({
           onToggleMaterial={() => {}}
           detailsEditor={
             <div className="rl-detailform__grid">
-              <div className="field">
-                <label className="field__label" htmlFor="activity-category">Category</label>
-                <select
-                  id="activity-category"
-                  className="select"
-                  value={f.type}
-                  onChange={(e) => set("type")(e.target.value as CategoryId)}
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="field rl-detailform__wide">
+                <span className="field__label" id="activity-category-label">Category</span>
+                <div className="chiprow" role="radiogroup" aria-labelledby="activity-category-label">
+                  {CATEGORIES.map((c) => {
+                    const on = f.type === c.id;
+                    return (
+                      <button
+                        type="button"
+                        key={c.id}
+                        role="radio"
+                        aria-checked={on}
+                        className={"chip chip--lg" + (on ? " is-on" : "")}
+                        style={on ? ({ "--chip-on": categoryTint(c.id) } as CSSProperties) : undefined}
+                        onClick={() => set("type")(c.id)}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="field">
                 <span className="field__label" id="activity-place-label">Where</span>

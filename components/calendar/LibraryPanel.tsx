@@ -8,9 +8,9 @@ import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 
 // The drag source for "library → calendar": a side rail on desktop, a bottom
-// sheet behind a FAB on phones. Rows are FullCalendar Draggables (mouse drag
-// and long-press touch drag); the "+" button is the dependable tap-to-place
-// flow and the row itself opens the editor pre-filled.
+// sheet behind a FAB on phones. Rail rows are FullCalendar Draggables; the
+// sheet overlays the grid, so it sticks to the tap flows — the "+" button
+// places at the next open time and the row itself opens the editor pre-filled.
 
 function minutesToDuration(min: number): string {
   const safe = Math.max(5, Math.min(720, Math.round(min)));
@@ -23,24 +23,35 @@ export function LibraryPanel({
   onPlace,
   onPick,
   onClose,
+  onDragStart,
+  onDragStop,
 }: {
   variant: "rail" | "sheet";
   activities: Activity[];
   onPlace: (activity: Activity) => void;
   onPick: (activity: Activity) => void;
   onClose?: () => void;
+  /** Rail-only: fired when a row drag begins/ends, so the grid can clear its
+   *  empty-state invitation out of the way. */
+  onDragStart?: () => void;
+  onDragStop?: () => void;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<CatFilter>("All");
 
-  // Register rows as external FullCalendar drag sources. eventData is read
-  // from data attributes at drag time, so one Draggable covers every row.
+  // Register rail rows as external FullCalendar drag sources. eventData is
+  // read from data attributes at drag time, so one Draggable covers every row.
+  // minDistance keeps sloppy clicks from becoming drags; the long-press delay
+  // leaves touch scrolling of the list intact (e.g. iPad rail).
   useEffect(() => {
+    if (variant !== "rail") return;
     const container = listRef.current;
     if (!container) return;
     const draggable = new Draggable(container, {
       itemSelector: "[data-activity-id]",
+      minDistance: 6,
+      longPressDelay: 300,
       eventData: (el) => ({
         title: el.getAttribute("data-title") || "Activity",
         duration: el.getAttribute("data-duration") || "00:30",
@@ -49,7 +60,27 @@ export function LibraryPanel({
       }),
     });
     return () => draggable.destroy();
-  }, []);
+  }, [variant]);
+
+  // Signal drag start/end so the calendar can clear its empty-state invitation
+  // the moment a row is grabbed (it sits over the grid otherwise).
+  useEffect(() => {
+    if (variant !== "rail") return;
+    const container = listRef.current;
+    if (!container) return;
+    const onDown = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest("[data-activity-id]")) onDragStart?.();
+    };
+    const onUp = () => onDragStop?.();
+    container.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      container.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [variant, onDragStart, onDragStop]);
 
   const filtered = useMemo(
     () =>

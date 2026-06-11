@@ -2,8 +2,7 @@
 
 // Full-screen, one-frame-at-a-time diagram viewer — the projector-friendly way
 // to walk a field setup. Reuses the playbook SVG primitives untouched, adds a
-// prev/next frame stepper with the caption at reading size. PresentMode uses
-// the same stepper internals via FrameStepper.
+// prev/next frame stepper (FrameStepper) with the caption at reading size.
 
 import { useId, useState } from "react";
 import { createPortal } from "react-dom";

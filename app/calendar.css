@@ -27,25 +27,27 @@
   padding: 0 var(--s-5) var(--s-5);
 }
 
-/* Zero-event invitation, floating over the grid without blocking it. */
+/* Zero-event invitation — a quiet hint pinned near the top, not a card parked
+   in the middle of the grid. It also clears entirely the moment a create
+   gesture begins (see CalendarShell isCreating). */
 .calshell__empty {
   position: absolute;
   left: 50%;
-  top: 96px;
+  top: 64px;
   translate: -50%;
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-4) var(--s-7);
-  background: var(--card);
-  border: 1.5px dashed var(--line);
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-6);
+  background: color-mix(in srgb, var(--content) 90%, transparent);
+  border: 1.5px dashed var(--line-soft);
   border-radius: var(--r-lg);
-  box-shadow: var(--e2);
+  box-shadow: var(--e1);
   pointer-events: none;
   text-align: center;
-  max-width: min(420px, 86%);
+  max-width: min(380px, 84%);
 }
 .calshell__empty-title {
   font-family: var(--script);
@@ -102,10 +104,32 @@
   padding: var(--s-2) var(--s-5);
   border-radius: var(--r-sm);
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.calhead__view:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.calhead__view:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.calhead__view:focus-visible {
+  outline-offset: -2px;
 }
 .calhead__view.is-active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+}
+.calhead__view.is-active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.calhead__view.is-active:active {
+  background: var(--accent-ink);
+}
+.calhead__view.is-active:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -3px;
 }
 
 /* ---------- FullCalendar theme ---------- */
@@ -113,12 +137,14 @@
   --fc-border-color: var(--line-soft);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: color-mix(in srgb, var(--paper-2) 55%, var(--card));
-  --fc-today-bg-color: color-mix(in srgb, var(--hl) 30%, transparent);
+  /* No today-column wash — the green today circle (.fc-day-today day-number /
+     .cal-dayhead.is-today) is the sole, deliberate today marker. */
+  --fc-today-bg-color: transparent;
   --fc-now-indicator-color: var(--clay);
   --fc-event-bg-color: var(--card);
   --fc-event-border-color: var(--line);
   --fc-event-text-color: var(--ink);
-  --fc-highlight-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  --fc-highlight-color: color-mix(in srgb, var(--accent) 26%, transparent);
   --fc-small-font-size: var(--fs-label);
   font-family: var(--text);
   color: var(--ink);
@@ -145,9 +171,15 @@
   color: var(--ink);
   padding: var(--s-2) var(--s-3);
 }
+/* Drop preview (drag-create selection + external drag-over): make the landing
+   slot unmistakable instead of a faint wash. */
+.calshell .fc .fc-highlight {
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--r-sm);
+}
 .calshell .fc .fc-day-today .fc-daygrid-day-number {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--r-round);
   min-width: 1.7em;
   text-align: center;
@@ -218,7 +250,7 @@
 }
 .cal-dayhead.is-today .cal-dayhead__num {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ---------- event cards (timegrid) + chips (month) ---------- */
@@ -228,7 +260,7 @@
   border: 1px solid color-mix(in srgb, var(--cal-tint, var(--line)) 45%, var(--line-soft));
   border-left: 3px solid var(--cal-tint, var(--accent));
   background: color-mix(in srgb, var(--cal-tint, var(--card)) 16%, var(--card));
-  transition: box-shadow 120ms, transform 120ms;
+  transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .calshell .fc-timegrid-event:hover {
   box-shadow: var(--e1);
@@ -237,8 +269,20 @@
 .calshell .fc-event.fc-event-resizing {
   box-shadow: var(--e3);
 }
+/* In-grid drag mirror: read as the event card being carried, not a ghost. */
 .calshell .fc-event-mirror {
-  opacity: 0.75;
+  opacity: 0.9;
+  box-shadow: var(--e3);
+}
+/* External-drag mirror: FullCalendar clones the library row straight onto
+   <body>, so it loses the panel's context styles — restore a card look. */
+body > .cal-lib__item {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  opacity: 0.95;
+  cursor: grabbing;
 }
 .cal-card {
   display: flex;
@@ -317,6 +361,45 @@
   flex: none;
   margin: 0 var(--s-5) var(--s-5) 0;
 }
+/* On desktop the activity library lives in the LEFT sidebar (a slot CampApp
+   owns), as a flat rail filling the column — the same way the Library tab's
+   filters sit there. The sidenav is display:none on phones, so this is
+   desktop-only; the FAB + sheet cover mobile. */
+.sidenav__calrail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 18px;
+}
+.sidenav__calrail .cal-lib--rail {
+  display: flex;
+  width: auto;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.sidenav__calrail .cal-lib__head {
+  padding: 0 0 var(--s-1);
+}
+.sidenav__calrail .cal-lib__title {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.sidenav__calrail .cal-lib__search {
+  margin-inline: 0;
+}
+.sidenav__calrail .cal-lib__cats {
+  padding-inline: 0;
+}
+.sidenav__calrail .cal-lib__list {
+  padding-inline: 0;
+}
 .cal-lib__head {
   display: flex;
   align-items: center;
@@ -347,6 +430,9 @@
   fill: none;
   stroke-width: 1.7;
 }
+.cal-lib__search:focus-within {
+  border-color: var(--accent);
+}
 .cal-lib__search input {
   flex: 1;
   min-width: 0;
@@ -375,7 +461,13 @@
   gap: var(--s-2);
   border-radius: var(--r-md);
   padding: var(--s-2);
+}
+/* Drag is a rail-only affordance (the sheet overlays the grid). */
+.cal-lib--rail .cal-lib__item {
   cursor: grab;
+}
+.cal-lib--rail .cal-lib__item:active {
+  cursor: grabbing;
 }
 .cal-lib__item:hover {
   background: var(--paper-2);
@@ -403,6 +495,10 @@
   text-align: left;
   cursor: pointer;
   padding: var(--s-1) 0;
+  border-radius: var(--r-sm);
+}
+.cal-lib__open:active .cal-lib__name {
+  color: var(--accent-ink);
 }
 .cal-lib__name {
   font-family: var(--hand);
@@ -425,10 +521,18 @@
   background: var(--card);
   color: var(--accent-ink);
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
 }
 .cal-lib__add:hover {
   background: var(--accent);
-  color: #fff;
+  border-color: var(--accent-ink);
+  color: var(--on-accent);
+}
+.cal-lib__add:active {
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
+  color: var(--on-accent);
 }
 .cal-lib__add svg {
   width: 16px;
@@ -443,6 +547,213 @@
   font-size: var(--fs-ui);
 }
 
+/* ---------- Quick Add (the default create surface) ---------- */
+.overlay--quickadd {
+  max-height: 78dvh;
+}
+.quickadd {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.quickadd__head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5) var(--s-3);
+}
+.quickadd__when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.quickadd__date {
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+  line-height: 1.05;
+}
+.quickadd__time {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.quickadd__search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0 var(--s-5);
+  padding: 0 var(--s-4);
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--content);
+  color: var(--ink-soft);
+}
+.quickadd__search:focus-within {
+  border-color: var(--accent);
+}
+.quickadd__search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.quickadd__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.quickadd__search button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.quickadd__search button svg {
+  width: 14px;
+  height: 14px;
+}
+.quickadd__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: var(--s-3);
+  padding: 0 var(--s-3);
+}
+.quickadd__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.quickadd__item:hover {
+  background: var(--chrome-well);
+}
+.quickadd__item:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.quickadd__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-round);
+}
+.quickadd__name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quickadd__meta {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.quickadd__empty {
+  padding: var(--s-5);
+  color: var(--ink-faint);
+  font-size: var(--fs-ui);
+}
+.quickadd__searchform {
+  display: contents;
+}
+/* "Create custom event" — a peer of the library rows, accent-tinted so it reads
+   as "make new", set off from the picks above by a hairline when both show. */
+.quickadd__sep {
+  display: block;
+  height: 1.5px;
+  margin: var(--s-2) var(--s-3);
+  background: var(--line-soft);
+}
+.quickadd__custom-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-md);
+  padding: var(--s-3);
+  text-align: left;
+  cursor: pointer;
+  color: var(--accent-ink);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.quickadd__custom-row:hover {
+  background: var(--accent-tint);
+}
+.quickadd__custom-row:active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.quickadd__custom-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+.quickadd__custom-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+.quickadd__custom-row .quickadd__name {
+  color: var(--accent-ink);
+}
+.quickadd__more {
+  flex: none;
+  align-self: center;
+  margin: var(--s-2) auto var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: var(--s-2) var(--s-4);
+}
+.quickadd__more:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
 /* mobile bottom-sheet variant + FAB */
 .calshell__fab {
   position: fixed;
@@ -455,10 +766,22 @@
   border: 1.5px solid var(--accent-ink);
   border-radius: var(--r-round);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: var(--e3);
   cursor: pointer;
   z-index: 26; /* above the tabbar (24), below every overlay (scrim 30) */
+  transition: background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+.calshell__fab:hover {
+  background: var(--accent-ink);
+}
+.calshell__fab:active {
+  transform: translateY(1px);
+  box-shadow: var(--e1);
+}
+.calshell__fab:focus-visible {
+  outline-color: var(--ink);
 }
 .calshell__fab svg {
   width: 22px;
@@ -577,9 +900,24 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
+  min-height: var(--tap);
   font-family: var(--hand);
   font-size: var(--fs-body);
   color: var(--ink);
+  cursor: pointer;
+}
+.cal-editor__allday input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+/* Live "9:00 AM – 10:30 AM" line: shows the result of Starts + Length. */
+.cal-editor__endtime {
+  margin: calc(-1 * var(--s-2)) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
 }
 .cal-editor__actions {
   display: flex;
@@ -588,6 +926,14 @@
 }
 .cal-editor__sp {
   flex: 1;
+}
+/* Why Save is disabled — swapped in place of the spacer so nothing jumps. */
+.cal-editor__hint {
+  flex: 1;
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
 }
 
 /* ---------- toast ---------- */
@@ -615,6 +961,15 @@
   font-family: var(--hand-sc);
   font-size: var(--fs-body);
   cursor: pointer;
+  min-height: var(--s-8);
+}
+.calshell__toast button:hover,
+.calshell__toast button:active {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.calshell__toast button:focus-visible {
+  outline-color: var(--paper); /* accent vanishes on the ink toast */
 }
 
 /* Swipe-between-days feedback: the grid nudges in from the swipe direction. */
@@ -653,9 +1008,6 @@
 
 /* ---------- responsive ---------- */
 @media (min-width: 1024px) {
-  .cal-lib--rail {
-    display: flex;
-  }
   .calshell__fab {
     display: none;
   }

@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState, type TouchEvent } from "react";
+import { useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
 import type { RunDoc } from "@/lib/runList";
-import { buildPresentSlides } from "@/lib/presentSlides";
 import { CampIcon } from "./icons";
 import { SaveButton } from "./primitives";
 import { Modal } from "./Modal";
 import { ActivityRunList } from "./ActivityRunList";
-import { PresentMode } from "./PresentMode";
 
 export function DetailSheet({
   activity: a,
@@ -53,12 +51,9 @@ export function DetailSheet({
   // Read-only by default: on a phone mirrored to a projector, a stray tap must
   // never pop the keyboard. The pencil toggle opts into editing explicitly.
   const [editing, setEditing] = useState(false);
-  const [presenting, setPresenting] = useState(false);
   const canEdit = Boolean(onSaveRunDoc);
   const editable = editing && canEdit;
   const showOwner = showOwnerActions && isCustom;
-
-  const slides = useMemo(() => buildPresentSlides(a, runDoc), [a, runDoc]);
 
   // On phones, a downward swipe that STARTS on the header closes the viewer —
   // scoping it to the header keeps iOS rubber-band overscroll in the step list
@@ -152,16 +147,6 @@ export function DetailSheet({
                 <CampIcon.Print />
                 <span>Print / PDF</span>
               </button>
-              <button
-                type="button"
-                className={"present-chip" + (eventContext ? " present-chip--primary" : "")}
-                onClick={() => setPresenting(true)}
-                aria-label={"Present " + a.title}
-                title="Full-screen, step-by-step — for the projector"
-              >
-                <CampIcon.ExpandAll />
-                <span>Present</span>
-              </button>
               <SaveButton on={isFav(a.id)} onToggle={() => onToggleFav(a.id)} stop={false} />
             </div>
 
@@ -189,16 +174,6 @@ export function DetailSheet({
           />
         </article>
       </div>
-
-      {presenting && (
-        <PresentMode
-          activity={a}
-          slides={slides}
-          availableMaterials={availableMaterials}
-          onToggleMaterial={onToggleMaterial}
-          onClose={() => setPresenting(false)}
-        />
-      )}
     </Modal>
   );
 }

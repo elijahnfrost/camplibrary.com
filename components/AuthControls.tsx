@@ -22,10 +22,13 @@ function currentSignInUrl(returnTo?: string) {
 export function usePreviewAuth() {
   if (!CLERK_ENABLED) {
     return {
+      enabled: false,
       session: ANONYMOUS_SESSION,
       signedIn: false,
+      // Accounts are off here; there is no auth entry point, but keep this a
+      // no-op-to-home rather than a bounce through the (redirecting) /sign-in.
       openAuth: () => {
-        window.location.href = "/sign-in";
+        window.location.href = "/";
       },
       signOut: () => undefined,
     };
@@ -59,6 +62,7 @@ export function usePreviewAuth() {
   const session = useMemo(() => serverSession, [serverSession]);
 
   return {
+    enabled: true,
     session,
     signedIn: session.status === "authenticated",
     openAuth: (returnTo?: string) => {

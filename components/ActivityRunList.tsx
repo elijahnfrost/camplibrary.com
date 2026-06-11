@@ -231,7 +231,9 @@ function Editable({
                 }
                 onEnter(before, after);
               } else if (e.key === "Escape") {
-                // Cancel this edit only — never bubble up and close the viewer.
+                // Cancel this edit only — preventDefault tells the dialog
+                // stack the key is claimed, so the viewer stays open.
+                e.preventDefault();
                 e.stopPropagation();
                 cancelRef.current = true;
                 e.currentTarget.textContent = value || "";
@@ -437,7 +439,8 @@ export function ActivityRunList({
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     const snapshot = cloneRunDoc(doc);
     setUndoState({ message, doc: snapshot });
-    undoTimerRef.current = setTimeout(() => setUndoState(null), 6000);
+    // Destructive undo gets the same 8s window as the calendar's delete toast.
+    undoTimerRef.current = setTimeout(() => setUndoState(null), 8000);
   };
 
   const undoRemoval = () => {
@@ -856,6 +859,11 @@ export function ActivityRunList({
     const idx = doc.blocks.findIndex((b) => b.id === id);
     return (
       <div className="rl-rowtools">
+        {/* Not a button on purpose: dragBind ignores drags starting on buttons,
+            and the whole row is the actual drag handle this grip advertises. */}
+        <span className="rl-grip" title="Drag to reorder" aria-hidden="true">
+          <CampIcon.Grip />
+        </span>
         {extra}
         <button
           type="button"
@@ -899,6 +907,9 @@ export function ActivityRunList({
     const childCount = parentBlock?.children?.length ?? 0;
     const removeBtn = editable ? (
       <div className="rl-rowtools">
+        <span className="rl-grip" title="Drag to reorder" aria-hidden="true">
+          <CampIcon.Grip />
+        </span>
         <button
           type="button"
           className="rl-iconbtn"
@@ -1067,9 +1078,24 @@ export function ActivityRunList({
       return (
         <li className="rl-block rl-block--add rl-insertopen">
           <div className="rl-block__main">
-            <div className="rl-palette rl-palette--flat">
-              {ADD_BLOCKS.map(({ type, label, icon: Icon }) => (
-                <button type="button" key={type} className="rl-ptype" onClick={() => addTopAt(type, index)}>
+            <div
+              className="rl-palette rl-palette--flat"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInsertAt(null);
+                }
+              }}
+            >
+              {ADD_BLOCKS.map(({ type, label, icon: Icon }, i) => (
+                <button
+                  type="button"
+                  key={type}
+                  className="rl-ptype"
+                  autoFocus={i === 0}
+                  onClick={() => addTopAt(type, index)}
+                >
                   <Icon />
                   {label}
                 </button>
@@ -1438,11 +1464,26 @@ export function ActivityRunList({
                 {editable && !collapsedNow && !closingNow && openKid === b.id && (
                   <li key={b.id + "-add"} className="rl-block rl-block--detail rl-block--add">
                     <div className="rl-block__main">
-                      <div className="rl-palette rl-palette--flat">
-                        {ATTACH_BLOCKS.map((t) => {
+                      <div
+                        className="rl-palette rl-palette--flat"
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setOpenKid(null);
+                          }
+                        }}
+                      >
+                        {ATTACH_BLOCKS.map((t, i) => {
                           const Icon = TYPE_ICON[t];
                           return (
-                            <button type="button" key={t} className="rl-ptype" onClick={() => addKid(b.id, t)}>
+                            <button
+                              type="button"
+                              key={t}
+                              className="rl-ptype"
+                              autoFocus={i === 0}
+                              onClick={() => addKid(b.id, t)}
+                            >
                               <Icon />
                               {RUN_CHILD_META[t].label}
                             </button>
@@ -1471,9 +1512,24 @@ export function ActivityRunList({
           <div className="rl-addwrap">
             <div className="rl-addmain">
               {openTop ? (
-                <div className="rl-palette rl-palette--top">
-                  {ADD_BLOCKS.map(({ type, label, icon: Icon }) => (
-                    <button type="button" key={type} className="rl-ptype" onClick={() => addTop(type)}>
+                <div
+                  className="rl-palette rl-palette--top"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpenTop(false);
+                    }
+                  }}
+                >
+                  {ADD_BLOCKS.map(({ type, label, icon: Icon }, i) => (
+                    <button
+                      type="button"
+                      key={type}
+                      className="rl-ptype"
+                      autoFocus={i === 0}
+                      onClick={() => addTop(type)}
+                    >
                       <Icon />
                       {label}
                     </button>
