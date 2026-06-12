@@ -109,6 +109,40 @@ function StaffPromptModal({
   );
 }
 
+function AccountPromptModal({
+  name,
+  email,
+  onClose,
+  onSwitchAccount,
+  onSignOut,
+}: {
+  name: string;
+  email: string;
+  onClose: () => void;
+  onSwitchAccount: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <Modal label="Account" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
+      <div className="auth-form auth-form--prompt">
+        <div className="auth-form__section">Account</div>
+        <p className="auth-form__copy">You&apos;re logged in as {name}.</p>
+        <p className="auth-form__account-email">{email}</p>
+        <button type="button" className="btn btn--primary btn--block" onClick={onSwitchAccount}>
+          <CampIcon.User />
+          Switch account
+        </button>
+        <button type="button" className="btn btn--ghost btn--block" onClick={onSignOut}>
+          Sign out
+        </button>
+        <button type="button" className="btn btn--quiet btn--block" onClick={onClose}>
+          Stay signed in
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const auth = usePreviewAuth();
@@ -127,6 +161,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
 
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
+  const [accountPrompt, setAccountPrompt] = useState(false);
 
   const openStaffPrompt = useCallback(
     (mode: "sign-in" | "sign-up", message: string, returnTo = currentReturnPath()) => {
@@ -156,9 +191,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     const url = new URL(window.location.href);
     const mode = url.searchParams.get("auth");
     if (mode !== "sign-in" && mode !== "sign-up") return;
+    if (auth.enabled && !auth.ready) return;
 
     const next = safeInternalReturnPath(url.searchParams.get("next") || url.searchParams.get("redirect_url"));
     cleanAuthRouteUrl();
+    if (auth.signedIn || auth.providerSignedIn) return;
     openStaffPrompt(
       mode,
       mode === "sign-up"
@@ -170,7 +207,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
           : "Staff sign-in is not configured in this workspace, so editing tools are unavailable.",
       next
     );
-  }, [auth.enabled, openStaffPrompt]);
+  }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn, openStaffPrompt]);
 
   const requireStaff = useCallback(
     (action: string) => {
@@ -336,7 +373,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // The auth pill lives inside each surface's own header row — the sidebar/
   // tabbar already names the surface, so there's no separate page-title bar.
   const authControl = (
-    <AuthButton session={auth.session} onOpen={() => requireStaff("make staff changes")} onSignOut={auth.signOut} />
+    <AuthButton
+      session={auth.session}
+      onOpen={() => requireStaff("make staff changes")}
+      onAccount={() => setAccountPrompt(true)}
+    />
   );
 
   return (
@@ -549,6 +590,21 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             authEnabled={auth.enabled}
             onClose={() => setStaffPrompt(null)}
             onRequestSignUp={openSignUpPrompt}
+          />
+        )}
+        {accountPrompt && auth.session.status === "authenticated" && (
+          <AccountPromptModal
+            name={auth.session.user.name}
+            email={auth.session.user.email}
+            onClose={() => setAccountPrompt(false)}
+            onSwitchAccount={() => {
+              setAccountPrompt(false);
+              auth.signOut("/?auth=sign-in");
+            }}
+            onSignOut={() => {
+              setAccountPrompt(false);
+              auth.signOut("/");
+            }}
           />
         )}
       </div>

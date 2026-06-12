@@ -339,7 +339,8 @@ export async function reserveInviteCode({
     const maxUses = Number(item.max_uses ?? 1);
 
     if (expiresAt != null && expiresAt < now) return [{ failure_reason: "expired" }];
-    if (invitedEmail && !providedEmail) return [{ failure_reason: "email_mismatch" }];
+    // Google sign-up only knows the user email after OAuth returns; the final
+    // consume step still checks invited_email against the provider email.
     if (invitedEmail && providedEmail && invitedEmail !== providedEmail) return [{ failure_reason: "email_mismatch" }];
     if (item.status === "used" || item.status === "revoked") return [{ failure_reason: "unavailable" }];
     if (!item.active || usageCount >= maxUses) {

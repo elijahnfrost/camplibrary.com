@@ -103,16 +103,17 @@ export function InviteSignUp() {
   const [error, setError] = useState("");
 
   const hasInviteCode = form.inviteCode.trim().length > 0;
+  const hasName = form.name.trim().length > 0;
   const hasValidEmail = form.email.trim().includes("@");
-  const hasValidCredentials = hasValidEmail && form.password.length >= 8;
+  const hasValidCredentials = hasName && hasValidEmail && form.password.length >= 8;
   const canSubmitCredentials =
     Boolean(signUp) &&
+    hasInviteCode &&
     hasValidCredentials &&
     !pending &&
     fetchStatus !== "fetching";
-  const canSubmit = canSubmitCredentials && hasInviteCode;
-  const disableGoogleSubmit = pending || fetchStatus === "fetching" || !signUp || !hasInviteCode || !hasValidEmail;
-  const disablePasswordSubmit = pending || fetchStatus === "fetching" || (hasInviteCode && (!signUp || !hasValidCredentials));
+  const disableGoogleSubmit = pending || fetchStatus === "fetching" || !signUp || !hasInviteCode;
+  const disablePasswordSubmit = !canSubmitCredentials;
 
   useEffect(() => {
     const pendingGoogleReservation = pendingGoogleReservationFromStorage();
@@ -130,7 +131,19 @@ export function InviteSignUp() {
       setError("Enter your invite code to create an account.");
       return;
     }
-    if (!signUp || !canSubmit) return;
+    if (!hasName) {
+      setError("Enter your name to create an email account.");
+      return;
+    }
+    if (!hasValidEmail) {
+      setError("Enter a valid email address to create an email account.");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("Use a password with at least 8 characters.");
+      return;
+    }
+    if (!signUp || !canSubmitCredentials) return;
     setPending(true);
     setError("");
     let reservedInvite: PendingInviteReservation | null = null;
@@ -218,17 +231,13 @@ export function InviteSignUp() {
       setError("Enter your invite code to continue with Google.");
       return;
     }
-    if (!hasValidEmail) {
-      setError("Enter the email address for this invite before continuing with Google.");
-      return;
-    }
     if (!signUp) return;
     setPending(true);
     setError("");
     let reservedInvite: PendingInviteReservation | null = null;
     try {
       const inviteCode = form.inviteCode;
-      const reservationId = await reserveInviteCode(inviteCode, form.email.trim().toLowerCase());
+      const reservationId = await reserveInviteCode(inviteCode);
       reservedInvite = { inviteCode, reservationId };
       rememberPendingGoogleReservation(reservedInvite);
       const callbackParams = new URLSearchParams({
@@ -292,7 +301,9 @@ export function InviteSignUp() {
   return (
     <div className="auth-form">
       <div className="auth-form__section">Create staff account</div>
-      <p className="auth-form__copy">New staff start with an invite code, then choose Google or email.</p>
+      <p className="auth-form__copy">
+        Use your invite code with Google, or use the same code to verify an email account.
+      </p>
       <div className="field">
         <label className="field__label" htmlFor="invite-code">
           Invite code
@@ -307,6 +318,29 @@ export function InviteSignUp() {
         />
       </div>
 
+      <div className="auth-form__subsection">Google</div>
+      <p className="auth-form__copy">Needs only the invite code. Google supplies your name and email.</p>
+      <button type="button" className="btn btn--primary btn--block" disabled={disableGoogleSubmit} onClick={createWithGoogle}>
+        <CampIcon.User />
+        Continue with Google
+      </button>
+
+      <div className="auth-form__divider">or</div>
+
+      <div className="auth-form__subsection">Email verification</div>
+      <p className="auth-form__copy">Use the invite code, your name, email, and a password.</p>
+      <div className="field">
+        <label className="field__label" htmlFor="staff-name">
+          Name
+        </label>
+        <input
+          id="staff-name"
+          className="input"
+          value={form.name}
+          onChange={(event) => update("name", event.target.value)}
+          autoComplete="name"
+        />
+      </div>
       <div className="field">
         <label className="field__label" htmlFor="staff-email">
           Email
@@ -319,26 +353,6 @@ export function InviteSignUp() {
           onChange={(event) => update("email", event.target.value)}
           autoComplete="email"
           aria-describedby={error ? "invite-signup-error" : undefined}
-        />
-      </div>
-
-      <button type="button" className="btn btn--primary btn--block" disabled={disableGoogleSubmit} onClick={createWithGoogle}>
-        <CampIcon.User />
-        Continue with Google
-      </button>
-
-      <div className="auth-form__divider">or</div>
-
-      <div className="field">
-        <label className="field__label" htmlFor="staff-name">
-          Name
-        </label>
-        <input
-          id="staff-name"
-          className="input"
-          value={form.name}
-          onChange={(event) => update("name", event.target.value)}
-          autoComplete="name"
         />
       </div>
       <div className="field">

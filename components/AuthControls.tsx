@@ -16,35 +16,53 @@ export function usePreviewAuth() {
   if (!CLERK_ENABLED) {
     return {
       enabled: false,
+      ready: true,
       session: ANONYMOUS_SESSION,
       signedIn: false,
+      providerSignedIn: false,
       // Accounts are off here; there is no auth entry point, so keep this a
       // no-op-to-home.
       openAuth: () => {
         window.location.href = "/";
       },
-      signOut: () => undefined,
+      signOut: (redirectUrl = "/") => {
+        window.location.href = redirectUrl;
+      },
     };
   }
 
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
   const [serverSession, setServerSession] = useState<AuthSession>(ANONYMOUS_SESSION);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) {
+    if (!isLoaded) {
+      setSessionReady(false);
+      return;
+    }
+
+    if (!isSignedIn || !user) {
       setServerSession(ANONYMOUS_SESSION);
+      setSessionReady(true);
       return;
     }
 
     let cancelled = false;
+    setSessionReady(false);
     fetch("/api/auth/session", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { session?: AuthSession } | null) => {
-        if (!cancelled) setServerSession(body?.session ?? ANONYMOUS_SESSION);
+        if (!cancelled) {
+          setServerSession(body?.session ?? ANONYMOUS_SESSION);
+          setSessionReady(true);
+        }
       })
       .catch(() => {
-        if (!cancelled) setServerSession(ANONYMOUS_SESSION);
+        if (!cancelled) {
+          setServerSession(ANONYMOUS_SESSION);
+          setSessionReady(true);
+        }
       });
 
     return () => {
@@ -56,13 +74,15 @@ export function usePreviewAuth() {
 
   return {
     enabled: true,
+    ready: isLoaded && sessionReady,
     session,
     signedIn: session.status === "authenticated",
+    providerSignedIn: Boolean(isSignedIn),
     openAuth: (returnTo?: string) => {
       window.location.href = currentSignInUrl(returnTo);
     },
-    signOut: () => {
-      void clerk.signOut({ redirectUrl: "/" });
+    signOut: (redirectUrl = "/") => {
+      void clerk.signOut({ redirectUrl });
     },
   };
 }
@@ -70,20 +90,20 @@ export function usePreviewAuth() {
 export function AuthButton({
   session,
   onOpen,
-  onSignOut,
+  onAccount,
 }: {
   session: AuthSession;
   onOpen: () => void;
-  onSignOut: () => void;
+  onAccount: () => void;
 }) {
   if (session.status === "authenticated") {
     return (
       <button
         type="button"
         className="auth-pill auth-pill--signed-in"
-        onClick={onSignOut}
-        aria-label={"Sign out " + session.user.name}
-        title="Sign out"
+        onClick={onAccount}
+        aria-label={"Open account menu for " + session.user.name}
+        title="Account"
       >
         <CampIcon.User />
         <span>{session.user.name}</span>

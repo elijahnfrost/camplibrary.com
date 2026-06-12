@@ -1568,6 +1568,7 @@ body {
 }
 .auth-route__kicker,
 .auth-form__section,
+.auth-form__subsection,
 .auth-form__divider,
 .auth-route__status {
   font-family: var(--hand-sc);
@@ -1601,6 +1602,15 @@ body {
 }
 .auth-form__hint {
   text-align: center;
+}
+.auth-form__subsection {
+  color: var(--ink);
+}
+.auth-form__account-email {
+  margin: -6px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .auth-form__hint a {
   color: var(--accent-ink);
