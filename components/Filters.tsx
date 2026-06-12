@@ -6,11 +6,9 @@ import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { Seg } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 
 const PLACES = ["Inside", "Outside"] as const;
-type KitSort = "Have" | "Need";
 
 /** The shared color hook: a selected chip carries its dimension's tint via
  *  --chip-on (the .chip.is-on recipe darkens it for AA). Type chips teach the
@@ -212,21 +210,17 @@ function MaterialPicker({
   onClear: () => void;
   defaultOpen?: boolean;
 }) {
-  const [lead, setLead] = useState<KitSort>("Have");
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [query, setQuery] = useState("");
   if (!options.length) return null;
   const selectedSet = new Set(selected);
-  const have = options.filter((option) => selectedSet.has(option.id));
-  const need = options.filter((option) => !selectedSet.has(option.id));
   const q = query.trim().toLowerCase();
   const matchesQuery = (option: MaterialOption) => !q || option.label.toLowerCase().includes(q);
-  const visibleHave = have.filter(matchesQuery);
-  const visibleNeed = need.filter(matchesQuery);
-  const ordered = lead === "Have" ? [...visibleHave, ...visibleNeed] : [...visibleNeed, ...visibleHave];
-  const selectedCount = have.length;
-  const leadCount = lead === "Have" ? visibleHave.length : visibleNeed.length;
-  const showControls = options.length >= 2;
+  // Picked kit floats to the top so "what am I filtering by" is always in view.
+  const visibleSelected = options.filter((option) => selectedSet.has(option.id)).filter(matchesQuery);
+  const visibleRest = options.filter((option) => !selectedSet.has(option.id)).filter(matchesQuery);
+  const ordered = [...visibleSelected, ...visibleRest];
+  const selectedCount = selected.length;
 
   return (
     <details
@@ -236,30 +230,20 @@ function MaterialPicker({
     >
       <summary
         className={"material-filter__summary" + (selectedCount ? " is-on" : "")}
-        aria-label={"Available kit, have " + have.length + ", need " + need.length}
+        aria-label={"Available kit, " + selectedCount + " of " + options.length + " selected"}
       >
         <span>Available kit{selectedCount ? " · " + selectedCount : ""}</span>
       </summary>
       <div className="material-filter__panel">
         <div className="matkit material-filter__kit">
-          <div className="matkit__bar material-filter__kitbar">
-            <span className="matkit__status">
-              Have {have.length} · Need {need.length}
-            </span>
-            {showControls && (
-              <Seg
-                options={["Have", "Need"] as const}
-                value={lead}
-                onChange={setLead}
-                ariaLabel="Sort available kit by what you have or still need"
-              />
-            )}
-            {selectedCount > 0 && (
+          {selectedCount > 0 && (
+            <div className="matkit__bar material-filter__kitbar">
+              <span className="matkit__status">{selectedCount} selected</span>
               <button type="button" className="material-filter__clear" onClick={onClear}>
                 Clear
               </button>
-            )}
-          </div>
+            </div>
+          )}
           <label className="material-filter__search">
             <CampIcon.Search />
             <input
@@ -278,7 +262,7 @@ function MaterialPicker({
             {ordered.length ? (
               ordered.map((option, i) => {
                 const has = selectedSet.has(option.id);
-                const divide = showControls && i === leadCount && i > 0 && i < ordered.length;
+                const divide = i === visibleSelected.length && i > 0 && i < ordered.length;
                 const count = option.count + (option.count === 1 ? " activity" : " activities");
                 return (
                   <Fragment key={option.id}>
@@ -288,7 +272,7 @@ function MaterialPicker({
                       className={"matkit__item material-filter__item" + (has ? " is-have" : "")}
                       onClick={() => onToggle(option.id)}
                       aria-pressed={has}
-                      aria-label={(has ? "Have" : "Still need") + ": " + option.label + ", used by " + count}
+                      aria-label={(has ? "Selected" : "Not selected") + ": " + option.label + ", used by " + count}
                       title={count}
                     >
                       <span className="matkit__check" aria-hidden="true">

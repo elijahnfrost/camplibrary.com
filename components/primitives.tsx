@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import { CampIcon } from "./icons";
 
@@ -29,56 +29,9 @@ export function ApprovalDots({ rating }: { rating: number }) {
   );
 }
 
-export function RatingPicker({
-  value,
-  onChange,
-  label = "Approval rating",
-}: {
-  value: number;
-  onChange: (value: number) => void;
-  label?: string;
-}) {
-  const color = value ? ratingColor(value) : "var(--ink-faint)";
-
-  return (
-    <div className="rating-picker" role="group" aria-label={label}>
-      <div className="rating-picker__status">
-        <button
-          type="button"
-          className={"rating-reset" + (!value ? " is-on" : "")}
-          onClick={() => onChange(0)}
-          aria-pressed={!value}
-        >
-          <CampIcon.Reset />
-          Not run
-        </button>
-        <span className="rating-picker__word" style={{ color }}>
-          {RATING_WORD[value || 0]}
-        </span>
-        <span className="rating-picker__num">{value ? value + "/5" : "Unrated"}</span>
-      </div>
-      <div className="rating-picker__scale">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className={"rating-dot" + (value >= n ? " is-filled" : "") + (value === n ? " is-on" : "")}
-            onClick={() => onChange(n)}
-            aria-label={"Set approval " + n + " of 5"}
-            aria-pressed={value === n}
-            style={value >= n ? ({ "--rating-color": ratingColor(n) } as CSSProperties) : undefined}
-          >
-            <span>{n}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // Compact approval rating — five dots that fill with the warm rating colour,
-// plus the rating word. A fraction of the height of the full RatingPicker, so it
-// sits inline in the viewer header. Tap a filled dot again to clear.
+// plus the rating word. Short enough to sit inline in the viewer header.
+// Tap a filled dot again to clear.
 export function RatingDots({
   value,
   onChange,

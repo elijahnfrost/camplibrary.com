@@ -28,7 +28,7 @@ import {
 import type { Activity } from "@/lib/types";
 import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
 import { CampIcon } from "./icons";
-import { RatingDots, Seg } from "./primitives";
+import { RatingDots } from "./primitives";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 import { PlaybookEditor } from "./PlaybookEditor";
 import {
@@ -263,10 +263,9 @@ function Pill({ type, n }: { type: RunChildType; n: number }) {
   );
 }
 
-type KitSort = "Have" | "Need";
-
-// The activity's materials as a working checklist (the same Have/Need "kit" the
-// library filter reads). Attaches under a step as a materials detail.
+// The activity's materials as a working checklist (the same "kit" the library
+// filter reads). Attaches under a step as a materials detail. Checked items
+// float to the top; the count line says what's still to gather.
 function MaterialChecklist({
   needs,
   availableMaterials,
@@ -276,33 +275,24 @@ function MaterialChecklist({
   availableMaterials: string[];
   onToggleMaterial: (id: string) => void;
 }) {
-  const [lead, setLead] = useState<KitSort>("Have");
   const haveSet = new Set(availableMaterials);
   const have = needs.filter((n) => haveSet.has(n.id));
   const need = needs.filter((n) => !haveSet.has(n.id));
-  const ordered = lead === "Have" ? [...have, ...need] : [...need, ...have];
-  const leadCount = lead === "Have" ? have.length : need.length;
-  const showControls = needs.length >= 2;
+  const ordered = [...have, ...need];
 
   return (
     <div className="matkit">
-      {showControls && (
+      {needs.length >= 2 && (
         <div className="matkit__bar">
           <span className="matkit__status">
             Have {have.length} · Need {need.length}
           </span>
-          <Seg
-            options={["Have", "Need"] as const}
-            value={lead}
-            onChange={setLead}
-            ariaLabel="Sort materials by what you have or still need"
-          />
         </div>
       )}
       <div className="matkit__list">
         {ordered.map((n, i) => {
           const has = haveSet.has(n.id);
-          const divide = showControls && i === leadCount && i > 0 && i < ordered.length;
+          const divide = i === have.length && i > 0 && i < ordered.length;
           return (
             <Fragment key={n.id}>
               {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
@@ -334,8 +324,7 @@ export function ActivityRunList({
   availableMaterials,
   onToggleMaterial,
   onSetRating,
-  detailsEditor,
-  materialsEditor,
+  hideAddBlocks,
 }: {
   doc: RunDoc;
   editable: boolean;
@@ -344,9 +333,14 @@ export function ActivityRunList({
   availableMaterials: string[];
   onToggleMaterial: (id: string) => void;
   onSetRating?: (value: number) => void;
-  detailsEditor?: ReactNode;
-  materialsEditor?: ReactNode;
+  /** Block types kept out of the "Add a block" palettes (e.g. the add-activity
+   *  form owns details/materials as plain form sections). */
+  hideAddBlocks?: RunBlockType[];
 }) {
+  const addableBlocks = hideAddBlocks?.length
+    ? ADD_BLOCKS.filter((block) => !hideAddBlocks.includes(block.type))
+    : ADD_BLOCKS;
+
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState<Record<string, boolean>>({});
   const [openKid, setOpenKid] = useState<string | null>(null);
@@ -1088,7 +1082,7 @@ export function ActivityRunList({
                 }
               }}
             >
-              {ADD_BLOCKS.map(({ type, label, icon: Icon }, i) => (
+              {addableBlocks.map(({ type, label, icon: Icon }, i) => (
                 <button
                   type="button"
                   key={type}
@@ -1208,24 +1202,18 @@ export function ActivityRunList({
                     <div className="rl-row rl-row--details">
                       <div className="rl-body">
                         <div className="rl-time">{RUN_TOP_LABEL.details}</div>
-                        {detailsEditor ? (
-                          <div className="rl-detailform">{detailsEditor}</div>
-                        ) : (
-                          <>
-                            <div className="rl-detailtags">
-                              {detailTags.filter((tag) => tag.id !== "rating" || !onSetRating).map((tag) => (
-                                <span className="rl-detailtag" key={tag.id}>
-                                  {detailIcon(tag.icon)}
-                                  {tag.label}
-                                </span>
-                              ))}
-                            </div>
-                            {onSetRating && (
-                              <div className="rl-detailrating">
-                                <RatingDots value={activity.rating || 0} onChange={onSetRating} />
-                              </div>
-                            )}
-                          </>
+                        <div className="rl-detailtags">
+                          {detailTags.filter((tag) => tag.id !== "rating" || !onSetRating).map((tag) => (
+                            <span className="rl-detailtag" key={tag.id}>
+                              {detailIcon(tag.icon)}
+                              {tag.label}
+                            </span>
+                          ))}
+                        </div>
+                        {onSetRating && (
+                          <div className="rl-detailrating">
+                            <RatingDots value={activity.rating || 0} onChange={onSetRating} />
+                          </div>
                         )}
                       </div>
                       {handles(b.id)}
@@ -1302,18 +1290,14 @@ export function ActivityRunList({
                     <div className="rl-row rl-row--materials">
                       <div className="rl-body">
                         <div className="rl-time">{RUN_TOP_LABEL.materials}</div>
-                        {materialsEditor ? (
-                          <div className="rl-materialform">{materialsEditor}</div>
+                        {materialNeeds.length === 0 ? (
+                          <span className="stamp">None needed</span>
                         ) : (
-                          materialNeeds.length === 0 ? (
-                            <span className="stamp">None needed</span>
-                          ) : (
-                            <MaterialChecklist
-                              needs={materialNeeds}
-                              availableMaterials={availableMaterials}
-                              onToggleMaterial={onToggleMaterial}
-                            />
-                          )
+                          <MaterialChecklist
+                            needs={materialNeeds}
+                            availableMaterials={availableMaterials}
+                            onToggleMaterial={onToggleMaterial}
+                          />
                         )}
                       </div>
                       {handles(b.id)}
@@ -1522,7 +1506,7 @@ export function ActivityRunList({
                     }
                   }}
                 >
-                  {ADD_BLOCKS.map(({ type, label, icon: Icon }, i) => (
+                  {addableBlocks.map(({ type, label, icon: Icon }, i) => (
                     <button
                       type="button"
                       key={type}

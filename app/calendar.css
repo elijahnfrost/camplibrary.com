@@ -27,39 +27,6 @@
   padding: 0 var(--s-5) var(--s-5);
 }
 
-/* Zero-event invitation — a quiet hint pinned near the top, not a card parked
-   in the middle of the grid. It also clears entirely the moment a create
-   gesture begins (see CalendarShell isCreating). */
-.calshell__empty {
-  position: absolute;
-  left: 50%;
-  top: 64px;
-  translate: -50%;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-1);
-  padding: var(--s-3) var(--s-6);
-  background: color-mix(in srgb, var(--content) 90%, transparent);
-  border: 1.5px dashed var(--line-soft);
-  border-radius: var(--r-lg);
-  box-shadow: var(--e1);
-  pointer-events: none;
-  text-align: center;
-  max-width: min(380px, 84%);
-}
-.calshell__empty-title {
-  font-family: var(--script);
-  font-size: var(--fs-title-sm);
-  color: var(--ink);
-}
-.calshell__empty-hint {
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-
 /* ---------- header chrome ---------- */
 .calhead {
   display: flex;
@@ -130,6 +97,11 @@
 .calhead__view.is-active:focus-visible {
   outline-color: var(--on-accent);
   outline-offset: -3px;
+}
+.calhead__actions {
+  display: flex;
+  align-items: center;
+  flex: none;
 }
 
 /* ---------- FullCalendar theme ---------- */
@@ -275,14 +247,28 @@
   box-shadow: var(--e3);
 }
 /* External-drag mirror: FullCalendar clones the library row straight onto
-   <body>, so it loses the panel's context styles — restore a card look. */
+   <body>. Restyle the clone into the event card it's about to become —
+   title + length only, accent spine, lifted and slightly tilted — instead
+   of a verbatim sidebar row with its grip and add button along for the ride. */
 body > .cal-lib__item {
   background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
   box-shadow: var(--e3);
-  opacity: 0.95;
+  opacity: 0.85;
+  rotate: -1.5deg;
   cursor: grabbing;
+  padding: var(--s-2) var(--s-3);
+}
+body > .cal-lib__item .cal-lib__grip,
+body > .cal-lib__item .cal-lib__add {
+  display: none;
+}
+body > .cal-lib__item .cal-lib__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cal-card {
   display: flex;
@@ -547,15 +533,23 @@ body > .cal-lib__item {
   font-size: var(--fs-ui);
 }
 
-/* ---------- Quick Add (the default create surface) ---------- */
-.overlay--quickadd {
-  max-height: 78dvh;
+/* ---------- the event window (every create + edit) ---------- */
+/* The tall bottom sheet is a phone affordance; from tablet up the centered
+   card keeps the editors' compact 640px cap from globals.css. */
+@media (max-width: 767px) {
+  .overlay--quickadd {
+    max-height: 78dvh;
+  }
 }
 .quickadd {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* When the fixed chrome (head/tabs/search/when-row) outgrows a short
+     viewport — landscape phone, keyboard up — the whole column scrolls
+     instead of clipping the commit button at the overlay edge. */
+  overflow-y: auto;
 }
 .quickadd__head {
   flex: none;
@@ -581,6 +575,11 @@ body > .cal-lib__item {
   font-size: var(--fs-label);
   letter-spacing: 0.04em;
   color: var(--ink-soft);
+}
+/* Library | Custom — both ways to fill the slot, visible up front. */
+.quickadd__tabs {
+  flex: none;
+  padding: 0 var(--s-5) var(--s-4);
 }
 .quickadd__search {
   flex: none;
@@ -634,7 +633,7 @@ body > .cal-lib__item {
 }
 .quickadd__list {
   flex: 1;
-  min-height: 0;
+  min-height: 96px; /* below this the window itself scrolls, never clips */
   overflow-y: auto;
   margin-top: var(--s-3);
   padding: 0 var(--s-3);
@@ -689,14 +688,8 @@ body > .cal-lib__item {
 .quickadd__searchform {
   display: contents;
 }
-/* "Create custom event" — a peer of the library rows, accent-tinted so it reads
-   as "make new", set off from the picks above by a hairline when both show. */
-.quickadd__sep {
-  display: block;
-  height: 1.5px;
-  margin: var(--s-2) var(--s-3);
-  background: var(--line-soft);
-}
+/* "Create custom event" — the no-match rescue row, accent-tinted so it reads
+   as "make new". */
 .quickadd__custom-row {
   width: 100%;
   display: flex;
@@ -735,26 +728,96 @@ body > .cal-lib__item {
 .quickadd__custom-row .quickadd__name {
   color: var(--accent-ink);
 }
-.quickadd__more {
-  flex: none;
-  align-self: center;
-  margin: var(--s-2) auto var(--s-4);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  padding: var(--s-2) var(--s-4);
+/* The Custom tab: one named field — in the slot posture the when is already
+   chosen, so the button creates instantly; in the pick-a-time posture the
+   schedule block below carries the commit. */
+.quickadd__custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-2) var(--s-5) var(--s-6);
+  min-height: 168px;
 }
-.quickadd__more:hover {
+.quickadd__custom-add {
+  align-self: flex-start;
+}
+/* The chosen library row in the pick-a-time posture. */
+.quickadd__item.is-on {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+}
+.quickadd__item.is-on:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--card));
+}
+.quickadd__picked {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
   color: var(--accent-ink);
-  text-decoration: underline;
+}
+.quickadd__picked svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Pick-a-time posture: when-row + commit, pinned under the list. */
+.quickadd__schedule {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  border-top: 1.5px solid var(--line-soft);
+  margin-top: var(--s-3);
+}
+.quickadd__whenrow {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.quickadd__whenrow .field {
+  flex: 1 1 110px;
+  min-width: 0;
+}
+.quickadd__allday {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--control-md);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.quickadd__allday input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.quickadd__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+/* What the commit will do (or why it's disabled) — always present so the
+   chosen activity is named even when its row is scrolled out of view. */
+.quickadd__hint {
+  flex: 1;
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
 }
 
-/* mobile bottom-sheet variant + FAB */
+/* mobile add FAB (opens the event window) */
 .calshell__fab {
   position: fixed;
   right: var(--s-6);
@@ -789,21 +852,6 @@ body > .cal-lib__item {
   stroke: currentColor;
   fill: none;
   stroke-width: 2;
-}
-.overlay--picker .cal-lib--sheet {
-  flex: 1;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.cal-lib__dot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: var(--r-round);
 }
 
 /* ---------- event quick-view popover ---------- */
@@ -871,69 +919,6 @@ body > .cal-lib__item {
 }
 .cal-popover__delete {
   margin-left: auto;
-}
-
-/* ---------- event editor ---------- */
-.cal-editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  padding: var(--s-6) var(--page-x);
-}
-.cal-editor__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.cal-editor__title {
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  color: var(--ink);
-}
-.cal-editor__when {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--s-4);
-}
-.cal-editor__allday {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: var(--tap);
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  color: var(--ink);
-  cursor: pointer;
-}
-.cal-editor__allday input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-/* Live "9:00 AM – 10:30 AM" line: shows the result of Starts + Length. */
-.cal-editor__endtime {
-  margin: calc(-1 * var(--s-2)) 0 0;
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-.cal-editor__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-}
-.cal-editor__sp {
-  flex: 1;
-}
-/* Why Save is disabled — swapped in place of the spacer so nothing jumps. */
-.cal-editor__hint {
-  flex: 1;
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink-faint);
 }
 
 /* ---------- toast ---------- */
@@ -1016,9 +1001,26 @@ body > .cal-lib__item {
   }
 }
 
+/* Below the desktop breakpoint there's no sidebar (and no page-title bar), so
+   the calendar header is the first thing on the page — it carries the notch
+   clearance the old topbar used to provide. */
+@media (max-width: 1023px) {
+  .calhead {
+    padding-top: max(14px, calc(6px + env(safe-area-inset-top)));
+  }
+}
+
 @media (max-width: 767px) {
   .calhead {
     gap: var(--s-3);
+  }
+  /* The sheet is pinned to the screen bottom — keep the commit buttons clear
+     of the home indicator. */
+  .quickadd__schedule {
+    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
+  }
+  .quickadd__custom {
+    padding-bottom: calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
   }
   .calhead__title {
     width: 100%;
@@ -1044,9 +1046,6 @@ body > .cal-lib__item {
   .calshell .fc-daygrid-event {
     min-height: 24px;
     align-items: center;
-  }
-  .cal-editor__when {
-    grid-template-columns: 1fr;
   }
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CampIcon } from "../icons";
 
 export type CalendarViewId = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
@@ -21,6 +22,7 @@ export function CalendarHeader({
   onToday,
   onPrev,
   onNext,
+  actions,
 }: {
   title: string;
   view: CalendarViewId;
@@ -29,6 +31,8 @@ export function CalendarHeader({
   onToday: () => void;
   onPrev: () => void;
   onNext: () => void;
+  /** Rendered at the right edge (e.g. the auth pill). */
+  actions?: ReactNode;
 }) {
   return (
     <div className="calhead">
@@ -64,6 +68,7 @@ export function CalendarHeader({
           </button>
         ))}
       </div>
+      {actions && <div className="calhead__actions">{actions}</div>}
     </div>
   );
 }

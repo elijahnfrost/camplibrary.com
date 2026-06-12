@@ -4,6 +4,7 @@
 // bar, and the three browse views. Filter state lives in CampApp because the
 // desktop filter rail renders inside the sidenav.
 
+import type { ReactNode } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import type { MaterialOption } from "@/lib/materials";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -14,6 +15,7 @@ import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
 export function LibraryTab({
   view,
   onView,
+  actions,
   query,
   onQuery,
   items,
@@ -55,6 +57,8 @@ export function LibraryTab({
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
   onAdd: () => void;
+  /** Rendered at the right end of the toolbar (e.g. the auth pill). */
+  actions?: ReactNode;
 }) {
   return (
     <>
@@ -121,6 +125,7 @@ export function LibraryTab({
           <CampIcon.Plus />
           <span>Add</span>
         </button>
+        {actions && <div className="toolbar__auth">{actions}</div>}
       </div>
       <Filters
         variant="bar"

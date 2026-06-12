@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -35,12 +35,10 @@ import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
-import { Modal } from "../Modal";
 import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
-import { EventEditor, draftFromEvent, type EditorDraft } from "./EventEditor";
 import { EventPopover } from "./EventPopover";
 import { LibraryPanel } from "./LibraryPanel";
-import { QuickAdd } from "./QuickAdd";
+import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 
 const VIEW_IDS = new Set<string>(["timeGridDay", "timeGridWeek", "dayGridMonth"]);
 
@@ -68,6 +66,7 @@ export function CalendarShell({
   onOpenActivity,
   announce,
   railSlot,
+  headerActions,
 }: {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
@@ -80,6 +79,8 @@ export function CalendarShell({
   /** Desktop: the left-sidebar slot the activity library renders into (one
    *  sidebar shared with the Library tab's filters). Null on mobile. */
   railSlot?: HTMLElement | null;
+  /** Rendered at the right end of the calendar header (e.g. the auth pill). */
+  headerActions?: ReactNode;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const [storedView, setStoredView] = useLocalStorage<CalendarViewId | "auto">(
@@ -94,14 +95,11 @@ export function CalendarShell({
   const [title, setTitle] = useState("");
   const [todayInView, setTodayInView] = useState(true);
   const [visibleRange, setVisibleRange] = useState<{ start: DateKey; end: DateKey } | null>(null);
-  const [editor, setEditor] = useState<EditorDraft | null>(null);
-  const [quickAdd, setQuickAdd] = useState<EditorDraft | null>(null);
+  // The ONE event window (QuickAdd) for every create and edit. pickTime adds
+  // the when-row + commit button; without it, the slot gesture chose the when
+  // and picking creates instantly.
+  const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  // While a create gesture is live (dragging a library row over the grid, or
-  // drag-selecting a span) the empty-state invitation clears out of the way.
-  const [isCreating, setIsCreating] = useState(false);
-  const creatingRef = useRef(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
@@ -159,29 +157,6 @@ export function CalendarShell({
     []
   );
 
-  const beginCreating = useCallback(() => {
-    if (!creatingRef.current) {
-      creatingRef.current = true;
-      setIsCreating(true);
-    }
-  }, []);
-  const endCreating = useCallback(() => {
-    if (creatingRef.current) {
-      creatingRef.current = false;
-      setIsCreating(false);
-    }
-  }, []);
-  // Any pointer release ends a create gesture (a drop, a finished drag-select,
-  // or an aborted drag) — the empty state returns if nothing landed.
-  useEffect(() => {
-    window.addEventListener("pointerup", endCreating);
-    window.addEventListener("pointercancel", endCreating);
-    return () => {
-      window.removeEventListener("pointerup", endCreating);
-      window.removeEventListener("pointercancel", endCreating);
-    };
-  }, [endCreating]);
-
   const changeView = useCallback(
     (view: CalendarViewId) => {
       setActiveView(view);
@@ -221,10 +196,16 @@ export function CalendarShell({
       if (activity) event.activityId = activity.id;
       if (draft.allDay) event.allDay = true;
       upsertEvent(event);
-      setEditor(null);
+      setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + event.title);
+      if (!draft.id) {
+        showToast({
+          message: "Added " + event.title + (event.allDay ? " · all day" : " · " + formatClock(event.startMin)),
+          onUndo: () => removeEvent(event.id),
+        });
+      }
     },
-    [announce, byId, requireStaff, upsertEvent]
+    [announce, byId, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const deleteEvent = useCallback(
@@ -232,7 +213,7 @@ export function CalendarShell({
       if (!requireStaff("change the calendar")) return;
       removeEvent(event.id);
       setPopover(null);
-      setEditor(null);
+      setSheet(null);
       showToast(
         {
           message: "Deleted " + (event.title || "event"),
@@ -249,7 +230,6 @@ export function CalendarShell({
   const placeActivity = useCallback(
     (activity: Activity) => {
       if (!requireStaff("plan the calendar")) return;
-      setSheetOpen(false); // reveal the calendar so the placement (and toast) is visible
       const dateKey = focusDateRef.current;
       const dayEvents = healedEvents.filter((event) => event.date === dateKey);
       const notBefore =
@@ -280,15 +260,33 @@ export function CalendarShell({
     [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
   );
 
+  // "Pick a time": the same event window, with the when-row showing and the
+  // chosen activity preselected.
   const pickActivity = useCallback((activity: Activity) => {
-    setSheetOpen(false);
-    setEditor({
-      date: focusDateRef.current,
-      startMin: DEFAULT_PLANNING_START_MIN,
-      durationMin: activity.durationMin || DEFAULT_DURATION_MIN,
-      allDay: false,
-      activityId: activity.id,
-      title: activity.title,
+    setSheet({
+      draft: {
+        date: focusDateRef.current,
+        startMin: DEFAULT_PLANNING_START_MIN,
+        durationMin: activity.durationMin || DEFAULT_DURATION_MIN,
+        allDay: false,
+        activityId: activity.id,
+        title: activity.title,
+      },
+      pickTime: true,
+    });
+  }, []);
+
+  // The mobile + button: same window, nothing prechosen.
+  const openAddSheet = useCallback(() => {
+    setSheet({
+      draft: {
+        date: focusDateRef.current,
+        startMin: DEFAULT_PLANNING_START_MIN,
+        durationMin: DEFAULT_DURATION_MIN,
+        allDay: false,
+        title: "",
+      },
+      pickTime: true,
     });
   }, []);
 
@@ -297,7 +295,6 @@ export function CalendarShell({
   const onSelect = useCallback(
     (info: DateSelectArg) => {
       calendarRef.current?.getApi().unselect();
-      endCreating();
       if (info.view.type === "dayGridMonth") {
         // Month cells are whole days — picking a time needs a time grid.
         showToast({ message: "To pick a time, switch to Day or Week — or tap a day to open it" });
@@ -310,16 +307,19 @@ export function CalendarShell({
         : Math.max(startMin + SNAP_MIN, Math.round((info.end.getTime() - fromDateKey(toDateKey(info.start)).getTime()) / 60_000));
       // A drag-select is always a deliberate span — its length must win over any
       // activity's recommended duration once an activity is chosen.
-      setQuickAdd({
-        date: toDateKey(info.start),
-        startMin,
-        durationMin: Math.min(MINUTES_PER_DAY - startMin, endMin - startMin),
-        allDay: info.allDay,
-        title: "",
-        explicitDuration: !info.allDay,
+      setSheet({
+        draft: {
+          date: toDateKey(info.start),
+          startMin,
+          durationMin: Math.min(MINUTES_PER_DAY - startMin, endMin - startMin),
+          allDay: info.allDay,
+          title: "",
+          explicitDuration: !info.allDay,
+        },
+        pickTime: false,
       });
     },
-    [endCreating, requireStaff, showToast]
+    [requireStaff, showToast]
   );
 
   const onDateClick = useCallback(
@@ -334,23 +334,26 @@ export function CalendarShell({
       if (!requireStaff("plan the calendar")) return;
       const startMin = snapMinutes(minutesOfDay(info.date), SNAP_MIN);
       // A single tap gives no span — the chosen activity's recommended length applies.
-      setQuickAdd({
-        date: toDateKey(info.date),
-        startMin,
-        durationMin: DEFAULT_DURATION_MIN,
-        allDay: info.allDay,
-        title: "",
-        explicitDuration: false,
+      setSheet({
+        draft: {
+          date: toDateKey(info.date),
+          startMin,
+          durationMin: DEFAULT_DURATION_MIN,
+          allDay: info.allDay,
+          title: "",
+          explicitDuration: false,
+        },
+        pickTime: false,
       });
     },
     [requireStaff, setStoredView]
   );
 
-  // QuickAdd: a picked activity (or a custom title) creates immediately, with
-  // Undo. The dragged span wins; otherwise the activity's recommended length.
+  // Slot posture: a picked activity (or a custom title) creates immediately,
+  // with Undo. The dragged span wins; otherwise the recommended length.
   const quickAddActivity = useCallback(
     (activity: Activity) => {
-      const draft = quickAdd;
+      const draft = sheet?.draft;
       if (!draft || !requireStaff("plan the calendar")) return;
       const duration = draft.explicitDuration
         ? Math.max(SNAP_MIN, draft.durationMin)
@@ -368,19 +371,19 @@ export function CalendarShell({
       };
       if (draft.allDay) event.allDay = true;
       upsertEvent(event);
-      setQuickAdd(null);
+      setSheet(null);
       announce("Added " + event.title);
       showToast({
         message: "Added " + activity.title + (event.allDay ? " · all day" : " · " + formatClock(startMin)),
         onUndo: () => removeEvent(event.id),
       });
     },
-    [announce, quickAdd, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, sheet, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const quickAddCustom = useCallback(
     (title: string) => {
-      const draft = quickAdd;
+      const draft = sheet?.draft;
       if (!draft || !requireStaff("plan the calendar")) return;
       const startMin = draft.allDay ? 0 : draft.startMin;
       const event: CalendarEvent = {
@@ -394,14 +397,14 @@ export function CalendarShell({
       };
       if (draft.allDay) event.allDay = true;
       upsertEvent(event);
-      setQuickAdd(null);
+      setSheet(null);
       announce("Added " + title);
       showToast({
         message: "Added " + title + (event.allDay ? " · all day" : " · " + formatClock(startMin)),
         onUndo: () => removeEvent(event.id),
       });
     },
-    [announce, quickAdd, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, sheet, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const onEventClick = useCallback(
@@ -449,7 +452,6 @@ export function CalendarShell({
       const start = info.event.start;
       // Our store is the source of truth — drop FC's temporary event either way.
       info.event.remove();
-      setSheetOpen(false); // reveal the calendar so the drop (and toast) is visible
       if (!start || !requireStaff("plan the calendar")) return;
       const date = toDateKey(start);
       const duration = Math.max(SNAP_MIN, activity?.durationMin ?? DEFAULT_DURATION_MIN);
@@ -584,7 +586,7 @@ export function CalendarShell({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
-      if (editor || popover || sheetOpen) return;
+      if (sheet || popover) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -613,7 +615,7 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, editor, popover, sheetOpen]);
+  }, [changeView, sheet, popover]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -627,6 +629,7 @@ export function CalendarShell({
         onToday={() => calendarRef.current?.getApi().today()}
         onPrev={() => calendarRef.current?.getApi().prev()}
         onNext={() => calendarRef.current?.getApi().next()}
+        actions={headerActions}
       />
       <div className="calshell__body">
         <div
@@ -634,14 +637,6 @@ export function CalendarShell({
           onTouchStart={onGridTouchStart}
           onTouchEnd={onGridTouchEnd}
         >
-          {healedEvents.length === 0 && !isCreating && !sheetOpen && (
-            <div className="calshell__empty" aria-hidden="true">
-              <span className="calshell__empty-title">Nothing planned yet</span>
-              <span className="calshell__empty-hint">
-                Pull an activity in from the library — or tap an empty slot to start.
-              </span>
-            </div>
-          )}
           {resolvedView && (
           <FullCalendar
             ref={calendarRef}
@@ -656,11 +651,6 @@ export function CalendarShell({
             selectMirror
             selectMinDistance={8}
             droppable
-            selectAllow={() => {
-              // Fires throughout a drag-select; the side effect clears the empty state.
-              beginCreating();
-              return true;
-            }}
             dayMaxEvents={3}
             slotEventOverlap={false}
             eventShortHeight={46}
@@ -695,14 +685,7 @@ export function CalendarShell({
             is unchanged. Null slot (mobile) → the FAB + sheet below take over. */}
         {railSlot &&
           createPortal(
-            <LibraryPanel
-              variant="rail"
-              activities={activities}
-              onPlace={placeActivity}
-              onPick={pickActivity}
-              onDragStart={beginCreating}
-              onDragStop={endCreating}
-            />,
+            <LibraryPanel activities={activities} onPlace={placeActivity} onPick={pickActivity} />,
             railSlot
           )}
       </div>
@@ -710,58 +693,31 @@ export function CalendarShell({
       <button
         type="button"
         className="calshell__fab"
-        onClick={() => setSheetOpen(true)}
-        aria-label="Add from the library"
-        title="Add from the library"
+        onClick={openAddSheet}
+        aria-label="Add to calendar"
+        title="Add to calendar"
       >
         <CampIcon.Plus />
       </button>
 
-      {sheetOpen && (
-        <Modal
-          label="Add from the library"
-          onClose={() => setSheetOpen(false)}
-          overlayProps={{ className: "overlay--picker" }}
-        >
-          <LibraryPanel
-            variant="sheet"
-            activities={activities}
-            onPlace={placeActivity}
-            onPick={pickActivity}
-            onClose={() => setSheetOpen(false)}
-          />
-        </Modal>
-      )}
-
-      {quickAdd && (
+      {sheet && (
         <QuickAdd
-          draft={quickAdd}
-          activities={activities}
-          onPickActivity={quickAddActivity}
-          onCustom={quickAddCustom}
-          onMore={() => {
-            setEditor(quickAdd);
-            setQuickAdd(null);
-          }}
-          onClose={() => setQuickAdd(null)}
-        />
-      )}
-
-      {editor && (
-        <EventEditor
-          initial={editor}
+          draft={sheet.draft}
+          pickTime={sheet.pickTime}
           activities={activities}
           window={window_}
+          onPickActivity={quickAddActivity}
+          onCustom={quickAddCustom}
           onSave={saveDraft}
           onDelete={
-            editor.id
+            sheet.draft.id
               ? () => {
-                  const existing = events[editor.id as string];
+                  const existing = events[sheet.draft.id as string];
                   if (existing) deleteEvent(existing);
                 }
               : undefined
           }
-          onClose={() => setEditor(null)}
+          onClose={() => setSheet(null)}
         />
       )}
 
@@ -775,7 +731,7 @@ export function CalendarShell({
             onOpenActivity(activity, popover.event);
           }}
           onEdit={() => {
-            setEditor(draftFromEvent(popover.event));
+            setSheet({ draft: draftFromEvent(popover.event), pickTime: true });
             setPopover(null);
           }}
           onDelete={() => deleteEvent(popover.event)}

@@ -1,5 +1,13 @@
 "use client";
 
+// The add/edit activity form. Four plain sections — Activity card, Details,
+// Materials, How to play — instead of one giant block document. Details and
+// Materials are ordinary form fields here; only "How to play" uses the
+// run-list editor, because steps are the part that IS a document. The
+// scaffold blocks (Details heading/tags, Materials checklist, How-to-play
+// heading) are derived from the form on save, so the editor never shows a
+// grip-and-trash frame around a form field again.
+
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
 import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
@@ -12,12 +20,13 @@ import {
   materialsBlock,
   playHeadingBlock,
   runId,
+  type RunBlock,
   type RunChild,
   type RunDoc,
 } from "@/lib/runList";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "@/lib/calendar/time";
 import { CampIcon } from "./icons";
-import { RatingPicker, Seg } from "./primitives";
+import { Seg } from "./primitives";
 import { ActivityRunList } from "./ActivityRunList";
 
 type EnergyWord = "Calm" | "Lively" | "Rowdy";
@@ -125,16 +134,22 @@ function activityFromForm(f: FormState, id: string, extracted?: ExtractedRunText
   };
 }
 
-function starterRunDoc(activity: Activity): RunDoc {
-  return {
-    blocks: [
-      detailsHeadingBlock(activity),
-      detailsBlock(activity),
-      materialsBlock(activity.id),
-      playHeadingBlock(activity),
-      { id: runId("b"), type: "step", text: "", collapsed: false, children: [] },
-    ],
-  };
+// The scaffold (Details heading + tags, Materials checklist, "How to play"
+// heading) is owned by the FORM here — the step editor never shows or stores
+// it. Stripped on load, re-derived from the form on save. Scaffold headings
+// are recognized by the deterministic id suffix every scaffold producer stamps
+// (detailsHeadingBlock/playHeadingBlock) — a heading the USER made and merely
+// named "Details" carries a runId() id, so it survives intact.
+function isScaffoldBlock(block: RunBlock): boolean {
+  if (block.type === "details" || block.type === "materials") return true;
+  return (
+    block.type === "heading" &&
+    (block.id.endsWith("-details-heading") || block.id.endsWith("-play-heading"))
+  );
+}
+
+function stripScaffold(doc: RunDoc): RunDoc {
+  return { blocks: doc.blocks.filter((block) => !isScaffoldBlock(block)) };
 }
 
 function childText(child: RunChild): string {
@@ -201,10 +216,11 @@ export function AddView({
   const isEdit = Boolean(initial);
   const initialForm = useMemo(() => (initial ? formFromActivity(initial) : BLANK_FORM), [initial]);
   const [f, setF] = useState<FormState>(() => initialForm);
-  const [runDoc, setRunDoc] = useState<RunDoc>(() => {
-    if (initialRunDoc) return cloneRunDoc(initialRunDoc);
-    if (initial) return buildRunDoc(initial, initial.playbook ?? null);
-    return starterRunDoc(activityFromForm(initialForm, "draft-activity"));
+  // Only the play content lives in the editor; the scaffold is form-owned.
+  const [playDoc, setPlayDoc] = useState<RunDoc>(() => {
+    if (initialRunDoc) return stripScaffold(cloneRunDoc(initialRunDoc));
+    if (initial) return stripScaffold(buildRunDoc(initial, initial.playbook ?? null));
+    return { blocks: [{ id: runId("b"), type: "step", text: "", collapsed: false, children: [] }] };
   });
 
   const set =
@@ -234,13 +250,27 @@ export function AddView({
     !groupMinInvalid &&
     !groupMaxInvalid &&
     !groupRangeInvalid;
-  const draftActivity = activityFromForm(f, initial?.id || "draft-activity", extractRunText(runDoc));
+  const draftActivity = activityFromForm(f, initial?.id || "draft-activity", extractRunText(playDoc));
 
   function submit() {
     if (!valid) return;
     const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const id = initial ? initial.id : (slug || "custom-activity") + "-" + Date.now().toString(36);
-    const preparedDoc = prepareRunDoc(runDoc, id, f.title.trim());
+    const seed = activityFromForm(f, id);
+    // Reassemble the full document: form-owned scaffold first, then the
+    // edited play content (re-stripped, so nothing can double up).
+    const playBlocks = stripScaffold(playDoc).blocks;
+    const hasInstructions = playBlocks.some((block) => block.type === "step" || block.type === "playbook");
+    const fullDoc: RunDoc = {
+      blocks: [
+        detailsHeadingBlock(seed),
+        detailsBlock(seed),
+        ...(lines(f.materials).length ? [materialsBlock(id)] : []),
+        ...(hasInstructions ? [playHeadingBlock(seed)] : []),
+        ...playBlocks,
+      ],
+    };
+    const preparedDoc = prepareRunDoc(fullDoc, id, f.title.trim());
     const extracted = extractRunText(preparedDoc);
     onSubmit(activityFromForm(f, id, extracted), preparedDoc);
   }
@@ -279,152 +309,147 @@ export function AddView({
         />
       </div>
 
-      <div className="form__section">Run document</div>
+      <div className="form__section">Details</div>
+      <div className="form__grid">
+        <div className="field form__wide">
+          <span className="field__label" id="activity-category-label">Category</span>
+          <div className="chiprow" role="radiogroup" aria-labelledby="activity-category-label">
+            {CATEGORIES.map((c) => {
+              const on = f.type === c.id;
+              return (
+                <button
+                  type="button"
+                  key={c.id}
+                  role="radio"
+                  aria-checked={on}
+                  className={"chip chip--lg" + (on ? " is-on" : "")}
+                  style={on ? ({ "--chip-on": categoryTint(c.id) } as CSSProperties) : undefined}
+                  onClick={() => set("type")(c.id)}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="field">
+          <span className="field__label" id="activity-place-label">Where</span>
+          <Seg
+            options={["Inside", "Outside", "Both"] as const}
+            value={f.place}
+            onChange={set("place")}
+            ariaLabel="Where"
+          />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="activity-duration">Minutes</label>
+          <input
+            id="activity-duration"
+            className="input"
+            inputMode="numeric"
+            value={f.durationMin}
+            onChange={onIn("durationMin")}
+            aria-invalid={durationInvalid}
+            aria-describedby={durationInvalid ? "activity-duration-error" : undefined}
+          />
+          {durationInvalid && (
+            <span className="field__error" id="activity-duration-error" role="alert">
+              {duration == null
+                ? "Enter a positive whole number."
+                : "Duration must fit inside the camp day."}
+            </span>
+          )}
+        </div>
+        <div className="field">
+          <span className="field__label">Energy</span>
+          <Seg options={["Calm", "Lively", "Rowdy"] as const} value={f.energy} onChange={set("energy")} ariaLabel="Energy" />
+        </div>
+        <div className="field form__wide">
+          <span className="field__label" id="activity-ages-label">
+            Age groups <span className="field__hint">tap all that fit</span>
+          </span>
+          <div className="chiprow" role="group" aria-labelledby="activity-ages-label">
+            {AGE_GROUPS.map((g) => (
+              <button
+                type="button"
+                key={g.id}
+                className={"chip chip--lg" + (f.ages.indexOf(g.id) >= 0 ? " is-on" : "")}
+                aria-pressed={f.ages.indexOf(g.id) >= 0}
+                onClick={() => toggleAge(g.id)}
+              >
+                {g.short}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <span className="field__label">
+            Group size <span className="field__hint">blank = any</span>
+          </span>
+          <div className="row2">
+            <label className="sr-only" htmlFor="activity-group-min">Minimum group size</label>
+            <input
+              id="activity-group-min"
+              className="input"
+              inputMode="numeric"
+              placeholder="min"
+              value={f.groupMin}
+              onChange={onIn("groupMin")}
+              aria-invalid={groupMinInvalid || groupRangeInvalid}
+              aria-describedby={
+                groupMinInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
+              }
+            />
+            <label className="sr-only" htmlFor="activity-group-max">Maximum group size</label>
+            <input
+              id="activity-group-max"
+              className="input"
+              inputMode="numeric"
+              placeholder="max"
+              value={f.groupMax}
+              onChange={onIn("groupMax")}
+              aria-invalid={groupMaxInvalid || groupRangeInvalid}
+              aria-describedby={
+                groupMaxInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
+              }
+            />
+          </div>
+          {(groupMinInvalid || groupMaxInvalid || groupRangeInvalid) && (
+            <span className="field__error" id="activity-group-size-error" role="alert">
+              {groupRangeInvalid ? "Minimum group size cannot exceed maximum." : "Group sizes must be positive whole numbers."}
+            </span>
+          )}
+        </div>
+        <div className="field">
+          <span className="field__label">Prep effort</span>
+          <Seg options={["None", "Low", "Medium", "High"] as const} value={f.prep} onChange={set("prep")} ariaLabel="Prep effort" />
+        </div>
+      </div>
+
+      <div className="form__section">Materials</div>
+      <div className="field">
+        <label className="field__label" htmlFor="activity-materials">
+          Kit list <span className="field__hint">comma-separated</span>
+        </label>
+        <input
+          id="activity-materials"
+          className="input"
+          placeholder="flags, cones, pinnies"
+          value={f.materials}
+          onChange={onIn("materials")}
+        />
+      </div>
+
+      <div className="form__section">How to play</div>
       <div className="form__runlist">
         <ActivityRunList
-          doc={runDoc}
+          doc={playDoc}
           editable
-          onChange={setRunDoc}
+          onChange={setPlayDoc}
           activity={draftActivity}
           availableMaterials={[]}
           onToggleMaterial={() => {}}
-          detailsEditor={
-            <div className="rl-detailform__grid">
-              <div className="field rl-detailform__wide">
-                <span className="field__label" id="activity-category-label">Category</span>
-                <div className="chiprow" role="radiogroup" aria-labelledby="activity-category-label">
-                  {CATEGORIES.map((c) => {
-                    const on = f.type === c.id;
-                    return (
-                      <button
-                        type="button"
-                        key={c.id}
-                        role="radio"
-                        aria-checked={on}
-                        className={"chip chip--lg" + (on ? " is-on" : "")}
-                        style={on ? ({ "--chip-on": categoryTint(c.id) } as CSSProperties) : undefined}
-                        onClick={() => set("type")(c.id)}
-                      >
-                        {c.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="field">
-                <span className="field__label" id="activity-place-label">Where</span>
-                <Seg
-                  options={["Inside", "Outside", "Both"] as const}
-                  value={f.place}
-                  onChange={set("place")}
-                  ariaLabel="Where"
-                />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="activity-duration">Minutes</label>
-                <input
-                  id="activity-duration"
-                  className="input"
-                  inputMode="numeric"
-                  value={f.durationMin}
-                  onChange={onIn("durationMin")}
-                  aria-invalid={durationInvalid}
-                  aria-describedby={durationInvalid ? "activity-duration-error" : undefined}
-                />
-                {durationInvalid && (
-                  <span className="field__error" id="activity-duration-error" role="alert">
-                    {duration == null
-                      ? "Enter a positive whole number."
-                      : "Duration must fit inside the camp day."}
-                  </span>
-                )}
-              </div>
-              <div className="field">
-                <span className="field__label">Energy</span>
-                <Seg options={["Calm", "Lively", "Rowdy"] as const} value={f.energy} onChange={set("energy")} ariaLabel="Energy" />
-              </div>
-              <div className="field rl-detailform__wide">
-                <span className="field__label" id="activity-ages-label">
-                  Age groups <span className="field__hint">tap all that fit</span>
-                </span>
-                <div className="chiprow" role="group" aria-labelledby="activity-ages-label">
-                  {AGE_GROUPS.map((g) => (
-                    <button
-                      type="button"
-                      key={g.id}
-                      className={"chip chip--lg" + (f.ages.indexOf(g.id) >= 0 ? " is-on" : "")}
-                      aria-pressed={f.ages.indexOf(g.id) >= 0}
-                      onClick={() => toggleAge(g.id)}
-                    >
-                      {g.short}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="field">
-                <span className="field__label">
-                  Group size <span className="field__hint">blank = any</span>
-                </span>
-                <div className="row2">
-                  <label className="sr-only" htmlFor="activity-group-min">Minimum group size</label>
-                  <input
-                    id="activity-group-min"
-                    className="input"
-                    inputMode="numeric"
-                    placeholder="min"
-                    value={f.groupMin}
-                    onChange={onIn("groupMin")}
-                    aria-invalid={groupMinInvalid || groupRangeInvalid}
-                    aria-describedby={
-                      groupMinInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
-                    }
-                  />
-                  <label className="sr-only" htmlFor="activity-group-max">Maximum group size</label>
-                  <input
-                    id="activity-group-max"
-                    className="input"
-                    inputMode="numeric"
-                    placeholder="max"
-                    value={f.groupMax}
-                    onChange={onIn("groupMax")}
-                    aria-invalid={groupMaxInvalid || groupRangeInvalid}
-                    aria-describedby={
-                      groupMaxInvalid || groupRangeInvalid ? "activity-group-size-error" : undefined
-                    }
-                  />
-                </div>
-                {(groupMinInvalid || groupMaxInvalid || groupRangeInvalid) && (
-                  <span className="field__error" id="activity-group-size-error" role="alert">
-                    {groupRangeInvalid ? "Minimum group size cannot exceed maximum." : "Group sizes must be positive whole numbers."}
-                  </span>
-                )}
-              </div>
-              <div className="field">
-                <span className="field__label">Prep effort</span>
-                <Seg options={["None", "Low", "Medium", "High"] as const} value={f.prep} onChange={set("prep")} ariaLabel="Prep effort" />
-              </div>
-              <div className="field rl-detailform__wide">
-                <span className="field__label">
-                  Approval rating <span className="field__hint">reset to &ldquo;not run&rdquo; if it&rsquo;s untried</span>
-                </span>
-                <RatingPicker value={f.rating} onChange={set("rating")} />
-              </div>
-            </div>
-          }
-          materialsEditor={
-            <div className="field">
-              <label className="field__label" htmlFor="activity-materials">
-                Kit list <span className="field__hint">comma-separated</span>
-              </label>
-              <input
-                id="activity-materials"
-                className="input"
-                placeholder="flags, cones, pinnies"
-                value={f.materials}
-                onChange={onIn("materials")}
-              />
-            </div>
-          }
+          hideAddBlocks={["details", "materials"]}
         />
       </div>
 

@@ -178,12 +178,24 @@ export function playHeadingBlock(activity: Activity): RunBlock {
   return { id: (activity.id || "a") + "-play-heading", type: "heading", text: "How to play", children: [] };
 }
 
-function headingText(block: RunBlock): string {
-  return block.type === "heading" ? (block.text || "").trim().toLowerCase() : "";
-}
-
 function isInstructionBlock(block: RunBlock): boolean {
   return block.type === "step" || block.type === "playbook";
+}
+
+function isDetailsHeading(block: RunBlock, activity: Activity): boolean {
+  if (block.type !== "heading") return false;
+  const expectedId = (activity.id || "a") + "-details-heading";
+  if (block.id === expectedId) return true;
+  // Legacy fallback: unnamed/id-less docs matched only by text.
+  return (block.text || "").trim().toLowerCase() === "details";
+}
+
+function isPlayHeading(block: RunBlock, activity: Activity): boolean {
+  if (block.type !== "heading") return false;
+  const expectedId = (activity.id || "a") + "-play-heading";
+  if (block.id === expectedId) return true;
+  // Legacy fallback: unnamed/id-less docs matched only by text.
+  return (block.text || "").trim().toLowerCase() === "how to play";
 }
 
 export function ensureSectionHeadings(activity: Activity, doc: RunDoc): RunDoc {
@@ -201,19 +213,27 @@ export function ensureSectionHeadings(activity: Activity, doc: RunDoc): RunDoc {
   }
 
   const detailsIndex = blocks.findIndex((block) => block.type === "details");
-  const hasDetailsHeading = blocks.some((block) => headingText(block) === "details");
+  const hasDetailsHeading = blocks.some((block) => isDetailsHeading(block, activity));
   if (!hasDetailsHeading) {
-    blocks.splice(Math.max(0, detailsIndex), 0, detailsHeadingBlock(activity));
+    const detailsHeading = detailsHeadingBlock(activity);
+    // Guard: never insert if a block with this id already exists (renamed heading).
+    if (!blocks.some((b) => b.id === detailsHeading.id)) {
+      blocks.splice(Math.max(0, detailsIndex), 0, detailsHeading);
+    }
   }
 
-  const detailsHeadingIndex = blocks.findIndex((block) => headingText(block) === "details");
-  const hasPlayHeading = blocks.some((block) => headingText(block) === "how to play");
+  const detailsHeadingIndex = blocks.findIndex((block) => isDetailsHeading(block, activity));
+  const hasPlayHeading = blocks.some((block) => isPlayHeading(block, activity));
   if (!hasPlayHeading) {
-    const firstInstructionAfterDetails = blocks.findIndex(
-      (block, index) => index > detailsHeadingIndex && isInstructionBlock(block)
-    );
-    if (firstInstructionAfterDetails >= 0) {
-      blocks.splice(firstInstructionAfterDetails, 0, playHeadingBlock(activity));
+    const playHeading = playHeadingBlock(activity);
+    // Guard: never insert if a block with this id already exists (renamed heading).
+    if (!blocks.some((b) => b.id === playHeading.id)) {
+      const firstInstructionAfterDetails = blocks.findIndex(
+        (block, index) => index > detailsHeadingIndex && isInstructionBlock(block)
+      );
+      if (firstInstructionAfterDetails >= 0) {
+        blocks.splice(firstInstructionAfterDetails, 0, playHeading);
+      }
     }
   }
 

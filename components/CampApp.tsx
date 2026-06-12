@@ -202,28 +202,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
   const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
 
-  const pageByTab: Record<TabId, { kicker: string; title: string; summary: string }> = {
-    library: {
-      kicker: "Camp Library · " + libraryItems.length + " activities",
-      title: "Library",
-      summary: "Browse, filter, rate, and save dependable camp activities.",
-    },
-    calendar: {
-      kicker: "Plan camp",
-      title: "Calendar",
-      summary:
-        Object.keys(cloud.events).length +
-        (Object.keys(cloud.events).length === 1 ? " event" : " events") +
-        " on the calendar",
-    },
-    admin: {
-      kicker: "Administrator",
-      title: "Staff access",
-      summary: "Generate and review staff invite keys.",
-    },
-  };
-  const page = pageByTab[tab];
   const savedCount = lib.favSet.size;
+
+  // The auth pill lives inside each surface's own header row — the sidebar/
+  // tabbar already names the surface, so there's no separate page-title bar.
+  const authControl = auth.enabled ? (
+    <AuthButton session={auth.session} onOpen={() => auth.openAuth()} onSignOut={auth.signOut} />
+  ) : null;
 
   return (
     <div className="stage">
@@ -296,23 +281,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         </nav>
 
         <main className="app__main" id="main">
-          <div className="topbar" data-export-scope={tab} data-export-format="print-bw" data-export-title={page.title}>
-            <div className="topbar__brand">
-              <span className="topbar__kicker">{page.kicker}</span>
-              <h1 className="topbar__title">{page.title}</h1>
-              <span className="topbar__summary">{page.summary}</span>
-            </div>
-            <div className="topbar__actions">
-              {/* No accounts configured → no sign-in entry point at all, so the
-                  app reads as the fully-anonymous tool it is (no dead-ends). */}
-              {auth.enabled && (
-                <AuthButton session={auth.session} onOpen={() => auth.openAuth()} onSignOut={auth.signOut} />
-              )}
-            </div>
-          </div>
+          {tab !== "admin" && (
+            <h1 className="sr-only">{tab === "library" ? "Library" : "Calendar"}</h1>
+          )}
 
           {tab === "library" && (
             <LibraryTab
+              actions={authControl}
               view={lib.view}
               onView={(view: LibraryView) => lib.setView(view)}
               query={query}
@@ -349,6 +324,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
                 railSlot={calRail}
+                headerActions={authControl}
               />
             </div>
           )}
@@ -356,6 +332,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
           {tab === "admin" && (
             <div className="app__scroll">
               <div className="admin-tab">
+                <div className="admin-tab__head">
+                  <h1 className="admin-tab__title">Staff access</h1>
+                  {authControl && <div className="admin-tab__actions">{authControl}</div>}
+                </div>
                 <AdminInviteCodes />
               </div>
             </div>

@@ -275,57 +275,6 @@ body {
   cursor: pointer;
 }
 
-/* ---------- top bar ---------- */
-.topbar {
-  flex: none;
-  padding: max(26px, calc(18px + env(safe-area-inset-top))) 18px 12px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--paper);
-}
-.topbar__brand {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.topbar__kicker {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-.topbar__title {
-  margin: 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 34px;
-  line-height: 0.9;
-  color: var(--ink);
-  white-space: nowrap;
-}
-.topbar__title em {
-  font-style: normal;
-  color: var(--accent);
-}
-.topbar__summary {
-  display: none;
-  max-width: 520px;
-  font-size: 14px;
-  line-height: 1.25;
-  color: var(--ink-soft);
-}
-.topbar__actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-}
-
 .icon-btn {
   width: var(--tap);
   height: var(--tap);
@@ -664,14 +613,8 @@ body {
   gap: 9px;
   margin-bottom: 12px;
 }
-.material-filter__kitbar .seg {
-  margin-left: auto;
-}
-.material-filter__kitbar .seg button {
-  min-width: 52px;
-  padding: 7px 12px;
-}
 .material-filter__clear {
+  margin-left: auto;
   border: 0;
   padding: 0;
   background: transparent;
@@ -774,19 +717,6 @@ body {
   color: var(--ink-faint);
 }
 @media (max-width: 420px) {
-  .material-filter__kitbar .matkit__status {
-    flex-basis: 100%;
-  }
-  .material-filter__kitbar .seg {
-    flex: 1 1 auto;
-    margin-left: 0;
-  }
-  .material-filter__kitbar .seg button {
-    flex: 1 1 0;
-  }
-  .material-filter__clear {
-    margin-left: auto;
-  }
   .material-filter__list {
     max-height: min(360px, 46dvh);
   }
@@ -1719,7 +1649,23 @@ body {
   gap: 16px;
 }
 .admin-tab {
-  padding: 18px 18px 96px;
+  padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
+}
+.admin-tab__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(100%, 1120px);
+  margin: 0 auto 16px;
+}
+.admin-tab__title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
 }
 .admin-panel {
   display: grid;
@@ -1909,7 +1855,8 @@ body {
     padding: 34px;
   }
   .admin-tab {
-    padding: 24px 32px 34px;
+    /* First row on the page until the sidebar appears — keep notch clearance. */
+    padding: max(24px, calc(10px + env(safe-area-inset-top))) 32px 34px;
   }
   .admin-page__grid {
     grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
@@ -1989,16 +1936,12 @@ body {
   border-top: 2.5px solid var(--ink);
   border-radius: 24px 24px 0 0;
 }
-/* Editors/pickers hug their content from the bottom on phones — a five-field
+/* Editor cards hug their content from the bottom on phones — a five-field
    form should never claim the whole screen. */
-.overlay--card,
-.overlay--picker {
+.overlay--card {
   top: auto;
   height: auto;
   max-height: 85dvh;
-}
-.overlay--picker {
-  max-height: 70dvh;
 }
 @keyframes cl-rise {
   from {
@@ -2249,14 +2192,6 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-faint);
-}
-.matkit__bar .seg {
-  width: auto;
-  border-radius: 9px;
-}
-.matkit__bar .seg button {
-  flex: 0 0 auto;
-  padding: 7px 15px;
 }
 .matkit__list {
   display: flex;
@@ -3069,6 +3004,19 @@ body {
 .form__section:first-child {
   margin-top: 0;
 }
+/* The Details section: a responsive grid of plain form fields (these used to
+   live inside the run-list editor as a draggable block — never again). */
+.form__grid {
+  display: grid;
+  gap: 12px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.form__grid .field {
+  margin: 0;
+}
+.form__wide {
+  grid-column: 1 / -1;
+}
 .form__runlist {
   min-width: 0;
 }
@@ -3081,8 +3029,10 @@ body {
   --rl-block-gap: 18px;
   --rl-detail-gap: 14px;
 }
+/* Steps-only editor in the form: the collapse/expand toolbar is viewer
+   ergonomics, not authoring — hide it here. */
 .form--activity .rl-toolbar {
-  padding-top: var(--s-2);
+  display: none;
 }
 .form--activity .rl-block,
 .form--activity .rl-addwrap {
@@ -3098,18 +3048,11 @@ body {
 .form--activity .rl-rail {
   display: none;
 }
-.form--activity .rl-block--heading,
-.form--activity .rl-block--details,
-.form--activity .rl-block--materials {
+.form--activity .rl-block--heading {
   gap: var(--s-0);
 }
-.form--activity .rl-block--heading > .rl-node,
-.form--activity .rl-block--details > .rl-node,
-.form--activity .rl-block--materials > .rl-node {
+.form--activity .rl-block--heading > .rl-node {
   display: none;
-}
-.form--activity .rl-detailform__grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
 }
 .form__editbar {
   display: flex;
@@ -3282,12 +3225,30 @@ body {
   border: 2px solid var(--ink);
 }
 
-/* Mobile: one search field for the library, stacked under the view switch
-   (the old topbar toggle + separate searchrow are gone). */
+/* Mobile: one search field for the library, stacked under the view switch.
+   The toolbar is the page's first row (no page-title bar above it), so it
+   carries the notch clearance and hosts the auth pill beside the switcher. */
 .toolbar {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 10px;
-  padding: 12px 18px 2px;
+  padding: max(14px, calc(8px + env(safe-area-inset-top))) 18px 2px;
+}
+.toolbar__auth {
+  display: flex;
+  align-items: center;
+  /* Last in the DOM but beside the switcher on screen — grid auto-placement
+     never backtracks to row 1's empty second cell, so place it explicitly. */
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+}
+.toolbar__search {
+  grid-column: 1 / -1;
+}
+.toolbar__add {
+  grid-column: 1 / -1;
 }
 .toolbar__search {
   display: flex;
@@ -3540,14 +3501,6 @@ body {
   .sidefilters .material-filter__kitbar {
     margin-bottom: 10px;
   }
-  .sidefilters .material-filter__kitbar .seg {
-    border-color: var(--ink);
-    background: transparent;
-  }
-  .sidefilters .material-filter__kitbar .seg button {
-    min-width: 0;
-    padding: 6px 11px;
-  }
   .sidefilters .material-filter__search {
     min-height: 38px;
     margin-bottom: 10px;
@@ -3601,22 +3554,6 @@ body {
   .searchrow {
     display: none;
   }
-	  .topbar__actions {
-	    display: flex;
-	  }
-
-  .topbar {
-    align-items: center;
-    padding: 24px 32px 14px;
-    border-bottom: 1.5px solid var(--line-soft);
-  }
-    .topbar__title {
-    font-size: 30px;
-  }
-  .topbar__summary {
-    display: block;
-  }
-
   /* header toolbar: view switch + persistent search */
   .toolbar {
     display: flex;
@@ -3721,6 +3658,8 @@ body {
     gap: 18px 24px;
   }
   .form__section,
+  .form > .form__grid,
+  .form > .form__editbar,
   .form .field:has(.textarea),
   .form > .btn--block,
   .form > div[style] {
@@ -3737,7 +3676,6 @@ body {
   .deck {
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   }
-  .topbar,
   .toolbar,
   .catalog,
   .deck {
@@ -3837,6 +3775,15 @@ body {
   max-width: none;
   margin-inline: 0;
 }
+/* The add/edit activity form inside the sheet: a calm centered column whose
+   fields actually fill it (the page-level grid's align-items: start would
+   otherwise shrink-wrap every input). */
+.overlay--viewer .form--activity {
+  align-items: stretch;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+}
 .overlay--viewer .form > .btn--block {
   width: 100%;
   min-width: 0;
@@ -3844,18 +3791,8 @@ body {
 }
 
 /* ============================================================
- * Rating picker and print/export refinements
+ * Sidenav brand and print/export refinements
  * ============================================================ */
-.topbar {
-  align-items: center;
-}
-.topbar__title {
-  font-size: 30px;
-  line-height: 0.95;
-}
-.topbar__actions {
-  gap: 6px;
-}
 .print-root {
   display: none;
 }
@@ -3876,121 +3813,6 @@ body {
 }
 .sidenav__brand-copy {
   min-width: 0;
-}
-
-.rating-picker {
-  margin-top: 14px;
-  display: grid;
-  gap: 10px;
-}
-.rating-picker__status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-.rating-reset {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 4px 10px;
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink-soft);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.rating-reset svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.rating-reset:hover {
-  background: var(--paper-2);
-  border-color: var(--ink-soft);
-}
-.rating-reset:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-.rating-reset.is-on {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--card);
-}
-.rating-reset.is-on:hover,
-.rating-reset.is-on:active {
-  background: var(--ink);
-  border-color: var(--ink);
-}
-.rating-reset.is-on:focus-visible {
-  outline-color: var(--ink);
-}
-.rating-picker__word {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--script);
-  font-size: 23px;
-  font-weight: 700;
-  line-height: 1;
-}
-.rating-picker__num {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.rating-picker__scale {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-.rating-dot {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
-}
-.rating-dot:hover {
-  background: var(--paper-2);
-  border-color: var(--ink-soft);
-}
-.rating-dot:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-.rating-dot span {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-}
-.rating-dot.is-filled {
-  border-color: var(--rating-color);
-  background: color-mix(in srgb, var(--rating-color) 20%, var(--card));
-  color: var(--ink);
-}
-.rating-dot.is-on {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--rating-color) 24%, transparent);
 }
 
 @media print {
@@ -4017,7 +3839,8 @@ body {
   .tabbar,
   .toolbar,
   .filtertrigger,
-  .topbar__actions,
+  .calhead__actions,
+  .admin-tab__actions,
   .modal-root {
     display: none !important;
   }
@@ -4337,9 +4160,6 @@ body {
     width: calc(100% + var(--s-2));
     height: max(100%, var(--tap));
     transform: translate(-50%, -50%);
-  }
-  .rating-dot {
-    min-height: var(--tap);
   }
   .sidefilters .material-filter__item {
     min-height: var(--tap);
@@ -4897,24 +4717,6 @@ button.rl-node {
   padding-top: 10px;
   border-top: 1.3px dashed var(--line-soft);
 }
-.rl-detailform,
-.rl-materialform {
-  margin-top: 2px;
-}
-.rl-detailform__grid {
-  display: grid;
-  gap: 12px;
-}
-.rl-detailform__grid .field {
-  margin: 0;
-}
-.rl-detailform__wide {
-  grid-column: 1 / -1;
-}
-.rl-materialform .field {
-  margin: 0;
-}
-
 /* ---------- collapsed summary pills ---------- */
 .rl-summary {
   display: flex;
@@ -5733,7 +5535,9 @@ button.rl-node {
     align-items: center;
     flex-wrap: wrap;
     gap: var(--s-5);
-    padding: var(--s-5) var(--s-7) var(--s-3);
+    /* Still the first row on the page until the sidebar appears at 1024px,
+       so it keeps carrying the notch clearance. */
+    padding: max(var(--s-5), calc(8px + env(safe-area-inset-top))) var(--s-7) var(--s-3);
   }
   .viewswitch {
     flex: 1 1 280px;
@@ -5758,32 +5562,6 @@ button.rl-node {
     flex-wrap: nowrap;
     padding: var(--s-5) var(--s-8) var(--s-5);
     border-bottom: 1.5px solid var(--line-soft);
-  }
-}
-
-/* ---- phone: the topbar stops restating what the tabbar already says ---- */
-@media (max-width: 767px) {
-  .topbar[data-export-scope="calendar"] .topbar__brand {
-    display: none;
-  }
-  .topbar[data-export-scope="calendar"] {
-    position: absolute;
-    top: 0;
-    right: 0;
-    z-index: 5;
-    padding: max(10px, env(safe-area-inset-top)) var(--page-x) 0;
-    background: transparent;
-    border: 0;
-  }
-  .topbar[data-export-scope="library"] {
-    padding: max(14px, env(safe-area-inset-top)) var(--page-x) var(--s-3);
-  }
-  .topbar[data-export-scope="library"] .topbar__kicker,
-  .topbar[data-export-scope="library"] .topbar__summary {
-    display: none;
-  }
-  .topbar[data-export-scope="library"] .topbar__title {
-    font-size: var(--fs-title-sm);
   }
 }
 

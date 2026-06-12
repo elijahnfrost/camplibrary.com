@@ -238,6 +238,45 @@ describe("run list model", () => {
     expect(normalized?.blocks[2]).toMatchObject({ id: "pb", type: "playbook", title: "Card", meta: "Coach" });
   });
 
+  it("does not duplicate a scaffold heading when it has been renamed", () => {
+    const base = activity();
+    // Simulate: user renamed "How to play" → "Game flow". The block retains its
+    // deterministic id but has new text. ensureSectionHeadings must not insert a
+    // second block with the same id.
+    const renamedPlay = { id: "act-1-play-heading", type: "heading" as const, text: "Game flow", children: [] as import("./runList").RunChild[] };
+    const doc: RunDoc = {
+      blocks: [
+        detailsHeadingBlock(base),
+        detailsBlock(base),
+        renamedPlay,
+        { id: "step-1", type: "step", text: "Kick off", children: [] },
+      ],
+    };
+    const result = ensureSectionHeadings(base, doc);
+    const ids = result.blocks.map((b) => b.id);
+    const unique = new Set(ids);
+    expect(ids).toHaveLength(unique.size); // no duplicate ids
+    const playHeadings = result.blocks.filter((b) => b.id === "act-1-play-heading");
+    expect(playHeadings).toHaveLength(1);
+    expect(playHeadings[0].text).toBe("Game flow"); // rename preserved
+
+    // Same for renamed "Details" heading.
+    const renamedDetails = { id: "act-1-details-heading", type: "heading" as const, text: "Activity info", children: [] as import("./runList").RunChild[] };
+    const doc2: RunDoc = {
+      blocks: [
+        renamedDetails,
+        detailsBlock(base),
+        { id: "step-1", type: "step", text: "Kick off", children: [] },
+      ],
+    };
+    const result2 = ensureSectionHeadings(base, doc2);
+    const ids2 = result2.blocks.map((b) => b.id);
+    expect(ids2).toHaveLength(new Set(ids2).size);
+    const detailsHeadings = result2.blocks.filter((b) => b.id === "act-1-details-heading");
+    expect(detailsHeadings).toHaveLength(1);
+    expect(detailsHeadings[0].text).toBe("Activity info"); // rename preserved
+  });
+
   it("clones block and child arrays without mutating the source document", () => {
     const source: RunDoc = {
       blocks: [{ id: "s", type: "step", text: "Start", children: [{ id: "n", type: "note", text: "Original" }] }],
