@@ -30,7 +30,7 @@ export function DetailSheet({
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
   onClose: () => void;
-  onSetRating: (id: string, val: number) => void;
+  onSetRating?: (id: string, val: number) => void;
   isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDelete: (a: Activity) => void;
@@ -170,7 +170,7 @@ export function DetailSheet({
             activity={a}
             availableMaterials={availableMaterials}
             onToggleMaterial={onToggleMaterial}
-            onSetRating={(value) => onSetRating(a.id, value)}
+            onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
           />
         </article>
       </div>

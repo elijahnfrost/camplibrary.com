@@ -1,10 +1,16 @@
-import { redirect } from "next/navigation";
+import { AuthUnavailable } from "@/components/AuthUnavailable";
 import { SsoCallback } from "@/components/SsoCallback";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
 export default function SsoCallbackPage() {
-  // No accounts in this workspace — nothing to finalize, so return to the app.
-  if (!getBackendEnvStatus().capabilities.clerkAuth) redirect("/");
+  if (!getBackendEnvStatus().capabilities.clerkAuth) {
+    return (
+      <AuthUnavailable
+        title="Staff access"
+        message="There is no sign-in session to finish because auth is not configured in this workspace."
+      />
+    );
+  }
 
   return <SsoCallback />;
 }

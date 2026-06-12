@@ -95,3 +95,64 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 export function canEditLibrary(session: AuthSession): boolean {
   return session.status === "authenticated";
 }
+
+export type StaffActionGate =
+  | { allowed: true }
+  | {
+      allowed: false;
+      message: string;
+      signInHref: string | null;
+    };
+
+type StaffActionGateOptions = {
+  authEnabled: boolean;
+  returnTo?: string | null;
+  origin?: string;
+};
+
+function safeReturnPath(value: string | null | undefined, origin?: string): string {
+  if (!value) return "/";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  if (!origin) return "/";
+
+  try {
+    const url = new URL(value);
+    if (url.origin !== origin) return "/";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/";
+  }
+}
+
+export function signInHref(returnTo: string | null | undefined, origin: string): string {
+  const safePath = safeReturnPath(returnTo, origin);
+  const signInUrl = new URL("/sign-in", origin);
+  const returnUrl = new URL(safePath, origin);
+  signInUrl.searchParams.set("next", safePath);
+  signInUrl.searchParams.set("redirect_url", returnUrl.toString());
+  return signInUrl.toString();
+}
+
+export function staffActionGate(
+  session: AuthSession,
+  action: string,
+  options: StaffActionGateOptions
+): StaffActionGate {
+  if (canEditLibrary(session)) return { allowed: true };
+
+  const staffAction = action.trim() || "make staff changes";
+  if (!options.authEnabled) {
+    return {
+      allowed: false,
+      message: "Staff sign-in is not configured, so " + staffAction + " is unavailable.",
+      signInHref: null,
+    };
+  }
+
+  const origin = options.origin ?? "http://localhost";
+  return {
+    allowed: false,
+    message: "Sign in as staff to " + staffAction + ".",
+    signInHref: signInHref(options.returnTo, origin),
+  };
+}

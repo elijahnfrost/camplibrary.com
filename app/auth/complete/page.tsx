@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { AuthUnavailable } from "@/components/AuthUnavailable";
 import { AuthComplete } from "@/components/AuthComplete";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
@@ -8,8 +8,14 @@ export const metadata: Metadata = {
 };
 
 export default function AuthCompletePage() {
-  // No accounts in this workspace — nothing to finalize, so return to the app.
-  if (!getBackendEnvStatus().capabilities.clerkAuth) redirect("/");
+  if (!getBackendEnvStatus().capabilities.clerkAuth) {
+    return (
+      <AuthUnavailable
+        title="Almost done"
+        message="There is no staff account flow to finish because auth is not configured in this workspace."
+      />
+    );
+  }
 
   return (
     <main className="auth-route">

@@ -52,7 +52,15 @@ function safeRedirectReturnPath(value: string | null) {
   }
 }
 
-export function StaffSignIn() {
+export function StaffSignIn({
+  returnTo: returnToOverride,
+  message = "Existing staff can sign in with Google or password.",
+  onComplete,
+}: {
+  returnTo?: string;
+  message?: string;
+  onComplete?: () => void;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { signIn, fetchStatus } = useSignIn();
@@ -63,13 +71,14 @@ export function StaffSignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const returnTo = useMemo(
+  const routeReturnTo = useMemo(
     () =>
       safeReturnPath(searchParams.get("next")) ??
       safeReturnPath(searchParams.get("returnBackUrl")) ??
       safeRedirectReturnPath(searchParams.get("redirect_url")),
     [searchParams]
   );
+  const returnTo = returnToOverride ?? routeReturnTo;
   const busy = pending || fetchStatus === "fetching";
   const canSubmit = Boolean(signIn) && form.email.includes("@") && form.password.length > 0 && !busy;
   const canRequestPasswordReset = Boolean(signIn) && form.email.includes("@") && !busy;
@@ -84,6 +93,7 @@ export function StaffSignIn() {
     if (!signIn) return;
     const finalized = await signIn.finalize();
     if (finalized.error) throw finalized.error;
+    onComplete?.();
     router.push(returnTo);
     router.refresh();
   }
@@ -341,7 +351,7 @@ export function StaffSignIn() {
   return (
     <form className="auth-form" onSubmit={handlePasswordSubmit}>
       <div className="auth-form__section">Staff access</div>
-      <p className="auth-form__copy">Existing staff can sign in with Google or password.</p>
+      <p className="auth-form__copy">{message}</p>
       <button type="button" className="btn btn--primary btn--block" disabled={busy || !signIn} onClick={continueWithGoogle}>
         <CampIcon.User />
         Continue with Google

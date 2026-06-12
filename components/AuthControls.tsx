@@ -3,20 +3,13 @@
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 import type { AuthSession } from "@/lib/auth";
-import { ANONYMOUS_SESSION, isClerkPublicKeyUsable } from "@/lib/auth";
+import { ANONYMOUS_SESSION, isClerkPublicKeyUsable, signInHref } from "@/lib/auth";
 import { CampIcon } from "./icons";
 
 const CLERK_ENABLED = isClerkPublicKeyUsable();
 
 function currentSignInUrl(returnTo?: string) {
-  const signInUrl = new URL("/sign-in", window.location.origin);
-  const returnUrl = new URL(
-    returnTo || window.location.pathname + window.location.search + window.location.hash || "/",
-    window.location.origin,
-  );
-  signInUrl.searchParams.set("next", returnUrl.pathname + returnUrl.search + returnUrl.hash);
-  signInUrl.searchParams.set("redirect_url", returnUrl.toString());
-  return signInUrl.toString();
+  return signInHref(returnTo || window.location.pathname + window.location.search + window.location.hash || "/", window.location.origin);
 }
 
 export function usePreviewAuth() {

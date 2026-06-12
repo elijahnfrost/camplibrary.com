@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { AuthUnavailable } from "@/components/AuthUnavailable";
 import { InviteSignUp } from "@/components/InviteSignUp";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
@@ -9,8 +9,14 @@ export const metadata: Metadata = {
 
 export default function SignUpPage() {
   const capabilities = getBackendEnvStatus().capabilities;
-  // No accounts in this workspace — go back into the app instead of a dead page.
-  if (!capabilities.clerkAuth) redirect("/");
+  if (!capabilities.clerkAuth) {
+    return (
+      <AuthUnavailable
+        title="Create staff account"
+        message="Staff account creation is not configured in this workspace. Ask the camp admin to enable auth and invite codes."
+      />
+    );
+  }
   const inviteBackendEnabled = capabilities.inviteCodes;
 
   return (

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { AuthUnavailable } from "@/components/AuthUnavailable";
 import { StaffSignIn } from "@/components/StaffSignIn";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
@@ -8,9 +8,14 @@ export const metadata: Metadata = {
 };
 
 export default function SignInPage() {
-  // No accounts in this workspace — never strand the visitor on a dead page;
-  // the whole app works anonymously, so send them straight back into it.
-  if (!getBackendEnvStatus().capabilities.clerkAuth) redirect("/");
+  if (!getBackendEnvStatus().capabilities.clerkAuth) {
+    return (
+      <AuthUnavailable
+        title="Staff access"
+        message="Staff sign-in is not configured in this workspace, so editing tools are unavailable."
+      />
+    );
+  }
 
   return (
     <main className="auth-route">

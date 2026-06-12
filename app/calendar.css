@@ -103,6 +103,11 @@
   align-items: center;
   flex: none;
 }
+.calhead__actions .auth-pill {
+  height: var(--control-sm);
+  min-height: var(--control-sm);
+  border-radius: var(--r-md);
+}
 
 /* ---------- FullCalendar theme ---------- */
 .calshell .fc {

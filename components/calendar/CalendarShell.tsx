@@ -62,6 +62,7 @@ export function CalendarShell({
   removeEvent,
   activities,
   byId,
+  canEdit,
   requireStaff,
   onOpenActivity,
   announce,
@@ -73,6 +74,7 @@ export function CalendarShell({
   removeEvent: (id: string) => void;
   activities: Activity[];
   byId: Record<string, Activity>;
+  canEdit: boolean;
   requireStaff: (action: string) => boolean;
   onOpenActivity: (activity: Activity, eventContext: CalendarEvent) => void;
   announce: (message: string) => void;
@@ -262,22 +264,27 @@ export function CalendarShell({
 
   // "Pick a time": the same event window, with the when-row showing and the
   // chosen activity preselected.
-  const pickActivity = useCallback((activity: Activity) => {
-    setSheet({
-      draft: {
-        date: focusDateRef.current,
-        startMin: DEFAULT_PLANNING_START_MIN,
-        durationMin: activity.durationMin || DEFAULT_DURATION_MIN,
-        allDay: false,
-        activityId: activity.id,
-        title: activity.title,
-      },
-      pickTime: true,
-    });
-  }, []);
+  const pickActivity = useCallback(
+    (activity: Activity) => {
+      if (!requireStaff("plan the calendar")) return;
+      setSheet({
+        draft: {
+          date: focusDateRef.current,
+          startMin: DEFAULT_PLANNING_START_MIN,
+          durationMin: activity.durationMin || DEFAULT_DURATION_MIN,
+          allDay: false,
+          activityId: activity.id,
+          title: activity.title,
+        },
+        pickTime: true,
+      });
+    },
+    [requireStaff]
+  );
 
   // The mobile + button: same window, nothing prechosen.
   const openAddSheet = useCallback(() => {
+    if (!requireStaff("plan the calendar")) return;
     setSheet({
       draft: {
         date: focusDateRef.current,
@@ -288,7 +295,7 @@ export function CalendarShell({
       },
       pickTime: true,
     });
-  }, []);
+  }, [requireStaff]);
 
   // --- FullCalendar callbacks -------------------------------------------
 
@@ -646,11 +653,11 @@ export function CalendarShell({
             firstDay={1}
             height="100%"
             nowIndicator
-            editable
-            selectable
+            editable={canEdit}
+            selectable={canEdit}
             selectMirror
             selectMinDistance={8}
-            droppable
+            droppable={canEdit}
             dayMaxEvents={3}
             slotEventOverlap={false}
             eventShortHeight={46}
@@ -731,6 +738,7 @@ export function CalendarShell({
             onOpenActivity(activity, popover.event);
           }}
           onEdit={() => {
+            if (!requireStaff("change the calendar")) return;
             setSheet({ draft: draftFromEvent(popover.event), pickTime: true });
             setPopover(null);
           }}

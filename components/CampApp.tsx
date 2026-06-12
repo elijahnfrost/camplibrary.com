@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
+import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter } from "@/lib/activityFilters";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
@@ -23,6 +24,8 @@ import { CalendarShell } from "./calendar/CalendarShell";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
 import { LibraryTab } from "./LibraryTab";
+import { Modal } from "./Modal";
+import { StaffSignIn } from "./StaffSignIn";
 import { useActivityLibrary } from "./useActivityLibrary";
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
@@ -33,9 +36,44 @@ const TABS: NavTab[] = [
 ];
 const ADMIN_TAB: NavTab = {
   id: "admin",
-  label: "Admin",
+  label: "Invite Codes",
   icon: CampIcon.Tool,
 };
+
+type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
+  returnTo: string;
+};
+
+function currentReturnPath() {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname + window.location.search + window.location.hash || "/";
+}
+
+function StaffPromptModal({
+  prompt,
+  authEnabled,
+  onClose,
+}: {
+  prompt: StaffPrompt;
+  authEnabled: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
+      {authEnabled ? (
+        <StaffSignIn returnTo={prompt.returnTo} message={prompt.message} onComplete={onClose} />
+      ) : (
+        <div className="auth-form auth-form--prompt">
+          <div className="auth-form__section">Staff access</div>
+          <p className="auth-form__copy">{prompt.message}</p>
+          <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
+            Back to browsing
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
@@ -54,10 +92,23 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   }, [storageScope]);
 
   const [liveMsg, setLiveMsg] = useState("");
-  // Everything works without an account: anonymous edits live in this
-  // device's localStorage (lib/cloudStore anon mode). Signing in adds cloud
-  // sync across devices — it is never a gate on using the app.
-  const requireStaff = useCallback((_action: string) => true, []);
+  const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
+
+  const requireStaff = useCallback(
+    (action: string) => {
+      const returnTo = currentReturnPath();
+      const gate = staffActionGate(auth.session, action, {
+        authEnabled: auth.enabled,
+        returnTo,
+        origin: typeof window === "undefined" ? undefined : window.location.origin,
+      });
+      if (gate.allowed) return true;
+      setStaffPrompt({ ...gate, returnTo });
+      setLiveMsg(gate.message);
+      return false;
+    },
+    [auth.enabled, auth.session]
+  );
 
   // Synced user data: localStorage-backed for anon visitors, cloud-synced
   // (optimistic writes + offline outbox) once signed in.
@@ -199,16 +250,16 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     setLiveMsg("Preparing " + activity.title + " for print");
   }
 
-  const isAdmin = auth.session.status === "authenticated" && auth.session.user.role === "admin";
+  const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
   const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
 
   const savedCount = lib.favSet.size;
 
   // The auth pill lives inside each surface's own header row — the sidebar/
   // tabbar already names the surface, so there's no separate page-title bar.
-  const authControl = auth.enabled ? (
-    <AuthButton session={auth.session} onOpen={() => auth.openAuth()} onSignOut={auth.signOut} />
-  ) : null;
+  const authControl = (
+    <AuthButton session={auth.session} onOpen={() => requireStaff("make staff changes")} onSignOut={auth.signOut} />
+  );
 
   return (
     <div className="stage">
@@ -320,6 +371,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 removeEvent={cloud.removeEvent}
                 activities={lib.all}
                 byId={lib.byId}
+                canEdit={isSignedIn}
                 requireStaff={requireStaff}
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
@@ -333,10 +385,28 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             <div className="app__scroll">
               <div className="admin-tab">
                 <div className="admin-tab__head">
-                  <h1 className="admin-tab__title">Staff access</h1>
-                  {authControl && <div className="admin-tab__actions">{authControl}</div>}
+                  <h1 className="admin-tab__title">Invite codes</h1>
+                  <div className="admin-tab__actions">{authControl}</div>
                 </div>
-                <AdminInviteCodes />
+                {isAdmin ? (
+                  <AdminInviteCodes />
+                ) : (
+                  <div className="admin-panel">
+                    <span className="admin-panel__kicker">Admin only</span>
+                    <h2 className="admin-panel__title">Invite-code management</h2>
+                    <p className="auth-form__copy">
+                      Sign in as {ADMIN_EMAIL} to generate and manage staff account codes.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--block"
+                      onClick={() => requireStaff("manage invite codes")}
+                    >
+                      <CampIcon.User />
+                      Sign in as admin
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -381,7 +451,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               setDetailEventContext(null);
               setPrintActivityId(null); // a stale book never outlives its viewer
             }}
-            onSetRating={lib.setRating}
             isCustom={lib.isCustomActivity(detailActivity.id)}
             onEdit={editActivity}
             onDelete={deleteActivity}
@@ -389,12 +458,16 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             availableMaterials={lib.activeAvailableMaterials}
             onToggleMaterial={lib.toggleAvailableMaterial}
             runDoc={lib.resolveRunDoc(detailActivity)}
-            onSaveRunDoc={lib.saveRunDoc}
+            onSetRating={isSignedIn ? lib.setRating : undefined}
+            onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}
             eventContext={detailEventContext ?? undefined}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
           />
         )}
         {printActivity && <ActivityBookPrint activity={printActivity} runDoc={lib.resolveRunDoc(printActivity)} />}
+        {staffPrompt && (
+          <StaffPromptModal prompt={staffPrompt} authEnabled={auth.enabled} onClose={() => setStaffPrompt(null)} />
+        )}
       </div>
     </div>
   );
