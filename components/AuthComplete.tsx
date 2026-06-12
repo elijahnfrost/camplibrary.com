@@ -14,7 +14,7 @@ export function AuthComplete() {
   useEffect(() => {
     if (!isLoaded) return;
     if (!isSignedIn || !user) {
-      router.replace("/sign-in");
+      router.replace("/?auth=sign-in");
       return;
     }
 

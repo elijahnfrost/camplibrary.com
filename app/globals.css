@@ -1607,6 +1607,21 @@ body {
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
 }
+.auth-form__link {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.auth-form__link:focus-visible {
+  outline-offset: 3px;
+}
 .auth-form__divider {
   display: flex;
   align-items: center;

@@ -29,8 +29,8 @@ export function SsoCallback() {
     async function finishRedirect() {
       try {
         await clerk.handleRedirectCallback({
-          signInUrl: "/sign-in",
-          signUpUrl: "/sign-up",
+          signInUrl: "/?auth=sign-in",
+          signUpUrl: "/?auth=sign-up",
           signUpFallbackRedirectUrl: "/auth/complete",
         });
       } catch {
@@ -44,7 +44,7 @@ export function SsoCallback() {
             ? "Google sign-up was canceled. Your invite code is available to try again."
             : "Could not finish Google sign-in.",
         );
-        router.replace(inviteCode && reservationId ? "/sign-up" : "/sign-in");
+        router.replace(inviteCode && reservationId ? "/?auth=sign-up" : "/?auth=sign-in");
       }
     }
 

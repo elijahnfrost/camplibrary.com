@@ -57,7 +57,7 @@ describe("staff action gate", () => {
     ).toEqual({
       allowed: false,
       message: "Sign in as staff to edit run lists.",
-      signInHref: "https://camp.example/sign-in?next=%2F%3Factivity%3Dctf&redirect_url=https%3A%2F%2Fcamp.example%2F%3Factivity%3Dctf",
+      signInHref: "https://camp.example/?auth=sign-in&next=%2F%3Factivity%3Dctf",
     });
   });
 
@@ -85,7 +85,7 @@ describe("staff action gate", () => {
     ).toEqual({
       allowed: false,
       message: "Sign in as staff to plan the calendar.",
-      signInHref: "https://camp.example/sign-in?next=%2F&redirect_url=https%3A%2F%2Fcamp.example%2F",
+      signInHref: "https://camp.example/?auth=sign-in&next=%2F",
     });
   });
 });

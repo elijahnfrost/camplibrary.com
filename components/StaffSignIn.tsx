@@ -56,10 +56,12 @@ export function StaffSignIn({
   returnTo: returnToOverride,
   message = "Existing staff can sign in with Google or password.",
   onComplete,
+  onRequestSignUp,
 }: {
   returnTo?: string;
   message?: string;
   onComplete?: () => void;
+  onRequestSignUp?: () => void;
 } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -411,7 +413,15 @@ export function StaffSignIn({
         Reset password
       </button>
       <p className="auth-form__hint">
-        New staff need an invite code to <a href="/sign-up">create an account</a>.
+        New staff need an invite code to{" "}
+        {onRequestSignUp ? (
+          <button type="button" className="auth-form__link" onClick={onRequestSignUp}>
+            create an account
+          </button>
+        ) : (
+          <a href="/?auth=sign-up">create an account</a>
+        )}
+        .
       </p>
     </form>
   );

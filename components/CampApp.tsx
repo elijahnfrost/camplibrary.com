@@ -23,6 +23,7 @@ import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
 import { CalendarShell } from "./calendar/CalendarShell";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
+import { InviteSignUp } from "./InviteSignUp";
 import { LibraryTab } from "./LibraryTab";
 import { Modal } from "./Modal";
 import { StaffSignIn } from "./StaffSignIn";
@@ -41,6 +42,7 @@ const ADMIN_TAB: NavTab = {
 };
 
 type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
+  mode: "sign-in" | "sign-up";
   returnTo: string;
 };
 
@@ -49,19 +51,51 @@ function currentReturnPath() {
   return window.location.pathname + window.location.search + window.location.hash || "/";
 }
 
+function safeInternalReturnPath(value: string | null) {
+  if (!value) return "/";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+
+  try {
+    const url = new URL(value);
+    if (url.origin === window.location.origin) return url.pathname + url.search + url.hash;
+  } catch {
+    /* fall through */
+  }
+
+  return "/";
+}
+
+function cleanAuthRouteUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("auth");
+  url.searchParams.delete("next");
+  url.searchParams.delete("redirect_url");
+  const next = url.pathname + (url.search ? url.search : "") + url.hash;
+  window.history.replaceState(null, "", next || "/");
+}
+
 function StaffPromptModal({
   prompt,
   authEnabled,
   onClose,
+  onRequestSignUp,
 }: {
   prompt: StaffPrompt;
   authEnabled: boolean;
   onClose: () => void;
+  onRequestSignUp: () => void;
 }) {
   return (
     <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
-      {authEnabled ? (
-        <StaffSignIn returnTo={prompt.returnTo} message={prompt.message} onComplete={onClose} />
+      {authEnabled && prompt.mode === "sign-in" ? (
+        <StaffSignIn
+          returnTo={prompt.returnTo}
+          message={prompt.message}
+          onComplete={onClose}
+          onRequestSignUp={onRequestSignUp}
+        />
+      ) : authEnabled && prompt.mode === "sign-up" ? (
+        <InviteSignUp />
       ) : (
         <div className="auth-form auth-form--prompt">
           <div className="auth-form__section">Staff access</div>
@@ -94,6 +128,50 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
 
+  const openStaffPrompt = useCallback(
+    (mode: "sign-in" | "sign-up", message: string, returnTo = currentReturnPath()) => {
+      setStaffPrompt({
+        allowed: false,
+        mode,
+        message,
+        returnTo,
+        signInHref: null,
+      });
+      setLiveMsg(message);
+    },
+    []
+  );
+
+  const openSignUpPrompt = useCallback(() => {
+    openStaffPrompt(
+      "sign-up",
+      auth.enabled
+        ? "Create a staff account with an invite code."
+        : "Staff account creation is not configured in this workspace.",
+      "/"
+    );
+  }, [auth.enabled, openStaffPrompt]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const mode = url.searchParams.get("auth");
+    if (mode !== "sign-in" && mode !== "sign-up") return;
+
+    const next = safeInternalReturnPath(url.searchParams.get("next") || url.searchParams.get("redirect_url"));
+    cleanAuthRouteUrl();
+    openStaffPrompt(
+      mode,
+      mode === "sign-up"
+        ? auth.enabled
+          ? "Create a staff account with an invite code."
+          : "Staff account creation is not configured in this workspace."
+        : auth.enabled
+          ? "Existing staff can sign in with Google or password."
+          : "Staff sign-in is not configured in this workspace, so editing tools are unavailable.",
+      next
+    );
+  }, [auth.enabled, openStaffPrompt]);
+
   const requireStaff = useCallback(
     (action: string) => {
       const returnTo = currentReturnPath();
@@ -103,7 +181,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         origin: typeof window === "undefined" ? undefined : window.location.origin,
       });
       if (gate.allowed) return true;
-      setStaffPrompt({ ...gate, returnTo });
+      setStaffPrompt({ ...gate, mode: "sign-in", returnTo });
       setLiveMsg(gate.message);
       return false;
     },
@@ -466,7 +544,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         )}
         {printActivity && <ActivityBookPrint activity={printActivity} runDoc={lib.resolveRunDoc(printActivity)} />}
         {staffPrompt && (
-          <StaffPromptModal prompt={staffPrompt} authEnabled={auth.enabled} onClose={() => setStaffPrompt(null)} />
+          <StaffPromptModal
+            prompt={staffPrompt}
+            authEnabled={auth.enabled}
+            onClose={() => setStaffPrompt(null)}
+            onRequestSignUp={openSignUpPrompt}
+          />
         )}
       </div>
     </div>

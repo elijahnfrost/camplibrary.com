@@ -21,11 +21,11 @@ export default async function AdminPage() {
     );
   }
 
-  const { userId, redirectToSignIn } = await auth();
-  if (!userId) return redirectToSignIn({ returnBackUrl: "/admin" });
+  const { userId } = await auth();
+  if (!userId) redirect("/?auth=sign-in&next=/admin");
 
   const user = await currentUser();
-  if (!user) return redirectToSignIn({ returnBackUrl: "/admin" });
+  if (!user) redirect("/?auth=sign-in&next=/admin");
   if (!isAdminEmail(user.primaryEmailAddress?.emailAddress)) notFound();
 
   return <CampApp initialTab="admin" />;

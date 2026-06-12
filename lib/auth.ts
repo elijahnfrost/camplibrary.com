@@ -126,10 +126,9 @@ function safeReturnPath(value: string | null | undefined, origin?: string): stri
 
 export function signInHref(returnTo: string | null | undefined, origin: string): string {
   const safePath = safeReturnPath(returnTo, origin);
-  const signInUrl = new URL("/sign-in", origin);
-  const returnUrl = new URL(safePath, origin);
+  const signInUrl = new URL("/", origin);
+  signInUrl.searchParams.set("auth", "sign-in");
   signInUrl.searchParams.set("next", safePath);
-  signInUrl.searchParams.set("redirect_url", returnUrl.toString());
   return signInUrl.toString();
 }
 

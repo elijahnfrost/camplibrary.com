@@ -18,8 +18,8 @@ export function usePreviewAuth() {
       enabled: false,
       session: ANONYMOUS_SESSION,
       signedIn: false,
-      // Accounts are off here; there is no auth entry point, but keep this a
-      // no-op-to-home rather than a bounce through the (redirecting) /sign-in.
+      // Accounts are off here; there is no auth entry point, so keep this a
+      // no-op-to-home.
       openAuth: () => {
         window.location.href = "/";
       },
