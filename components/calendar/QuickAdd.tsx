@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   DURATION_OPTIONS,
   MINUTES_PER_DAY,
@@ -248,12 +248,8 @@ export function QuickAdd({
                     className={"quickadd__item" + (on ? " is-on" : "")}
                     aria-pressed={pickTime ? on : undefined}
                     onClick={() => chooseActivity(activity)}
+                    style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}
                   >
-                    <span
-                      className="quickadd__dot"
-                      aria-hidden="true"
-                      style={{ background: categoryTint(activity.type) }}
-                    />
                     <span className="quickadd__name">{activity.title}</span>
                     <span className="quickadd__meta">
                       {durLabel(activity)} · {activity.type}

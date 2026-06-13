@@ -231,12 +231,16 @@
 }
 
 /* ---------- event cards (timegrid) + chips (month) ---------- */
+/* Event cards: tinted wash + spine only — no outer border. The wash against
+   the grid's paper plus FullCalendar's own 1px page-bg separation ring keeps
+   stacked events distinct; dropping the border is what makes them read as soft
+   paper blocks instead of outlined boxes. */
 .calshell .fc-timegrid-event,
 .calshell .fc-daygrid-event {
   border-radius: var(--r-sm);
-  border: 1px solid color-mix(in srgb, var(--cal-tint, var(--line)) 45%, var(--line-soft));
+  border: 0;
   border-left: 3px solid var(--cal-tint, var(--accent));
-  background: color-mix(in srgb, var(--cal-tint, var(--card)) 16%, var(--card));
+  background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
   transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .calshell .fc-timegrid-event:hover {
@@ -246,27 +250,39 @@
 .calshell .fc-event.fc-event-resizing {
   box-shadow: var(--e3);
 }
+/* Dragging an event between slots: the card in flight is the solid one; the
+   copy still parked at the origin fades way back, so there's never a moment
+   of "which of these two is real". */
+.calshell .fc-event-dragging:not(.fc-event-mirror) {
+  opacity: 0.3;
+}
 /* In-grid drag mirror: read as the event card being carried, not a ghost. */
 .calshell .fc-event-mirror {
   opacity: 0.9;
   box-shadow: var(--e3);
 }
-/* External-drag mirror: FullCalendar clones the library row straight onto
-   <body>. Restyle the clone into the event card it's about to become —
-   title + length only, accent spine, lifted and slightly tilted — instead
-   of a verbatim sidebar row with its grip and add button along for the ride. */
+/* External-drag clone: FullCalendar copies the library row straight onto
+   <body>. It becomes a compact, tilted TAG in the hand — title only, the
+   row's --cal-tint spine and wash (the same recipe as the event card), but
+   smaller and lighter than the in-grid mirror. Three distinct drag roles:
+   dimmed row at the origin, small tag in hand, full-size preview in the slot
+   it would land in. */
 body > .cal-lib__item {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
+  width: max-content;
+  max-width: 220px;
+  background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
+  border: 0;
+  border-left: 3px solid var(--cal-tint, var(--accent));
   border-radius: var(--r-sm);
   box-shadow: var(--e3);
-  opacity: 0.85;
-  rotate: -1.5deg;
+  opacity: 0.75;
+  rotate: -2deg;
+  scale: 0.92;
   cursor: grabbing;
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2) var(--s-4);
 }
 body > .cal-lib__item .cal-lib__grip,
+body > .cal-lib__item .cal-lib__meta,
 body > .cal-lib__item .cal-lib__add {
   display: none;
 }
@@ -319,11 +335,13 @@ body > .cal-lib__item .cal-lib__name {
   font-size: var(--fs-label);
   color: var(--ink);
 }
+/* Month chips carry the same left spine as every other activity block — a
+   short 3px tick, not a dot, so the category mark is one shape app-wide. */
 .cal-chip__dot {
-  width: 7px;
-  height: 7px;
+  width: 3px;
+  height: 13px;
   flex: none;
-  border-radius: var(--r-round);
+  border-radius: var(--r-pill);
   background: var(--cal-tint, var(--accent));
 }
 .cal-chip__time {
@@ -352,38 +370,36 @@ body > .cal-lib__item .cal-lib__name {
   flex: none;
   margin: 0 var(--s-5) var(--s-5) 0;
 }
-/* On desktop the activity library lives in the LEFT sidebar (a slot CampApp
-   owns), as a flat rail filling the column — the same way the Library tab's
-   filters sit there. The sidenav is display:none on phones, so this is
-   desktop-only; the FAB + sheet cover mobile. */
+/* The portal slot CampApp owns. On desktop the activity library lives in the
+   LEFT sidebar; LibraryPanel renders a .sidesection rail into this slot, so the
+   slot just needs to fill the column and the shared .sidesection rules
+   (globals.css) own the header, separator, and rhythm. The sidenav is
+   display:none on phones — there the FAB + sheet cover mobile. */
 .sidenav__calrail {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  margin-top: 18px;
 }
+/* On desktop the rail rides the shared .sidesection skeleton: re-enable it
+   (the base .cal-lib--rail is display:none) and drop the card chrome. This
+   rule outweighs .sidesection, so the section's top margin must be RE-STATED
+   here with the same value, or the zone header jumps when switching tabs.
+   (No top separator — matches the Library rail, see .sidesection.) */
 .sidenav__calrail .cal-lib--rail {
   display: flex;
-  width: auto;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  margin: 0;
+  width: auto;
+  margin: 26px 0 0;
   background: transparent;
   border: 0;
   border-radius: 0;
 }
-.sidenav__calrail .cal-lib__head {
-  padding: 0 0 var(--s-1);
-}
-.sidenav__calrail .cal-lib__title {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
 .sidenav__calrail .cal-lib__search {
   margin-inline: 0;
+  margin-top: 0;
 }
 .sidenav__calrail .cal-lib__cats {
   padding-inline: 0;
@@ -391,16 +407,18 @@ body > .cal-lib__item .cal-lib__name {
 .sidenav__calrail .cal-lib__list {
   padding-inline: 0;
 }
-.cal-lib__head {
+/* The rail body fills the section. Unlike the Library filter rail (where the
+   whole body scrolls), here the search + type chips stay fixed and only the
+   activity list scrolls — so the body itself does NOT scroll; .cal-lib__list
+   owns the scroll. Reset the generic body's edge-bleed margins too. */
+.cal-lib__body {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--s-4) var(--s-5) 0;
-}
-.cal-lib__title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-body);
-  color: var(--ink);
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: visible;
+  margin-inline: 0;
+  padding-inline: 0;
 }
 .cal-lib__search {
   display: flex;
@@ -446,6 +464,11 @@ body > .cal-lib__item .cal-lib__name {
   overflow-y: auto;
   padding: 0 var(--s-3) var(--s-4);
 }
+/* Rail rows are grip-led (Elijah's call after trying spines here): the tinted
+   six-dot grip carries both the category color and the drag affordance, the
+   row itself stays unframed. The row still carries --cal-tint inline — the
+   drag CLONE and the in-grid mirror read it, so the block that leaves this
+   row keeps its category color mid-flight. */
 .cal-lib__item {
   display: flex;
   align-items: center;
@@ -466,6 +489,7 @@ body > .cal-lib__item .cal-lib__name {
 .cal-lib__grip {
   flex: none;
   display: flex;
+  color: var(--cal-tint, var(--ink-faint));
 }
 .cal-lib__grip svg {
   width: 14px;
@@ -501,28 +525,28 @@ body > .cal-lib__item .cal-lib__name {
   font-size: var(--fs-meta);
   color: var(--ink-soft);
 }
+/* The quick-place "+" is a quiet ghost glyph until the pointer commits to it —
+   a bordered button on every row made the lengthy list read as a control
+   panel. (Same footprint either way, so nothing shifts.) */
 .cal-lib__add {
   flex: none;
   width: var(--control-sm);
   height: var(--control-sm);
   display: grid;
   place-items: center;
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  color: var(--accent-ink);
+  border: 0;
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--ink-faint);
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .cal-lib__add:hover {
   background: var(--accent);
-  border-color: var(--accent-ink);
   color: var(--on-accent);
 }
 .cal-lib__add:active {
   background: var(--accent-ink);
-  border-color: var(--accent-ink);
   color: var(--on-accent);
 }
 .cal-lib__add svg {
@@ -643,30 +667,27 @@ body > .cal-lib__item .cal-lib__name {
   margin-top: var(--s-3);
   padding: 0 var(--s-3);
 }
+/* Library rows are activity blocks: the same 3px category spine as the rail
+   row and the placed event card (--cal-tint inline per row), not a dot. */
 .quickadd__item {
   width: 100%;
   display: flex;
   align-items: center;
   gap: var(--s-3);
   border: 0;
+  border-left: 3px solid var(--cal-tint, var(--line));
   background: transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   padding: var(--s-3);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
 }
 .quickadd__item:hover {
-  background: var(--chrome-well);
+  background: color-mix(in srgb, var(--cal-tint, var(--ink)) 10%, var(--paper-2));
 }
 .quickadd__item:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.quickadd__dot {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--cal-tint, var(--ink)) 16%, var(--paper-2));
 }
 .quickadd__name {
   flex: 1;
@@ -701,8 +722,10 @@ body > .cal-lib__item .cal-lib__name {
   align-items: center;
   gap: var(--s-3);
   border: 0;
+  /* Dashed spine: "a block that doesn't exist yet" — aligns with the real rows. */
+  border-left: 3px dashed var(--accent);
   background: transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   padding: var(--s-3);
   text-align: left;
   cursor: pointer;
@@ -746,12 +769,13 @@ body > .cal-lib__item .cal-lib__name {
 .quickadd__custom-add {
   align-self: flex-start;
 }
-/* The chosen library row in the pick-a-time posture. */
+/* The chosen library row in the pick-a-time posture: it wears the event
+   card's own tinted wash — a preview of the block it's about to become. */
 .quickadd__item.is-on {
-  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  background: color-mix(in srgb, var(--cal-tint, var(--accent)) 16%, var(--card));
 }
 .quickadd__item.is-on:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--card));
+  background: color-mix(in srgb, var(--cal-tint, var(--accent)) 22%, var(--card));
 }
 .quickadd__picked {
   flex: none;

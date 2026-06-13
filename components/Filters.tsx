@@ -1,18 +1,17 @@
 "use client";
 
-import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useState, type CSSProperties } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
+import { MiniSeg, SidebarSection, ToggleSwitch, TypePicker } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 
-const PLACES = ["Inside", "Outside"] as const;
-
-/** The shared color hook: a selected chip carries its dimension's tint via
- *  --chip-on (the .chip.is-on recipe darkens it for AA). Type chips teach the
- *  category color; Where/Ages have no tint and fall back to the accent. */
+/** The shared color hook: the removable active-filter chip carries its
+ *  dimension's tint via --chip-on (the .chip.is-on recipe darkens it for AA).
+ *  Type chips teach the category color; Where/Ages fall back to the accent. */
 function tintStyle(tint?: string): CSSProperties | undefined {
   return tint ? ({ "--chip-on": tint } as CSSProperties) : undefined;
 }
@@ -85,99 +84,6 @@ export function ActiveFilters({ className, ...props }: ActiveFilterProps & { cla
   );
 }
 
-// ---- Dimension groups (data-driven; adding a dimension later is appending one
-// descriptor, not new markup). Single-select = a radio chip-group with an
-// explicit, quiet "All" that clears the dimension. ---------------------------
-
-type DimOption = { id: string; label: string; tint?: string };
-type Dimension = { id: string; label: string; value: string; options: DimOption[]; onChange: (v: string) => void };
-
-function buildDimensions(p: {
-  cat: CatFilter;
-  place: PlaceFilter;
-  age: AgeFilter;
-  onCat: (v: CatFilter) => void;
-  onPlace: (v: PlaceFilter) => void;
-  onAge: (v: AgeFilter) => void;
-}): Dimension[] {
-  return [
-    {
-      id: "cat",
-      label: "Type",
-      value: p.cat,
-      onChange: (v) => p.onCat(v as CatFilter),
-      options: [
-        { id: "All", label: "All" },
-        ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
-      ],
-    },
-    {
-      id: "place",
-      label: "Where",
-      value: p.place,
-      onChange: (v) => p.onPlace(v as PlaceFilter),
-      options: [{ id: "All", label: "All" }, ...PLACES.map((pl) => ({ id: pl, label: pl }))],
-    },
-    {
-      id: "age",
-      label: "Ages",
-      value: p.age,
-      onChange: (v) => p.onAge(v as AgeFilter),
-      options: [{ id: "All", label: "All" }, ...AGE_GROUPS.map((g) => ({ id: g.id, label: g.short }))],
-    },
-  ];
-}
-
-function DimensionGroup({ dim }: { dim: Dimension }) {
-  return (
-    <div className="filtergroup">
-      <span className="filtergroup__label" id={"filterdim-" + dim.id}>
-        {dim.label}
-      </span>
-      <div className="filtergroup__chips" role="radiogroup" aria-labelledby={"filterdim-" + dim.id}>
-        {dim.options.map((opt) => {
-          const on = dim.value === opt.id;
-          const isAll = opt.id === "All";
-          return (
-            <button
-              type="button"
-              key={opt.id}
-              role="radio"
-              aria-checked={on}
-              className={"chip" + (on ? " is-on" : "") + (isAll ? " chip--all" : "")}
-              style={!isAll ? tintStyle(opt.tint) : undefined}
-              onClick={() => {
-                if (!on) dim.onChange(opt.id);
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function StarredGroup({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="filtergroup">
-      <span className="filtergroup__label">Saved</span>
-      <div className="filtergroup__chips">
-        <button
-          type="button"
-          className={"chip" + (on ? " is-on" : "")}
-          aria-pressed={on}
-          onClick={() => onChange(!on)}
-        >
-          <CampIcon.Bookmark />
-          Starred
-        </button>
-      </div>
-    </div>
-  );
-}
-
 interface FiltersProps {
   variant: "bar" | "rail";
   cat: CatFilter;
@@ -228,11 +134,18 @@ function MaterialPicker({
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
+      {/* On the rail this summary IS the kit's ledger row — label left, the
+          picked count + chevron as the right-hand control. In the sheet's
+          always-open KitGroup it's hidden (the group label does the naming). */}
       <summary
-        className={"material-filter__summary" + (selectedCount ? " is-on" : "")}
+        className={"material-filter__summary ledger__row" + (selectedCount ? " is-set" : "")}
         aria-label={"Available kit, " + selectedCount + " of " + options.length + " selected"}
       >
-        <span>Available kit{selectedCount ? " · " + selectedCount : ""}</span>
+        <span className="ledger__label">Available kit</span>
+        <span className="material-filter__state">
+          {selectedCount ? selectedCount + " picked" : "Any"}
+          <CampIcon.ChevronDown />
+        </span>
       </summary>
       <div className="material-filter__panel">
         <div className="matkit material-filter__kit">
@@ -294,22 +207,73 @@ function MaterialPicker({
   );
 }
 
-function KitGroup({
-  options,
-  selected,
-  onToggle,
-  onClear,
-}: {
-  options: MaterialOption[];
-  selected: string[];
-  onToggle: (id: string) => void;
-  onClear: () => void;
-}) {
-  if (!options.length) return null;
+// THE filter body, shared by the desktop rail AND the mobile sheet so both
+// surfaces read as the same form: every dimension is one ledger line — a
+// small-caps label on the left, a compact control on the right. Type opens an
+// inline menu, Where/Ages are mini segmented pills, Starred is a true switch,
+// and the kit row shows its picked count and expands in place.
+function LedgerFilters({
+  cat,
+  place,
+  age,
+  starredOnly,
+  materialOptions,
+  availableMaterials,
+  onCat,
+  onPlace,
+  onAge,
+  onStarredOnly,
+  onToggleMaterial,
+  onClearMaterials,
+}: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
-    <div className="filtergroup filtergroup--kit">
-      <span className="filtergroup__label">Available kit</span>
-      <MaterialPicker options={options} selected={selected} onToggle={onToggle} onClear={onClear} defaultOpen />
+    <div className="ledger">
+      <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
+      <div className="ledger__row">
+        <span className="ledger__label">Where</span>
+        <MiniSeg
+          ariaLabel="Filter by place"
+          value={place}
+          onChange={onPlace}
+          options={[
+            { id: "All" as PlaceFilter, label: "All" },
+            { id: "Inside" as PlaceFilter, label: "In", ariaLabel: "Inside" },
+            { id: "Outside" as PlaceFilter, label: "Out", ariaLabel: "Outside" },
+          ]}
+        />
+      </div>
+      <div className="ledger__row">
+        <span className="ledger__label">Ages</span>
+        <MiniSeg
+          ariaLabel="Filter by age group"
+          value={age}
+          onChange={onAge}
+          options={[
+            { id: "All" as AgeFilter, label: "All" },
+            ...AGE_GROUPS.map((g) => ({
+              id: g.id as AgeFilter,
+              label: g.short.replace("Gr ", "").replace("PreK", "PK"),
+              ariaLabel: g.label,
+            })),
+          ]}
+        />
+      </div>
+      {onStarredOnly && (
+        <div className="ledger__row">
+          <span className="ledger__label">Starred only</span>
+          <ToggleSwitch
+            on={Boolean(starredOnly)}
+            onChange={onStarredOnly}
+            ariaLabel="Show starred activities only"
+          />
+        </div>
+      )}
+      <MaterialPicker
+        options={materialOptions}
+        selected={availableMaterials}
+        onToggle={onToggleMaterial}
+        onClear={onClearMaterials}
+      />
     </div>
   );
 }
@@ -331,7 +295,6 @@ export function Filters({
   onClearMaterials,
 }: FiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const dimensions = buildDimensions({ cat, place, age, onCat, onPlace, onAge });
   const activeProps: ActiveFilterProps = {
     cat,
     place,
@@ -359,40 +322,43 @@ export function Filters({
     onClearMaterials();
   };
 
-  const groups: ReactNode = (
-    <>
-      {onStarredOnly && <StarredGroup on={Boolean(starredOnly)} onChange={onStarredOnly} />}
-      {dimensions.map((dim) => (
-        <DimensionGroup key={dim.id} dim={dim} />
-      ))}
-      <KitGroup
-        options={materialOptions}
-        selected={availableMaterials}
-        onToggle={onToggleMaterial}
-        onClear={onClearMaterials}
-      />
-    </>
+  const ledger = (
+    <LedgerFilters
+      cat={cat}
+      place={place}
+      age={age}
+      starredOnly={starredOnly}
+      materialOptions={materialOptions}
+      availableMaterials={availableMaterials}
+      onCat={onCat}
+      onPlace={onPlace}
+      onAge={onAge}
+      onStarredOnly={onStarredOnly}
+      onToggleMaterial={onToggleMaterial}
+      onClearMaterials={onClearMaterials}
+    />
   );
 
   if (variant === "rail") {
     return (
-      <div className="sidefilters">
-        <div className="sidefilters__head">
-          <span className="sidefilters__title">Filter</span>
-          {anyOn && (
-            <button type="button" className="sidefilters__clear" onClick={clearAll}>
+      <SidebarSection
+        title="Filter"
+        bodyClassName="sidefilters"
+        action={
+          anyOn ? (
+            <button type="button" className="sidesection__action" onClick={clearAll}>
               Clear all
             </button>
-          )}
-        </div>
-        <ActiveFilters {...activeProps} className="sidefilters__active" />
-        {groups}
-      </div>
+          ) : undefined
+        }
+      >
+        {ledger}
+      </SidebarSection>
     );
   }
 
   // mobile: a single Filters entry + an always-visible removable active-chip row;
-  // the sheet holds the full set of dimensions.
+  // the sheet holds the same switch ledger as the desktop rail.
   return (
     <>
       <div className="filtertrigger">
@@ -418,13 +384,13 @@ export function Filters({
           <div className="overlay__bar">
             <h2 className="filtersheet__title">Filters</h2>
             {anyOn && (
-              <button type="button" className="sidefilters__clear" onClick={clearAll}>
+              <button type="button" className="sidesection__action" onClick={clearAll}>
                 Clear all
               </button>
             )}
           </div>
           <div className="overlay__body filtersheet">
-            {groups}
+            {ledger}
           </div>
           <button
             type="button"

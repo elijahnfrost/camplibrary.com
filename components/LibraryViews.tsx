@@ -152,7 +152,6 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
       {sorted.map((a) => (
         <ActivityCell
           key={a.id}
-          tone="rating"
           activity={a}
           saved={isFav(a.id)}
           onOpen={onOpen}

@@ -1,8 +1,171 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import { CampIcon } from "./icons";
+
+// ---- The "switch ledger" control family (desktop sidebar rails) ----
+// Every filter dimension is ONE ledger line: small-caps label left, a compact
+// control right. The pieces below are that family: TypePicker (a swatch +
+// label trigger that opens an inline type menu), MiniSeg (a small segmented
+// pill for 2–4 way choices), and ToggleSwitch (a true on/off switch). The
+// mobile filter sheet keeps full chips — these controls are pointer-sized.
+
+/** The type selector: one pill trigger showing the current category (with its
+ *  color swatch), expanding an inline menu of all types. `label` wraps it in a
+ *  ledger row; without it the trigger stands alone (the calendar rail). */
+export function TypePicker<T extends string>({
+  value,
+  onChange,
+  label,
+  ariaLabel,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  label?: string;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const options = [
+    { id: "All", label: "All types", tint: undefined as string | undefined },
+    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
+  ];
+  const current = options.find((o) => o.id === value) ?? options[0];
+  const trigger = (
+    <button
+      type="button"
+      className="typepick__trigger"
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-label={ariaLabel}
+      onClick={() => setOpen((o) => !o)}
+    >
+      <span
+        className="typepick__swatch"
+        style={current.tint ? { background: current.tint } : undefined}
+        aria-hidden="true"
+      />
+      {current.label}
+      <CampIcon.ChevronDown />
+    </button>
+  );
+  return (
+    <div className={"typepick" + (open ? " is-open" : "")} ref={rootRef}>
+      {label ? (
+        <div className="ledger__row">
+          <span className="ledger__label">{label}</span>
+          {trigger}
+        </div>
+      ) : (
+        trigger
+      )}
+      {open && (
+        <div className="typepick__menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((o) => (
+            <button
+              type="button"
+              key={o.id}
+              role="option"
+              aria-selected={o.id === value}
+              className={"typepick__option" + (o.id === value ? " is-on" : "")}
+              onClick={() => {
+                onChange(o.id as T);
+                setOpen(false);
+              }}
+            >
+              <span
+                className="typepick__swatch"
+                style={o.tint ? { background: o.tint } : undefined}
+                aria-hidden="true"
+              />
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A compact segmented pill for 2–4 way single choices (Where, Ages). Labels
+ *  are display-short ("In"/"Out"); ariaLabel carries the full name. */
+export function MiniSeg<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { id: T; label: string; ariaLabel?: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <span className="miniseg" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((opt) => {
+        const on = value === opt.id;
+        return (
+          <button
+            type="button"
+            key={opt.id}
+            role="radio"
+            aria-checked={on}
+            aria-label={opt.ariaLabel}
+            className={on ? "is-on" : undefined}
+            onClick={() => {
+              if (!on) onChange(opt.id);
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
+/** A true on/off switch (Starred only). */
+export function ToggleSwitch({
+  on,
+  onChange,
+  ariaLabel,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={ariaLabel}
+      className={"lswitch" + (on ? " is-on" : "")}
+      onClick={() => onChange(!on)}
+    >
+      <span className="lswitch__knob" aria-hidden="true" />
+    </button>
+  );
+}
 
 export function EnergyMeter({ level }: { level: number }) {
   return (
@@ -100,6 +263,38 @@ export function SaveButton({
     >
       {variant === "ribbon" ? <RibbonMark /> : <CampIcon.Bookmark />}
     </button>
+  );
+}
+
+// The shared skeleton for the sidebar's lower zone. Both the Library tab's
+// filter rail and the Calendar tab's activity rail render through this, so the
+// header (small-caps title + optional trailing action) and vertical rhythm read
+// as one sidebar in two contexts — not two unrelated panels. Content diverges
+// in `children`; the header treatment never does.
+export function SidebarSection({
+  title,
+  action,
+  className,
+  bodyClassName,
+  children,
+}: {
+  title: string;
+  /** Optional trailing control in the header (e.g. "Clear all"). */
+  action?: ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={"sidesection" + (className ? " " + className : "")}>
+      <div className="sidesection__head">
+        <span className="sidesection__title">{title}</span>
+        {action}
+      </div>
+      <div className={"sidesection__body" + (bodyClassName ? " " + bodyClassName : "")}>
+        {children}
+      </div>
+    </div>
   );
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Draggable } from "@fullcalendar/interaction";
 import { matchesActivityFilters, type CatFilter } from "@/lib/activityFilters";
-import { CATEGORIES, categoryTint, durLabel } from "@/lib/data";
+import { categoryTint, durLabel } from "@/lib/data";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
+import { SidebarSection, TypePicker } from "../primitives";
 
 // The desktop drag source for "library → calendar": a rail in the left
 // sidebar. Rows are FullCalendar Draggables; the "+" button places at the
@@ -45,6 +46,9 @@ export function LibraryPanel({
         title: el.getAttribute("data-title") || "Activity",
         duration: el.getAttribute("data-duration") || "00:30",
         activityId: el.getAttribute("data-activity-id"),
+        // The category tint rides along so the in-grid drag mirror is colored
+        // like the event the drop will create — never the accent fallback.
+        tint: el.getAttribute("data-tint") || undefined,
         create: true,
       }),
     });
@@ -62,10 +66,7 @@ export function LibraryPanel({
   );
 
   return (
-    <aside className="cal-lib cal-lib--rail" aria-label="Activity library">
-      <div className="cal-lib__head">
-        <span className="cal-lib__title">Library</span>
-      </div>
+    <SidebarSection title="Activities" className="cal-lib cal-lib--rail" bodyClassName="cal-lib__body">
       <label className="cal-lib__search">
         <CampIcon.Search />
         <input
@@ -75,28 +76,10 @@ export function LibraryPanel({
           aria-label="Search activities"
         />
       </label>
-      <div className="cal-lib__cats" role="group" aria-label="Filter by type">
-        <button
-          type="button"
-          className={"chip" + (cat === "All" ? " is-on" : "")}
-          aria-pressed={cat === "All"}
-          onClick={() => setCat("All")}
-        >
-          All
-        </button>
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={"chip" + (cat === c.id ? " is-on" : "")}
-            aria-pressed={cat === c.id}
-            onClick={() => setCat(cat === c.id ? "All" : c.id)}
-          >
-            {c.label}
-          </button>
-        ))}
+      <div className="cal-lib__cats">
+        <TypePicker value={cat} onChange={setCat} ariaLabel="Filter by type" />
       </div>
-      <div className="cal-lib__list" ref={listRef}>
+      <div className="cal-lib__list" ref={listRef} role="group" aria-label="Activity library">
         {filtered.map((activity) => (
           <div
             key={activity.id}
@@ -104,8 +87,10 @@ export function LibraryPanel({
             data-activity-id={activity.id}
             data-title={activity.title}
             data-duration={minutesToDuration(activity.durationMin)}
+            data-tint={categoryTint(activity.type)}
+            style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}
           >
-            <span className="cal-lib__grip" aria-hidden="true" style={{ color: categoryTint(activity.type) }}>
+            <span className="cal-lib__grip" aria-hidden="true">
               <CampIcon.Grip />
             </span>
             <button
@@ -132,6 +117,6 @@ export function LibraryPanel({
         ))}
         {!filtered.length && <div className="cal-lib__empty">No activities match.</div>}
       </div>
-    </aside>
+    </SidebarSection>
   );
 }
