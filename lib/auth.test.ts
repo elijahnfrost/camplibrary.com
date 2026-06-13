@@ -4,6 +4,7 @@ import {
   staffActionGate,
   isClerkPublicKeyUsable,
   isClerkSecretKeyUsable,
+  isLocalHost,
   type AuthSession,
 } from "./auth";
 
@@ -25,6 +26,33 @@ describe("Clerk key usability checks", () => {
   it("accepts correctly prefixed non-placeholder Clerk keys", () => {
     expect(isClerkPublicKeyUsable(encodedClerkKey("pk_test", "real-clerk.example"))).toBe(true);
     expect(isClerkSecretKeyUsable(encodedClerkKey("sk_test", "real-secret-value"))).toBe(true);
+  });
+});
+
+describe("isLocalHost (localhost-only staff bypass scope)", () => {
+  it("matches loopback hosts with and without a port", () => {
+    expect(isLocalHost("localhost")).toBe(true);
+    expect(isLocalHost("localhost:3000")).toBe(true);
+    expect(isLocalHost("127.0.0.1")).toBe(true);
+    expect(isLocalHost("127.0.0.1:8080")).toBe(true);
+    expect(isLocalHost("127.5.6.7")).toBe(true); // 127.0.0.0/8 is all loopback
+    expect(isLocalHost("0.0.0.0:3000")).toBe(true);
+    expect(isLocalHost("::1")).toBe(true);
+    expect(isLocalHost("[::1]:3000")).toBe(true);
+    expect(isLocalHost("LOCALHOST:3000")).toBe(true);
+  });
+
+  it("never matches deployed or look-alike hosts", () => {
+    expect(isLocalHost("camplibrary.com")).toBe(false);
+    expect(isLocalHost("www.camplibrary.com")).toBe(false);
+    expect(isLocalHost("localhost.evil.com")).toBe(false);
+    expect(isLocalHost("notlocalhost")).toBe(false);
+    expect(isLocalHost("127.0.0.1.evil.com")).toBe(false);
+    expect(isLocalHost("10.0.0.152:3000")).toBe(false); // LAN IP, not loopback
+    expect(isLocalHost("192.168.1.5")).toBe(false);
+    expect(isLocalHost("")).toBe(false);
+    expect(isLocalHost(null)).toBe(false);
+    expect(isLocalHost(undefined)).toBe(false);
   });
 });
 

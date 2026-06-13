@@ -1,8 +1,22 @@
 import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import type { NextRequest } from "next/server";
 import type { AuthSession } from "@/lib/auth";
-import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable } from "@/lib/auth";
+import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable, isLocalHost, LOCAL_STAFF_SESSION } from "@/lib/auth";
 import { getBackendEnvStatus } from "./env";
+
+// True when the current request is served from a loopback host. The request's
+// host is read from the NextRequest when available, otherwise from the inbound
+// headers. Scoped to localhost so it cannot grant access on a deployed server.
+async function isLocalRequest(request?: NextRequest): Promise<boolean> {
+  const fromRequest = request?.headers.get("host");
+  if (fromRequest != null) return isLocalHost(fromRequest);
+  try {
+    return isLocalHost((await headers()).get("host"));
+  } catch {
+    return false;
+  }
+}
 
 const INVITE_ACCEPTED_METADATA_KEY = "campLibraryInviteAccepted";
 const INVITE_ACCEPTED_AT_METADATA_KEY = "campLibraryInviteAcceptedAt";
@@ -52,7 +66,8 @@ export async function markUserInviteAccepted(
   await client.users.updateUserMetadata(clerkUserId, { privateMetadata: metadata });
 }
 
-export async function getServerAuthSession(_request?: NextRequest): Promise<AuthSession> {
+export async function getServerAuthSession(request?: NextRequest): Promise<AuthSession> {
+  if (await isLocalRequest(request)) return LOCAL_STAFF_SESSION;
   if (!isClerkAuthUsable()) return ANONYMOUS_SESSION;
 
   const user = await currentUser();
@@ -79,6 +94,9 @@ export async function requireEditorSession(request: NextRequest): Promise<
   | { ok: true; session: Extract<AuthSession, { status: "authenticated" }> }
   | { ok: false; response: Response }
 > {
+  if (await isLocalRequest(request)) {
+    return { ok: true, session: LOCAL_STAFF_SESSION as Extract<AuthSession, { status: "authenticated" }> };
+  }
   if (!isClerkAuthUsable()) {
     return {
       ok: false,
@@ -102,6 +120,9 @@ export async function requireAdminSession(request?: NextRequest): Promise<
   | { ok: true; session: Extract<AuthSession, { status: "authenticated" }> }
   | { ok: false; response: Response }
 > {
+  if (await isLocalRequest(request)) {
+    return { ok: true, session: LOCAL_STAFF_SESSION as Extract<AuthSession, { status: "authenticated" }> };
+  }
   if (!isClerkAuthUsable()) {
     return { ok: false, response: unauthorizedResponse() };
   }

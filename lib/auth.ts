@@ -30,6 +30,47 @@ export const ANONYMOUS_SESSION: AuthSession = {
 
 export const ADMIN_EMAIL = "contact@elijahfrost.com";
 
+// Localhost development convenience: when the app is served from the local
+// machine, every visitor is treated as a fully-privileged staff member without
+// signing in. This is scoped strictly to loopback hostnames (see isLocalHost)
+// so it can never apply to a deployed server such as camplibrary.com.
+export const LOCAL_STAFF_SESSION: AuthSession = {
+  status: "authenticated",
+  user: {
+    id: "local-staff",
+    name: "Local staff",
+    email: ADMIN_EMAIL,
+    role: "admin",
+  },
+  mode: "preview",
+  authenticatedAt: "1970-01-01T00:00:00.000Z",
+};
+
+// Loopback hosts only. The value is the request's Host header (which may carry a
+// port, e.g. "localhost:3000"), so the port is stripped before comparison. IPv6
+// loopback may arrive bracketed ("[::1]:3000") or bare ("::1").
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
+
+export function isLocalHost(host: string | null | undefined): boolean {
+  if (!host) return false;
+  let hostname = host.trim().toLowerCase();
+  if (!hostname) return false;
+
+  // Strip a trailing port. For bracketed IPv6 ("[::1]:3000") take the bracketed
+  // part; otherwise only treat a colon as a port separator when the host is not
+  // a bare IPv6 address (which contains multiple colons).
+  if (hostname.startsWith("[")) {
+    const end = hostname.indexOf("]");
+    hostname = end === -1 ? hostname.slice(1) : hostname.slice(1, end);
+  } else if (hostname.indexOf(":") === hostname.lastIndexOf(":")) {
+    hostname = hostname.split(":")[0];
+  }
+
+  if (LOCAL_HOSTNAMES.has(hostname)) return true;
+  // 127.0.0.0/8 is entirely loopback.
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
 const PLACEHOLDER_RE = /^(|<.*>|.*placeholder.*|changeme|change-me|example|replace-me|todo|your-.+)$/i;
 const DUMMY_CLERK_MARKERS = [
   "pk_test_zm9vlwjhci0xmjmu",

@@ -12,25 +12,55 @@ function currentSignInUrl(returnTo?: string) {
   return signInHref(returnTo || window.location.pathname + window.location.search + window.location.hash || "/", window.location.origin);
 }
 
-export function usePreviewAuth() {
-  if (!CLERK_ENABLED) {
-    return {
-      enabled: false,
-      ready: true,
-      session: ANONYMOUS_SESSION,
-      signedIn: false,
-      providerSignedIn: false,
-      // Accounts are off here; there is no auth entry point, so keep this a
-      // no-op-to-home.
-      openAuth: () => {
-        window.location.href = "/";
-      },
-      signOut: (redirectUrl = "/") => {
-        window.location.href = redirectUrl;
-      },
-    };
-  }
+// Used when Clerk is not configured (e.g. local development). There is no
+// hosted sign-in, but the server still resolves a session — on localhost it
+// returns a fully-privileged staff session (see lib/server/auth), so we fetch
+// it once and honor whatever the server decides rather than assuming anonymous.
+function useServerOnlyAuth() {
+  const [session, setSession] = useState<AuthSession>(ANONYMOUS_SESSION);
+  const [ready, setReady] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { session?: AuthSession } | null) => {
+        if (!cancelled) {
+          setSession(body?.session ?? ANONYMOUS_SESSION);
+          setReady(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSession(ANONYMOUS_SESSION);
+          setReady(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return {
+    enabled: false,
+    ready,
+    session,
+    signedIn: session.status === "authenticated",
+    providerSignedIn: false,
+    // Accounts are off here; there is no hosted auth entry point, so keep this a
+    // no-op-to-home.
+    openAuth: () => {
+      window.location.href = "/";
+    },
+    signOut: (redirectUrl = "/") => {
+      window.location.href = redirectUrl;
+    },
+  };
+}
+
+// Clerk-backed auth. Only ever invoked when Clerk is configured, so the Clerk
+// hooks (which require a ClerkProvider ancestor) are safe to call here.
+function useClerkAuth() {
   const { isLoaded, isSignedIn, user } = useUser();
   const clerk = useClerk();
   const [serverSession, setServerSession] = useState<AuthSession>(ANONYMOUS_SESSION);
@@ -86,6 +116,11 @@ export function usePreviewAuth() {
     },
   };
 }
+
+// Bound once at module load. CLERK_ENABLED is a module-level constant, so the
+// chosen implementation never changes for the lifetime of the app — the Rules
+// of Hooks hold because a given mount always calls the same hook every render.
+export const usePreviewAuth = CLERK_ENABLED ? useClerkAuth : useServerOnlyAuth;
 
 export function AuthButton({
   session,
