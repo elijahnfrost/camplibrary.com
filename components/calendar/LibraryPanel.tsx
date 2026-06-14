@@ -52,7 +52,46 @@ export function LibraryPanel({
         create: true,
       }),
     });
-    return () => draggable.destroy();
+
+    // FullCalendar's external Draggable gives no dragStart callback and its
+    // mirror clone is pointer-events:none, so the grabbing cursor never shows
+    // for a library drag until it enters the grid (calendar's eventDragStart).
+    // Bridge that gap: once the press crosses the drag threshold on a row, mark
+    // the document as dragging (cursor:grabbing + clone lift); clear on release.
+    let pressOrigin: { x: number; y: number } | null = null;
+    let dragging = false;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      if (!(e.target as HTMLElement).closest("[data-activity-id]")) return;
+      pressOrigin = { x: e.clientX, y: e.clientY };
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pressOrigin || dragging) return;
+      if (Math.hypot(e.clientX - pressOrigin.x, e.clientY - pressOrigin.y) >= 6) {
+        dragging = true;
+        document.body.classList.add("is-cal-dragging");
+      }
+    };
+    const endPress = () => {
+      pressOrigin = null;
+      if (dragging) {
+        dragging = false;
+        document.body.classList.remove("is-cal-dragging");
+      }
+    };
+    container.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", endPress);
+    document.addEventListener("pointercancel", endPress);
+
+    return () => {
+      draggable.destroy();
+      container.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", endPress);
+      document.removeEventListener("pointercancel", endPress);
+      document.body.classList.remove("is-cal-dragging");
+    };
   }, []);
 
   const filtered = useMemo(

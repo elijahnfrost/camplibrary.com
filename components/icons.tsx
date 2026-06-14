@@ -123,6 +123,12 @@ export const CampIcon = {
       <path d="M13.5 7.2l3.3 3.3" />
     </>
   ),
+  Copy: svg(
+    <>
+      <path d="M9 9h9.5v10.5H9z" />
+      <path d="M14.5 9V4.5H5.5V15H9" />
+    </>
+  ),
   Close: svg(<path d="M6 6l12 12M18 6 6 18" />),
   ChevronLeft: svg(<path d="M15 5l-7 7 7 7" />),
   ChevronRight: svg(<path d="M9 5l7 7-7 7" />),

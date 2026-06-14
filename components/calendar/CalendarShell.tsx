@@ -35,6 +35,7 @@ import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
+import { ContextMenu } from "../floating/ContextMenu";
 import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
 import { EventPopover } from "./EventPopover";
 import { LibraryPanel } from "./LibraryPanel";
@@ -43,6 +44,7 @@ import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 const VIEW_IDS = new Set<string>(["timeGridDay", "timeGridWeek", "dayGridMonth"]);
 
 type PopoverState = { event: CalendarEvent; anchor: DOMRect };
+type MenuState = { event: CalendarEvent; point: { x: number; y: number } };
 type ToastState = { message: string; onUndo?: () => void };
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -102,6 +104,7 @@ export function CalendarShell({
   // and picking creates instantly.
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
@@ -170,6 +173,10 @@ export function CalendarShell({
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
     setTitle(arg.view.title);
+    // Navigation/view changes re-render the grid, so a cursor-anchored menu or
+    // a rect-anchored popover would detach — dismiss them.
+    setMenu(null);
+    setPopover(null);
     if (VIEW_IDS.has(arg.view.type)) setActiveView(arg.view.type as CalendarViewId);
     // Track the day tap-to-place targets: today when visible, else range start.
     const start = arg.view.currentStart;
@@ -226,6 +233,37 @@ export function CalendarShell({
       announce("Deleted " + event.title);
     },
     [announce, removeEvent, requireStaff, showToast, upsertEvent]
+  );
+
+  // Duplicate an event: clone it onto the next free slot of the same day so the
+  // copy doesn't sit exactly on top of the original; fall back to the same start
+  // if the day is full. Undoable like every other calendar mutation.
+  const duplicateEvent = useCallback(
+    (event: CalendarEvent) => {
+      if (!requireStaff("plan the calendar")) return;
+      const duration = Math.max(SNAP_MIN, event.endMin - event.startMin);
+      let startMin = event.startMin;
+      if (!event.allDay) {
+        const dayEvents = healedEvents.filter((e) => e.date === event.date);
+        const free = nextFreeStartForDay(dayEvents, duration, event.startMin, window_);
+        if (free != null) startMin = free;
+      }
+      const copy: CalendarEvent = {
+        ...event,
+        id: crypto.randomUUID(),
+        startMin: event.allDay ? 0 : startMin,
+        endMin: event.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + duration),
+        updatedAt: Date.now(),
+      };
+      upsertEvent(copy);
+      setPopover(null);
+      announce("Duplicated " + (event.title || "event"));
+      showToast({
+        message: "Duplicated " + (event.title || "event"),
+        onUndo: () => removeEvent(copy.id),
+      });
+    },
+    [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
   );
 
   // Tap-to-place: drop the activity at the next free slot on the focused day.
@@ -424,6 +462,143 @@ export function CalendarShell({
     [byId, events]
   );
 
+  // Right-click an event → themed context menu at the cursor. Delegated on the
+  // grid (FullCalendar's event DOM isn't React-owned), resolving the event from
+  // the id stamped in onEventDidMount. Pointer-fine only; touch users get the
+  // same actions via the tap-opened popover.
+  const onGridContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches) return;
+      const el = (e.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
+      const id = el?.dataset.eventId;
+      if (!id) return;
+      const event = events[id];
+      if (!event) return;
+      e.preventDefault();
+      setPopover(null);
+      setMenu({ event: healEvent(event, byId), point: { x: e.clientX, y: e.clientY } });
+    },
+    [byId, events]
+  );
+
+  // ---- Drag affordance (three-part move preview) --------------------------
+  // The move gesture shows three things at once, like Notion/Apple Calendar:
+  //   1. ORIGINAL — stays in its slot, dimmed + darkened (where it was). FC
+  //      hides the dragged source via inline visibility:hidden on its harness;
+  //      calendar.css forces it back visible and dims it.
+  //   2. SUPERPOSITION — a full-opacity copy of the card that follows the cursor
+  //      FREELY (un-snapped), keeping the grab offset, showing the live time. FC
+  //      only gives us a *snapped* mirror, so we render this follower ourselves
+  //      and feed it the mirror's live innerHTML each frame.
+  //   3. SNAP BOX — FullCalendar's own .fc-event-mirror, which snaps to the grid
+  //      slot the drop will land in; calendar.css styles it as a dotted no-fill
+  //      outline at full opacity.
+  // (The earlier position:fixed column-offset is gone — .calshell no longer
+  // retains a transform after its entrance animation.)
+  const followRef = useRef<HTMLDivElement | null>(null);
+  const dragRafRef = useRef<number | null>(null);
+  const grabOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 12, dy: 12 });
+  const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  // The harness of the event currently being moved — tagged so ONLY it dims,
+  // not the whole calendar.
+  const sourceHarnessRef = useRef<HTMLElement | null>(null);
+
+  const traceFollower = useCallback(() => {
+    dragRafRef.current = window.requestAnimationFrame(traceFollower);
+    const follow = followRef.current;
+    if (!follow) return;
+    const mirror = document.querySelector<HTMLElement>(".fc-event-mirror");
+    if (!mirror) return; // hold last frame through FC's mirror rebuilds
+    const r = mirror.getBoundingClientRect();
+    if (r.width < 1) return;
+    // Mirror the live card (title + the time text FC updates as it snaps) and
+    // the event's tint, so the follower reads as the same card with the new time.
+    if (follow.innerHTML !== mirror.innerHTML) follow.innerHTML = mirror.innerHTML;
+    const tint = mirror.style.getPropertyValue("--cal-tint");
+    if (tint) follow.style.setProperty("--cal-tint", tint);
+    follow.style.width = r.width + "px";
+    follow.style.height = r.height + "px";
+    // Free follow: top-left tracks the cursor minus where it was grabbed.
+    follow.style.left = pointerRef.current.x - grabOffsetRef.current.dx + "px";
+    follow.style.top = pointerRef.current.y - grabOffsetRef.current.dy + "px";
+    follow.style.opacity = "1";
+  }, []);
+
+  const addPointerSafetyNet = useCallback(
+    (onEnd: () => void) => {
+      const onMove = (e: PointerEvent) => {
+        pointerRef.current = { x: e.clientX, y: e.clientY };
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onEnd);
+      window.addEventListener("pointercancel", onEnd);
+      window.addEventListener("blur", onEnd);
+      dragCleanupRef.current = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onEnd);
+        window.removeEventListener("pointercancel", onEnd);
+        window.removeEventListener("blur", onEnd);
+      };
+    },
+    []
+  );
+
+  const stopDragAffordance = useCallback(() => {
+    document.body.classList.remove("is-cal-dragging");
+    document.body.classList.remove("is-cal-resizing");
+    if (dragRafRef.current != null) {
+      window.cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+    }
+    if (followRef.current) {
+      followRef.current.style.opacity = "0";
+      followRef.current.innerHTML = "";
+    }
+    sourceHarnessRef.current?.classList.remove("is-drag-source");
+    sourceHarnessRef.current = null;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+  }, []);
+
+  // MOVE: the three-part preview (dim the dragged event, free-follow card, snap
+  // box). Only fires on eventDragStart, never on resize.
+  const startMoveAffordance = useCallback(
+    (arg: { el: HTMLElement; jsEvent: MouseEvent }) => {
+      document.body.classList.add("is-cal-dragging");
+      const cx = arg.jsEvent.clientX;
+      const cy = arg.jsEvent.clientY;
+      pointerRef.current = { x: cx, y: cy };
+      const srcRect = arg.el.getBoundingClientRect();
+      grabOffsetRef.current = { dx: cx - srcRect.left, dy: cy - srcRect.top };
+      // Tag ONLY this event's harness so the dim is scoped to it.
+      const harness = arg.el.closest<HTMLElement>(
+        ".fc-timegrid-event-harness, .fc-daygrid-event-harness"
+      );
+      if (harness) {
+        harness.classList.add("is-drag-source");
+        sourceHarnessRef.current = harness;
+      }
+      if (followRef.current) followRef.current.style.opacity = "0";
+      if (dragRafRef.current == null) traceFollower();
+      addPointerSafetyNet(stopDragAffordance);
+    },
+    [addPointerSafetyNet, stopDragAffordance, traceFollower]
+  );
+
+  // RESIZE: edits the event in place (just stretches an edge), so NO follower
+  // card and NO source dim — only the grabbing cursor + the safety net. The
+  // earlier regression (resize spawned a superposed card) was from routing
+  // resize through the move affordance.
+  const startResizeAffordance = useCallback(() => {
+    document.body.classList.add("is-cal-resizing");
+    addPointerSafetyNet(stopDragAffordance);
+  }, [addPointerSafetyNet, stopDragAffordance]);
+
+  // Belt-and-braces: never leave the body class / rAF dangling if the component
+  // unmounts mid-drag.
+  useEffect(() => () => stopDragAffordance(), [stopDragAffordance]);
+
   const onEventDrop = useCallback(
     (info: EventDropArg) => {
       const existing = events[info.event.id];
@@ -510,6 +685,9 @@ export function CalendarShell({
   const onEventDidMount = useCallback((info: EventMountArg) => {
     const tint = info.event.extendedProps.tint;
     if (typeof tint === "string") info.el.style.setProperty("--cal-tint", tint);
+    // Stamp the id so the delegated contextmenu listener can resolve the event
+    // from FullCalendar's (non-React) event DOM.
+    info.el.dataset.eventId = info.event.id;
   }, []);
 
   const renderEventContent = useCallback((arg: EventContentArg) => {
@@ -643,6 +821,7 @@ export function CalendarShell({
           className={"calshell__grid" + (swipeDir ? " is-swipe-" + swipeDir : "")}
           onTouchStart={onGridTouchStart}
           onTouchEnd={onGridTouchEnd}
+          onContextMenu={onGridContextMenu}
         >
           {resolvedView && (
           <FullCalendar
@@ -660,6 +839,7 @@ export function CalendarShell({
             droppable={canEdit}
             dayMaxEvents={3}
             slotEventOverlap={false}
+            eventMaxStack={4}
             eventShortHeight={46}
             eventMinHeight={22}
             snapDuration="00:15:00"
@@ -676,6 +856,10 @@ export function CalendarShell({
             select={onSelect}
             dateClick={onDateClick}
             eventClick={onEventClick}
+            eventDragStart={startMoveAffordance}
+            eventDragStop={stopDragAffordance}
+            eventResizeStart={startResizeAffordance}
+            eventResizeStop={stopDragAffordance}
             eventDrop={onEventDrop}
             eventResize={onEventResize}
             eventReceive={onEventReceive}
@@ -685,6 +869,11 @@ export function CalendarShell({
             events={fcEvents}
           />
           )}
+          {/* The free-following "card in hand" during a drag: a full-opacity
+              clone of the event that tracks the raw cursor (the snapped dotted
+              box is FullCalendar's own mirror). Positioned in JS by
+              traceFollower; aria-hidden — purely a visual drag preview. */}
+          <div ref={followRef} className="cal-dragfollow fc-event" aria-hidden="true" />
         </div>
         {/* The activity library lives in the left sidebar (rendered into a slot
             CampApp owns), so there's one sidebar and the grid spans full width.
@@ -742,8 +931,51 @@ export function CalendarShell({
             setSheet({ draft: draftFromEvent(popover.event), pickTime: true });
             setPopover(null);
           }}
+          onDuplicate={() => duplicateEvent(popover.event)}
           onDelete={() => deleteEvent(popover.event)}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {menu && (
+        <ContextMenu
+          point={menu.point}
+          ariaLabel={menu.event.title || "Event"}
+          onClose={() => setMenu(null)}
+          items={[
+            ...(menu.event.activityId && byId[menu.event.activityId]
+              ? [
+                  {
+                    label: "Open Run List",
+                    icon: <CampIcon.BookOpen />,
+                    onSelect: () => {
+                      const activity = byId[menu.event.activityId as string];
+                      if (activity) onOpenActivity(activity, menu.event);
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: "Edit",
+              icon: <CampIcon.Pencil />,
+              onSelect: () => {
+                if (!requireStaff("change the calendar")) return;
+                setSheet({ draft: draftFromEvent(menu.event), pickTime: true });
+              },
+            },
+            {
+              label: "Duplicate",
+              icon: <CampIcon.Copy />,
+              onSelect: () => duplicateEvent(menu.event),
+            },
+            {
+              label: "Delete",
+              icon: <CampIcon.Trash />,
+              danger: true,
+              separatorBefore: true,
+              onSelect: () => deleteEvent(menu.event),
+            },
+          ]}
         />
       )}
 

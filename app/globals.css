@@ -43,7 +43,14 @@
   /* Deepened to pine — also lifts white-on-green buttons from 4.96 to 6.18 AA. */
   --accent: #3f6b45;
   --accent-ink: #2c4a32;
-  --accent-tint: #e2ecd4;
+  /* The brand's two greens are the dark pine (--accent) and this lighter sage —
+     both lifted straight from the logo mark (logo-mark.svg: #4f7a52 / #aebf86). */
+  --accent-light: #aebf86;
+  /* Soft accent fill for selected/active surfaces (dropdown highlights, the
+     signed-in auth pill, status badges): the lighter brand sage dropped onto the
+     cream card at low opacity, so the highlight reads as the SAME green family as
+     the logo rather than the old cool lime (#e2ecd4) that clashed. */
+  --accent-tint: color-mix(in srgb, var(--accent-light) 42%, var(--card));
   --hl: #e7cf6a;
   /* Warm wood-shadow rather than cool grey; lighter surfaces need less smudge. */
   --shadow: rgba(56, 44, 28, 0.14);
@@ -59,10 +66,13 @@
   --amber-soft: #e7cf6a;
   --dusk: #4a4660;
 
-  /* Elevation ramp — hard "sticker" offsets low, warm soft blur high. */
-  --e1: 2px 2px 0 var(--shadow);
-  --e2: 3px 3px 0 var(--shadow);
-  --e3: 0 8px 24px -8px rgba(56, 44, 28, 0.26);
+  /* Elevation ramp — the UI is flat and border-defined; only true overlays
+     (modals/sheets sitting over a scrim) lift. --e1/--e2 (old hard "sticker"
+     offsets) and --e3 (dropdowns/popovers/toasts/FAB) are now flat so chrome
+     reads as one continuous surface; --e4 stays for scrim-backed overlays. */
+  --e1: none;
+  --e2: none;
+  --e3: none;
   --e4: 0 18px 48px -12px rgba(56, 44, 28, 0.4);
 
   /* Quiet humanist companion for body + dense data; handwriting stays on display. */
@@ -313,9 +323,11 @@ body {
 /* ---------- view switcher ---------- */
 .viewswitch {
   display: flex;
+  gap: var(--s-1);
+  height: var(--control-md);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-lg);
-  overflow: hidden;
+  border-radius: var(--r-md);
+  padding: var(--s-1);
   margin: 0 18px;
   background: var(--card);
 }
@@ -324,21 +336,18 @@ body {
   background: transparent;
   border: 0;
   cursor: pointer;
-  padding: 9px 0 8px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-right: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
   font-family: var(--hand-sc);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.viewswitch button:last-child {
-  border-right: 0;
 }
 .viewswitch button:hover {
   background: var(--paper-2);
@@ -347,7 +356,6 @@ body {
 .viewswitch button:active {
   background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
-/* The container clips overflow, so focus rings sit inset. */
 .viewswitch button:focus-visible {
   outline-offset: -2px;
 }
@@ -608,14 +616,13 @@ body {
   background: var(--chrome-well);
   border-color: var(--ink-soft);
 }
-/* Open state (Option B, no beak): the trigger stays lit — accent fill, accent
-   border, and a soft ring — so the eye links it to the floating menu without
-   any pointer/tail. The highlight IS the connector. */
+/* Open state (Option B, no beak): the trigger stays lit via its sage fill +
+   ink — same signal as a selected menu row — so the eye links it to the
+   floating menu without a ring or a border-color shift (the border stays put,
+   matching every other control in the app). The fill IS the connector. */
 .typepick.is-open .typepick__trigger {
   background: var(--accent-tint);
-  border-color: var(--accent);
   color: var(--accent-ink);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .typepick.is-open .typepick__trigger svg {
   color: var(--accent-ink);
@@ -1263,16 +1270,13 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 3px 3px 0 var(--shadow);
-  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .deck-card:hover {
   transform: translateY(-2px);
-  box-shadow: 4px 5px 0 var(--shadow);
 }
 .deck-card:active {
   transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--shadow);
 }
 .plate {
   position: relative;
@@ -1505,8 +1509,7 @@ body {
   background: color-mix(in srgb, var(--card) 80%, transparent);
   border: 1.5px solid color-mix(in srgb, var(--ink) 32%, transparent);
   border-radius: 50%;
-  box-shadow: 2px 2px 0 var(--shadow);
-  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+  transition: transform var(--t-fast) var(--ease),
     background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
     color var(--t-fast) var(--ease);
 }
@@ -1525,7 +1528,6 @@ body {
 }
 .star--chip:active {
   transform: translateY(1px);
-  box-shadow: 1px 1px 0 var(--shadow);
 }
 .star--chip.is-on {
   color: var(--tone-edge, var(--star-ink));
@@ -1666,14 +1668,12 @@ body {
   border-width: 2px;
   border-color: var(--accent-ink);
   color: var(--on-accent);
-  box-shadow: 3px 3px 0 var(--shadow);
 }
 .btn--primary:hover {
   background: var(--accent-ink);
 }
 .btn--primary:active {
   transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--shadow);
   background: var(--accent-ink);
 }
 .btn--primary:focus-visible {
@@ -1730,14 +1730,14 @@ body {
 /* ---------- auth controls ---------- */
 .auth-pill {
   max-width: 132px;
-  height: 40px;
+  height: var(--control-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
   padding: 0 11px;
   border: 1.5px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--card);
   color: var(--ink-soft);
   cursor: pointer;
@@ -1826,7 +1826,6 @@ body {
   border: 2px solid var(--ink);
   border-radius: 14px;
   background: var(--card);
-  box-shadow: 4px 4px 0 var(--shadow);
 }
 .auth-form__copy,
 .auth-form__hint {
@@ -1934,7 +1933,6 @@ body {
   border: 2px solid var(--ink);
   border-radius: 14px;
   background: var(--card);
-  box-shadow: 4px 4px 0 var(--shadow);
 }
 .admin-panel__head {
   display: flex;
@@ -2666,7 +2664,6 @@ body {
   width: 9px;
   height: 9px;
   border: 1.5px solid var(--ink);
-  box-shadow: 1px 1px 0 var(--shadow);
 }
 .playbook__legend-dot {
   border-radius: 50%;
@@ -3543,11 +3540,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: var(--control-md);
   padding: 0 12px;
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--ink-soft);
 }
 .toolbar__search:focus-within {
@@ -3578,7 +3575,8 @@ body {
   color: var(--ink-faint);
 }
 .toolbar__add {
-  height: 40px;
+  height: var(--control-md);
+  border-radius: var(--r-md);
   justify-self: start;
   flex: none;
 }
@@ -3847,13 +3845,13 @@ body {
   .searchrow {
     display: none;
   }
-  /* header toolbar: view switch + persistent search */
+  /* header toolbar: view switch + persistent search — sits flush over the
+     page like the calendar header (no divider line). */
   .toolbar {
     display: flex;
     align-items: center;
     gap: 16px;
     padding: 12px 32px 14px;
-    border-bottom: 1.5px solid var(--line-soft);
   }
   .viewswitch {
     flex: none;
@@ -3869,11 +3867,11 @@ body {
     gap: 8px;
     max-width: 380px;
     margin-left: auto;
-    height: 40px;
+    height: var(--control-md);
     padding: 0 12px;
     background: var(--card);
     border: 1.5px solid var(--line);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     color: var(--ink-soft);
     transition: border-color 120ms;
   }
@@ -4457,8 +4455,7 @@ body {
   .sidefilters .material-filter__item {
     min-height: var(--tap);
   }
-  .chip,
-  .viewswitch button {
+  .chip {
     padding-top: 9px;
     padding-bottom: 9px;
   }
@@ -4885,7 +4882,7 @@ button.rl-node {
   background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 80%, var(--paper)) 100%);
 }
 .rl-block--step.has-children:not(.is-collapsed) > .rl-block__main > .rl-row {
-  box-shadow: var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .rl-row .rl-ed {
   cursor: text;
@@ -5854,7 +5851,6 @@ button.rl-node {
   .toolbar {
     flex-wrap: nowrap;
     padding: var(--s-5) var(--s-8) var(--s-5);
-    border-bottom: 1.5px solid var(--line-soft);
   }
 }
 
@@ -5995,4 +5991,310 @@ button.rl-node {
   font-family: var(--hand);
   font-size: var(--fs-body);
   color: var(--ink-soft);
+}
+
+/* ============================================================
+ * Floating controls — custom dropdowns + right-click menus
+ * One portaled layer engine (FloatingLayer) backs the Select, the
+ * DatePopover, and the right-click ContextMenu. All three wear the same
+ * card surface + ink border the rest of the app uses (the .typepick menu
+ * recipe), so a dropdown and a context menu read as the same family.
+ * They portal to <body>, so they sit ABOVE every overlay (z-index 80 >
+ * cal-popover 70 > overlays 30/31) and escape modal overflow clipping.
+ * ============================================================ */
+.floating-root {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+.floating__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* ---- the right-click context menu ---- */
+.cmenu {
+  position: fixed;
+  min-width: 184px;
+  max-width: 280px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+@keyframes cmenu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cmenu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  outline: none;
+}
+.cmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: left;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cmenu__item:hover,
+.cmenu__item:focus-visible {
+  background: var(--chrome-well);
+  color: var(--ink);
+  outline: none;
+}
+.cmenu__item:disabled,
+.cmenu__item[aria-disabled="true"] {
+  color: var(--ink-faint);
+  opacity: 0.55;
+  cursor: default;
+}
+.cmenu__item:disabled:hover,
+.cmenu__item[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--ink-faint);
+}
+.cmenu__item--danger {
+  color: var(--danger-ink);
+}
+.cmenu__item--danger:hover,
+.cmenu__item--danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  color: var(--danger-ink);
+}
+.cmenu__icon {
+  flex: none;
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+}
+.cmenu__icon svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cmenu__label {
+  flex: 1;
+  min-width: 0;
+}
+.cmenu__sep {
+  height: 0;
+  margin: var(--s-2) var(--s-2);
+  border-top: 1.5px solid var(--line-soft);
+}
+
+/* ---- custom <select> (Select.tsx) ---- */
+.cselect {
+  position: relative;
+  width: 100%;
+}
+/* The trigger reuses the .select look but is a button laying out a value +
+   chevron. (.select already sets surface/border/radius/font/padding.) */
+.cselect__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  cursor: pointer;
+  text-align: left;
+}
+.cselect__trigger .cselect__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cselect__trigger svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+  transition: transform var(--t-fast) var(--ease);
+}
+.cselect__trigger.is-open {
+  border-color: var(--accent);
+}
+.cselect__trigger.is-open svg {
+  transform: rotate(180deg);
+}
+/* The open menu reuses .typepick__menu (card/border/shadow). Position is
+   driven inline by FloatingLayer; clear the .typepick anchoring it doesn't
+   use here, and cap height so a long time list scrolls inside the layer. */
+.cselect__menu {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
+  max-height: min(320px, 60vh);
+  overflow: hidden;
+}
+.cselect__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: inherit;
+  overflow-y: auto;
+  outline: none;
+}
+.cselect__option {
+  justify-content: space-between;
+  font-size: var(--fs-label);
+}
+.cselect__option.is-active:not(.is-on) {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cselect__option .cselect__optlabel {
+  flex: 1;
+  min-width: 0;
+}
+.cselect__option svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- custom date picker (DatePopover.tsx) ---- */
+.cdate {
+  position: relative;
+  width: 100%;
+}
+.cdate__pop {
+  position: fixed;
+  width: 268px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.cdate__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.cdate__nav {
+  width: var(--control-sm);
+  height: var(--control-sm);
+}
+.cdate__month {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.cdate__weekdays,
+.cdate__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cdate__weekday {
+  text-align: center;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: var(--s-2);
+}
+.cdate__blank {
+  aspect-ratio: 1;
+}
+.cdate__day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.cdate__day:hover {
+  background: var(--chrome-well);
+}
+.cdate__day.is-today {
+  border-color: var(--line);
+}
+.cdate__day.is-on {
+  background: var(--accent-tint);
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+
+/* ---- phone: dropdowns + date grid bottom-dock like the event popover ---- */
+@media (max-width: 767px) {
+  .cmenu,
+  .cselect__menu,
+  .cdate__pop {
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto !important;
+    max-width: none;
+    border-bottom: 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
+    animation: cl-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .cselect__menu {
+    max-height: 60vh;
+  }
+  .cselect__list {
+    max-height: calc(60vh - var(--s-6));
+  }
+  /* On phones the scrim dims like every other sheet, and is tappable to close. */
+  .floating__scrim {
+    background: var(--scrim-bg);
+    animation: cl-fade 180ms ease both;
+  }
 }

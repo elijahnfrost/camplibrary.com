@@ -16,6 +16,8 @@ import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
 import { Seg } from "../primitives";
+import { Select } from "../floating/Select";
+import { DatePopover } from "../floating/DatePopover";
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event
@@ -331,47 +333,34 @@ export function QuickAdd({
             <div className="quickadd__whenrow">
               <div className="field">
                 <label className="field__label" htmlFor="quickadd-date">Date</label>
-                <input
+                <DatePopover
                   id="quickadd-date"
-                  type="date"
-                  className="input"
                   value={date}
-                  onChange={(e) => {
-                    if (e.target.value) setDate(e.target.value);
-                  }}
+                  onChange={(next) => setDate(next)}
+                  ariaLabel="Event date"
                 />
               </div>
               {!allDay && (
                 <>
                   <div className="field">
                     <label className="field__label" htmlFor="quickadd-start">Starts</label>
-                    <select
+                    <Select
                       id="quickadd-start"
-                      className="select"
                       value={startMin}
-                      onChange={(e) => setStartMin(Number(e.target.value))}
-                    >
-                      {startChoices.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={startChoices}
+                      onChange={setStartMin}
+                      ariaLabel="Event start time"
+                    />
                   </div>
                   <div className="field">
                     <label className="field__label" htmlFor="quickadd-length">Length</label>
-                    <select
+                    <Select
                       id="quickadd-length"
-                      className="select"
                       value={durationMin}
-                      onChange={(e) => setDurationMin(Number(e.target.value))}
-                    >
-                      {durationChoices.map((value) => (
-                        <option key={value} value={value}>
-                          {formatDuration(value)}
-                        </option>
-                      ))}
-                    </select>
+                      options={durationChoices.map((value) => ({ value, label: formatDuration(value) }))}
+                      onChange={setDurationMin}
+                      ariaLabel="Event length"
+                    />
                   </div>
                 </>
               )}

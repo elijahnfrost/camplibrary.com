@@ -13,6 +13,7 @@ import {
   buildRunDoc,
   ensureSectionHeadings,
   promoteMaterialsBlocks,
+  rekeyRunDoc,
   type RunDoc,
 } from "@/lib/runList";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -144,6 +145,26 @@ export function useActivityLibrary({
     [announce, requireStaff, setDoc]
   );
 
+  // Duplicate any activity (built-in or custom) into a fresh custom copy. The
+  // run doc is resolved, then re-keyed onto the new id so the two activities
+  // never share block identity (rekeyRunDoc handles the derived -details ids).
+  const duplicateActivity = useCallback(
+    (activity: Activity): Activity | null => {
+      if (!requireStaff("add activities")) return null;
+      const slug = activity.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const newId = (slug || "activity") + "-copy-" + Date.now().toString(36);
+      const copy: Activity = { ...activity, id: newId, title: activity.title + " (copy)" };
+      const sourceDoc = resolveRunDoc(activity);
+      const copiedDoc = rekeyRunDoc(sourceDoc, activity.id, newId);
+      setDoc("extra", (p) => [copy, ...p]);
+      setDoc("runLists", (p) => ({ ...p, [newId]: copiedDoc }));
+      if (copy.rating > 0) setDoc("ratings", (p) => ({ ...p, [newId]: copy.rating }));
+      announce("Duplicated " + activity.title);
+      return copy;
+    },
+    [announce, requireStaff, resolveRunDoc, setDoc]
+  );
+
   // Calendar events referencing a deleted activity self-heal on read
   // (lib/calendar/adapter), so no calendar scrub is needed here.
   const deleteActivity = useCallback(
@@ -198,6 +219,7 @@ export function useActivityLibrary({
     saveRunDoc,
     addActivity,
     updateActivity,
+    duplicateActivity,
     deleteActivity,
   };
 }

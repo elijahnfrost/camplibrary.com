@@ -20,6 +20,7 @@ import {
   normalizeRunDoc,
   playHeadingBlock,
   promoteMaterialsBlocks,
+  rekeyRunDoc,
   runId,
   runPillLabel,
   type RunDoc,
@@ -288,6 +289,38 @@ describe("run list model", () => {
 
     expect(source.blocks[0].text).toBe("Start");
     expect(source.blocks[0].children![0].text).toBe("Original");
+  });
+
+  it("rekeys a run doc onto a new activity without sharing any block identity", () => {
+    const source: RunDoc = {
+      blocks: [
+        { id: "act-1-details-heading", type: "heading", text: "Details", children: [] },
+        { id: "act-1-details", type: "details", tags: [], children: [] },
+        { id: "rb-3-x", type: "step", text: "Play", children: [{ id: "k-9", type: "note", text: "Tip" }] },
+      ],
+    };
+    const copy = rekeyRunDoc(source, "act-1", "act-2");
+
+    // Derived -details ids carry the NEW prefix so section detection still works.
+    expect(copy.blocks[0].id).toBe("act-2-details-heading");
+    expect(copy.blocks[1].id).toBe("act-2-details");
+    // Non-derived ids are reissued fresh (no source prefix to carry).
+    expect(copy.blocks[2].id).not.toBe("rb-3-x");
+    // Every child id is fresh.
+    expect(copy.blocks[2].children![0].id).not.toBe("k-9");
+    // The two docs share NO block or child id — the collision the helper guards.
+    const sourceIds = new Set<string>();
+    source.blocks.forEach((b) => {
+      sourceIds.add(b.id);
+      (b.children || []).forEach((c) => sourceIds.add(c.id));
+    });
+    copy.blocks.forEach((b) => {
+      expect(sourceIds.has(b.id)).toBe(false);
+      (b.children || []).forEach((c) => expect(sourceIds.has(c.id)).toBe(false));
+    });
+    // Content is preserved.
+    expect(copy.blocks[2].text).toBe("Play");
+    expect(copy.blocks[2].children![0].text).toBe("Tip");
   });
 });
 

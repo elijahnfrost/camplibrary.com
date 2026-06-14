@@ -11,6 +11,28 @@
   flex: 1;
   min-height: 0;
   height: 100%;
+  /* Gentle slide-up on first paint, so the calendar settles into place rather
+     than snapping in. Plays on mount (and on each return to the Calendar tab,
+     since the surface remounts). NO fill-mode: once it finishes the element
+     reverts to its base style with NO transform — a retained transform (even an
+     identity matrix from `both`) makes .calshell the containing block for
+     position:fixed, which offset overlays by a column. --ease-overlay curve. */
+  animation: cal-enter 360ms var(--ease-overlay);
+}
+@keyframes cal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calshell {
+    animation: none;
+  }
 }
 
 .calshell__body {
@@ -42,7 +64,8 @@
   min-width: 0;
 }
 .calhead__today {
-  height: var(--control-sm);
+  height: var(--control-md);
+  border-radius: var(--r-md);
 }
 .calhead__title {
   margin: 0;
@@ -57,18 +80,21 @@
   display: flex;
   gap: var(--s-1);
   margin-left: auto;
+  height: var(--control-md);
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   padding: var(--s-1);
 }
 .calhead__view {
+  display: flex;
+  align-items: center;
   border: 0;
   background: transparent;
   font-family: var(--hand-sc);
   font-size: var(--fs-ui);
   color: var(--ink-soft);
-  padding: var(--s-2) var(--s-5);
+  padding: 0 var(--s-5);
   border-radius: var(--r-sm);
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
@@ -103,11 +129,6 @@
   align-items: center;
   flex: none;
 }
-.calhead__actions .auth-pill {
-  height: var(--control-sm);
-  min-height: var(--control-sm);
-  border-radius: var(--r-md);
-}
 
 /* ---------- FullCalendar theme ---------- */
 .calshell .fc {
@@ -122,6 +143,11 @@
   --fc-event-border-color: var(--line);
   --fc-event-text-color: var(--ink);
   --fc-highlight-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  /* Kill FullCalendar's default selected/focused chrome: a flat grey
+     rgba(0,0,0,.25) wash over the whole card (made events look muddy after a
+     click/duplicate) plus a drop-shadow ring. We act on events through the
+     popover/context menu, so selection just needs a quiet themed accent ring. */
+  --fc-event-selected-overlay-color: transparent;
   --fc-small-font-size: var(--fs-label);
   font-family: var(--text);
   color: var(--ink);
@@ -148,10 +174,12 @@
   color: var(--ink);
   padding: var(--s-2) var(--s-3);
 }
-/* Drop preview (drag-create selection + external drag-over): make the landing
-   slot unmistakable instead of a faint wash. */
+/* Drop preview (drag-create selection + external drag-over): a clear sage wash
+   marks the landing slot. NO dashed border — during a timed drag-select FC also
+   renders a selectMirror event in the same slot, and a border here stacked with
+   the mirror's spine + 1px ring read as a doubled, inconsistent outline. The
+   wash alone (plus the mirror when present) is the single, clean preview. */
 .calshell .fc .fc-highlight {
-  border: 1.5px dashed var(--accent);
   border-radius: var(--r-sm);
 }
 .calshell .fc .fc-day-today .fc-daygrid-day-number {
@@ -250,16 +278,82 @@
 .calshell .fc-event.fc-event-resizing {
   box-shadow: var(--e3);
 }
-/* Dragging an event between slots: the card in flight is the solid one; the
-   copy still parked at the origin fades way back, so there's never a moment
-   of "which of these two is real". */
-.calshell .fc-event-dragging:not(.fc-event-mirror) {
-  opacity: 0.3;
+/* Move gesture — three simultaneous previews (Notion/Apple Calendar):
+   (1) ORIGINAL stays put, gently dimmed; (2) SUPERPOSITION, a full-opacity card
+   that free-follows the cursor (.cal-dragfollow, rendered by us); (3) SNAP BOX,
+   FullCalendar's grid-snapped mirror shown as a dotted no-fill outline in the
+   event's own colour, marking where it will land.
+
+   (1) ONLY the dragged event dims — its harness is tagged .is-drag-source in JS
+   (FC otherwise hides it via inline visibility:hidden, and gives it no class to
+   target). We keep it visible and lightly fade it; the rest of the calendar is
+   untouched. The fade is gentle so its original time stays readable. */
+.calshell .fc-timegrid-event-harness.is-drag-source,
+.calshell .fc-daygrid-event-harness.is-drag-source {
+  visibility: visible !important;
 }
-/* In-grid drag mirror: read as the event card being carried, not a ghost. */
-.calshell .fc-event-mirror {
-  opacity: 0.9;
-  box-shadow: var(--e3);
+.calshell .is-drag-source .fc-timegrid-event,
+.calshell .is-drag-source .fc-daygrid-event {
+  opacity: 0.6;
+}
+
+/* (3) The snap box: FC's mirror, stripped to a dotted outline in the EVENT'S
+   colour (--cal-tint rides along on the mirror) with no fill, so it reads as
+   "the slot this event will land in", full opacity above the grid. Its text is
+   hidden — the carried follower card shows the live time.
+   Scoped to MOVE only (body.is-cal-dragging). A resize ALSO renders a mirror,
+   but resizing must keep FullCalendar's plain in-place preview — no dotted box,
+   no follower, no behavioural change — so these rules must not touch it. */
+body.is-cal-dragging .calshell .fc-event-mirror {
+  opacity: 1;
+  z-index: 999 !important;
+  background: transparent !important;
+  border: 2px dashed var(--cal-tint, var(--accent)) !important;
+  border-radius: var(--r-sm);
+  box-shadow: none;
+}
+body.is-cal-dragging .calshell .fc-event-mirror * {
+  visibility: hidden;
+}
+
+/* (2) The superposition: a full-opacity clone of the event, rendered into
+   .cal-dragfollow and positioned at the raw cursor (un-snapped) by JS. Wears the
+   event card recipe (tint wash + spine), lifted on a real shadow, above the snap
+   box so it reads as the card in your hand. */
+.cal-dragfollow {
+  position: fixed;
+  z-index: 1001;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  border-left: 3px solid var(--cal-tint, var(--accent));
+  background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
+  box-shadow: var(--e4);
+}
+
+/* Grabbing cursor across the document for the whole move/resize (FullCalendar's
+   mirror is pointer-events:none, so the cursor otherwise reflects the grid
+   underneath — the reported "no holding cursor"). Resize keeps the row-resize
+   cursor it already shows on the edge handle. */
+body.is-cal-dragging {
+  cursor: grabbing !important;
+}
+/* Selected / keyboard-focused event: FullCalendar ships a grey overlay (killed
+   via --fc-event-selected-overlay-color above) plus a drop-shadow ring and two
+   positioned pseudo-elements. Replace all of it with the app's quiet accent
+   ring so a clicked/duplicated event reads as a clean tinted card, not a muddy
+   selected box. The mirror keeps its own treatment (it's mid-drag). */
+.calshell .fc .fc-event-selected:not(.fc-event-mirror),
+.calshell .fc .fc-event:focus-visible:not(.fc-event-mirror) {
+  box-shadow: 0 0 0 2px var(--accent) !important;
+  outline: none;
+}
+.calshell .fc .fc-event-selected::before,
+.calshell .fc .fc-event-selected::after,
+.calshell .fc .fc-event:focus::before,
+.calshell .fc .fc-event:focus::after {
+  display: none;
 }
 /* External-drag clone: FullCalendar copies the library row straight onto
    <body>. It becomes a compact, tilted TAG in the hand — title only, the
@@ -274,12 +368,31 @@ body > .cal-lib__item {
   border: 0;
   border-left: 3px solid var(--cal-tint, var(--accent));
   border-radius: var(--r-sm);
-  box-shadow: var(--e3);
-  opacity: 0.75;
+  box-shadow: var(--e4);
+  opacity: 0.92;
   rotate: -2deg;
-  scale: 0.92;
+  scale: 0.96;
   cursor: grabbing;
   padding: var(--s-2) var(--s-4);
+  /* "Picked up" pop: the tag lifts into the hand instead of just appearing. */
+  animation: cal-lift 160ms var(--ease-overlay) both;
+}
+@keyframes cal-lift {
+  from {
+    opacity: 0;
+    scale: 0.8;
+    rotate: 0deg;
+  }
+  to {
+    opacity: 0.92;
+    scale: 0.96;
+    rotate: -2deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body > .cal-lib__item {
+    animation: none;
+  }
 }
 body > .cal-lib__item .cal-lib__grip,
 body > .cal-lib__item .cal-lib__meta,
@@ -859,18 +972,15 @@ body > .cal-lib__item .cal-lib__name {
   border-radius: var(--r-round);
   background: var(--accent);
   color: var(--on-accent);
-  box-shadow: var(--e3);
   cursor: pointer;
   z-index: 26; /* above the tabbar (24), below every overlay (scrim 30) */
-  transition: background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease),
-    box-shadow var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .calshell__fab:hover {
   background: var(--accent-ink);
 }
 .calshell__fab:active {
   transform: translateY(1px);
-  box-shadow: var(--e1);
 }
 .calshell__fab:focus-visible {
   outline-color: var(--ink);

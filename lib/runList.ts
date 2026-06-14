@@ -458,3 +458,23 @@ export function cloneRunDoc(doc: RunDoc): RunDoc {
     })),
   };
 }
+
+// Deep-copy a run doc onto a NEW activity identity. Block ids derived from the
+// source activity id (`<id>-details`, `<id>-details-heading`, `<id>-play-heading`,
+// `<id>-mat`, …) carry that prefix forward so section detection
+// (isDetailsHeading/ensureSectionHeadings) keeps matching the copy; every other
+// id — and every child id — is reissued fresh so the two activities can never
+// collide on block identity (which would corrupt drag/reorder/focus). Used by
+// duplicateActivity.
+export function rekeyRunDoc(doc: RunDoc, oldActivityId: string, newActivityId: string): RunDoc {
+  const oldPrefix = (oldActivityId || "a") + "-";
+  const rekeyBlockId = (id: string): string =>
+    id.startsWith(oldPrefix) ? newActivityId + "-" + id.slice(oldPrefix.length) : runId("b");
+  return {
+    blocks: doc.blocks.map((b) => ({
+      ...b,
+      id: rekeyBlockId(b.id),
+      children: (b.children || []).map((c) => ({ ...c, id: runId("k") })),
+    })),
+  };
+}

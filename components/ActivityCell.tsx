@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type { Activity } from "@/lib/types";
 import { ageLabel, categoryTint, durLabel, ENERGY } from "@/lib/data";
 import { SaveButton } from "./primitives";
@@ -10,14 +10,20 @@ export function ActivityCell({
   saved = false,
   onOpen,
   onToggleSaved,
+  onContextMenu,
 }: {
   activity: Activity;
   saved?: boolean;
   onOpen: (activity: Activity) => void;
   onToggleSaved: (id: string) => void;
+  onContextMenu?: (activity: Activity, event: MouseEvent) => void;
 }) {
   return (
-    <div className="cat-row" style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}>
+    <div
+      className="cat-row"
+      style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(activity, e) : undefined}
+    >
       <button
         type="button"
         className="cat-row__open stretch"

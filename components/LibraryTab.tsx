@@ -4,7 +4,7 @@
 // bar, and the three browse views. Filter state lives in CampApp because the
 // desktop filter rail renders inside the sidenav.
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import type { MaterialOption } from "@/lib/materials";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -34,6 +34,7 @@ export function LibraryTab({
   onOpen,
   isFav,
   onToggleFav,
+  onContextMenu,
   onAdd,
 }: {
   view: LibraryView;
@@ -56,6 +57,8 @@ export function LibraryTab({
   onOpen: (activity: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
+  /** Right-click an activity card/row → context menu (pointer-fine only). */
+  onContextMenu?: (activity: Activity, event: MouseEvent) => void;
   onAdd: () => void;
   /** Rendered at the right end of the toolbar (e.g. the auth pill). */
   actions?: ReactNode;
@@ -196,10 +199,14 @@ export function LibraryTab({
           </div>
         ) : (
           <>
-            {view === "shelf" && <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
-            {view === "deck" && <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />}
+            {view === "shelf" && (
+              <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
+            )}
+            {view === "deck" && (
+              <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
+            )}
             {view === "catalog" && (
-              <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} />
+              <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
             )}
           </>
         )}

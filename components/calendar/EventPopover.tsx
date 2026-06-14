@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
@@ -8,13 +8,13 @@ import { categoryTint } from "@/lib/data";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 import { useDialogFocus } from "../useDialogFocus";
+import { useFloatingPosition } from "../floating/useFloatingPosition";
 
 // Google Calendar's signature interaction: clicking an event shows a small
 // anchored card with the essentials and actions, not a full modal. On phones
-// it docks to the bottom of the screen (CSS).
-
-const POPOVER_WIDTH = 300;
-const MARGIN = 8;
+// it docks to the bottom of the screen (CSS). Positioning is delegated to the
+// shared useFloatingPosition helper (the same engine that backs the dropdowns
+// and context menus), so all floating layers clamp/flip identically.
 
 export function EventPopover({
   event,
@@ -22,6 +22,7 @@ export function EventPopover({
   anchor,
   onOpenActivity,
   onEdit,
+  onDuplicate,
   onDelete,
   onClose,
 }: {
@@ -30,39 +31,22 @@ export function EventPopover({
   anchor: DOMRect;
   onOpenActivity: (activity: Activity) => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.innerWidth < 768) {
-      setPosition(null); // bottom-docked via CSS
-      return;
-    }
-    const height = cardRef.current?.offsetHeight ?? 200;
-    let left = anchor.right + MARGIN;
-    if (left + POPOVER_WIDTH > window.innerWidth - MARGIN) left = anchor.left - POPOVER_WIDTH - MARGIN;
-    if (left < MARGIN) left = Math.min(Math.max(anchor.left, MARGIN), window.innerWidth - POPOVER_WIDTH - MARGIN);
-    let top = anchor.top;
-    if (top + height > window.innerHeight - MARGIN) {
-      // Flip above the anchor when there's room, so bottom-of-screen events
-      // aren't covered by their own popover; otherwise clamp to the viewport.
-      const above = anchor.top - height - MARGIN;
-      top = above >= MARGIN ? above : Math.max(MARGIN, window.innerHeight - height - MARGIN);
-    }
-    setPosition({ left, top });
-  }, [anchor]);
+  const docked = typeof window !== "undefined" && window.innerWidth < 768;
+  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
 
   // Desktop-anchored mode: the position is computed once from the anchor rect,
   // so any grid scroll detaches the card from its event — close instead of
   // chasing the anchor through FullCalendar re-renders (Google Calendar does
   // the same). The bottom-docked phone variant scrolls nothing behind it.
   useEffect(() => {
-    if (!position) return;
+    if (docked) return;
     const onScroll = (e: Event) => {
       if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
       onClose();
@@ -73,7 +57,7 @@ export function EventPopover({
       document.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("resize", onClose);
     };
-  }, [position, onClose]);
+  }, [docked, onClose]);
 
   const timeLabel = event.allDay ? "All day" : formatRangeLabel(event.startMin, event.endMin);
   const title = activity?.title || event.title || "Untitled";
@@ -87,7 +71,13 @@ export function EventPopover({
           cardRef.current = node;
         }}
         className="cal-popover"
-        style={position ? { left: position.left, top: position.top } : undefined}
+        style={
+          docked
+            ? undefined
+            : position
+              ? { left: position.left, top: position.top, visibility: "visible" }
+              : { left: 0, top: 0, visibility: "hidden" }
+        }
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -120,6 +110,10 @@ export function EventPopover({
           <button type="button" className="btn btn--quiet btn--sm" onClick={onEdit}>
             <CampIcon.Pencil />
             Edit
+          </button>
+          <button type="button" className="btn btn--quiet btn--sm" onClick={onDuplicate}>
+            <CampIcon.Copy />
+            Duplicate
           </button>
           <button type="button" className="btn btn--ghost btn--sm cal-popover__delete" onClick={onDelete}>
             <CampIcon.Trash />

@@ -16,6 +16,8 @@ import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
 import { CampIcon } from "./icons";
+import { ContextMenu } from "./floating/ContextMenu";
+import { useContextMenu } from "./floating/useContextMenu";
 import { ActivityBookPrint } from "./ActivityBookPrint";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
@@ -326,6 +328,21 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     if (lib.deleteActivity(activity)) setDetail(null);
   }
 
+  function duplicateActivity(activity: Activity) {
+    const copy = lib.duplicateActivity(activity);
+    if (!copy) return;
+    // Surface the copy where the user is looking: jump to the catalog so the
+    // new "(copy)" row is visible at the top.
+    setCat("All");
+    lib.setView("catalog");
+    setTab("library");
+  }
+
+  // Right-click on any library activity (shelf spine, deck card, catalog row).
+  // Pointer-fine only; touch users reach the same actions through the detail
+  // sheet (which also carries Edit/Delete/Duplicate in its header).
+  const libMenu = useContextMenu<Activity>();
+
   // Print: the activity book is the one surviving print artifact.
   const [printActivityId, setPrintActivityId] = useState<string | null>(null);
   const printActivity = printActivityId ? lib.byId[printActivityId] ?? null : null;
@@ -478,6 +495,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               onOpen={openDetail}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
+              onContextMenu={(activity, e) => libMenu.open(e, activity)}
               onAdd={openAddActivity}
             />
           )}
@@ -572,6 +590,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             }}
             isCustom={lib.isCustomActivity(detailActivity.id)}
             onEdit={editActivity}
+            onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
             availableMaterials={lib.activeAvailableMaterials}
@@ -583,6 +602,38 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
           />
         )}
+        {libMenu.state && (() => {
+          const target = libMenu.state.target;
+          return (
+            <ContextMenu
+              point={libMenu.state.point}
+              ariaLabel={target.title}
+              onClose={libMenu.close}
+              items={[
+                { label: "Open", icon: <CampIcon.BookOpen />, onSelect: () => openDetail(target) },
+                {
+                  label: lib.isFav(target.id) ? "Unsave" : "Save",
+                  icon: <CampIcon.Bookmark />,
+                  onSelect: () => lib.toggleFav(target.id),
+                },
+                {
+                  label: "Edit",
+                  icon: <CampIcon.Pencil />,
+                  separatorBefore: true,
+                  onSelect: () => editActivity(target),
+                },
+                { label: "Duplicate", icon: <CampIcon.Copy />, onSelect: () => duplicateActivity(target) },
+                {
+                  label: "Delete",
+                  icon: <CampIcon.Trash />,
+                  danger: true,
+                  disabled: !lib.isCustomActivity(target.id),
+                  onSelect: () => deleteActivity(target),
+                },
+              ]}
+            />
+          );
+        })()}
         {printActivity && <ActivityBookPrint activity={printActivity} runDoc={lib.resolveRunDoc(printActivity)} />}
         {staffPrompt && (
           <StaffPromptModal

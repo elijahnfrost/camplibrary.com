@@ -16,6 +16,7 @@ export function DetailSheet({
   onSetRating,
   isCustom,
   onEdit,
+  onDuplicate,
   onDelete,
   onPrint,
   showOwnerActions = true,
@@ -33,6 +34,7 @@ export function DetailSheet({
   onSetRating?: (id: string, val: number) => void;
   isCustom: boolean;
   onEdit: (a: Activity) => void;
+  onDuplicate: (a: Activity) => void;
   onDelete: (a: Activity) => void;
   onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
@@ -118,6 +120,19 @@ export function DetailSheet({
                   title={editing ? "Done editing" : "Edit run list"}
                 >
                   <CampIcon.Pencil />
+                </button>
+              )}
+              {showOwnerActions && editing && (
+                // Duplicate works for built-ins too (it forks a custom copy),
+                // so it lives outside the isCustom gate the edit/delete pair uses.
+                <button
+                  type="button"
+                  className="rlv-headbtn"
+                  onClick={() => onDuplicate(a)}
+                  aria-label="Duplicate activity"
+                  title="Duplicate activity"
+                >
+                  <CampIcon.Copy />
                 </button>
               )}
               {showOwner && editing && (

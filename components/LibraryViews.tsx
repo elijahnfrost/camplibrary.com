@@ -10,7 +10,7 @@ import {
   monogram,
   ratingColor,
 } from "@/lib/data";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
 import { EmptyResults, SaveButton } from "./primitives";
 
@@ -19,6 +19,7 @@ interface ViewProps {
   onOpen: (a: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
+  onContextMenu?: (a: Activity, event: MouseEvent) => void;
 }
 
 function hash(s: string): number {
@@ -33,7 +34,7 @@ const spinePadTop = (a: Activity) => 10 + (hash(a.id + "h") % 5) * 9; // extra c
 const SPINE_MARKS = 6; // count of hand-drawn spine motifs (see .spine__mark in globals.css)
 
 // ---------- Shelf view ----------
-export function ShelfView({ items, onOpen, isFav }: ViewProps) {
+export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
   const groups = CATEGORIES.map((c) => ({
     cat: c,
     list: items.filter((a) => a.type === c.id),
@@ -73,6 +74,7 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
                   title={a.title}
                   aria-label={a.title}
                   onClick={() => onOpen(a)}
+                  onContextMenu={onContextMenu ? (e) => onContextMenu(a, e) : undefined}
                 >
                   {saved && <span className="spine__mark" data-mark={mark} aria-hidden="true" />}
                   <span className="spine__title">{a.title}</span>
@@ -88,12 +90,16 @@ export function ShelfView({ items, onOpen, isFav }: ViewProps) {
 }
 
 // ---------- Deck view ----------
-export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
+export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu }: ViewProps) {
   if (!items.length) return <EmptyResults />;
   return (
     <div className="deck fadein">
       {items.map((a) => (
-        <div className="deck-card" key={a.id}>
+        <div
+          className="deck-card"
+          key={a.id}
+          onContextMenu={onContextMenu ? (e) => onContextMenu(a, e) : undefined}
+        >
           {/* Plain content layer; the stretched button below overlays it as the
               single primary action, and the star rides above as a sibling. */}
           <div className="plate" style={{ background: ratingColor(a.rating) }} aria-hidden="true">
@@ -129,7 +135,7 @@ export function DeckView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
 }
 
 // ---------- Catalog view ----------
-export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
+export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu }: ViewProps) {
   const [sort, setSort] = useState<"az" | "rating">("az");
   if (!items.length) return <EmptyResults />;
   const sorted = [...items].sort((a, b) =>
@@ -156,6 +162,7 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav }: ViewProps) {
           saved={isFav(a.id)}
           onOpen={onOpen}
           onToggleSaved={onToggleFav}
+          onContextMenu={onContextMenu}
         />
       ))}
       <div style={{ height: 10 }} />

@@ -23,11 +23,13 @@ import {
   useState,
   type DragEvent,
   type FC,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import type { Activity } from "@/lib/types";
 import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
 import { CampIcon } from "./icons";
+import { ContextMenu } from "./floating/ContextMenu";
 import { RatingDots } from "./primitives";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 import { PlaybookEditor } from "./PlaybookEditor";
@@ -351,6 +353,9 @@ export function ActivityRunList({
   const [undoState, setUndoState] = useState<{ message: string; doc: RunDoc } | null>(null);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  // Right-click on a block (edit mode only) → a themed menu mirroring the row
+  // tools. Pointer-fine only; touch keeps the always-visible row buttons.
+  const [blockMenu, setBlockMenu] = useState<{ item: DragItem; point: { x: number; y: number } } | null>(null);
   const [railSegments, setRailSegments] = useState<RailSegment[]>([]);
 
   const dragRef = useRef<DragItem | null>(null);
@@ -448,6 +453,33 @@ export function ActivityRunList({
     const block = doc.blocks.find((b) => b.id === id);
     offerUndo((block?.type === "step" ? "Step" : "Block") + " removed");
     commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+  };
+
+  // Duplicate a top-level block right below itself, with fresh ids on the block
+  // and every attached detail so the copy can't collide with the original.
+  const dupTop = (id: string) => {
+    const block = doc.blocks.find((b) => b.id === id);
+    if (!block) return;
+    const copy: RunBlock = {
+      ...block,
+      id: runId("b"),
+      children: (block.children || []).map((c) => ({ ...c, id: runId("k") })),
+    };
+    commit(insertBlockAfter(doc, id, copy));
+  };
+
+  // Duplicate an attached detail right after itself within the same parent.
+  const dupKid = (pid: string, kid: string) => {
+    commit({
+      blocks: doc.blocks.map((b) => {
+        if (b.id !== pid) return b;
+        const children = b.children || [];
+        const index = children.findIndex((c) => c.id === kid);
+        if (index < 0) return b;
+        const copy: RunChild = { ...children[index], id: runId("k") };
+        return { ...b, children: [...children.slice(0, index + 1), copy, ...children.slice(index + 1)] };
+      }),
+    });
   };
 
   // Enter inside a step: split at the caret — text before stays, text after
@@ -725,6 +757,18 @@ export function ActivityRunList({
       }
     },
     onDragEnd: finishDrag,
+    // Edit-mode-only right-click: suppress the browser's spellcheck/editing
+    // menu and open the themed block menu instead. Ignore right-clicks on
+    // nested controls (e.g. the diagram editor) so they keep their own surface.
+    onContextMenu: editable
+      ? (e: ReactMouseEvent<HTMLElement>) => {
+          if (typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches) return;
+          if ((e.target as HTMLElement).closest("button, input, textarea, select, a, .matkit, .pbe")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setBlockMenu({ item, point: { x: e.clientX, y: e.clientY } });
+        }
+      : undefined,
   });
 
   const dropBind = (item: DragItem) => ({
@@ -1547,6 +1591,74 @@ export function ActivityRunList({
         </div>
       )}
       {lightbox && <DiagramLightbox playbook={lightbox} onClose={() => setLightbox(null)} />}
+
+      {blockMenu && (() => {
+        const item = blockMenu.item;
+        if (item.kind === "top") {
+          const idx = doc.blocks.findIndex((b) => b.id === item.id);
+          return (
+            <ContextMenu
+              point={blockMenu.point}
+              ariaLabel="Block actions"
+              onClose={() => setBlockMenu(null)}
+              items={[
+                {
+                  label: "Move up",
+                  icon: <CampIcon.ChevronUp />,
+                  disabled: idx <= 0,
+                  onSelect: () => moveTopBy(item.id, -1),
+                },
+                {
+                  label: "Move down",
+                  icon: <CampIcon.ChevronDown />,
+                  disabled: idx < 0 || idx >= doc.blocks.length - 1,
+                  onSelect: () => moveTopBy(item.id, 1),
+                },
+                { label: "Duplicate", icon: <CampIcon.Copy />, onSelect: () => dupTop(item.id) },
+                {
+                  label: "Remove",
+                  icon: <CampIcon.Trash />,
+                  danger: true,
+                  separatorBefore: true,
+                  onSelect: () => rmTop(item.id),
+                },
+              ]}
+            />
+          );
+        }
+        const parent = doc.blocks.find((b) => b.id === item.parentId);
+        const kids = parent?.children || [];
+        const kidIdx = kids.findIndex((c) => c.id === item.id);
+        return (
+          <ContextMenu
+            point={blockMenu.point}
+            ariaLabel="Detail actions"
+            onClose={() => setBlockMenu(null)}
+            items={[
+              {
+                label: "Move up",
+                icon: <CampIcon.ChevronUp />,
+                disabled: kidIdx <= 0,
+                onSelect: () => moveChildBy(item.parentId, item.id, -1),
+              },
+              {
+                label: "Move down",
+                icon: <CampIcon.ChevronDown />,
+                disabled: kidIdx < 0 || kidIdx >= kids.length - 1,
+                onSelect: () => moveChildBy(item.parentId, item.id, 1),
+              },
+              { label: "Duplicate", icon: <CampIcon.Copy />, onSelect: () => dupKid(item.parentId, item.id) },
+              {
+                label: "Remove",
+                icon: <CampIcon.Trash />,
+                danger: true,
+                separatorBefore: true,
+                onSelect: () => rmKid(item.parentId, item.id),
+              },
+            ]}
+          />
+        );
+      })()}
     </div>
   );
 }
