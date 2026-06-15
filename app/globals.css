@@ -950,10 +950,19 @@ body {
 .overlay--manager {
   width: min(440px, 92vw);
 }
+/* Align the title bar's inset with the body padding below so "Camps"/"Themes"
+   and the create form share one left edge, and give the bar room from the close
+   button on the right. */
+.overlay--manager .overlay__bar {
+  padding: 16px var(--s-7) 8px;
+}
 .manager {
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+  /* The body had zero horizontal padding, so the intro/input/list ran edge to
+     edge. Pad it (and the bottom) so content breathes inside the card. */
+  padding: 0 var(--s-7) var(--s-7);
 }
 .manager__title {
   margin: 0;
