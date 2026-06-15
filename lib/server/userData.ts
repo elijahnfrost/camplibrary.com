@@ -1,4 +1,5 @@
 import { getSql } from "./db";
+import { cacheUntilFailure } from "./once";
 import {
   isUserDocKey,
   normalizeDoc,
@@ -41,13 +42,9 @@ const MINUTES_PER_DAY = 1440;
 export const EVENT_TITLE_MAX_LENGTH = 200;
 export const EVENT_ACTIVITY_ID_MAX_LENGTH = 120;
 
-let schemaReady: Promise<void> | null = null;
-
-export async function ensureUserDataSchema() {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = getSql();
-      await sql`CREATE TABLE IF NOT EXISTS user_documents (
+export const ensureUserDataSchema = cacheUntilFailure(async () => {
+  const sql = getSql();
+  await sql`CREATE TABLE IF NOT EXISTS user_documents (
         clerk_user_id text NOT NULL,
         doc_key text NOT NULL,
         doc jsonb NOT NULL,
@@ -55,7 +52,7 @@ export async function ensureUserDataSchema() {
         updated_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (clerk_user_id, doc_key)
       )`;
-      await sql`CREATE TABLE IF NOT EXISTS calendar_events (
+  await sql`CREATE TABLE IF NOT EXISTS calendar_events (
         id uuid PRIMARY KEY,
         clerk_user_id text NOT NULL,
         event_date date NOT NULL,
@@ -72,14 +69,11 @@ export async function ensureUserDataSchema() {
           OR (start_min >= 0 AND end_min <= 1440 AND start_min < end_min)
         )
       )`;
-      await sql`
+  await sql`
         CREATE INDEX IF NOT EXISTS calendar_events_user_date_idx
         ON calendar_events (clerk_user_id, event_date)
       `;
-    })();
-  }
-  return schemaReady;
-}
+});
 
 export function isValidDateKey(value: unknown): value is string {
   if (typeof value !== "string" || !DATE_KEY_PATTERN.test(value)) return false;

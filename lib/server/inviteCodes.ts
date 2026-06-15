@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getSql } from "./db";
 import { getRequiredServerEnv } from "./env";
+import { cacheUntilFailure } from "./once";
 
 export type InviteCodeRecord = {
   id: string;
@@ -49,8 +50,6 @@ export class InviteCodeValidationError extends Error {
     this.name = "InviteCodeValidationError";
   }
 }
-
-let schemaReady: Promise<void> | null = null;
 
 export function normalizeInviteCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -131,11 +130,9 @@ export function normalizeInviteMaxUses(value: unknown): number {
   return maxUses;
 }
 
-export async function ensureInviteCodeSchema() {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = getSql();
-      await sql`CREATE TABLE IF NOT EXISTS invite_codes (
+export const ensureInviteCodeSchema = cacheUntilFailure(async () => {
+  const sql = getSql();
+  await sql`CREATE TABLE IF NOT EXISTS invite_codes (
         id uuid PRIMARY KEY,
         code_hash text NOT NULL UNIQUE,
         label text,
@@ -236,10 +233,7 @@ export async function ensureInviteCodeSchema() {
         CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
         ON invite_code_reservations (invite_code_id)
       `;
-    })();
-  }
-  return schemaReady;
-}
+});
 
 function mapRecord(row: Record<string, unknown>): InviteCodeRecord {
   return {
