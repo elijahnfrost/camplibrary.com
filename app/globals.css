@@ -2770,7 +2770,9 @@ body {
 /* ---- favorites grid (mini deck covers) ---- */
 .home-favs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Fluid like the Library deck (was a hard 1fr 1fr that rendered the covers
+     ~30% larger than the identical deck-card module). */
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
   gap: var(--s-5);
 }
 /* The home favorite cover reuses .deck-card wholesale; only the title scales
@@ -4307,11 +4309,18 @@ body {
 }
 .seg button {
   flex: 1;
+  /* min-height var(--tap) makes the segment 44px tall (seg total 47px) so it
+     lines up with .input/.select on a shared grid row, and reaches the 44px
+     touch target. Flex-center the label now that height is min-height-driven. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
   background: var(--card);
   border: 0;
   border-right: 1.5px solid var(--line);
   cursor: pointer;
-  padding: 11px 4px;
+  padding: 4px;
   font-family: var(--hand-sc);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -5092,7 +5101,6 @@ body {
     column-gap: var(--s-7);
   }
   .home-favs {
-    grid-template-columns: 1fr 1fr;
     gap: var(--s-6);
   }
 
