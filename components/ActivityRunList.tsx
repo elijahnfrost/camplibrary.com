@@ -32,19 +32,24 @@ import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { RatingDots } from "./primitives";
 import { ActivityPlaybook } from "./ActivityPlaybook";
-import { PlaybookEditor } from "./PlaybookEditor";
 import {
   RUN_CHILD_META,
   RUN_CHILD_TYPES,
   RUN_TOP_LABEL,
+  applyDrop,
   blankDiagramChild,
   blankStepBlock,
+  cloneRunChild,
   cloneRunDoc,
   detailTagsForActivity,
   insertBlockAfter,
   insertBlockAt,
+  resolveDrop,
   runId,
   runPillLabel,
+  sameDragItem,
+  type DragItem,
+  type DropTarget,
   type RunBlock,
   type RunBlockType,
   type RunChild,
@@ -52,7 +57,9 @@ import {
   type RunDoc,
 } from "@/lib/runList";
 import type { ActivityPlaybookData } from "@/lib/playbooks";
+import { parseEmbed, type ParsedEmbed } from "@/lib/embed";
 import { DiagramLightbox } from "./DiagramLightbox";
+import { DiagramEditModal } from "./DiagramEditModal";
 
 const DETAIL_ANIM_MS = 170;
 
@@ -82,19 +89,6 @@ const ADD_BLOCKS: { type: RunBlockType; label: string; icon: IconCmp }[] = [
 ];
 const ATTACH_BLOCKS = RUN_CHILD_TYPES.filter((type) => type !== "materials");
 
-type DragItem =
-  | { kind: "top"; id: string }
-  | { kind: "child"; parentId: string; id: string };
-
-type DropTarget = {
-  item: DragItem;
-  position: "before" | "after";
-};
-
-type DropDestination =
-  | { scope: "top"; targetId: string; position: "before" | "after" }
-  | { scope: "children"; parentId: string; targetChildId: string | null; position: "before" | "after" };
-
 type RailSegment = {
   id: string;
   x: number;
@@ -104,43 +98,6 @@ type RailSegment = {
 
 const topRailKey = (id: string) => "top:" + id;
 const childRailKey = (parentId: string, id: string) => "child:" + parentId + ":" + id;
-
-function sameDragItem(a: DragItem | null, b: DragItem): boolean {
-  if (!a || a.kind !== b.kind || a.id !== b.id) return false;
-  return a.kind === "top" || b.kind === "top" || a.parentId === b.parentId;
-}
-
-function childFromTop(block: RunBlock): RunChild | null {
-  if (block.type === "note" || block.type === "safety" || block.type === "variation") {
-    return { id: block.id, type: block.type, text: block.text || "" };
-  }
-  if (block.type === "materials") return { id: block.id, type: "materials" };
-  return null;
-}
-
-function topFromChild(child: RunChild): RunBlock | null {
-  if (child.type === "note" || child.type === "safety" || child.type === "variation") {
-    return { id: child.id, type: child.type, text: child.text || "", children: [] };
-  }
-  if (child.type === "substep") {
-    return { id: child.id, type: "step", text: child.text || "", collapsed: false, children: [] };
-  }
-  if (child.type === "materials") return { id: child.id, type: "materials", children: [] };
-  return null;
-}
-
-function isChildCapable(item: DragItem, blocks: RunBlock[]): boolean {
-  if (item.kind === "child") return true;
-  const block = blocks.find((b) => b.id === item.id);
-  return Boolean(block && childFromTop(block));
-}
-
-function isTopCapable(item: DragItem, blocks: RunBlock[]): boolean {
-  if (item.kind === "top") return true;
-  const parent = blocks.find((b) => b.id === item.parentId);
-  const child = parent?.children?.find((k) => k.id === item.id);
-  return Boolean(child && topFromChild(child));
-}
 
 function dropPosition(e: DragEvent<HTMLElement>): "before" | "after" {
   const rect = e.currentTarget.getBoundingClientRect();
@@ -265,6 +222,50 @@ function Pill({ type, n }: { type: RunChildType; n: number }) {
   );
 }
 
+// A media detail rendered safely. Trusted-provider links (YouTube / Vimeo) play
+// inline as a sandboxed 16:9 iframe whose src we build from a *validated* video
+// id — never the raw user string — so an arbitrary iframe can never be injected.
+// Every other link reads as a tappable preview card. `none` renders nothing.
+function RunEmbed({ parsed, title }: { parsed: ParsedEmbed; title?: string }) {
+  if (parsed.kind === "youtube" || parsed.kind === "vimeo") {
+    return (
+      <div className="rl-embed rl-embed--player">
+        <iframe
+          src={parsed.embedUrl}
+          title={title || (parsed.kind === "youtube" ? "YouTube video" : "Vimeo video")}
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+  if (parsed.kind === "link") {
+    return (
+      <a className="rl-embed rl-embed--card" href={parsed.href} target="_blank" rel="noopener noreferrer">
+        <img
+          className="rl-embed__icon"
+          src={"https://www.google.com/s2/favicons?sz=64&domain=" + encodeURIComponent(parsed.domain)}
+          alt=""
+          width={32}
+          height={32}
+          loading="lazy"
+        />
+        <span className="rl-embed__meta">
+          <span className="rl-embed__title">{title || parsed.domain}</span>
+          <span className="rl-embed__domain">{parsed.domain}</span>
+        </span>
+        <span className="rl-embed__go" aria-hidden="true">
+          <CampIcon.Link />
+        </span>
+      </a>
+    );
+  }
+  return null;
+}
+
 // The activity's materials as a working checklist (the same "kit" the library
 // filter reads). Attaches under a step as a materials detail. Checked items
 // float to the top; the count line says what's still to gather.
@@ -348,7 +349,9 @@ export function ActivityRunList({
   const [openKid, setOpenKid] = useState<string | null>(null);
   const [openTop, setOpenTop] = useState(false);
   const [insertAt, setInsertAt] = useState<number | null>(null);
-  const [diagramEditing, setDiagramEditing] = useState<string | null>(null);
+  // The diagram detail (parent step + child id) currently open in the full-screen
+  // editor, mirroring how read mode opens diagrams full screen in the lightbox.
+  const [fullDiagram, setFullDiagram] = useState<{ stepId: string; childId: string } | null>(null);
   const [lightbox, setLightbox] = useState<ActivityPlaybookData | null>(null);
   const [undoState, setUndoState] = useState<{ message: string; doc: RunDoc } | null>(null);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
@@ -362,7 +365,6 @@ export function ActivityRunList({
   const listRef = useRef<HTMLUListElement | null>(null);
   const railNodes = useRef<Map<string, HTMLElement>>(new Map());
   const closeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const diagramRef = useRef<HTMLDivElement | null>(null);
   const pendingFocusRef = useRef<{ id: string; caret: "start" | "end" } | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -397,22 +399,6 @@ export function ActivityRunList({
     const timers = closeTimers.current;
     return () => Object.values(timers).forEach((t) => clearTimeout(t));
   }, []);
-
-  // A diagram edits in place like text: click the field to start, hit the
-  // pinned Done chip (or click away) to finish. The closing outside-tap is
-  // swallowed so it can't also pop a keyboard or fire a trash button.
-  useEffect(() => {
-    if (!diagramEditing) return;
-    const onDown = (e: PointerEvent) => {
-      if (diagramRef.current && !diagramRef.current.contains(e.target as Node)) {
-        e.preventDefault();
-        e.stopPropagation();
-        setDiagramEditing(null);
-      }
-    };
-    document.addEventListener("pointerdown", onDown, { capture: true });
-    return () => document.removeEventListener("pointerdown", onDown, { capture: true });
-  }, [diagramEditing]);
 
   const materialNeeds = useMemo(() => materialNeedsForActivity(activity), [activity]);
   const detailTags = useMemo(() => detailTagsForActivity(activity), [activity]);
@@ -451,19 +437,22 @@ export function ActivityRunList({
 
   const rmTop = (id: string) => {
     const block = doc.blocks.find((b) => b.id === id);
+    // Removing a step closes its diagram editor if it happened to be open.
+    if (fullDiagram?.stepId === id) setFullDiagram(null);
     offerUndo((block?.type === "step" ? "Step" : "Block") + " removed");
     commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
   };
 
   // Duplicate a top-level block right below itself, with fresh ids on the block
-  // and every attached detail so the copy can't collide with the original.
+  // and every attached detail (diagrams deep-cloned) so the copy can't collide
+  // with the original.
   const dupTop = (id: string) => {
     const block = doc.blocks.find((b) => b.id === id);
     if (!block) return;
     const copy: RunBlock = {
       ...block,
       id: runId("b"),
-      children: (block.children || []).map((c) => ({ ...c, id: runId("k") })),
+      children: (block.children || []).map((c) => cloneRunChild(c, runId("k"))),
     };
     commit(insertBlockAfter(doc, id, copy));
   };
@@ -476,7 +465,7 @@ export function ActivityRunList({
         const children = b.children || [];
         const index = children.findIndex((c) => c.id === kid);
         if (index < 0) return b;
-        const copy: RunChild = { ...children[index], id: runId("k") };
+        const copy: RunChild = cloneRunChild(children[index], runId("k"));
         return { ...b, children: [...children.slice(0, index + 1), copy, ...children.slice(index + 1)] };
       }),
     });
@@ -495,6 +484,7 @@ export function ActivityRunList({
   const removeEmptyStep = (id: string) => {
     const index = doc.blocks.findIndex((b) => b.id === id);
     if (index < 0) return;
+    if (fullDiagram?.stepId === id) setFullDiagram(null);
     const previousStep = [...doc.blocks.slice(0, index)].reverse().find((b) => b.type === "step");
     if (previousStep) pendingFocusRef.current = { id: previousStep.id, caret: "end" };
     commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
@@ -528,7 +518,7 @@ export function ActivityRunList({
   };
 
   const rmKid = (pid: string, kid: string) => {
-    if (diagramEditing === kid) setDiagramEditing(null);
+    if (fullDiagram?.childId === kid) setFullDiagram(null);
     offerUndo("Detail removed");
     commit({
       blocks: doc.blocks.map((b) =>
@@ -539,7 +529,7 @@ export function ActivityRunList({
 
   const addKid = (pid: string, type: RunChildType) => {
     let kid: RunChild;
-    if (type === "video") kid = { id: runId("k"), type, title: "Untitled clip", url: "" };
+    if (type === "video") kid = { id: runId("k"), type, title: "", url: "" };
     else if (type === "diagram") kid = blankDiagramChild(activity.id, activity.title);
     else if (type === "materials") kid = { id: runId("k"), type };
     else kid = { id: runId("k"), type, text: "" };
@@ -550,7 +540,8 @@ export function ActivityRunList({
     });
     openStep(pid);
     setOpenKid(null);
-    if (type === "diagram") setDiagramEditing(kid.id);
+    // A fresh diagram opens straight into the full-screen editor.
+    if (type === "diagram") setFullDiagram({ stepId: pid, childId: kid.id });
   };
 
   const makeTopBlock = (type: RunBlockType): RunBlock => {
@@ -574,109 +565,15 @@ export function ActivityRunList({
     setInsertAt(null);
   };
 
-  const resolveDrop = (source: DragItem, target: DropTarget): DropDestination | null => {
-    if (sameDragItem(source, target.item)) return null;
-
-    if (target.item.kind === "child") {
-      if (!isChildCapable(source, doc.blocks)) return null;
-      return {
-        scope: "children",
-        parentId: target.item.parentId,
-        targetChildId: target.item.id,
-        position: target.position,
-      };
-    }
-
-    const targetBlock = doc.blocks.find((b) => b.id === target.item.id);
-    if (!targetBlock) return null;
-
-    if (
-      target.position === "after" &&
-      targetBlock.type === "step" &&
-      !isCollapsed(targetBlock) &&
-      !closing[targetBlock.id] &&
-      isChildCapable(source, doc.blocks)
-    ) {
-      return { scope: "children", parentId: targetBlock.id, targetChildId: null, position: "before" };
-    }
-
-    if (!isTopCapable(source, doc.blocks)) return null;
-    return { scope: "top", targetId: targetBlock.id, position: target.position };
-  };
-
   const moveTo = (target: DropTarget) => {
     const source = dragRef.current;
-    const destination = source ? resolveDrop(source, target) : null;
-    if (!source || !destination) {
-      finishDrag();
-      return;
+    const destination = source ? resolveDrop(source, target, doc.blocks) : null;
+    const blocks = source && destination ? applyDrop(doc.blocks, source, destination) : null;
+    if (blocks) {
+      // Nesting onto a step's details auto-expands it so the move is visible.
+      if (destination?.scope === "children") openStep(destination.parentId);
+      commit({ blocks });
     }
-
-    let movingTop: RunBlock | null = null;
-    let movingChild: RunChild | null = null;
-    let blocks: RunBlock[] = doc.blocks.map((b) => ({ ...b, children: [...(b.children || [])] }));
-
-    if (source.kind === "top") {
-      const sourceIndex = blocks.findIndex((b) => b.id === source.id);
-      if (sourceIndex < 0) {
-        finishDrag();
-        return;
-      }
-      [movingTop] = blocks.splice(sourceIndex, 1);
-    } else {
-      blocks = blocks.map((b) => {
-        if (b.id !== source.parentId) return b;
-        const childIndex = (b.children || []).findIndex((k) => k.id === source.id);
-        if (childIndex < 0) return b;
-        const nextChildren = [...(b.children || [])];
-        [movingChild] = nextChildren.splice(childIndex, 1);
-        return { ...b, children: nextChildren };
-      });
-      if (!movingChild) {
-        finishDrag();
-        return;
-      }
-    }
-
-    if (destination.scope === "top") {
-      const block = movingTop || (movingChild ? topFromChild(movingChild) : null);
-      const targetIndex = blocks.findIndex((b) => b.id === destination.targetId);
-      if (!block || targetIndex < 0) {
-        finishDrag();
-        return;
-      }
-      blocks.splice(destination.position === "before" ? targetIndex : targetIndex + 1, 0, block);
-    } else {
-      const child = movingChild || (movingTop ? childFromTop(movingTop) : null);
-      if (!child) {
-        finishDrag();
-        return;
-      }
-      let inserted = false;
-      blocks = blocks.map((b) => {
-        if (b.id !== destination.parentId) return b;
-        const children = [...(b.children || [])];
-        const targetIndex =
-          destination.targetChildId == null ? -1 : children.findIndex((k) => k.id === destination.targetChildId);
-        const insertAt =
-          destination.targetChildId == null
-            ? 0
-            : destination.position === "before"
-              ? targetIndex
-              : targetIndex + 1;
-        if (insertAt < 0) return b;
-        children.splice(insertAt, 0, child);
-        inserted = true;
-        return { ...b, children };
-      });
-      if (!inserted) {
-        finishDrag();
-        return;
-      }
-      openStep(destination.parentId);
-    }
-
-    commit({ blocks });
     finishDrag();
   };
 
@@ -743,7 +640,7 @@ export function ActivityRunList({
     draggable: editable,
     onDragStart: (e: DragEvent<HTMLElement>) => {
       const target = e.target as HTMLElement;
-      if (target.closest("button, input, textarea, select, a, .matkit, .pbe")) {
+      if (target.closest("button, input, textarea, select, a, .matkit, .pbe, .rl-embed")) {
         e.preventDefault();
         return;
       }
@@ -763,7 +660,7 @@ export function ActivityRunList({
     onContextMenu: editable
       ? (e: ReactMouseEvent<HTMLElement>) => {
           if (typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches) return;
-          if ((e.target as HTMLElement).closest("button, input, textarea, select, a, .matkit, .pbe")) return;
+          if ((e.target as HTMLElement).closest("button, input, textarea, select, a, .matkit, .pbe, .rl-embed")) return;
           e.preventDefault();
           e.stopPropagation();
           setBlockMenu({ item, point: { x: e.clientX, y: e.clientY } });
@@ -775,8 +672,8 @@ export function ActivityRunList({
     onDragOver: (e: DragEvent<HTMLElement>) => {
       const source = dragRef.current;
       if (!editable || source == null) return;
-      const target = { item, position: dropPosition(e) };
-      if (!resolveDrop(source, target)) return;
+      const target: DropTarget = { item, position: dropPosition(e) };
+      if (!resolveDrop(source, target, doc.blocks)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       if (
@@ -1004,44 +901,32 @@ export function ActivityRunList({
 
     if (k.type === "diagram") {
       if (!k.diagram) return shell(null);
-      // Edits in place like text: tap the field to edit, click away to finish.
-      if (editable && diagramEditing === k.id) {
-        return shell(
-          <div className="rl-diagram rl-diagram--editing" ref={diagramRef}>
-            <button
-              type="button"
-              className="rl-diagram__done"
-              onClick={() => setDiagramEditing(null)}
-            >
-              <CampIcon.Check />
-              Done
-            </button>
-            <PlaybookEditor value={k.diagram} onChange={(next) => patchKid(stepId, k.id, { diagram: next })} />
-          </div>
-        );
-      }
+      // Both modes open full screen — read mode walks the stages in the lightbox,
+      // edit mode opens the roomy editor — so the diagram is never cramped.
       return shell(
-        editable ? (
-          <button
-            type="button"
-            className="rl-diagram rl-diagram--open"
-            onClick={() => setDiagramEditing(k.id)}
-            aria-label="Edit field diagram"
-          >
-            <ActivityPlaybook playbook={k.diagram} compact />
-          </button>
-        ) : (
-          // Read mode: tap opens the full-screen one-frame-at-a-time viewer —
-          // the projector-friendly way to walk a field setup.
-          <button
-            type="button"
-            className="rl-diagram rl-diagram--open"
-            onClick={() => setLightbox(k.diagram ?? null)}
-            aria-label="View field diagram full screen"
-          >
-            <ActivityPlaybook playbook={k.diagram} compact />
-          </button>
-        )
+        <button
+          type="button"
+          className="rl-diagram rl-diagram--open"
+          onClick={() =>
+            editable ? setFullDiagram({ stepId, childId: k.id }) : setLightbox(k.diagram ?? null)
+          }
+          aria-label={editable ? "Edit diagram full screen" : "View diagram full screen"}
+        >
+          <ActivityPlaybook playbook={k.diagram} compact />
+          <span className="rl-diagram__cue" aria-hidden="true">
+            {editable ? (
+              <>
+                <CampIcon.Pencil />
+                Edit
+              </>
+            ) : (
+              <>
+                <CampIcon.Maximize />
+                Full screen
+              </>
+            )}
+          </span>
+        </button>
       );
     }
 
@@ -1060,34 +945,44 @@ export function ActivityRunList({
     }
 
     if (k.type === "video") {
-      // A clean caption + link row (the old fake player-preview box read as
-      // clutter). In read mode the URL is a real tappable link.
+      // A media detail: a YouTube/Vimeo link plays inline; any other link reads
+      // as a tappable preview card. In edit mode the staffer sees a live preview.
       const rawUrl = (k.url || "").trim();
-      const href = rawUrl ? (/^https?:\/\//i.test(rawUrl) ? rawUrl : "https://" + rawUrl) : "";
+      const parsed = parseEmbed(rawUrl);
+      if (!editable) {
+        return shell(
+          <div className="rl-vid">
+            <RunEmbed parsed={parsed} title={k.title} />
+            {(parsed.kind === "youtube" || parsed.kind === "vimeo" || parsed.kind === "none") && k.title ? (
+              <span className="rl-vid__cap">{k.title}</span>
+            ) : null}
+            {parsed.kind === "none" && rawUrl ? <span className="rl-vid__url">{rawUrl}</span> : null}
+          </div>
+        );
+      }
       return shell(
         <div className="rl-vid">
           <Editable
             className="rl-text"
             value={k.title || ""}
             editable={editable}
-            placeholder="Caption"
-            ariaLabel="Video detail caption"
+            placeholder="Caption (optional)"
+            ariaLabel="Media caption"
             onCommit={(v) => patchKid(stepId, k.id, { title: v })}
           />
-          {editable ? (
-            <Editable
-              className="rl-vid__url"
-              tag="span"
-              value={k.url || ""}
-              editable={editable}
-              placeholder="youtu.be/…"
-              ariaLabel="Video detail URL"
-              onCommit={(v) => patchKid(stepId, k.id, { url: v })}
-            />
-          ) : href ? (
-            <a className="rl-vid__url" href={href} target="_blank" rel="noreferrer">
-              {rawUrl}
-            </a>
+          <Editable
+            className="rl-vid__url"
+            tag="span"
+            value={k.url || ""}
+            editable={editable}
+            placeholder="YouTube, Vimeo, or a link…"
+            ariaLabel="Media link"
+            onCommit={(v) => patchKid(stepId, k.id, { url: v })}
+          />
+          {parsed.kind !== "none" ? (
+            <div className="rl-vid__preview">
+              <RunEmbed parsed={parsed} title={k.title} />
+            </div>
           ) : null}
         </div>
       );
@@ -1112,6 +1007,9 @@ export function ActivityRunList({
   // mid-document no longer means append-then-arrow-up.
   const renderInsertZone = (index: number): ReactNode => {
     if (!editable) return null;
+    // While dragging, the only positioning cue on screen is the drop indicator —
+    // the between-row "+" affordances stay out of the way to cut the clutter.
+    if (dragItem) return null;
     if (insertAt === index) {
       return (
         <li className="rl-block rl-block--add rl-insertopen">
@@ -1591,6 +1489,20 @@ export function ActivityRunList({
         </div>
       )}
       {lightbox && <DiagramLightbox playbook={lightbox} onClose={() => setLightbox(null)} />}
+
+      {fullDiagram &&
+        (() => {
+          const parent = doc.blocks.find((b) => b.id === fullDiagram.stepId);
+          const child = parent?.children?.find((c) => c.id === fullDiagram.childId);
+          if (!child || child.type !== "diagram" || !child.diagram) return null;
+          return (
+            <DiagramEditModal
+              playbook={child.diagram}
+              onChange={(next) => patchKid(fullDiagram.stepId, fullDiagram.childId, { diagram: next })}
+              onClose={() => setFullDiagram(null)}
+            />
+          );
+        })()}
 
       {blockMenu && (() => {
         const item = blockMenu.item;

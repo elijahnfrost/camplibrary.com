@@ -3217,6 +3217,25 @@ body {
 .playbook-field__zone--area {
   stroke: color-mix(in srgb, var(--ink) 50%, transparent);
 }
+/* Palette overrides — placed AFTER the kind presets so a chosen color wins. */
+.playbook-field__zone--c-teal {
+  stroke: color-mix(in srgb, #4d7a86 78%, var(--ink));
+}
+.playbook-field__zone--c-clay {
+  stroke: color-mix(in srgb, var(--clay) 80%, var(--ink));
+}
+.playbook-field__zone--c-amber {
+  stroke: color-mix(in srgb, var(--amber) 78%, var(--ink));
+}
+.playbook-field__zone--c-sage {
+  stroke: color-mix(in srgb, var(--accent) 84%, var(--ink));
+}
+.playbook-field__zone--c-dusk {
+  stroke: color-mix(in srgb, var(--dusk) 82%, var(--ink));
+}
+.playbook-field__zone--c-ink {
+  stroke: color-mix(in srgb, var(--ink) 64%, transparent);
+}
 .playbook-field__zlabel,
 .playbook-field__label {
   font-family: var(--hand-sc);
@@ -3252,6 +3271,43 @@ body {
 }
 .playbook-arrowhead--neutral {
   fill: var(--wood);
+}
+/* Palette-colored arrows (authored via the generic editor). */
+.playbook-arrow--c-teal {
+  stroke: #3a5e69;
+}
+.playbook-arrow--c-clay {
+  stroke: #8b442e;
+}
+.playbook-arrow--c-amber {
+  stroke: #a9741f;
+}
+.playbook-arrow--c-sage {
+  stroke: var(--accent-ink);
+}
+.playbook-arrow--c-dusk {
+  stroke: #3a3650;
+}
+.playbook-arrow--c-ink {
+  stroke: var(--ink);
+}
+.playbook-arrowhead--c-teal {
+  fill: #3a5e69;
+}
+.playbook-arrowhead--c-clay {
+  fill: #8b442e;
+}
+.playbook-arrowhead--c-amber {
+  fill: #a9741f;
+}
+.playbook-arrowhead--c-sage {
+  fill: var(--accent-ink);
+}
+.playbook-arrowhead--c-dusk {
+  fill: #3a3650;
+}
+.playbook-arrowhead--c-ink {
+  fill: var(--ink);
 }
 .playbook-flag path:first-child {
   fill: none;
@@ -3296,6 +3352,89 @@ body {
   fill: var(--amber);
   stroke: var(--ink);
   stroke-width: 0.33;
+}
+
+/* ---------- generic markers (event-agnostic pieces) ---------- */
+/* Faint reference grid for courts / station maps / relay courses. */
+.playbook-field__grid path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 20%, transparent);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+/* Each color class hands its fill down through --mk so every shape paints the
+   same way. Palette = the same earthy tokens used across the app. */
+.playbook-marker {
+  --mk: #4d7a86;
+}
+.playbook-marker--teal {
+  --mk: #4d7a86;
+}
+.playbook-marker--clay {
+  --mk: var(--clay);
+}
+.playbook-marker--amber {
+  --mk: var(--amber);
+}
+.playbook-marker--sage {
+  --mk: var(--accent);
+}
+.playbook-marker--dusk {
+  --mk: var(--dusk);
+}
+.playbook-marker--ink {
+  --mk: var(--ink);
+}
+.playbook-marker > circle,
+.playbook-marker > rect,
+.playbook-marker > path {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-marker__flag .playbook-marker__pole {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+.playbook-marker__flag path:not(.playbook-marker__pole),
+.playbook-marker__flag circle {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+}
+.playbook-marker__pin path {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-marker__pinhole {
+  fill: var(--paper);
+  stroke: none;
+}
+.playbook-marker__text {
+  fill: var(--mk);
+  font-family: var(--hand-sc);
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+.playbook-marker--amber .playbook-marker__text {
+  fill: #9a6a22;
+}
+.playbook-marker__label {
+  fill: var(--ink-soft);
+  font-family: var(--hand-sc);
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
 }
 
 .book-page--instructions .playbook__intro {
@@ -3448,19 +3587,105 @@ body {
 .pbe__tools .btn {
   padding: 0 11px;
 }
+/* surface tone + paint pickers (color, shape) */
+.pbe__surface .seg {
+  width: 100%;
+}
+.pbe__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+.pbe__pick-label {
+  min-width: 42px;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.pbe__swatches,
+.pbe__shapes {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
 .pbe__swatch {
-  width: 11px;
-  height: 11px;
-  border: 1.5px solid var(--ink);
-  display: inline-block;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--sw, var(--ink));
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
-.pbe__swatch--blue {
-  background: #4d7a86;
-  border-radius: 50%;
+.pbe__swatch:hover {
+  transform: scale(1.08);
 }
-.pbe__swatch--red {
-  background: var(--clay);
-  border-radius: 2px;
+.pbe__swatch.is-on {
+  border-color: var(--card);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.pbe__swatch--teal {
+  --sw: #4d7a86;
+}
+.pbe__swatch--clay {
+  --sw: var(--clay);
+}
+.pbe__swatch--amber {
+  --sw: var(--amber);
+}
+.pbe__swatch--sage {
+  --sw: var(--accent);
+}
+.pbe__swatch--dusk {
+  --sw: var(--dusk);
+}
+.pbe__swatch--ink {
+  --sw: var(--ink);
+}
+.pbe__shape {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--fs-ui);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.pbe__shape:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.pbe__shape.is-on {
+  border-color: var(--accent-ink);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pbe__shapes--inspect {
+  gap: var(--s-2);
+}
+/* Line icons for every editor piece — house style, recolor with their button. */
+.pbe-pieceicon {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pbe__shape .pbe-pieceicon {
+  width: 17px;
+  height: 17px;
 }
 .pbe__stage-wrap {
   border-radius: 12px;
@@ -3473,6 +3698,11 @@ body {
   min-height: 300px;
   aspect-ratio: 1;
   touch-action: none;
+  /* No accidental text selection or native image-drag while arranging pieces —
+     the canvas is a purpose-built surface, not a document. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   background: color-mix(in srgb, var(--card) 55%, transparent);
   border-radius: 12px;
   cursor: default;
@@ -3480,6 +3710,9 @@ body {
 .pbe-hit {
   fill: transparent;
   cursor: grab;
+}
+.pbe-hit:active {
+  cursor: grabbing;
 }
 .pbe-hit-line {
   fill: none;
@@ -6195,6 +6428,96 @@ button.rl-node {
   padding: 6px 9px;
   background: var(--card);
 }
+.rl-vid__cap {
+  display: block;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.rl-vid__preview {
+  margin-top: var(--s-2);
+}
+
+/* ---------- embedded media: inline player + link card ---------- */
+.rl-embed {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+}
+.rl-embed--player {
+  aspect-ratio: 16 / 9;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--ink);
+}
+.rl-embed--player iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.rl-embed--card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  text-decoration: none;
+  color: var(--ink-soft);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.rl-embed--card:hover {
+  border-color: var(--ink-soft);
+  background: var(--paper-2);
+}
+.rl-embed__icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-xs);
+  object-fit: contain;
+  background: var(--paper-2);
+}
+.rl-embed__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.rl-embed__title {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl-embed__domain {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.rl-embed__go {
+  flex: none;
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+.rl-embed__go svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* ---------- playbook cross-link block ---------- */
 .rl-row--playbook {
@@ -6449,6 +6772,7 @@ button.rl-node {
   margin-top: 2px;
 }
 .rl-diagram--open {
+  position: relative;
   display: block;
   width: 100%;
   max-width: 720px;
@@ -6504,56 +6828,47 @@ button.rl-node {
 .rl-diagram .playbook-field {
   min-height: 0;
 }
-/* The inline editor reads as part of the document, not a tool that pops open:
-   it sits at roughly a single field's width, fades in instead of jumping, and
-   keeps its chrome low so the tapped stage just grows a touch and turns
-   interactive. */
-.rl-diagram--editing {
-  max-width: 360px;
+/* The "tap to open full screen / edit" cue floats over the preview, surfacing on
+   hover or keyboard focus so the embedded diagram stays clean at rest. */
+.rl-diagram__cue {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--line);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+  pointer-events: none;
 }
-.rl-diagram--editing .pbe {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  gap: 8px;
-  animation: rl-detail-enter 160ms ease;
+.rl-diagram__cue svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.rl-diagram--editing .pbe__top,
-.rl-diagram--editing .pbe__stage-actions,
-.rl-diagram--editing .pbe__caption {
-  display: none;
+.rl-diagram--open:hover .rl-diagram__cue,
+.rl-diagram--open:focus-visible .rl-diagram__cue {
+  opacity: 1;
 }
-/* Field tracks the reading frame's size and proportion, so entering edit grows
-   the stage modestly instead of exploding into a big square panel. */
-.rl-diagram--editing .playbook-field--edit {
-  min-height: 0;
-  aspect-ratio: 1.08;
-  border-radius: 10px;
+@media (hover: none) {
+  .rl-diagram__cue {
+    opacity: 0.92;
+  }
 }
-/* Stage name reads as an inline caption rather than a boxed form field. */
-.rl-diagram--editing .pbe__meta {
-  gap: 0;
-}
-.rl-diagram--editing .pbe__name {
-  padding: 1px 0;
-  border: 0;
-  background: transparent;
-  font-size: 12px;
-}
-/* Tabs and tools tighten so the toolbar doesn't tower over the field. */
-.rl-diagram--editing .pbe__stages {
-  gap: 5px;
-}
-.rl-diagram--editing .pbe__stage {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-.rl-diagram--editing .pbe__tools {
-  gap: 6px;
-}
-/* Match the video sub-item's contained width. */
+/* Match the media sub-item's contained width. */
 .rl-row--detail .rl-vid {
   max-width: 600px;
 }
@@ -6707,6 +7022,64 @@ button.rl-node {
 }
 .framestep__dots span.is-on {
   background: var(--accent);
+}
+
+/* ---------- full-screen diagram editor ---------- */
+/* Sits one notch above the read-only lightbox (210) so editing always wins the
+   focus/escape stack. Mirrors the lightbox shell, just roomier for the tools. */
+.diagram-edit-root {
+  position: fixed;
+  inset: 0;
+  z-index: 215;
+  display: grid;
+  place-items: center;
+  padding: var(--s-5);
+}
+.diagram-edit__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--shadow);
+  cursor: pointer;
+}
+.diagram-edit {
+  position: relative;
+  width: min(860px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e4);
+  padding: var(--s-6);
+}
+.diagram-edit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+.diagram-edit__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.diagram-edit__body {
+  min-height: 0;
+}
+/* The editor fills the roomy modal: drop its own framing (the modal supplies it)
+   and let the field canvas grow tall so pieces are easy to place. */
+.diagram-edit .pbe {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.diagram-edit .playbook-field--edit {
+  min-height: min(58vh, 540px);
 }
 
 /* ---------- run-list editing ergonomics ---------- */
@@ -6929,37 +7302,6 @@ button.rl-node {
   text-decoration: underline;
   text-underline-offset: 2px;
   word-break: break-all;
-}
-
-/* ---- diagram edit-in-place: a visible way out ---- */
-.rl-diagram--editing {
-  position: relative;
-}
-.rl-diagram__done {
-  position: absolute;
-  top: var(--s-2);
-  right: var(--s-2);
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--control-sm);
-  padding: 0 var(--s-5);
-  border: 1.5px solid var(--accent-ink);
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  cursor: pointer;
-  box-shadow: var(--e1);
-}
-.rl-diagram__done svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
 }
 
 /* ---- library empty states that say why ---- */

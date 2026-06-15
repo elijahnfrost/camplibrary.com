@@ -11,8 +11,44 @@ export type PlaybookPoint = [number, number];
 export type PlaybookMarkerKind = "runner" | "flag";
 export type PlaybookZoneKind = "safe" | "jail" | "area";
 
+// The generic, event-agnostic palette. A diagram piece picks a color by name so
+// the same six earthy tokens drive markers, zone outlines, and arrows whether
+// you are mapping Capture the Flag teams or craft stations. (`teal`/`clay` are
+// the two original CTF team colors, kept first so migrated games look identical.)
+export type PlaybookColorId = "teal" | "clay" | "amber" | "sage" | "dusk" | "ink";
+export const PLAYBOOK_COLORS: PlaybookColorId[] = ["teal", "clay", "amber", "sage", "dusk", "ink"];
+
+// A marker can be any of these shapes. `text` draws no glyph — just its label —
+// so a marker doubles as a free-floating text label. `flag`/`pin` are camp-y
+// map glyphs (a planted flag, a dropped map pin) for bases and stations.
+export type PlaybookMarkerShape = "circle" | "square" | "triangle" | "diamond" | "flag" | "pin" | "text";
+export const PLAYBOOK_SHAPES: PlaybookMarkerShape[] = [
+  "circle",
+  "square",
+  "triangle",
+  "diamond",
+  "flag",
+  "pin",
+  "text",
+];
+
 // All coordinates live in a 0–100 square (the SVG viewBox), so a frame scales to
 // any pane without re-layout.
+
+// The generic placeable token. Replaces the CTF-only player/flag split with one
+// piece that carries its own color + shape + optional caption, so a diagram can
+// describe any event. Legacy players/flags still render (see PlayerShape /
+// FlagShape) and migrate into markers the first time a diagram is edited.
+export interface PlaybookMarker {
+  id: string;
+  x: number;
+  y: number;
+  color: PlaybookColorId;
+  shape: PlaybookMarkerShape;
+  // A short caption shown beneath the glyph (or, for shape "text", as the body).
+  label?: string;
+}
+
 export interface PlaybookPlayer {
   id: string;
   team: PlaybookTeamId;
@@ -31,6 +67,9 @@ export interface PlaybookFlag {
 export interface PlaybookZone {
   id: string;
   kind: PlaybookZoneKind;
+  // Optional palette color; when set it overrides the kind-derived outline so a
+  // zone can mark anything ("Craft table", "Start line") in any color.
+  color?: PlaybookColorId;
   x: number;
   y: number;
   w: number;
@@ -43,6 +82,8 @@ export interface PlaybookArrow {
   from: PlaybookPoint;
   to: PlaybookPoint;
   team?: PlaybookArrowKind;
+  // Optional palette color; overrides the team-derived stroke when set.
+  color?: PlaybookColorId;
 }
 
 export interface PlaybookFrame {
@@ -54,11 +95,17 @@ export interface PlaybookFrame {
   flags: PlaybookFlag[];
   players: PlaybookPlayer[];
   arrows: PlaybookArrow[];
+  // The generic pieces. Optional so older stored frames (players/flags only)
+  // stay valid; new and edited diagrams author markers here instead.
+  markers?: PlaybookMarker[];
 }
 
 export interface PlaybookSurface {
   // Split the field down the middle with two tinted halves (team territories).
   split?: boolean;
+  // Lay faint gridlines over the surface — handy for courts, station maps, and
+  // relay courses where rough positions matter.
+  grid?: boolean;
 }
 
 export interface ActivityPlaybookData {
@@ -91,13 +138,69 @@ export function newFlag(team: PlaybookTeamId, x = 50, y = 50): PlaybookFlag {
   return { id: playbookId("f"), team, x, y };
 }
 
-export function newZone(kind: PlaybookZoneKind, x = 38, y = 38): PlaybookZone {
+export function newMarker(
+  color: PlaybookColorId = "teal",
+  shape: PlaybookMarkerShape = "circle",
+  x = 50,
+  y = 50,
+  label?: string
+): PlaybookMarker {
+  return { id: playbookId("m"), color, shape, x, y, ...(label ? { label } : {}) };
+}
+
+// A text marker is just a marker with no glyph — a free-floating caption.
+export function newTextMarker(color: PlaybookColorId = "ink", x = 50, y = 50): PlaybookMarker {
+  return { id: playbookId("m"), color, shape: "text", x, y, label: "Label" };
+}
+
+export function newZone(kind: PlaybookZoneKind, x = 38, y = 38, color?: PlaybookColorId): PlaybookZone {
   const label = kind === "jail" ? "Jail" : kind === "safe" ? "Safe" : "Zone";
-  return { id: playbookId("z"), kind, x, y, w: 24, h: 18, label };
+  return { id: playbookId("z"), kind, x, y, w: 24, h: 18, label, ...(color ? { color } : {}) };
 }
 
 export function newArrow(team: PlaybookArrowKind = "neutral"): PlaybookArrow {
   return { id: playbookId("a"), from: [40, 50], to: [60, 50], team };
+}
+
+// Map a legacy CTF team to its palette color so a migrated game keeps the exact
+// two-tone look (blue → teal token #4d7a86, red → clay).
+export function teamColor(team: PlaybookTeamId): PlaybookColorId {
+  return team === "red" ? "clay" : "teal";
+}
+
+// Fold a frame's legacy players + flags into generic markers, leaving the
+// originals cleared. Idempotent and non-destructive: a frame that already uses
+// markers (or has neither) is returned untouched. The editor calls this on open
+// so every diagram — including the built-in Capture the Flag book — is edited
+// through one unified set of pieces, while un-edited stored data still renders
+// via the legacy player/flag paths.
+export function migrateFrameToMarkers(frame: PlaybookFrame): PlaybookFrame {
+  const players = frame.players || [];
+  const flags = frame.flags || [];
+  if (players.length === 0 && flags.length === 0) return frame;
+
+  const fromPlayers: PlaybookMarker[] = players.map((p) => ({
+    id: p.id,
+    x: p.x,
+    y: p.y,
+    color: teamColor(p.team),
+    // Blue kept circles, red kept squares — preserve that team read.
+    shape: p.team === "red" ? "square" : "circle",
+  }));
+  const fromFlags: PlaybookMarker[] = flags.map((f) => ({
+    id: f.id,
+    x: f.x,
+    y: f.y,
+    color: teamColor(f.team),
+    shape: "flag",
+  }));
+
+  return {
+    ...frame,
+    players: [],
+    flags: [],
+    markers: [...(frame.markers || []), ...fromPlayers, ...fromFlags],
+  };
 }
 
 export function newFrame(name = "New stage"): PlaybookFrame {
@@ -109,6 +212,7 @@ export function newFrame(name = "New stage"): PlaybookFrame {
     flags: [],
     players: [],
     arrows: [],
+    markers: [],
   };
 }
 
@@ -117,10 +221,18 @@ export function blankPlaybook(activityId: string, title: string): ActivityPlaybo
     id: playbookId("playbook"),
     activityId,
     title: title ? title + " diagram" : "Activity diagram",
-    summary: "Drag the pieces to show how the game is set up and played.",
+    summary: "Drop markers, zones, labels, and arrows to map out how this runs.",
     surface: { split: false },
     frames: [{ ...newFrame("1. Setup") }],
   };
+}
+
+// A fully independent deep copy of a diagram. Playbook data is plain JSON
+// (strings / numbers / arrays / objects), so a structured round-trip is both
+// correct and the safest way to guarantee the copy shares no nested frame /
+// marker / zone / arrow with the source.
+export function clonePlaybook(playbook: ActivityPlaybookData): ActivityPlaybookData {
+  return JSON.parse(JSON.stringify(playbook)) as ActivityPlaybookData;
 }
 
 /* ----------------------------------------------------------------------------
@@ -148,6 +260,18 @@ function arrowKind(value: unknown): PlaybookArrowKind {
   return value === "red" ? "red" : value === "blue" ? "blue" : "neutral";
 }
 
+function color(value: unknown): PlaybookColorId | undefined {
+  return typeof value === "string" && (PLAYBOOK_COLORS as string[]).includes(value)
+    ? (value as PlaybookColorId)
+    : undefined;
+}
+
+function markerShape(value: unknown): PlaybookMarkerShape {
+  return typeof value === "string" && (PLAYBOOK_SHAPES as string[]).includes(value)
+    ? (value as PlaybookMarkerShape)
+    : "circle";
+}
+
 function point(value: unknown, fallback: PlaybookPoint): PlaybookPoint {
   if (Array.isArray(value) && value.length >= 2) {
     return [num(value[0], fallback[0]), num(value[1], fallback[1])];
@@ -163,6 +287,7 @@ export function normalizePlaybook(value: unknown): ActivityPlaybookData | null {
     const flags = Array.isArray(raw.flags) ? raw.flags.filter(isRecord) : [];
     const players = Array.isArray(raw.players) ? raw.players.filter(isRecord) : [];
     const arrows = Array.isArray(raw.arrows) ? raw.arrows.filter(isRecord) : [];
+    const markers = Array.isArray(raw.markers) ? raw.markers.filter(isRecord) : [];
     return {
       id: str(raw.id, playbookId("frame")),
       name: str(raw.name, "Stage " + (i + 1)),
@@ -171,6 +296,7 @@ export function normalizePlaybook(value: unknown): ActivityPlaybookData | null {
       zones: zones.map((z) => ({
         id: str(z.id, playbookId("z")),
         kind: z.kind === "jail" ? "jail" : z.kind === "area" ? "area" : "safe",
+        color: color(z.color),
         x: num(z.x, 38),
         y: num(z.y, 38),
         w: Math.max(4, num(z.w, 24)),
@@ -195,6 +321,15 @@ export function normalizePlaybook(value: unknown): ActivityPlaybookData | null {
         from: point(ar.from, [40, 50]),
         to: point(ar.to, [60, 50]),
         team: arrowKind(ar.team),
+        color: color(ar.color),
+      })),
+      markers: markers.map((m) => ({
+        id: str(m.id, playbookId("m")),
+        x: num(m.x, 50),
+        y: num(m.y, 50),
+        color: color(m.color) ?? "teal",
+        shape: markerShape(m.shape),
+        label: typeof m.label === "string" ? m.label : undefined,
       })),
     };
   });
@@ -207,7 +342,9 @@ export function normalizePlaybook(value: unknown): ActivityPlaybookData | null {
     title: str(value.title, "Activity diagram"),
     eyebrow: typeof value.eyebrow === "string" ? value.eyebrow : undefined,
     summary: str(value.summary, ""),
-    surface: isRecord(value.surface) ? { split: value.surface.split === true } : { split: false },
+    surface: isRecord(value.surface)
+      ? { split: value.surface.split === true, grid: value.surface.grid === true }
+      : { split: false },
     frames,
   };
 }

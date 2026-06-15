@@ -1,51 +1,115 @@
 "use client";
 
+// Camp Library — the diagram editor.
+//
+// Event-agnostic: a diagram is a set of generic MARKERS (a color + a shape, with
+// an optional caption — "text" markers are pure labels), free-form colored ZONES,
+// and ARROWS, laid over a plain / split / grid surface. The same SVG primitives
+// the read-only diagram uses are rendered here with drag handles + an inspector.
+//
+// Legacy Capture-the-Flag diagrams (blue/red players + flags) are folded into
+// markers the moment they're opened here (migrateFrameToMarkers), so every
+// diagram is edited through one unified set of pieces while un-edited stored data
+// keeps rendering through the legacy paths.
+
 import {
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
-import {
-  ArrowDefs,
-  ArrowShape,
-  FieldSurface,
-  FlagShape,
-  PlaybookLegend,
-  PlayerShape,
-  ZoneShape,
-} from "./ActivityPlaybook";
+import { ArrowDefs, ArrowShape, FieldSurface, MarkerShape, ZoneShape } from "./ActivityPlaybook";
+import { CampIcon } from "./icons";
+import { ContextMenu } from "./floating/ContextMenu";
 import {
   describePlaybookSelection,
   nudgePlaybookSelection,
   type PlaybookSelection,
 } from "@/lib/playbookEditorKeyboard";
 import {
+  PLAYBOOK_COLORS,
+  migrateFrameToMarkers,
   newArrow,
-  newFlag,
   newFrame,
-  newPlayer,
+  newMarker,
+  newTextMarker,
   newZone,
   playbookId,
   type ActivityPlaybookData,
-  type PlaybookArrowKind,
+  type PlaybookColorId,
   type PlaybookFrame,
-  type PlaybookMarkerKind,
-  type PlaybookTeamId,
-  type PlaybookZoneKind,
+  type PlaybookMarker,
+  type PlaybookMarkerShape,
 } from "@/lib/playbooks";
 
 type Selection = PlaybookSelection;
 
 type Drag =
-  | { kind: "player"; id: string; pointerId: number }
-  | { kind: "flag"; id: string; pointerId: number }
+  | { kind: "marker"; id: string; pointerId: number; offX: number; offY: number }
   | { kind: "zone-move"; id: string; pointerId: number; offX: number; offY: number }
   | { kind: "zone-resize"; id: string; pointerId: number }
   | { kind: "arrow"; id: string; end: "from" | "to"; pointerId: number };
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+// The glyph shapes a marker can take, in palette order (text lives behind the
+// dedicated "Text" tool, so it's omitted from the shape row).
+const GLYPH_SHAPES: PlaybookMarkerShape[] = ["circle", "square", "triangle", "diamond", "flag", "pin"];
+
+// Crisp line icons (the app's house style) for every editor piece — they replace
+// the old emoji glyphs, which clashed with the hand-drawn, monochrome UI. Stroke
+// + fill inherit from the button via CSS, so selected/hover states recolor them.
+const PIECE_ICON_PATHS: Record<PlaybookMarkerShape | "zone" | "arrow", ReactNode> = {
+  circle: <circle cx="12" cy="12" r="6.5" />,
+  square: <rect x="5.5" y="5.5" width="13" height="13" rx="2" />,
+  triangle: <path d="M12 5.5 19 18.5 5 18.5Z" />,
+  diamond: <path d="M12 4.5 19.5 12 12 19.5 4.5 12Z" />,
+  flag: (
+    <>
+      <path d="M7 4v16" />
+      <path d="M7 4.5h10l-2.4 3 2.4 3H7z" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M12 21c4-4.4 6-7.3 6-10a6 6 0 1 0-12 0c0 2.7 2 5.6 6 10z" />
+      <circle cx="12" cy="11" r="2.2" />
+    </>
+  ),
+  text: (
+    <>
+      <path d="M5 6.5h14" />
+      <path d="M12 6.5v11" />
+      <path d="M9 17.5h6" />
+    </>
+  ),
+  zone: <rect x="4" y="6" width="16" height="12" rx="2" strokeDasharray="3 2.2" />,
+  arrow: (
+    <>
+      <path d="M4 12h13" />
+      <path d="M13 7l5 5-5 5" />
+    </>
+  ),
+};
+
+function PieceIcon({ kind }: { kind: PlaybookMarkerShape | "zone" | "arrow" }) {
+  return (
+    <svg className="pbe-pieceicon" viewBox="0 0 24 24" aria-hidden="true">
+      {PIECE_ICON_PATHS[kind]}
+    </svg>
+  );
+}
+
+type SurfaceTone = "plain" | "split" | "grid";
+function surfaceTone(surface: ActivityPlaybookData["surface"]): SurfaceTone {
+  if (surface?.grid) return "grid";
+  if (surface?.split) return "split";
+  return "plain";
+}
 
 export function PlaybookEditor({
   value,
@@ -56,25 +120,48 @@ export function PlaybookEditor({
 }) {
   const baseId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<Drag | null>(null);
+
+  // Every frame is migrated to markers on the way in, so the editor only ever
+  // reasons about markers / zones / arrows — never legacy players or flags. The
+  // migration only commits to storage once the user makes a real edit.
+  const data = useMemo(
+    () => ({ ...value, frames: value.frames.map(migrateFrameToMarkers) }),
+    [value]
+  );
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [selected, setSelected] = useState<Selection | null>(null);
+  const [paintColor, setPaintColor] = useState<PlaybookColorId>("teal");
+  const [paintShape, setPaintShape] = useState<PlaybookMarkerShape>("circle");
+  // Right-click on a piece opens the shared themed menu (Duplicate / Remove).
+  const [pieceMenu, setPieceMenu] = useState<{ sel: Selection; point: { x: number; y: number } } | null>(null);
 
-  const frameIndex = Math.min(activeIdx, value.frames.length - 1);
-  const frame = value.frames[frameIndex];
+  const frameIndex = Math.min(activeIdx, data.frames.length - 1);
+  const frame = data.frames[frameIndex];
+  const markers = frame.markers || [];
   const clipId = baseId + "-clip";
   const markerBase = baseId + "-mk";
   const keyboardHelpId = baseId + "-keyboard-help";
 
+  // The selected piece (if any) and the "active" color/shape the palette shows —
+  // a selection's own color when one is selected, else the standing paint color
+  // used for the next add. New pieces always take exactly what the palette shows.
+  const selMarker = selected?.type === "marker" ? markers.find((m) => m.id === selected.id) : undefined;
+  const selZone = selected?.type === "zone" ? frame.zones.find((z) => z.id === selected.id) : undefined;
+  const selArrow = selected?.type === "arrow" ? frame.arrows.find((a) => a.id === selected.id) : undefined;
+  const activeColor: PlaybookColorId = selMarker?.color ?? selZone?.color ?? selArrow?.color ?? paintColor;
+  const activeShape: PlaybookMarkerShape = selMarker?.shape ?? paintShape;
+
   /* ---- immutable updates -------------------------------------------------- */
 
   function patch(next: Partial<ActivityPlaybookData>) {
-    onChange({ ...value, ...next });
+    onChange({ ...data, ...next });
   }
 
   function updateFrame(mutator: (f: PlaybookFrame) => PlaybookFrame) {
-    patch({ frames: value.frames.map((f, i) => (i === frameIndex ? mutator(f) : f)) });
+    patch({ frames: data.frames.map((f, i) => (i === frameIndex ? mutator(f) : f)) });
   }
 
   /* ---- coordinate mapping ------------------------------------------------- */
@@ -93,76 +180,130 @@ export function PlaybookEditor({
     return { x: 50 + ((n % 6) - 3) * 5 + 2, y: 50 + ((Math.floor(n / 6) % 4) - 1) * 6 };
   }
 
-  function addPlayer(team: PlaybookTeamId) {
-    const at = spawn(frame.players.length);
-    const piece = newPlayer(team, clamp(at.x, 6, 94), clamp(at.y, 6, 94));
-    updateFrame((f) => ({ ...f, players: [...f.players, piece] }));
-    setSelected({ type: "player", id: piece.id });
+  function addMarker() {
+    const at = spawn(markers.length);
+    const shape = activeShape === "text" ? "circle" : activeShape;
+    const piece = newMarker(activeColor, shape, clamp(at.x, 6, 94), clamp(at.y, 6, 94));
+    updateFrame((f) => ({ ...f, markers: [...(f.markers || []), piece] }));
+    setSelected({ type: "marker", id: piece.id });
   }
 
-  function addFlag() {
-    const piece = newFlag("blue", 50, 50);
-    updateFrame((f) => ({ ...f, flags: [...f.flags, piece] }));
-    setSelected({ type: "flag", id: piece.id });
+  function addText() {
+    const at = spawn(markers.length);
+    // Amber reads poorly as body text on the field, so default labels to ink.
+    const piece = newTextMarker(activeColor === "amber" ? "ink" : activeColor, clamp(at.x, 12, 88), clamp(at.y, 8, 92));
+    updateFrame((f) => ({ ...f, markers: [...(f.markers || []), piece] }));
+    setSelected({ type: "marker", id: piece.id });
   }
 
   function addZone() {
-    const piece = newZone("safe", 38, 40);
+    const piece = newZone("area", 38, 40, activeColor);
     updateFrame((f) => ({ ...f, zones: [...f.zones, piece] }));
     setSelected({ type: "zone", id: piece.id });
   }
 
   function addArrow() {
-    const piece = newArrow("neutral");
+    const piece = { ...newArrow("neutral"), color: activeColor };
     updateFrame((f) => ({ ...f, arrows: [...f.arrows, piece] }));
     setSelected({ type: "arrow", id: piece.id });
   }
 
-  /* ---- editing selected piece -------------------------------------------- */
+  /* ---- editing the selected piece ---------------------------------------- */
 
-  function updateSelectedPlayer(p: Partial<{ team: PlaybookTeamId; role?: PlaybookMarkerKind }>) {
-    if (selected?.type !== "player") return;
+  function updateSelectedMarker(patchMarker: Partial<PlaybookMarker>) {
+    if (selected?.type !== "marker") return;
     updateFrame((f) => ({
       ...f,
-      players: f.players.map((pl) => (pl.id === selected.id ? { ...pl, ...p } : pl)),
+      markers: (f.markers || []).map((m) => (m.id === selected.id ? { ...m, ...patchMarker } : m)),
     }));
   }
 
-  function updateSelectedFlagTeam(team: PlaybookTeamId) {
-    if (selected?.type !== "flag") return;
-    updateFrame((f) => ({
-      ...f,
-      flags: f.flags.map((fl) => (fl.id === selected.id ? { ...fl, team } : fl)),
-    }));
-  }
-
-  function updateSelectedZone(z: Partial<{ kind: PlaybookZoneKind; label: string }>) {
+  function updateSelectedZone(patchZone: Partial<{ color: PlaybookColorId; label: string }>) {
     if (selected?.type !== "zone") return;
     updateFrame((f) => ({
       ...f,
-      zones: f.zones.map((zo) => (zo.id === selected.id ? { ...zo, ...z } : zo)),
+      zones: f.zones.map((z) => (z.id === selected.id ? { ...z, ...patchZone } : z)),
     }));
   }
 
-  function updateSelectedArrowTeam(team: PlaybookArrowKind) {
+  function updateSelectedArrowColor(color: PlaybookColorId) {
     if (selected?.type !== "arrow") return;
     updateFrame((f) => ({
       ...f,
-      arrows: f.arrows.map((ar) => (ar.id === selected.id ? { ...ar, team } : ar)),
+      arrows: f.arrows.map((a) => (a.id === selected.id ? { ...a, color } : a)),
     }));
   }
 
-  function deleteSelected() {
-    if (!selected) return;
-    const { type, id } = selected;
+  // Picking a color paints the selected piece (if any) and becomes the color new
+  // pieces take next. Picking a shape behaves the same for markers.
+  function pickColor(color: PlaybookColorId) {
+    setPaintColor(color);
+    if (selected?.type === "marker") updateSelectedMarker({ color });
+    else if (selected?.type === "zone") updateSelectedZone({ color });
+    else if (selected?.type === "arrow") updateSelectedArrowColor(color);
+  }
+
+  function pickShape(shape: PlaybookMarkerShape) {
+    setPaintShape(shape);
+    if (selected?.type === "marker") updateSelectedMarker({ shape });
+  }
+
+  function deleteSelection(sel: Selection) {
+    const { type, id } = sel;
     updateFrame((f) => ({
       ...f,
-      players: type === "player" ? f.players.filter((p) => p.id !== id) : f.players,
-      flags: type === "flag" ? f.flags.filter((p) => p.id !== id) : f.flags,
-      zones: type === "zone" ? f.zones.filter((p) => p.id !== id) : f.zones,
-      arrows: type === "arrow" ? f.arrows.filter((p) => p.id !== id) : f.arrows,
+      markers: type === "marker" ? (f.markers || []).filter((m) => m.id !== id) : f.markers,
+      zones: type === "zone" ? f.zones.filter((z) => z.id !== id) : f.zones,
+      arrows: type === "arrow" ? f.arrows.filter((a) => a.id !== id) : f.arrows,
     }));
-    setSelected(null);
+    setSelected((cur) => (cur && cur.id === id ? null : cur));
+  }
+
+  function deleteSelected() {
+    if (selected) deleteSelection(selected);
+  }
+
+  // Duplicate a piece a few units down-right of itself and select the copy.
+  function duplicateSelection(sel: Selection) {
+    const off = (v: number, lo: number, hi: number) => clamp(v + 4, lo, hi);
+    let newId = "";
+    updateFrame((f) => {
+      if (sel.type === "marker") {
+        const m = (f.markers || []).find((x) => x.id === sel.id);
+        if (!m) return f;
+        newId = playbookId("m");
+        const copy = { ...m, id: newId, x: off(m.x, 3, 97), y: off(m.y, 3, 97) };
+        return { ...f, markers: [...(f.markers || []), copy] };
+      }
+      if (sel.type === "zone") {
+        const z = f.zones.find((x) => x.id === sel.id);
+        if (!z) return f;
+        newId = playbookId("z");
+        const copy = { ...z, id: newId, x: off(z.x, 1, 99 - z.w), y: off(z.y, 1, 99 - z.h) };
+        return { ...f, zones: [...f.zones, copy] };
+      }
+      if (sel.type === "arrow") {
+        const a = f.arrows.find((x) => x.id === sel.id);
+        if (!a) return f;
+        newId = playbookId("a");
+        const copy = {
+          ...a,
+          id: newId,
+          from: [off(a.from[0], 1, 99), off(a.from[1], 1, 99)] as [number, number],
+          to: [off(a.to[0], 1, 99), off(a.to[1], 1, 99)] as [number, number],
+        };
+        return { ...f, arrows: [...f.arrows, copy] };
+      }
+      return f;
+    });
+    if (newId) setSelected({ type: sel.type, id: newId });
+  }
+
+  function openPieceMenu(e: ReactMouseEvent, sel: Selection) {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelected(sel);
+    setPieceMenu({ sel, point: { x: e.clientX, y: e.clientY } });
   }
 
   function nudgeSelected(dx: number, dy: number) {
@@ -172,34 +313,23 @@ export function PlaybookEditor({
 
   function onStageKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (!selected) return;
-
     const step = e.shiftKey ? 5 : 1;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
       nudgeSelected(-step, 0);
-      return;
-    }
-    if (e.key === "ArrowRight") {
+    } else if (e.key === "ArrowRight") {
       e.preventDefault();
       nudgeSelected(step, 0);
-      return;
-    }
-    if (e.key === "ArrowUp") {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       nudgeSelected(0, -step);
-      return;
-    }
-    if (e.key === "ArrowDown") {
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
       nudgeSelected(0, step);
-      return;
-    }
-    if (e.key === "Delete" || e.key === "Backspace") {
+    } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       deleteSelected();
-      return;
-    }
-    if (e.key === "Escape") {
+    } else if (e.key === "Escape") {
       e.preventDefault();
       setSelected(null);
     }
@@ -207,9 +337,25 @@ export function PlaybookEditor({
 
   /* ---- dragging ----------------------------------------------------------- */
 
+  function clearDrag() {
+    const drag = dragRef.current;
+    if (!drag) return;
+    try {
+      svgRef.current?.releasePointerCapture(drag.pointerId);
+    } catch {
+      /* capture may have been lost already */
+    }
+    dragRef.current = null;
+  }
+
   function startDrag(e: ReactPointerEvent, drag: Drag, sel: Selection) {
+    // Only the primary button drags — right-click opens the menu, never grabs.
+    if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault();
     setSelected(sel);
+    // Keep the canvas focused so arrow-key nudging works right after selecting.
+    wrapRef.current?.focus({ preventScroll: true });
     dragRef.current = drag;
     try {
       svgRef.current?.setPointerCapture(e.pointerId);
@@ -221,19 +367,21 @@ export function PlaybookEditor({
   function onPointerMove(e: ReactPointerEvent<SVGSVGElement>) {
     const drag = dragRef.current;
     if (!drag) return;
+    // Exclusively hold-to-drag: if the button is no longer held (a missed
+    // pointerup, or a stray hover-move), drop the piece right where it is rather
+    // than letting it keep following the cursor.
+    if ((e.buttons & 1) === 0) {
+      clearDrag();
+      return;
+    }
     const { x, y } = toField(e);
-    if (drag.kind === "player") {
+    if (drag.kind === "marker") {
       updateFrame((f) => ({
         ...f,
-        players: f.players.map((p) =>
-          p.id === drag.id ? { ...p, x: clamp(x, 3, 97), y: clamp(y, 3, 97) } : p
-        ),
-      }));
-    } else if (drag.kind === "flag") {
-      updateFrame((f) => ({
-        ...f,
-        flags: f.flags.map((p) =>
-          p.id === drag.id ? { ...p, x: clamp(x, 4, 96), y: clamp(y, 6, 96) } : p
+        markers: (f.markers || []).map((m) =>
+          m.id === drag.id
+            ? { ...m, x: clamp(x - drag.offX, 3, 97), y: clamp(y - drag.offY, 3, 97) }
+            : m
         ),
       }));
     } else if (drag.kind === "zone-move") {
@@ -263,23 +411,16 @@ export function PlaybookEditor({
     }
   }
 
-  function endDrag(e: ReactPointerEvent<SVGSVGElement>) {
-    if (dragRef.current) {
-      try {
-        svgRef.current?.releasePointerCapture(e.pointerId);
-      } catch {
-        /* capture may have been lost already */
-      }
-      dragRef.current = null;
-    }
+  function endDrag() {
+    clearDrag();
   }
 
   /* ---- frame management --------------------------------------------------- */
 
   function addStage() {
-    const f = newFrame(value.frames.length + 1 + ". New stage");
-    patch({ frames: [...value.frames, f] });
-    setActiveIdx(value.frames.length);
+    const f = newFrame(data.frames.length + 1 + ". New stage");
+    patch({ frames: [...data.frames, f] });
+    setActiveIdx(data.frames.length);
     setSelected(null);
   }
 
@@ -289,11 +430,12 @@ export function PlaybookEditor({
       id: playbookId("frame"),
       name: frame.name + " (copy)",
       zones: frame.zones.map((z) => ({ ...z, id: playbookId("z") })),
-      flags: frame.flags.map((fl) => ({ ...fl, id: playbookId("f") })),
-      players: frame.players.map((p) => ({ ...p, id: playbookId("p") })),
+      flags: (frame.flags || []).map((fl) => ({ ...fl, id: playbookId("f") })),
+      players: (frame.players || []).map((p) => ({ ...p, id: playbookId("p") })),
       arrows: frame.arrows.map((a) => ({ ...a, id: playbookId("a") })),
+      markers: (frame.markers || []).map((m) => ({ ...m, id: playbookId("m") })),
     };
-    const frames = [...value.frames];
+    const frames = [...data.frames];
     frames.splice(frameIndex + 1, 0, copy);
     patch({ frames });
     setActiveIdx(frameIndex + 1);
@@ -301,18 +443,19 @@ export function PlaybookEditor({
   }
 
   function deleteStage() {
-    if (value.frames.length <= 1) return;
-    patch({ frames: value.frames.filter((_, i) => i !== frameIndex) });
+    if (data.frames.length <= 1) return;
+    patch({ frames: data.frames.filter((_, i) => i !== frameIndex) });
     setActiveIdx(Math.max(0, frameIndex - 1));
     setSelected(null);
   }
 
-  /* ---- inspector ---------------------------------------------------------- */
+  /* ---- inspector + surface ------------------------------------------------ */
 
-  const selPlayer = selected?.type === "player" ? frame.players.find((p) => p.id === selected.id) : undefined;
-  const selFlag = selected?.type === "flag" ? frame.flags.find((p) => p.id === selected.id) : undefined;
-  const selZone = selected?.type === "zone" ? frame.zones.find((p) => p.id === selected.id) : undefined;
-  const selArrow = selected?.type === "arrow" ? frame.arrows.find((p) => p.id === selected.id) : undefined;
+  const tone = surfaceTone(data.surface);
+  function setTone(next: SurfaceTone) {
+    patch({ surface: { split: next === "split", grid: next === "grid" } });
+  }
+
   const pieceA11y = (selection: Selection) => ({
     tabIndex: 0,
     role: "button",
@@ -327,22 +470,28 @@ export function PlaybookEditor({
     },
   });
 
+  const ColorRow = ({ label }: { label: string }) => (
+    <div className="pbe__pick" role="group" aria-label={label}>
+      <span className="pbe__pick-label">{label}</span>
+      <div className="pbe__swatches">
+        {PLAYBOOK_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={"pbe__swatch pbe__swatch--" + c + (activeColor === c ? " is-on" : "")}
+            aria-label={c}
+            aria-pressed={activeColor === c}
+            onClick={() => pickColor(c)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="pbe">
-      <div className="pbe__top">
-        <label className="pbe__toggle">
-          <input
-            type="checkbox"
-            checked={value.surface?.split === true}
-            onChange={(e) => patch({ surface: { ...value.surface, split: e.target.checked } })}
-          />
-          Split field into two team sides
-        </label>
-        <PlaybookLegend />
-      </div>
-
       <div className="pbe__stages" role="group" aria-label="Diagram stages">
-        {value.frames.map((f, i) => (
+        {data.frames.map((f, i) => (
           <button
             key={f.id}
             type="button"
@@ -379,29 +528,58 @@ export function PlaybookEditor({
         />
       </div>
 
+      <div className="pbe__surface" role="group" aria-label="Surface">
+        <div className="seg seg--sm">
+          {(["plain", "split", "grid"] as SurfaceTone[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={tone === t ? "is-on" : ""}
+              aria-pressed={tone === t}
+              onClick={() => setTone(t)}
+            >
+              {t === "plain" ? "Plain" : t === "split" ? "Split" : "Grid"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ColorRow label="Color" />
+
+      <div className="pbe__pick" role="group" aria-label="Marker shape">
+        <span className="pbe__pick-label">Shape</span>
+        <div className="pbe__shapes">
+          {GLYPH_SHAPES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={"pbe__shape" + (activeShape === s ? " is-on" : "")}
+              aria-label={s}
+              aria-pressed={activeShape === s}
+              onClick={() => pickShape(s)}
+            >
+              <PieceIcon kind={s} />
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="pbe__tools" role="group" aria-label="Add pieces">
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => addPlayer("blue")}>
-          <i className="pbe__swatch pbe__swatch--blue" />Teal
+        <button type="button" className="btn btn--ghost btn--sm" onClick={addMarker}>
+          <PieceIcon kind={activeShape === "text" ? "circle" : activeShape} /> Marker
         </button>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => addPlayer("red")}>
-          <i className="pbe__swatch pbe__swatch--red" />Clay
-        </button>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={addFlag}>
-          Flag
+        <button type="button" className="btn btn--ghost btn--sm" onClick={addText}>
+          <PieceIcon kind="text" /> Text
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={addZone}>
-          Zone
+          <PieceIcon kind="zone" /> Zone
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={addArrow}>
-          Arrow
+          <PieceIcon kind="arrow" /> Arrow
         </button>
       </div>
 
-      <div
-        className="pbe__stage-wrap"
-        tabIndex={0}
-        onKeyDown={onStageKeyDown}
-      >
+      <div className="pbe__stage-wrap" ref={wrapRef} tabIndex={0} data-autofocus onKeyDown={onStageKeyDown}>
         <p id={keyboardHelpId} className="sr-only">
           Tab through diagram pieces. Arrow keys move the selected piece. Hold Shift to move farther. Delete removes it.
         </p>
@@ -416,7 +594,12 @@ export function PlaybookEditor({
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          onPointerDown={() => setSelected(null)}
+          onLostPointerCapture={endDrag}
+          onPointerDown={(e) => {
+            // Empty-canvas press clears selection (primary button only).
+            if (e.button === 0) setSelected(null);
+          }}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <defs>
             <clipPath id={clipId}>
@@ -425,20 +608,13 @@ export function PlaybookEditor({
             <ArrowDefs markerBase={markerBase} />
           </defs>
 
-          <FieldSurface split={value.surface?.split} clipId={clipId} />
+          <FieldSurface split={data.surface?.split} grid={data.surface?.grid} clipId={clipId} />
 
           {frame.zones.map((zone) => (
             <g key={zone.id}>
               <ZoneShape zone={zone} />
               {selected?.id === zone.id ? (
-                <rect
-                  className="pbe-ring"
-                  x={zone.x}
-                  y={zone.y}
-                  width={zone.w}
-                  height={zone.h}
-                  rx="1.5"
-                />
+                <rect className="pbe-ring" x={zone.x} y={zone.y} width={zone.w} height={zone.h} rx="1.5" />
               ) : null}
               <rect
                 className="pbe-hit"
@@ -447,6 +623,7 @@ export function PlaybookEditor({
                 width={zone.w}
                 height={zone.h}
                 {...pieceA11y({ type: "zone", id: zone.id })}
+                onContextMenu={(e) => openPieceMenu(e, { type: "zone", id: zone.id })}
                 onPointerDown={(e) => {
                   const { x, y } = toField(e);
                   startDrag(
@@ -459,11 +636,11 @@ export function PlaybookEditor({
               {selected?.id === zone.id ? (
                 <rect
                   className="pbe-handle"
-                  x={zone.x + zone.w - 2}
-                  y={zone.y + zone.h - 2}
-                  width="4"
-                  height="4"
-                  rx="1"
+                  x={zone.x + zone.w - 2.5}
+                  y={zone.y + zone.h - 2.5}
+                  width="5"
+                  height="5"
+                  rx="1.2"
                   onPointerDown={(e) =>
                     startDrag(
                       e,
@@ -483,7 +660,9 @@ export function PlaybookEditor({
                 className="pbe-hit-line"
                 d={"M" + arrow.from[0] + " " + arrow.from[1] + " L" + arrow.to[0] + " " + arrow.to[1]}
                 {...pieceA11y({ type: "arrow", id: arrow.id })}
+                onContextMenu={(e) => openPieceMenu(e, { type: "arrow", id: arrow.id })}
                 onPointerDown={(e) => {
+                  if (e.button !== 0) return;
                   e.stopPropagation();
                   setSelected({ type: "arrow", id: arrow.id });
                 }}
@@ -494,7 +673,7 @@ export function PlaybookEditor({
                     className="pbe-handle"
                     cx={arrow.from[0]}
                     cy={arrow.from[1]}
-                    r="2"
+                    r="2.8"
                     onPointerDown={(e) =>
                       startDrag(
                         e,
@@ -507,7 +686,7 @@ export function PlaybookEditor({
                     className="pbe-handle"
                     cx={arrow.to[0]}
                     cy={arrow.to[1]}
-                    r="2"
+                    r="2.8"
                     onPointerDown={(e) =>
                       startDrag(
                         e,
@@ -521,109 +700,66 @@ export function PlaybookEditor({
             </g>
           ))}
 
-          {frame.flags.map((flag) => (
-            <g key={flag.id}>
-              <FlagShape flag={flag} />
-              {selected?.id === flag.id ? (
-                <rect className="pbe-ring" x={flag.x - 2.4} y={flag.y - 5} width="4.8" height="10" rx="1" />
-              ) : null}
-              <rect
-                className="pbe-hit"
-                x={flag.x - 2.4}
-                y={flag.y - 5}
-                width="4.8"
-                height="10"
-                {...pieceA11y({ type: "flag", id: flag.id })}
-                onPointerDown={(e) =>
-                  startDrag(e, { kind: "flag", id: flag.id, pointerId: e.pointerId }, { type: "flag", id: flag.id })
-                }
-              />
-            </g>
-          ))}
-
-          {frame.players.map((player) => (
-            <g key={player.id}>
-              <PlayerShape player={player} />
-              {selected?.id === player.id ? (
-                <circle className="pbe-ring" cx={player.x} cy={player.y} r="2.6" />
-              ) : null}
-              <circle
-                className="pbe-hit"
-                cx={player.x}
-                cy={player.y}
-                r="2.8"
-                {...pieceA11y({ type: "player", id: player.id })}
-                onPointerDown={(e) =>
-                  startDrag(
-                    e,
-                    { kind: "player", id: player.id, pointerId: e.pointerId },
-                    { type: "player", id: player.id }
-                  )
-                }
-              />
-            </g>
-          ))}
+          {markers.map((marker) => {
+            // Tall pieces (flags, pins, labels) get a roomier grab + ring than the
+            // compact geometric tokens, so they're easy to catch by the glyph.
+            const tall = marker.shape === "flag" || marker.shape === "pin" || marker.shape === "text";
+            const hitR = tall ? 4.4 : 3.4;
+            return (
+              <g key={marker.id}>
+                <MarkerShape marker={marker} />
+                {selected?.id === marker.id ? (
+                  <circle className="pbe-ring" cx={marker.x} cy={marker.y} r={tall ? 4.2 : 3.2} />
+                ) : null}
+                <circle
+                  className="pbe-hit"
+                  cx={marker.x}
+                  cy={marker.y}
+                  r={hitR}
+                  {...pieceA11y({ type: "marker", id: marker.id })}
+                  onContextMenu={(e) => openPieceMenu(e, { type: "marker", id: marker.id })}
+                  onPointerDown={(e) => {
+                    const { x, y } = toField(e);
+                    startDrag(
+                      e,
+                      { kind: "marker", id: marker.id, pointerId: e.pointerId, offX: x - marker.x, offY: y - marker.y },
+                      { type: "marker", id: marker.id }
+                    );
+                  }}
+                />
+              </g>
+            );
+          })}
         </svg>
       </div>
 
       <div className="pbe__inspect" aria-live="polite">
-        {selPlayer ? (
+        {selMarker ? (
           <>
-            <span className="pbe__inspect-label">Player</span>
-            <div className="seg seg--sm" role="group" aria-label="Team">
-              {(["blue", "red"] as PlaybookTeamId[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={selPlayer.team === t ? "is-on" : ""}
-                  onClick={() => updateSelectedPlayer({ team: t })}
-                >
-                  {t === "blue" ? "Blue" : "Red"}
-                </button>
-              ))}
-            </div>
-            <div className="seg seg--sm" role="group" aria-label="Marker">
-              <button
-                type="button"
-                className={!selPlayer.role ? "is-on" : ""}
-                onClick={() => updateSelectedPlayer({ role: undefined })}
-              >
-                Plain
-              </button>
-              <button
-                type="button"
-                className={selPlayer.role === "runner" ? "is-on" : ""}
-                onClick={() => updateSelectedPlayer({ role: "runner" })}
-              >
-                Runner
-              </button>
-              <button
-                type="button"
-                className={selPlayer.role === "flag" ? "is-on" : ""}
-                onClick={() => updateSelectedPlayer({ role: "flag" })}
-              >
-                Carrier
-              </button>
-            </div>
-            <button type="button" className="btn btn--quiet btn--sm pbe__del" onClick={deleteSelected}>
-              Remove
-            </button>
-          </>
-        ) : selFlag ? (
-          <>
-            <span className="pbe__inspect-label">Flag</span>
-            <div className="seg seg--sm" role="group" aria-label="Team">
-              {(["blue", "red"] as PlaybookTeamId[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={selFlag.team === t ? "is-on" : ""}
-                  onClick={() => updateSelectedFlagTeam(t)}
-                >
-                  {t === "blue" ? "Blue" : "Red"}
-                </button>
-              ))}
-            </div>
+            <span className="pbe__inspect-label">{selMarker.shape === "text" ? "Label" : "Marker"}</span>
+            {selMarker.shape !== "text" && (
+              <div className="pbe__shapes pbe__shapes--inspect" role="group" aria-label="Shape">
+                {GLYPH_SHAPES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={"pbe__shape" + (selMarker.shape === s ? " is-on" : "")}
+                    aria-label={s}
+                    aria-pressed={selMarker.shape === s}
+                    onClick={() => pickShape(s)}
+                  >
+                    <PieceIcon kind={s} />
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              className="input pbe__zlabel"
+              value={selMarker.label || ""}
+              placeholder={selMarker.shape === "text" ? "Type a label" : "Caption (optional)"}
+              aria-label="Marker label"
+              onChange={(e) => updateSelectedMarker({ label: e.target.value })}
+            />
             <button type="button" className="btn btn--quiet btn--sm pbe__del" onClick={deleteSelected}>
               Remove
             </button>
@@ -631,18 +767,6 @@ export function PlaybookEditor({
         ) : selZone ? (
           <>
             <span className="pbe__inspect-label">Zone</span>
-            <div className="seg seg--sm" role="group" aria-label="Zone type">
-              {(["safe", "jail", "area"] as PlaybookZoneKind[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={selZone.kind === k ? "is-on" : ""}
-                  onClick={() => updateSelectedZone({ kind: k })}
-                >
-                  {k === "safe" ? "Safe" : k === "jail" ? "Jail" : "Area"}
-                </button>
-              ))}
-            </div>
             <input
               className="input pbe__zlabel"
               value={selZone.label || ""}
@@ -657,24 +781,14 @@ export function PlaybookEditor({
         ) : selArrow ? (
           <>
             <span className="pbe__inspect-label">Arrow</span>
-            <div className="seg seg--sm" role="group" aria-label="Arrow color">
-              {(["neutral", "blue", "red"] as PlaybookArrowKind[]).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={(selArrow.team || "neutral") === k ? "is-on" : ""}
-                  onClick={() => updateSelectedArrowTeam(k)}
-                >
-                  {k === "neutral" ? "Path" : k === "blue" ? "Blue" : "Red"}
-                </button>
-              ))}
-            </div>
             <button type="button" className="btn btn--quiet btn--sm pbe__del" onClick={deleteSelected}>
               Remove
             </button>
           </>
         ) : (
-          <span className="pbe__hint">Tap a piece to edit it · drag to move · use a corner to resize a zone</span>
+          <span className="pbe__hint">
+            Pick a color &amp; shape, then add a piece · tap a piece to edit · drag to move
+          </span>
         )}
       </div>
 
@@ -686,11 +800,33 @@ export function PlaybookEditor({
           type="button"
           className="btn btn--quiet btn--sm"
           onClick={deleteStage}
-          disabled={value.frames.length <= 1}
+          disabled={data.frames.length <= 1}
         >
           Delete stage
         </button>
       </div>
+
+      {pieceMenu && (
+        <ContextMenu
+          point={pieceMenu.point}
+          ariaLabel="Diagram piece actions"
+          onClose={() => setPieceMenu(null)}
+          items={[
+            {
+              label: "Duplicate",
+              icon: <CampIcon.Copy />,
+              onSelect: () => duplicateSelection(pieceMenu.sel),
+            },
+            {
+              label: "Remove",
+              icon: <CampIcon.Trash />,
+              danger: true,
+              separatorBefore: true,
+              onSelect: () => deleteSelection(pieceMenu.sel),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

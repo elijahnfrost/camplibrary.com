@@ -17,6 +17,10 @@ const frame: PlaybookFrame = {
     { id: "player-2", team: "red", x: 54, y: 45 },
   ],
   arrows: [{ id: "arrow-1", from: [98, 50], to: [99, 60], team: "blue" }],
+  markers: [
+    { id: "marker-1", x: 4, y: 4, color: "amber", shape: "pin", label: "Craft table" },
+    { id: "marker-2", x: 60, y: 60, color: "ink", shape: "text", label: "Start" },
+  ],
 };
 
 describe("playbook editor keyboard helpers", () => {
@@ -32,6 +36,12 @@ describe("playbook editor keyboard helpers", () => {
     );
     expect(describePlaybookSelection(frame, { type: "arrow", id: "arrow-1" })).toBe(
       "Blue arrow 1. Use arrow keys to move. Press Delete to remove."
+    );
+    expect(describePlaybookSelection(frame, { type: "marker", id: "marker-1" })).toBe(
+      "Craft table — amber pin marker 1. Use arrow keys to move. Press Delete to remove."
+    );
+    expect(describePlaybookSelection(frame, { type: "marker", id: "marker-2" })).toBe(
+      "Start — label 2. Use arrow keys to move. Press Delete to remove."
     );
   });
 
@@ -51,6 +61,10 @@ describe("playbook editor keyboard helpers", () => {
     expect(
       nudgePlaybookSelection(frame, { type: "arrow", id: "arrow-1" }, { dx: 4, dy: 4 }).arrows[0]
     ).toMatchObject({ from: [99, 54], to: [99, 64] });
+
+    expect(
+      nudgePlaybookSelection(frame, { type: "marker", id: "marker-1" }, { dx: -10, dy: -10 }).markers?.[0]
+    ).toMatchObject({ x: 3, y: 3 });
   });
 
   it("returns the same frame when selection no longer exists", () => {

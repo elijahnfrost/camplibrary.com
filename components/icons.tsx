@@ -245,6 +245,16 @@ export const CampIcon = {
   Heading: svg(<path d="M6 5v14M16 5v14M6 12h10" />),
   CollapseAll: svg(<path d="M6 9l6-6 6 6M6 15l6 6 6-6" />),
   ExpandAll: svg(<path d="M6 15l6 6 6-6M6 9l6-6 6 6" />),
+  // Diagonal expand arrows — "open this full screen".
+  Maximize: svg(<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />),
+  // A link chain — the media / embed glyph.
+  Link: svg(
+    <>
+      <path d="M9.5 14.5l5-5" />
+      <path d="M8 12l-2 2a3 3 0 0 0 4.2 4.2l2-2" />
+      <path d="M16 12l2-2a3 3 0 0 0-4.2-4.2l-2 2" />
+    </>
+  ),
 } as const;
 
 // The brand mark: the bookshelf logo, inlined so each book is a CSS-targetable
