@@ -1,13 +1,25 @@
 import { authorizeInviteAdmin } from "@/lib/server/inviteCodeAdmin";
+import { getBackendEnvStatus } from "@/lib/server/env";
 import { createInviteCode, InviteCodeValidationError, listInviteCodes, normalizeInviteMaxUses } from "@/lib/server/inviteCodes";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Checked after authorization so a missing/unconfigured database degrades to a
+// clean 503 (like the public invite routes) instead of an unhandled 500 from
+// getSql(), and so backend status is never revealed to unauthenticated callers.
+function backendUnavailable() {
+  return Response.json(
+    { ok: false, reason: "backend_unavailable" },
+    { status: 503, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function GET(request: NextRequest) {
   const unauthorizedResponse = await authorizeInviteAdmin(request);
   if (unauthorizedResponse) return unauthorizedResponse;
+  if (!getBackendEnvStatus().capabilities.database) return backendUnavailable();
   const invites = await listInviteCodes();
   return Response.json({ invites }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -15,6 +27,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const unauthorizedResponse = await authorizeInviteAdmin(request);
   if (unauthorizedResponse) return unauthorizedResponse;
+  if (!getBackendEnvStatus().capabilities.inviteCodes) return backendUnavailable();
   const body = (await request.json().catch(() => ({}))) as {
     label?: string;
     invitedEmail?: string;
