@@ -3124,6 +3124,12 @@ body {
 .overlay__bar-spacer {
   flex: 1;
 }
+/* Right-aligned cluster in an overlay title bar (e.g. Reset + Close). */
+.overlay__bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
 .overlay__handle {
   position: absolute;
   top: 8px;
