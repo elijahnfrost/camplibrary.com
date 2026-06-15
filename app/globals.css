@@ -6458,6 +6458,13 @@ button.rl-node {
 .rl-block[draggable="true"]:active > .rl-block__main > .rl-row {
   cursor: grabbing;
 }
+/* Read mode (the detail-sheet book) has no row tools and nothing to drag, so the
+   54px right gutter is dead space and the grab cursor is misleading — make the
+   cards symmetric and static. */
+.rl.is-readonly .rl-row {
+  padding-right: 14px;
+  cursor: default;
+}
 .rl-block--step > .rl-block__main > .rl-row {
   background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 80%, var(--paper)) 100%);
 }
