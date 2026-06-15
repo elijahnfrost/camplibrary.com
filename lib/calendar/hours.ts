@@ -39,6 +39,10 @@ export const DEFAULT_CAMP_HOURS: CampHoursMap = {
   pre: { enabled: true, openMin: 8 * 60, closeMin: 18 * 60 },
   g13: { enabled: true, openMin: 7 * 60 + 30, closeMin: 18 * 60 },
   g46: { enabled: true, openMin: 7 * 60 + 30, closeMin: 18 * 60 },
+  // Teen bands default OFF so adding them never changes a camp's grid window
+  // until someone actually runs that group; sensible hours when toggled on.
+  g79: { enabled: false, openMin: 7 * 60 + 30, closeMin: 18 * 60 },
+  g1012: { enabled: false, openMin: 7 * 60 + 30, closeMin: 18 * 60 },
 };
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
@@ -82,11 +86,11 @@ export function windowFromCampHours(hours: CampHoursMap): DayWindow {
 // falling back per-field to the defaults so a partial or corrupt blob still
 // yields a usable, in-range config.
 export function normalizeCampHours(raw: unknown): CampHoursMap {
-  const out: CampHoursMap = {
-    pre: { ...DEFAULT_CAMP_HOURS.pre },
-    g13: { ...DEFAULT_CAMP_HOURS.g13 },
-    g46: { ...DEFAULT_CAMP_HOURS.g46 },
-  };
+  // Seed every known age group from its default, so adding a group needs no
+  // edit here — the loop below overlays whatever the stored blob carries.
+  const out = Object.fromEntries(
+    AGE_GROUPS.map((group) => [group.id, { ...DEFAULT_CAMP_HOURS[group.id] }])
+  ) as CampHoursMap;
   if (typeof raw !== "object" || raw === null) return out;
   const value = raw as Record<string, unknown>;
   for (const group of AGE_GROUPS) {

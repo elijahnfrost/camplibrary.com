@@ -21,6 +21,11 @@ export const AGE_GROUPS: AgeGroup[] = [
   { id: "pre", label: "Preschool", short: "PreK", lo: 0, hi: 0, min: 3, max: 5 },
   { id: "g13", label: "Grades 1–3", short: "Gr 1–3", lo: 1, hi: 3, min: 6, max: 9 },
   { id: "g46", label: "Grades 4–6", short: "Gr 4–6", lo: 4, hi: 6, min: 9, max: 12 },
+  // Teen bands. Their age min sits ABOVE grade-6's max (12) so an elementary
+  // activity (e.g. ages 6–12) never spills into middle school when ages are
+  // derived from a raw range — they only attach when the range truly reaches up.
+  { id: "g79", label: "Grades 7–9", short: "Gr 7–9", lo: 7, hi: 9, min: 13, max: 15 },
+  { id: "g1012", label: "Grades 10–12", short: "Gr 10–12", lo: 10, hi: 12, min: 16, max: 18 },
 ];
 
 export function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {

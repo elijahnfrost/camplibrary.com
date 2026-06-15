@@ -12,11 +12,8 @@ import {
 import { SNAP_MIN, effectiveWindow } from "./time";
 import type { CalendarEvent } from "./types";
 
-const clone = (hours: CampHoursMap): CampHoursMap => ({
-  pre: { ...hours.pre },
-  g13: { ...hours.g13 },
-  g46: { ...hours.g46 },
-});
+const clone = (hours: CampHoursMap): CampHoursMap =>
+  Object.fromEntries(Object.entries(hours).map(([id, camp]) => [id, { ...camp }])) as CampHoursMap;
 
 function event(startMin: number, endMin: number): CalendarEvent {
   return { id: "e", date: "2026-06-14", startMin, endMin, kind: "custom", title: "x", updatedAt: 0 };

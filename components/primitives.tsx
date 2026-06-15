@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
+import { AGE_GROUPS, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 
@@ -58,6 +58,10 @@ function SwatchPicker({
     };
   }, [open]);
   const current = options.find((o) => o.id === value) ?? options[0];
+  // Swatches only when a dimension actually carries color (Type, Theme). A
+  // color-less dimension (Ages) renders label-only, so the menu isn't a column
+  // of empty boxes.
+  const showSwatch = options.some((o) => o.tint);
   const trigger = (
     <button
       type="button"
@@ -67,11 +71,13 @@ function SwatchPicker({
       aria-label={ariaLabel}
       onClick={() => setOpen((o) => !o)}
     >
-      <span
-        className="typepick__swatch"
-        style={current?.tint ? { background: current.tint } : undefined}
-        aria-hidden="true"
-      />
+      {showSwatch && (
+        <span
+          className="typepick__swatch"
+          style={current?.tint ? { background: current.tint } : undefined}
+          aria-hidden="true"
+        />
+      )}
       {current?.label}
       <CampIcon.ChevronDown />
     </button>
@@ -100,11 +106,13 @@ function SwatchPicker({
                 setOpen(false);
               }}
             >
-              <span
-                className="typepick__swatch"
-                style={o.tint ? { background: o.tint } : undefined}
-                aria-hidden="true"
-              />
+              {showSwatch && (
+                <span
+                  className="typepick__swatch"
+                  style={o.tint ? { background: o.tint } : undefined}
+                  aria-hidden="true"
+                />
+              )}
               {o.label}
             </button>
           ))}
@@ -147,6 +155,36 @@ export function TypePicker<T extends string>({
   const options: SwatchOption[] = [
     { id: "All", label: "All types" },
     ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
+  ];
+  return (
+    <SwatchPicker
+      value={value}
+      onChange={(v) => onChange(v as T)}
+      options={options}
+      label={label}
+      ariaLabel={ariaLabel}
+    />
+  );
+}
+
+/** The age-group selector — a label-only picker (no color swatches). Lives in
+ *  the same menu family as TypePicker so the filter ledger reads consistently,
+ *  and unlike the old MiniSeg it scales past 3–4 groups without cramping the
+ *  narrow rail. Value is "All" or an AgeGroupId. */
+export function AgePicker<T extends string>({
+  value,
+  onChange,
+  label,
+  ariaLabel,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  label?: string;
+  ariaLabel: string;
+}) {
+  const options: SwatchOption[] = [
+    { id: "All", label: "All ages" },
+    ...AGE_GROUPS.map((g) => ({ id: g.id, label: g.label })),
   ];
   return (
     <SwatchPicker

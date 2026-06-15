@@ -43,11 +43,11 @@ export function HoursPanel({
 
   const update = (id: AgeGroupId, camp: CampHours) => onChange({ ...hours, [id]: camp });
   const resetDefaults = () =>
-    onChange({
-      pre: { ...DEFAULT_CAMP_HOURS.pre },
-      g13: { ...DEFAULT_CAMP_HOURS.g13 },
-      g46: { ...DEFAULT_CAMP_HOURS.g46 },
-    });
+    onChange(
+      Object.fromEntries(
+        AGE_GROUPS.map((group) => [group.id, { ...DEFAULT_CAMP_HOURS[group.id] }])
+      ) as CampHoursMap
+    );
 
   return (
     <Modal label="Camp hours" onClose={onClose} overlayProps={{ className: "overlay--card overlay--hours" }}>
