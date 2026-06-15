@@ -37,10 +37,9 @@ import { useCamps } from "./useCamps";
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
-const HOME_TAB: NavTab = { id: "home", label: "Home", icon: CampIcon.Home };
-// Calendar + Library are the working surfaces. Home is reached from the brand
-// mark on desktop (so it's NOT in the sidebar list); on mobile there's no
-// persistent logo, so Home stays in the bottom tab bar (MOBILE_TABS).
+// Calendar + Library are the working surfaces. Home is a dashboard reached from
+// the sidebar brand mark (>=768px) — it's a tab on neither the sidebar nor the
+// phone bar. Phones land on Library (see the redirect effect in CampApp).
 const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
@@ -49,7 +48,6 @@ const TABS: NavTab[] = [
 // out it's "Sign in"; signed in it's the account panel) — it replaces the old
 // top-right auth pill and the sidebar identity line.
 const STAFF_TAB: NavTab = { id: "staff", label: "Staff", icon: CampIcon.Users };
-const MOBILE_TABS: NavTab[] = [HOME_TAB, ...TABS];
 const ADMIN_TAB: NavTab = {
   id: "admin",
   label: "Invite Codes",
@@ -156,6 +154,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setStaffTabMode(mode);
     setTab("staff");
   }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
+
+  // Phones have no Home tab and no sidebar brand mark, so an initial "home"
+  // landing would be a dead end. Send phone-width sessions to Library instead.
+  // The auth/activity deep-links still win: they set the tab first, and the
+  // functional updater leaves any non-"home" tab untouched.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth") || params.get("activity")) return;
+    setTab((t) => (t === "home" ? "library" : t));
+  }, []);
 
   const requireStaff = useCallback(
     (action: string) => {
@@ -364,10 +374,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     () => (isAdmin || tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
     [isAdmin, tab]
   );
-  // The phone tab bar stays lean: Home / Library / Calendar / Staff. Admin
-  // (invite codes) is desktop-only chrome — it's reachable from the sidenav on a
-  // large screen and via deep link, so it never crowds the four-slot mobile bar.
-  const mobileNavTabs = useMemo(() => [...MOBILE_TABS, STAFF_TAB], []);
+  // The phone tab bar is the three working surfaces: Library / Calendar / Staff.
+  // Home (a dashboard) and Admin are omitted — Home is reached via the sidebar
+  // brand mark at >=768px, and phones land on Library (see the redirect effect).
+  const mobileNavTabs = useMemo(() => [...TABS, STAFF_TAB], []);
 
   return (
     <div className="stage">
