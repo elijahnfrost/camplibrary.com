@@ -1,0 +1,21 @@
+# Gitleaks config for the secret-scan CI gate.
+#
+# Extends the default ruleset and allowlists values that look like secrets but are
+# intentional, non-sensitive placeholders:
+#   - The dummy Clerk keys in lib/auth.ts / scripts/check-env.mjs are detection
+#     markers (the decoded value is literally "testsecretkeyforlocaldevonly") used
+#     to recognize unconfigured/placeholder keys. They are not real credentials.
+#   - .env.example holds empty placeholders only.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional dummy/placeholder values, not real secrets"
+regexTarget = "match"
+regexes = [
+  '''sk_test_dgvzdhnly3jldgtlewzvcmxvy2fszgv2''',
+  '''pk_test_zm9vlwjhci0xmjmu''',
+]
+paths = [
+  '''(^|/)\.env\.example$''',
+]
