@@ -25,13 +25,19 @@ import {
   SNAP_MIN,
   effectiveWindow,
   formatClock,
-  formatClockCompact,
   minutesToTimeString,
   nextFreeStartForDay,
   nowMinutes,
+  snapDurationMin,
   snapMinutes,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
+import {
+  DEFAULT_CAMP_HOURS,
+  campHoursStorage,
+  windowFromCampHours,
+  type CampHoursMap,
+} from "@/lib/calendar/hours";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
@@ -40,6 +46,7 @@ import { CampIcon } from "../icons";
 import { ContextMenu } from "../floating/ContextMenu";
 import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
 import { EventPopover } from "./EventPopover";
+import { HoursPanel } from "./HoursPanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 
@@ -102,6 +109,15 @@ export function CalendarShell({
     "auto",
     viewStorage
   );
+  // Camp hours: the editable per-camp drop-off/pickup that sets how far the day
+  // is viewed. A local view preference (like the stored view), so it lives in
+  // localStorage and never gates on staff.
+  const [campHours, setCampHours] = useLocalStorage<CampHoursMap>(
+    "calendarHours",
+    DEFAULT_CAMP_HOURS,
+    campHoursStorage
+  );
+  const [hoursOpen, setHoursOpen] = useState(false);
   // The initial view resolves client-side (coarse pointer → Day); the grid
   // mounts only after resolution so phones never flash Week first.
   const [resolvedView, setResolvedView] = useState<CalendarViewId | null>(null);
@@ -142,14 +158,18 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
+  // The base window comes from the configured camp hours (union of the enabled
+  // camps' drop-off → pickup); auto-extend only ever stretches it outward.
+  const campWindow = useMemo(() => windowFromCampHours(campHours), [campHours]);
+
   // The day window auto-extends only around events in the VISIBLE range — a
   // stray 6am event last month shouldn't stretch every day's grid forever.
   const window_ = useMemo(() => {
     const scoped = visibleRange
       ? healedEvents.filter((event) => event.date >= visibleRange.start && event.date < visibleRange.end)
       : healedEvents;
-    return effectiveWindow(scoped);
-  }, [healedEvents, visibleRange]);
+    return effectiveWindow(scoped, campWindow);
+  }, [healedEvents, visibleRange, campWindow]);
 
   const fcEvents = useMemo(
     () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
@@ -160,6 +180,14 @@ export function CalendarShell({
     const anchor = Math.max(window_.startMin, Math.min(nowMinutes() - 90, window_.endMin - 120));
     return minutesToTimeString(anchor);
   }, [window_]);
+
+  // The grid is DRAWN from the enclosing whole hour so the hourly slot labels —
+  // and the darker hour gridlines — land on real clock hours even when camp
+  // hours open on a half-hour like 7:30. FullCalendar anchors slotLabelInterval
+  // at slotMinTime, so a 7:30 start would otherwise label 7:30 / 8:30 / 9:30.
+  // window_ itself (which the editor's start/length pickers read) is untouched.
+  const gridStart = useMemo(() => Math.floor(window_.startMin / 60) * 60, [window_]);
+  const gridEnd = useMemo(() => Math.ceil(window_.endMin / 60) * 60, [window_]);
 
   // Destructive/undoable toasts get a longer window than informational ones.
   const showToast = useCallback((next: ToastState, durationMs = 6000) => {
@@ -174,6 +202,13 @@ export function CalendarShell({
     },
     []
   );
+
+  // The drag-create selection box is kept visible while QuickAdd is open
+  // (unselectAuto is off); clear it whenever the sheet closes — saved,
+  // cancelled, or dismissed — so no stray highlight is left behind.
+  useEffect(() => {
+    if (!sheet) calendarRef.current?.getApi().unselect();
+  }, [sheet]);
 
   const changeView = useCallback(
     (view: CalendarViewId) => {
@@ -205,7 +240,7 @@ export function CalendarShell({
     (draft: EditorDraft) => {
       if (!requireStaff("plan the calendar")) return;
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
-      const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + draft.durationMin);
+      const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + snapDurationMin(draft.durationMin));
       const event: CalendarEvent = {
         id: draft.id ?? crypto.randomUUID(),
         date: draft.date,
@@ -254,7 +289,7 @@ export function CalendarShell({
   const duplicateEvent = useCallback(
     (event: CalendarEvent) => {
       if (!requireStaff("plan the calendar")) return;
-      const duration = Math.max(SNAP_MIN, event.endMin - event.startMin);
+      const duration = snapDurationMin(event.endMin - event.startMin);
       let startMin = event.startMin;
       if (!event.allDay) {
         const dayEvents = healedEvents.filter((e) => e.date === event.date);
@@ -287,7 +322,8 @@ export function CalendarShell({
       const dayEvents = healedEvents.filter((event) => event.date === dateKey);
       const notBefore =
         dateKey === todayKey() ? Math.max(nowMinutes(), DEFAULT_PLANNING_START_MIN) : DEFAULT_PLANNING_START_MIN;
-      const start = nextFreeStartForDay(dayEvents, activity.durationMin, notBefore, window_);
+      const duration = snapDurationMin(activity.durationMin);
+      const start = nextFreeStartForDay(dayEvents, duration, notBefore, window_);
       if (start == null) {
         announce("No open time for " + activity.title);
         showToast({ message: "No open time for " + activity.title });
@@ -297,7 +333,7 @@ export function CalendarShell({
         id: crypto.randomUUID(),
         date: dateKey,
         startMin: start,
-        endMin: Math.min(MINUTES_PER_DAY, start + Math.max(SNAP_MIN, activity.durationMin)),
+        endMin: Math.min(MINUTES_PER_DAY, start + duration),
         kind: "activity",
         title: activity.title,
         activityId: activity.id,
@@ -322,7 +358,7 @@ export function CalendarShell({
         draft: {
           date: focusDateRef.current,
           startMin: DEFAULT_PLANNING_START_MIN,
-          durationMin: activity.durationMin || DEFAULT_DURATION_MIN,
+          durationMin: snapDurationMin(activity.durationMin || DEFAULT_DURATION_MIN),
           allDay: false,
           activityId: activity.id,
           title: activity.title,
@@ -352,13 +388,21 @@ export function CalendarShell({
 
   const onSelect = useCallback(
     (info: DateSelectArg) => {
-      calendarRef.current?.getApi().unselect();
+      const api = calendarRef.current?.getApi();
       if (info.view.type === "dayGridMonth") {
         // Month cells are whole days — picking a time needs a time grid.
+        api?.unselect();
         showToast({ message: "To pick a time, switch to Day or Week — or tap a day to open it" });
         return;
       }
-      if (!requireStaff("plan the calendar")) return;
+      if (!requireStaff("plan the calendar")) {
+        api?.unselect();
+        return;
+      }
+      // Keep the selection: unselectAuto is off, so the dashed landing box stays
+      // on screen (a click inside QuickAdd won't drop it) until the sheet closes
+      // — see the sheet-close effect. That's what makes a drag-create span
+      // persist instead of vanishing the instant the drag ends.
       const startMin = minutesOfDay(info.start);
       const endMin = info.allDay
         ? startMin + DEFAULT_DURATION_MIN
@@ -414,8 +458,8 @@ export function CalendarShell({
       const draft = sheet?.draft;
       if (!draft || !requireStaff("plan the calendar")) return;
       const duration = draft.explicitDuration
-        ? Math.max(SNAP_MIN, draft.durationMin)
-        : Math.max(SNAP_MIN, activity.durationMin || draft.durationMin);
+        ? snapDurationMin(draft.durationMin)
+        : snapDurationMin(activity.durationMin || draft.durationMin);
       const startMin = draft.allDay ? 0 : draft.startMin;
       const event: CalendarEvent = {
         id: crypto.randomUUID(),
@@ -448,7 +492,7 @@ export function CalendarShell({
         id: crypto.randomUUID(),
         date: draft.date,
         startMin,
-        endMin: draft.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + Math.max(SNAP_MIN, draft.durationMin)),
+        endMin: draft.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + snapDurationMin(draft.durationMin)),
         kind: "custom",
         title,
         updatedAt: Date.now(),
@@ -649,7 +693,7 @@ export function CalendarShell({
       info.event.remove();
       if (!start || !requireStaff("plan the calendar")) return;
       const date = toDateKey(start);
-      const duration = Math.max(SNAP_MIN, activity?.durationMin ?? DEFAULT_DURATION_MIN);
+      const duration = snapDurationMin(activity?.durationMin ?? DEFAULT_DURATION_MIN);
 
       // A month-cell drop means "put it on this day", not "make it all-day":
       // place it at the day's next free time like the tap-to-place flow.
@@ -719,28 +763,22 @@ export function CalendarShell({
       ) : null;
 
     if (arg.view.type === "dayGridMonth") {
+      // One left spine carries the category colour (the .fc-daygrid-event
+      // border-left); no inner tick on top of it.
       return (
         <div className="cal-chip">
-          <span className="cal-chip__dot" aria-hidden="true" />
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
         </div>
       );
     }
-    // Short events get Google's one-line treatment ("Capture the Flag · 10a")
-    // instead of clipping a stacked title + range.
-    const calendarEvent = arg.event.extendedProps.calendarEvent as CalendarEvent | undefined;
-    const durationMin =
-      calendarEvent && !calendarEvent.allDay ? calendarEvent.endMin - calendarEvent.startMin : null;
-    if (durationMin != null && durationMin <= 30) {
-      return (
-        <div className="cal-card cal-card--compact">
-          {dot}
-          <span className="cal-card__title">{arg.event.title}</span>
-          <span className="cal-card__time">{formatClockCompact(calendarEvent!.startMin)}</span>
-        </div>
-      );
-    }
+    // One structure for every timed block. The card is a size container (see
+    // calendar.css), so it recalibrates its own layout from its LIVE rendered
+    // height — collapsing a stacked title + time onto one Google-style line the
+    // instant a resize makes the block too short, and back — instead of
+    // branching here on a stored duration that only updated when the drag dropped.
+    // The theme dot rides in .cal-card__line so it stays beside the title in
+    // both the stacked and the collapsed layouts.
     return (
       <div className="cal-card">
         <span className="cal-card__line">
@@ -845,7 +883,22 @@ export function CalendarShell({
         onToday={() => calendarRef.current?.getApi().today()}
         onPrev={() => calendarRef.current?.getApi().prev()}
         onNext={() => calendarRef.current?.getApi().next()}
-        actions={headerActions}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn--quiet calhead__hours"
+              onClick={() => setHoursOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={hoursOpen}
+              title="Set the camp hours the calendar shows"
+            >
+              <CampIcon.Clock />
+              <span className="calhead__hours-label">Hours</span>
+            </button>
+            {headerActions}
+          </>
+        }
       />
       <div className="calshell__body">
         <div
@@ -865,8 +918,8 @@ export function CalendarShell({
             nowIndicator
             editable={canEdit}
             selectable={canEdit}
-            selectMirror
             selectMinDistance={8}
+            unselectAuto={false}
             droppable={canEdit}
             dayMaxEvents={3}
             slotEventOverlap={false}
@@ -874,9 +927,11 @@ export function CalendarShell({
             eventShortHeight={46}
             eventMinHeight={22}
             snapDuration="00:15:00"
-            slotDuration="00:30:00"
-            slotMinTime={minutesToTimeString(window_.startMin)}
-            slotMaxTime={minutesToTimeString(window_.endMin)}
+            slotDuration="00:15:00"
+            slotLabelInterval="01:00:00"
+            slotMinTime={minutesToTimeString(gridStart)}
+            slotMaxTime={minutesToTimeString(gridEnd)}
+            eventTimeFormat={{ hour: "numeric", minute: "2-digit", omitZeroMinute: true, meridiem: "narrow" }}
             scrollTime={scrollTime}
             scrollTimeReset={false}
             longPressDelay={400}
@@ -952,6 +1007,10 @@ export function CalendarShell({
           }
           onClose={() => setSheet(null)}
         />
+      )}
+
+      {hoursOpen && (
+        <HoursPanel hours={campHours} onChange={setCampHours} onClose={() => setHoursOpen(false)} />
       )}
 
       {popover && (

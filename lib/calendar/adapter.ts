@@ -7,7 +7,7 @@ import { categoryTint } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { fromDateKey, minutesOfDay, toDateKey } from "./dates";
-import { MIN_DURATION_MIN, MINUTES_PER_DAY } from "./time";
+import { MIN_DURATION_MIN, MINUTES_PER_DAY, SNAP_MIN, snapMinutes } from "./time";
 import type { CalendarEvent } from "./types";
 
 export type ActivityIndex = Record<string, Activity>;
@@ -69,13 +69,16 @@ export function fromFcDates(
   if (allDay) {
     return { ...previous, date, startMin: 0, endMin: 0, allDay: true, updatedAt: Date.now() };
   }
-  const startMin = minutesOfDay(start);
+  // Snap to the 15-min grid here too: FullCalendar snaps relative to its
+  // slotMinTime, so a half-hour camp window or any drift could otherwise leave a
+  // dropped/resized block a few minutes off the grid every other block sits on.
+  const startMin = snapMinutes(minutesOfDay(start));
   const dayStart = fromDateKey(date);
   const duration = previous.allDay
     ? Math.max(MIN_DURATION_MIN, 30)
     : Math.max(MIN_DURATION_MIN, previous.endMin - previous.startMin);
   const rawEndMin = end ? Math.round((end.getTime() - dayStart.getTime()) / 60_000) : startMin + duration;
-  const endMin = Math.max(startMin + MIN_DURATION_MIN, Math.min(MINUTES_PER_DAY, rawEndMin));
+  const endMin = Math.max(startMin + SNAP_MIN, Math.min(MINUTES_PER_DAY, snapMinutes(rawEndMin)));
   const next: CalendarEvent = { ...previous, date, startMin, endMin, updatedAt: Date.now() };
   delete next.allDay;
   return next;

@@ -19,7 +19,10 @@ export const DEFAULT_PLANNING_START_MIN = 9 * 60;
 // Longest sensible single activity: it has to fit inside one camp day.
 export const MAX_ACTIVITY_DURATION_MIN = DAY_END_MIN - DAY_START_MIN;
 
-export const DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
+// Lengths the editor offers — 15-minute steps only, so every committed block
+// ends on the same grid the calendar snaps to. A 20-min length starting at 1:15
+// would end at 1:35, the exact off-grid time we never want to be selectable.
+export const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120];
 
 // 540 -> "9:00 am"; hourOnly drops ":00" for axis-style labels.
 export function formatClock(min: number, hourOnly = false): string {
@@ -59,6 +62,13 @@ export function snapMinutes(min: number, snap: number = SNAP_MIN): number {
   return Math.round(min / snap) * snap;
 }
 
+// A duration forced onto the snap grid, never shorter than one slot — so an
+// activity's recommended length (which can be any number of minutes) becomes a
+// block whose end lands on the grid, not at an off-grid time like 1:35.
+export function snapDurationMin(min: number): number {
+  return Math.max(SNAP_MIN, snapMinutes(min));
+}
+
 // 540 -> "09:00:00" (FullCalendar slotMinTime/slotMaxTime/scrollTime format).
 export function minutesToTimeString(min: number): string {
   const clamped = Math.max(0, Math.min(MINUTES_PER_DAY, Math.round(min)));
@@ -74,11 +84,16 @@ export function nowMinutes(): number {
 
 export type DayWindow = { startMin: number; endMin: number };
 
-// The configured window unioned with event extents, floored/ceiled to the
-// hour, so an imported or synced 7:15 am event renders instead of clipping.
-export function effectiveWindow(events: CalendarEvent[]): DayWindow {
-  let startMin = DAY_START_MIN;
-  let endMin = DAY_END_MIN;
+// The configured window (camp hours, defaulting to the classic 8:00–18:00
+// band) unioned with event extents, floored/ceiled to the hour, so an imported
+// or synced 7:15 am event renders instead of clipping. The base only ever
+// extends outward — the user's chosen hours are never narrowed by this.
+export function effectiveWindow(
+  events: CalendarEvent[],
+  base: DayWindow = { startMin: DAY_START_MIN, endMin: DAY_END_MIN }
+): DayWindow {
+  let startMin = base.startMin;
+  let endMin = base.endMin;
   for (const event of events) {
     if (event.allDay) continue;
     if (event.startMin < startMin) startMin = Math.max(0, Math.floor(event.startMin / 60) * 60);
