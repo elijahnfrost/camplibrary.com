@@ -15,28 +15,38 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
-import { CampIcon } from "./icons";
+import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
 import { ActivityBookPrint } from "./ActivityBookPrint";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
-import { AuthButton, useAuthLabel, usePreviewAuth } from "./AuthControls";
+import { usePreviewAuth } from "./AuthControls";
 import { CalendarShell } from "./calendar/CalendarShell";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
-import { InviteSignUp } from "./InviteSignUp";
+import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
 import { Modal } from "./Modal";
 import { StaffSignIn } from "./StaffSignIn";
+import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
+const HOME_TAB: NavTab = { id: "home", label: "Home", icon: CampIcon.Home };
+// Calendar + Library are the working surfaces. Home is reached from the brand
+// mark on desktop (so it's NOT in the sidebar list); on mobile there's no
+// persistent logo, so Home stays in the bottom tab bar (MOBILE_TABS).
 const TABS: NavTab[] = [
-  { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
   { id: "library", label: "Library", icon: CampIcon.Library },
+  { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
 ];
+// The single intentional sign-in / account surface. Shown to everyone (signed
+// out it's "Sign in"; signed in it's the account panel) — it replaces the old
+// top-right auth pill and the sidebar identity line.
+const STAFF_TAB: NavTab = { id: "staff", label: "Staff", icon: CampIcon.Users };
+const MOBILE_TABS: NavTab[] = [HOME_TAB, ...TABS];
 const ADMIN_TAB: NavTab = {
   id: "admin",
   label: "Invite Codes",
@@ -53,20 +63,6 @@ function currentReturnPath() {
   return window.location.pathname + window.location.search + window.location.hash || "/";
 }
 
-function safeInternalReturnPath(value: string | null) {
-  if (!value) return "/";
-  if (value.startsWith("/") && !value.startsWith("//")) return value;
-
-  try {
-    const url = new URL(value);
-    if (url.origin === window.location.origin) return url.pathname + url.search + url.hash;
-  } catch {
-    /* fall through */
-  }
-
-  return "/";
-}
-
 function cleanAuthRouteUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("auth");
@@ -76,6 +72,9 @@ function cleanAuthRouteUrl() {
   window.history.replaceState(null, "", next || "/");
 }
 
+// The only remaining modal in the auth flow: a quick sign-in popped when an
+// edit action is attempted signed-out, so the user keeps their place mid-edit.
+// Every other entry (the Staff tab, "create an account") is a full page.
 function StaffPromptModal({
   prompt,
   authEnabled,
@@ -89,15 +88,13 @@ function StaffPromptModal({
 }) {
   return (
     <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
-      {authEnabled && prompt.mode === "sign-in" ? (
+      {authEnabled ? (
         <StaffSignIn
           returnTo={prompt.returnTo}
           message={prompt.message}
           onComplete={onClose}
           onRequestSignUp={onRequestSignUp}
         />
-      ) : authEnabled && prompt.mode === "sign-up" ? (
-        <InviteSignUp />
       ) : (
         <div className="auth-form auth-form--prompt">
           <div className="auth-form__section">Staff access</div>
@@ -111,44 +108,9 @@ function StaffPromptModal({
   );
 }
 
-function AccountPromptModal({
-  name,
-  email,
-  onClose,
-  onSwitchAccount,
-  onSignOut,
-}: {
-  name: string;
-  email: string;
-  onClose: () => void;
-  onSwitchAccount: () => void;
-  onSignOut: () => void;
-}) {
-  return (
-    <Modal label="Account" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
-      <div className="auth-form auth-form--prompt">
-        <div className="auth-form__section">Account</div>
-        <p className="auth-form__copy">You&apos;re logged in as {name}.</p>
-        <p className="auth-form__account-email">{email}</p>
-        <button type="button" className="btn btn--primary btn--block" onClick={onSwitchAccount}>
-          <CampIcon.User />
-          Switch account
-        </button>
-        <button type="button" className="btn btn--ghost btn--block" onClick={onSignOut}>
-          Sign out
-        </button>
-        <button type="button" className="btn btn--quiet btn--block" onClick={onClose}>
-          Stay signed in
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
+export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const auth = usePreviewAuth();
-  const authLabel = useAuthLabel(auth.session);
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
   const isSignedIn = signedInUserId != null;
   const storageScope = signedInUserId ? "user:" + signedInUserId : "anon";
@@ -163,31 +125,21 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
 
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
-  const [accountPrompt, setAccountPrompt] = useState(false);
+  // Which form the Staff tab shows when reached signed-out (sign-in vs the
+  // invite sign-up). Account state on that tab is driven by the session itself.
+  const [staffTabMode, setStaffTabMode] = useState<StaffTabMode>("sign-in");
 
-  const openStaffPrompt = useCallback(
-    (mode: "sign-in" | "sign-up", message: string, returnTo = currentReturnPath()) => {
-      setStaffPrompt({
-        allowed: false,
-        mode,
-        message,
-        returnTo,
-        signInHref: null,
-      });
-      setLiveMsg(message);
-    },
-    []
-  );
-
+  // Intentional sign-in / sign-up entry points open the dedicated Staff tab
+  // (not a modal). The inline modal is reserved for interrupted edit actions.
   const openSignUpPrompt = useCallback(() => {
-    openStaffPrompt(
-      "sign-up",
-      auth.enabled
-        ? "Create a staff account with an invite code."
-        : "Staff account creation is not configured in this workspace.",
-      "/"
-    );
-  }, [auth.enabled, openStaffPrompt]);
+    setStaffTabMode("sign-up");
+    setTab("staff");
+  }, []);
+
+  const openSignInPrompt = useCallback(() => {
+    setStaffTabMode("sign-in");
+    setTab("staff");
+  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -195,21 +147,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     if (mode !== "sign-in" && mode !== "sign-up") return;
     if (auth.enabled && !auth.ready) return;
 
-    const next = safeInternalReturnPath(url.searchParams.get("next") || url.searchParams.get("redirect_url"));
     cleanAuthRouteUrl();
     if (auth.signedIn || auth.providerSignedIn) return;
-    openStaffPrompt(
-      mode,
-      mode === "sign-up"
-        ? auth.enabled
-          ? "Create a staff account with an invite code."
-          : "Staff account creation is not configured in this workspace."
-        : auth.enabled
-          ? "Existing staff can sign in with Google or password."
-          : "Staff sign-in is not configured in this workspace, so editing tools are unavailable.",
-      next
-    );
-  }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn, openStaffPrompt]);
+    // A ?auth= deep link is an intentional ask — land on the Staff tab.
+    setStaffTabMode(mode);
+    setTab("staff");
+  }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
 
   const requireStaff = useCallback(
     (action: string) => {
@@ -220,6 +163,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         origin: typeof window === "undefined" ? undefined : window.location.origin,
       });
       if (gate.allowed) return true;
+      // The one exception to "sign-in lives on the Staff tab": an interrupted
+      // edit action pops a quick modal so the user keeps their place mid-edit.
       setStaffPrompt({ ...gate, mode: "sign-in", returnTo });
       setLiveMsg(gate.message);
       return false;
@@ -283,6 +228,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   const openDetail = useCallback((activity: Activity) => {
     setDetailEventContext(null);
     setDetail(activity);
+  }, []);
+
+  // Home's "Browse by type" tiles jump into the Library pre-filtered to one
+  // category (or "All" for the catch-all links).
+  const goLibrary = useCallback((nextCat: CatFilter) => {
+    setCat(nextCat);
+    setTab("library");
   }, []);
 
   const openDetailFromEvent = useCallback((activity: Activity, calEvent: CalendarEvent) => {
@@ -383,18 +335,15 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   }
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
-  const navTabs = useMemo(() => (isAdmin || tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [isAdmin, tab]);
-
-  const savedCount = lib.favSet.size;
-
-  // The auth pill lives inside each surface's own header row — the sidebar/
-  // tabbar already names the surface, so there's no separate page-title bar.
-  const authControl = (
-    <AuthButton
-      session={auth.session}
-      onOpen={() => requireStaff("make staff changes")}
-      onAccount={() => setAccountPrompt(true)}
-    />
+  // Desktop sidebar omits Home (the brand mark is Home). The mobile tab bar
+  // keeps Home, since mobile has no persistent brand mark to tap.
+  const navTabs = useMemo(
+    () => (isAdmin || tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
+    [isAdmin, tab]
+  );
+  const mobileNavTabs = useMemo(
+    () => (isAdmin || tab === "admin" ? [...MOBILE_TABS, STAFF_TAB, ADMIN_TAB] : [...MOBILE_TABS, STAFF_TAB]),
+    [isAdmin, tab]
   );
 
   return (
@@ -407,10 +356,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
           <button
             type="button"
             className="sidenav__brand"
-            onClick={() => setTab("calendar")}
-            aria-label="Camp Library — open the calendar"
+            onClick={() => setTab("home")}
+            aria-label="Camp Library — go home"
           >
-            <img className="sidenav__logo" src="/logo-mark.svg" alt="" aria-hidden="true" />
+            <BrandMark className="sidenav__logo" />
             <span className="sidenav__brand-copy">
               <span className="sidenav__kicker">The counselor&rsquo;s kit</span>
               <span className="sidenav__title">
@@ -450,31 +399,36 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             />
           )}
           {tab === "calendar" && <div className="sidenav__calrail" ref={calRailRef} />}
-          <div className="sidenav__foot">
-            <span>
-              {lib.all.length} in the library · {savedCount} saved
-            </span>
-            <span>{authLabel}</span>
-            {isSignedIn && cloud.status !== "local" && (
-              <span>
-                {cloud.status === "synced"
-                  ? "Synced"
-                  : cloud.status === "syncing"
-                    ? "Syncing…"
-                    : "Offline · " + cloud.pendingCount + " pending"}
-              </span>
-            )}
-          </div>
         </nav>
 
         <main className="app__main" id="main">
-          {tab !== "admin" && (
-            <h1 className="sr-only">{tab === "library" ? "Library" : "Calendar"}</h1>
+          {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
+          {tab === "library" && <h1 className="sr-only">Library</h1>}
+
+          {tab === "home" && (
+            <HomeTab
+              activities={lib.all}
+              byId={lib.byId}
+              favs={lib.favs}
+              isFav={lib.isFav}
+              onToggleFav={lib.toggleFav}
+              events={cloud.events}
+              onOpenActivity={openDetail}
+              onOpenEventActivity={openDetailFromEvent}
+              onGoCalendar={() => setTab("calendar")}
+              onGoLibrary={goLibrary}
+              onContextMenu={(activity, e) => libMenu.open(e, activity)}
+              isSignedIn={isSignedIn}
+              authEnabled={auth.enabled}
+              adminEmail={ADMIN_EMAIL}
+              onStaffSignIn={openSignInPrompt}
+              onStaffSignUp={openSignUpPrompt}
+              onOpenAccount={() => setTab("staff")}
+            />
           )}
 
           {tab === "library" && (
             <LibraryTab
-              actions={authControl}
               view={lib.view}
               onView={(view: LibraryView) => lib.setView(view)}
               query={query}
@@ -513,7 +467,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
                 railSlot={calRail}
-                headerActions={authControl}
               />
             </div>
           )}
@@ -523,7 +476,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               <div className="admin-tab">
                 <div className="admin-tab__head">
                   <h1 className="admin-tab__title">Invite codes</h1>
-                  <div className="admin-tab__actions">{authControl}</div>
                 </div>
                 {isAdmin ? (
                   <AdminInviteCodes />
@@ -547,10 +499,21 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               </div>
             </div>
           )}
+
+          {tab === "staff" && (
+            <StaffTab
+              session={auth.session}
+              authEnabled={auth.enabled}
+              mode={staffTabMode}
+              onMode={setStaffTabMode}
+              onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
+              onSignOut={() => auth.signOut("/")}
+            />
+          )}
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {navTabs.map((t) => (
+          {mobileNavTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -640,21 +603,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             prompt={staffPrompt}
             authEnabled={auth.enabled}
             onClose={() => setStaffPrompt(null)}
-            onRequestSignUp={openSignUpPrompt}
-          />
-        )}
-        {accountPrompt && auth.session.status === "authenticated" && (
-          <AccountPromptModal
-            name={auth.session.user.name}
-            email={auth.session.user.email}
-            onClose={() => setAccountPrompt(false)}
-            onSwitchAccount={() => {
-              setAccountPrompt(false);
-              auth.signOut("/?auth=sign-in");
-            }}
-            onSignOut={() => {
-              setAccountPrompt(false);
-              auth.signOut("/");
+            onRequestSignUp={() => {
+              // "Create an account" from the inline gate redirects to the full
+              // Staff page rather than swapping the modal to a sign-up form.
+              setStaffPrompt(null);
+              openSignUpPrompt();
             }}
           />
         )}

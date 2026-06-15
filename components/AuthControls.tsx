@@ -4,7 +4,6 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 import type { AuthSession } from "@/lib/auth";
 import { ANONYMOUS_SESSION, isClerkPublicKeyUsable, signInHref } from "@/lib/auth";
-import { CampIcon } from "./icons";
 
 const CLERK_ENABLED = isClerkPublicKeyUsable();
 
@@ -121,42 +120,3 @@ function useClerkAuth() {
 // chosen implementation never changes for the lifetime of the app — the Rules
 // of Hooks hold because a given mount always calls the same hook every render.
 export const usePreviewAuth = CLERK_ENABLED ? useClerkAuth : useServerOnlyAuth;
-
-export function AuthButton({
-  session,
-  onOpen,
-  onAccount,
-}: {
-  session: AuthSession;
-  onOpen: () => void;
-  onAccount: () => void;
-}) {
-  if (session.status === "authenticated") {
-    return (
-      <button
-        type="button"
-        className="auth-pill auth-pill--signed-in"
-        onClick={onAccount}
-        aria-label={"Open account menu for " + session.user.name}
-        title="Account"
-      >
-        <CampIcon.User />
-        <span>{session.user.name}</span>
-      </button>
-    );
-  }
-
-  return (
-    <button type="button" className="auth-pill" onClick={onOpen} aria-label="Sign in as staff" title="Sign in as staff">
-      <CampIcon.User />
-      <span>Staff</span>
-    </button>
-  );
-}
-
-export function useAuthLabel(session: AuthSession) {
-  return useMemo(() => {
-    if (session.status === "authenticated") return "Staff: " + session.user.name;
-    return "Local workspace";
-  }, [session]);
-}

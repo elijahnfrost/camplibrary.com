@@ -4,7 +4,7 @@
 // bar, and the three browse views. Filter state lives in CampApp because the
 // desktop filter rail renders inside the sidenav.
 
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
 import type { MaterialOption } from "@/lib/materials";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -66,7 +66,16 @@ export function LibraryTab({
   return (
     <>
       <div className="toolbar">
-        <div className="viewswitch">
+        {/* --seg-i drives the sliding active pill (see .viewswitch in globals). */}
+        <div
+          className="viewswitch seg-slide"
+          style={
+            {
+              "--seg-n": 3,
+              "--seg-i": view === "shelf" ? 0 : view === "deck" ? 1 : 2,
+            } as CSSProperties
+          }
+        >
           <button
             type="button"
             className={view === "shelf" ? "is-active" : ""}

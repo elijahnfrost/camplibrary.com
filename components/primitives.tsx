@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
 import { CampIcon } from "./icons";
 
@@ -119,8 +119,16 @@ export function MiniSeg<T extends string>({
   onChange: (v: T) => void;
   ariaLabel: string;
 }) {
+  // --seg-n / --seg-i drive the sliding thumb (the ::before pill) so the green
+  // selection glides between options instead of teleporting. -1 hides it.
+  const activeIndex = options.findIndex((opt) => opt.id === value);
   return (
-    <span className="miniseg" role="radiogroup" aria-label={ariaLabel}>
+    <span
+      className="miniseg seg-slide"
+      role="radiogroup"
+      aria-label={ariaLabel}
+      style={{ "--seg-n": options.length, "--seg-i": activeIndex } as CSSProperties}
+    >
       {options.map((opt) => {
         const on = value === opt.id;
         return (
@@ -309,8 +317,14 @@ export function Seg<T extends string>({
   onChange: (v: T) => void;
   ariaLabel?: string;
 }) {
+  const activeIndex = options.indexOf(value);
   return (
-    <div className="seg" role="group" aria-label={ariaLabel}>
+    <div
+      className="seg seg-slide"
+      role="group"
+      aria-label={ariaLabel}
+      style={{ "--seg-n": options.length, "--seg-i": activeIndex } as CSSProperties}
+    >
       {options.map((o) => (
         <button
           key={o}

@@ -109,16 +109,23 @@
 .calhead__view:focus-visible {
   outline-offset: -2px;
 }
+/* Sliding variant — the green is the shared thumb (.seg-slide in globals.css);
+   the active button just recolours its label. Match the control's frame. */
+.calhead__views.seg-slide {
+  --seg-pad: var(--s-1);
+  --seg-gap: var(--s-1);
+  --seg-radius: var(--r-sm);
+}
 .calhead__view.is-active {
-  background: var(--accent);
+  background: transparent;
   color: var(--on-accent);
 }
 .calhead__view.is-active:hover {
-  background: var(--accent);
+  background: transparent;
   color: var(--on-accent);
 }
 .calhead__view.is-active:active {
-  background: var(--accent-ink);
+  background: transparent;
 }
 .calhead__view.is-active:focus-visible {
   outline-color: var(--on-accent);

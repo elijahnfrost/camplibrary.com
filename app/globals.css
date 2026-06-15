@@ -368,16 +368,22 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.viewswitch.seg-slide {
+  --seg-pad: var(--s-1);
+  --seg-gap: var(--s-1);
+  --seg-radius: var(--r-sm);
+}
 .viewswitch button.is-active {
-  background: var(--accent);
+  /* Green is painted by the sliding thumb; the active label just goes light. */
+  background: transparent;
   color: var(--on-accent);
 }
 .viewswitch button.is-active:hover {
-  background: var(--accent);
+  background: transparent;
   color: var(--on-accent);
 }
 .viewswitch button.is-active:active {
-  background: var(--accent-ink);
+  background: transparent;
 }
 .viewswitch button.is-active:focus-visible {
   outline-color: var(--on-accent);
@@ -695,6 +701,62 @@ body {
   color: var(--accent-ink);
 }
 /* Mini segmented pill (Where, Ages). */
+/* ============================================================================
+   Sliding segmented controls (.seg-slide)
+   Shared mechanism so the active highlight GLIDES between options instead of
+   teleporting (the old per-button background swap). The container carries
+   --seg-n (option count) and --seg-i (active index); a single ::before "thumb"
+   slides to the active segment and is the ONLY thing painted green — each
+   option's own active background is suppressed so just the thumb moves. Segments
+   are forced equal-width (flex: 1) so the thumb math is uniform. Per-control
+   knobs: --seg-pad (container padding) and --seg-gap (inter-segment gap) so the
+   thumb lines up exactly inside each control's frame; --seg-radius rounds it.
+   ============================================================================ */
+.seg-slide {
+  position: relative;
+  --seg-pad: var(--s-1);
+  --seg-gap: 1px;
+  --seg-radius: var(--r-pill);
+}
+.seg-slide > button {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  z-index: 1; /* label rides above the thumb */
+  white-space: nowrap; /* equal-width segments must NOT wrap labels ("1-3"),
+                          or the row grows tall and the thumb ovals out */
+}
+/* The thumb spans exactly one segment and slides by the true segment PITCH.
+   Both width and left are expressed in CONTAINER units (percentages on an
+   absolutely-positioned child resolve against the container), so the geometry is
+   exact and never drifts with index: --seg-w is the segment width, the pitch is
+   --seg-w + gap, and left = pad + i * pitch. (The earlier bug stepped by the
+   thumb's OWN width via translateX 100%, which under-shot by a fraction per
+   segment and pushed the last pill out of the frame.) */
+.seg-slide {
+  --seg-w: calc((100% - 2 * var(--seg-pad) - (var(--seg-n) - 1) * var(--seg-gap)) / var(--seg-n));
+}
+.seg-slide::before {
+  content: "";
+  position: absolute;
+  top: var(--seg-pad);
+  bottom: var(--seg-pad);
+  left: calc(var(--seg-pad) + var(--seg-i) * (var(--seg-w) + var(--seg-gap)));
+  width: var(--seg-w);
+  border-radius: var(--seg-radius);
+  background: var(--accent);
+  transition: left var(--t-med) var(--ease-overlay);
+  z-index: 0;
+  pointer-events: none;
+}
+/* These are radio groups that always carry a value, so --seg-i is always >= 0
+   and the thumb always has a home; no empty state to hide. */
+@media (prefers-reduced-motion: reduce) {
+  .seg-slide::before {
+    transition: none;
+  }
+}
+
 .miniseg {
   display: inline-flex;
   background: var(--card);
@@ -720,8 +782,13 @@ body {
   color: var(--ink);
 }
 .miniseg button.is-on {
-  background: var(--accent);
+  /* Background lives on the sliding thumb now; just recolour the label. */
+  background: transparent;
   color: var(--on-accent);
+}
+.miniseg.seg-slide {
+  --seg-gap: 1px;
+  --seg-pad: var(--s-1);
 }
 /* True on/off switch (Starred only). */
 .lswitch {
@@ -1566,6 +1633,48 @@ body {
   stroke-width: 1.5;
   stroke-linejoin: round;
   transition: fill var(--t-fast) var(--ease), stroke var(--t-fast) var(--ease);
+  transform-origin: 50% 0%; /* hinged at the top edge it hangs from */
+}
+/* Save delight — the ribbon "plants" itself: when a save toggles ON, the ribbon
+   drops down from the top edge with a quick squash-and-settle (it's literally a
+   flag hanging off the card, so it should flag down). The chip gives a softer
+   pop. The animation replays each time .is-on is (re)applied on toggle. */
+.star--ribbon.is-on .ribbon-svg {
+  animation: ribbon-plant 0.42s var(--ease-overlay) both;
+}
+@keyframes ribbon-plant {
+  0% {
+    transform: translateY(-22%) scaleY(0.78);
+  }
+  55% {
+    transform: translateY(0) scaleY(1.1);
+  }
+  78% {
+    transform: scaleY(0.96);
+  }
+  100% {
+    transform: none;
+  }
+}
+.star--chip.is-on svg {
+  animation: chip-pop 0.34s var(--ease-overlay) both;
+}
+@keyframes chip-pop {
+  0% {
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .star--ribbon.is-on .ribbon-svg,
+  .star--chip.is-on svg {
+    animation: none;
+  }
 }
 
 /* ---------- bottom tab bar (phone) ---------- */
@@ -1728,53 +1837,6 @@ body {
 }
 
 /* ---------- auth controls ---------- */
-.auth-pill {
-  max-width: 132px;
-  height: var(--control-md);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 11px;
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  color: var(--ink-soft);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  text-decoration: none;
-}
-.auth-pill:hover {
-  background: var(--paper-2);
-  color: var(--ink);
-}
-.auth-pill:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-.auth-pill svg {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.auth-pill span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.auth-pill--signed-in {
-  border-color: var(--accent-ink);
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-}
 .auth-required {
   gap: 14px;
 }
@@ -1926,6 +1988,40 @@ body {
   line-height: 1;
   color: var(--ink);
 }
+
+/* ---- staff tab (the dedicated sign-in / account surface) ----
+   Shares the admin page's head treatment; the body is a centered column so the
+   self-contained auth-form card sits comfortably rather than stretching wide. */
+.staff-tab {
+  padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
+}
+.staff-tab__head {
+  width: min(100%, 1120px);
+  margin: 0 auto 16px;
+}
+.staff-tab__title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
+}
+.staff-tab__body {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(100%, 420px);
+  margin: 0 auto;
+}
+/* The auth-form card defaults to 420px and fills the centered column. */
+.staff-tab__body .auth-form {
+  width: 100%;
+}
+.staff-tab__switch {
+  margin: 0;
+}
+
 .admin-panel {
   display: grid;
   gap: 16px;
@@ -2098,14 +2194,380 @@ body {
   color: var(--ink-soft);
 }
 
-@media (max-width: 420px) {
-  .auth-pill {
-    width: 40px;
-    padding: 0;
-  }
-  .auth-pill span {
-    display: none;
-  }
+/* ============================================================
+ * Home surface — the landing screen
+ * The app's front door: a warm welcome, today's schedule, the camp's
+ * favorites, and the way into the library. Built from the same parts as the
+ * rest of the app (cards, the 3px category spine, deck covers, stamps) so it
+ * reads as one more room in the same building, not a separate marketing page.
+ * Mobile-first; the desktop layer (>= 768px) widens the columns.
+ * ============================================================ */
+.home {
+  padding: max(18px, calc(10px + env(safe-area-inset-top))) var(--page-x) 96px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+.home > * {
+  width: min(100%, 1120px);
+  margin-inline: auto;
+}
+
+/* ---- welcome ---- */
+.home__welcome {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-6);
+}
+.home__welcome-copy {
+  min-width: 0;
+}
+.home__kicker {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.home__greeting {
+  margin: 5px 0 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: clamp(30px, 6vw, 40px);
+  line-height: 0.98;
+  color: var(--ink);
+}
+.home__welcome-actions {
+  flex: none;
+}
+
+/* ---- body: two stacks side by side ----
+   .home__plan (left) = today's schedule + camp favorites — the working content.
+   .home__aside (right) = the getting-started guide + browse-by-type — orientation.
+   Mobile stacks plan → aside; desktop (below) sets them two-up. The guide card is
+   tall enough that a quiet schedule day never leaves the canvas feeling blank. */
+.home__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-7);
+}
+.home__plan,
+.home__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  min-width: 0;
+}
+.home__col,
+.home__browse {
+  min-width: 0;
+}
+.home__sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+.home__sec-title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.home__sec-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: var(--s-1) 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  transition: color var(--t-fast) var(--ease);
+}
+.home__sec-link:hover {
+  color: var(--accent-ink);
+}
+.home__sec-link svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- today's schedule ---- */
+.home-sched {
+  background: var(--content);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.home-sched__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-5);
+  background: transparent;
+  border: 0;
+  border-left: 3px solid var(--cal-tint, var(--line));
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.home-sched__row:last-child {
+  border-bottom: 0;
+}
+.home-sched__row--link {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.home-sched__row--link:hover {
+  background: var(--chrome-well);
+}
+.home-sched__row--link:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.home-sched__row--link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.home-sched__time {
+  flex: none;
+  width: 52px;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.home-sched__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.home-sched__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.05;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-sched__row--link:hover .home-sched__title {
+  color: var(--accent-ink);
+}
+.home-sched__meta {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---- favorites grid (mini deck covers) ---- */
+.home-favs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+}
+/* The home favorite cover reuses .deck-card wholesale; only the title scales
+   down a touch for the tighter grid. */
+.home-fav .deck-card__title {
+  font-size: var(--fs-body-lg);
+}
+
+/* ---- shared home empty state ---- */
+.home-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-8) var(--page-x);
+  text-align: center;
+  background: var(--content);
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-lg);
+}
+.home-empty__mark {
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+.home-empty__mark svg {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-empty__title {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.home-empty__hint {
+  margin: -4px 0 2px;
+  max-width: 34ch;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ---- getting-started guide ----
+   The orientation card: numbered steps in the boxed, dashed-divider idiom used
+   across the app, plus the sign-in / sign-up CTAs. Replaces the old free-text
+   lede so first-time visitors get clean instructions in the house style. */
+.home-guide__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-6);
+  background: var(--content);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-lg);
+}
+.home-guide__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-guide__step {
+  display: flex;
+  gap: var(--s-5);
+  padding: var(--s-5) 0;
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.home-guide__step:first-child {
+  padding-top: 0;
+}
+.home-guide__step:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.home-guide__num {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-round);
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ink);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+  color: var(--accent-ink);
+}
+.home-guide__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.home-guide__step-title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.home-guide__step-copy {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.home-guide__link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.home-guide__link:hover {
+  color: var(--accent-ink);
+}
+.home-guide__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.home-guide__actions .btn {
+  flex: 1;
+  min-width: 140px;
+}
+.home-guide__note {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ---- browse by type ---- */
+.home-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.home-type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  height: 38px;
+  padding: 0 var(--s-6);
+  background: var(--content);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.home-type:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.home-type:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.home-type__dot {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: var(--r-round);
+  background: var(--cal-tint, var(--line));
+}
+.home-type__count {
+  font-family: var(--text);
+  font-size: var(--fs-label);
+  color: var(--ink-faint);
 }
 
 @media (min-width: 860px) {
@@ -3252,16 +3714,29 @@ body {
 .seg button:last-child {
   border-right: 0;
 }
+/* Sliding variant: thumb paints the green, buttons go transparent so it shows
+   through. No padding/gap here — segments butt together with border dividers. */
+.seg.seg-slide {
+  --seg-pad: 0px;
+  --seg-gap: 0px;
+  --seg-radius: 0px;
+}
+.seg.seg-slide button {
+  background: transparent;
+}
+.seg.seg-slide button:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
 .seg button.is-on {
-  background: var(--accent);
+  background: transparent;
   color: var(--on-accent);
 }
 .seg button.is-on:hover {
-  background: var(--accent);
+  background: transparent;
   color: var(--on-accent);
 }
 .seg button.is-on:active {
-  background: var(--accent-ink);
+  background: transparent;
 }
 .seg button.is-on:focus-visible {
   outline-color: var(--on-accent);
@@ -3714,22 +4189,6 @@ body {
   .sidenav__item.is-active:focus-visible {
     outline-color: var(--ink);
   }
-  /* The foot ("15 in library · 0 saved", staff line) sits quietly below the
-     rail — no dashed rule fencing it off; its faint small-caps already reads
-     as a separate register, and the extra line was visual clutter. */
-  .sidenav__foot {
-    flex: none;
-    margin-top: 18px;
-    display: grid;
-    gap: 4px;
-    font-family: var(--hand-sc);
-    font-size: 10px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    line-height: 1.5;
-  }
-
   /* ---- shared sidebar section (the lower zone, both tabs) ----
      One skeleton for the third zone so the Library filter rail and the
      Calendar activity rail read as one sidebar: same header treatment, same
@@ -3976,6 +4435,9 @@ body {
   .rail {
     margin-inline: 40px;
   }
+  .home {
+    padding-inline: 40px;
+  }
 }
 
 @media (max-width: 767px) {
@@ -3992,6 +4454,24 @@ body {
 }
 
 @media (min-width: 768px) {
+  /* ---- Home: roomier desk ---- */
+  .home {
+    padding: var(--s-7) var(--s-8) var(--s-8);
+    gap: var(--s-7);
+  }
+  .home__grid {
+    /* The working content (schedule + favorites) takes the wider left column;
+       the orientation aside (guide + browse) sits at right. align-items:start
+       lets each column keep its natural height. */
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--s-7);
+  }
+  .home-favs {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-6);
+  }
+
   .modal-root {
     display: block;
     position: absolute;
@@ -4091,8 +4571,36 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  /* The brand mark IS the Home button (no Home row in the rail), so it reads as
+     a real, pressable target: padded, a transparent dashed frame that warms in
+     on hover, and the whole block lifts + recolors as one. */
+  padding: var(--s-4) var(--s-5);
+  margin: calc(-1 * var(--s-4)) calc(-1 * var(--s-5)) var(--s-5);
+  border: 1.5px dashed transparent;
+  border-radius: var(--r-lg);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+.sidenav__brand:hover {
+  background: var(--chrome-well);
+  border-color: color-mix(in srgb, var(--accent-light) 70%, var(--line-soft));
+  transform: translateY(-1px);
+}
+.sidenav__brand:active {
+  transform: translateY(0);
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.sidenav__brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Hover recolors the WHOLE wordmark (kicker + both words) as one move, not just
+   the "Library" emphasis — that single-word flicker was the subpar tell. */
+.sidenav__brand:hover .sidenav__kicker {
+  color: var(--accent-ink);
 }
 .sidenav__brand:hover .sidenav__title,
+.sidenav__brand:hover .sidenav__title em,
 .sidenav__brand.is-active .sidenav__title {
   color: var(--accent);
 }
@@ -4101,7 +4609,497 @@ body {
   height: 48px;
   flex: none;
   object-fit: contain;
+  overflow: visible; /* let books overshoot their box mid-animation */
 }
+/* Each book pivots on its own bottom edge (fill-box → origin is the rect's own
+   bounds, not the SVG canvas) so a tilt reads as the book hinging on the shelf,
+   the way a real book leans and falls upright. */
+.bookmark__book {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform var(--t-med) var(--ease);
+}
+/* Resting lean of the gold book lives here (not as an SVG attribute) so the
+   book-fall hover animation starts from exactly this angle, hinged at the foot. */
+.bookmark__book--4 {
+  transform: rotate(-7deg);
+}
+/* The three upright books settle in a left→right ripple — a quick lift and drop,
+   like the shelf reacting to the gold book landing. --i (0,1,2) staggers them. */
+.sidenav__brand:hover .bookmark__book--1,
+.sidenav__brand:hover .bookmark__book--2,
+.sidenav__brand:hover .bookmark__book--3 {
+  animation: book-settle 0.5s var(--ease) calc(var(--i) * 60ms) both;
+}
+/* The gold book is leaning (-7°) at rest; on hover it falls upright onto the
+   shelf with a small overshoot, then settles to vertical — "into place". */
+.sidenav__brand:hover .bookmark__book--4 {
+  animation: book-fall 0.55s var(--ease) 0.12s both;
+}
+@keyframes book-settle {
+  0% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-6%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes book-fall {
+  0% {
+    transform: rotate(-7deg);
+  }
+  65% {
+    transform: rotate(3deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidenav__brand,
+  .sidenav__brand:hover {
+    transform: none;
+  }
+  .sidenav__brand:hover .bookmark__book--1,
+  .sidenav__brand:hover .bookmark__book--2,
+  .sidenav__brand:hover .bookmark__book--3,
+  .sidenav__brand:hover .bookmark__book--4 {
+    animation: none;
+  }
+}
+/* ============================================================================
+   Icon hover animations
+   Small, on-theme flourishes that play when an animated icon (.cicon--*) sits
+   inside an interactive ancestor that's hovered. One shared trigger list keeps
+   the icons alive everywhere they appear (nav, view switcher, toolbar, links)
+   without per-context rules. Each .cicon-* part is hinged so the motion reads
+   physically — a page turns on the spine, a calendar leaf flips on its rings.
+   Everything is suppressed under prefers-reduced-motion at the foot of this
+   section.
+   ============================================================================ */
+/* Inner parts pivot on their own geometry, not the icon canvas. */
+.cicon [class^="cicon-"],
+.cicon [class*=" cicon-"] {
+  transform-box: fill-box;
+}
+
+/* --- Library (closed book): the front cover opens to read -------------------
+   At rest the cover rect sits exactly over the page rect, so the icon reads as
+   one clean closed book. On hover the cover swings open on its left edge (the
+   spine) via a perspective rotateY, and the page lines flip in beneath, top→down
+   — a book opening. The cover keeps a faint paper fill while open so the swinging
+   panel reads as a surface, not a bare outline. Page lines are hidden at rest. */
+.cicon--book {
+  /* Perspective on the icon so the cover's rotateY has real depth. */
+  perspective: 60px;
+}
+.cicon--book .cicon-book__cover {
+  transform-origin: 0% 50%; /* hinge at the spine (left edge) */
+  fill-opacity: 0; /* inherited by the rect; the keyframe fades it in while open */
+}
+.cicon--book .cicon-book__cover rect {
+  fill: currentColor;
+}
+.cicon--book .cicon-book__line {
+  transform-origin: 0% 50%; /* draw from the spine side */
+  transform: scaleX(0);
+  opacity: 0;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--book .cicon-book__cover {
+  animation: cicon-book-open 0.6s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--book .cicon-book__line {
+  animation: cicon-book-line 0.5s var(--ease) calc(0.12s + var(--i) * 70ms) both;
+}
+@keyframes cicon-book-open {
+  0% {
+    transform: rotateY(0deg);
+    fill-opacity: 0;
+  }
+  30% {
+    fill-opacity: 0.14;
+  }
+  55% {
+    transform: rotateY(-105deg);
+    fill-opacity: 0.14;
+  }
+  /* eases back closed so repeated hovers replay from a clean closed book */
+  100% {
+    transform: rotateY(0deg);
+    fill-opacity: 0;
+  }
+}
+@keyframes cicon-book-line {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  40% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0; /* fade as the cover swings back shut */
+  }
+}
+
+/* --- Calendar: a fresh page flips down to a new month -----------------------
+   More present than a faint leaf-tilt: the page sheet (header→bottom) is a solid
+   paper face covering the grid at rest, so the calendar looks like a current,
+   blank page. On hover it flips down and away on its TOP hinge (the header rule)
+   — a page turning — while a new month's date dots pop in beneath it and the
+   binder rings hop. The sheet rotates a full ~180° so the turn really reads. */
+.cicon--cal {
+  perspective: 60px;
+}
+.cicon--cal .cicon-cal__leaf {
+  transform-origin: 50% 0%; /* hinge along the header rule (top of the sheet) */
+  /* Transparent at rest so the icon is just a clean outlined calendar on ANY
+     surface; a faint paper face only appears while the page is mid-turn. */
+  fill: currentColor;
+  fill-opacity: 0;
+  stroke: none;
+}
+.cicon--cal .cicon-cal__dots {
+  fill: currentColor;
+  stroke: none;
+}
+.cicon--cal .cicon-cal__dots circle {
+  transform-origin: 50% 50%;
+  transform: scale(0);
+  opacity: 0;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__leaf {
+  animation: cicon-cal-flip 0.7s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__dots circle {
+  animation: cicon-cal-dot 0.4s var(--ease) calc(0.2s + var(--i) * 45ms) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__rings {
+  animation: cicon-cal-rings 0.7s var(--ease) both;
+}
+@keyframes cicon-cal-flip {
+  0% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+  15% {
+    fill-opacity: 0.16;
+  }
+  /* the page peels down and forward off the top hinge, revealing the grid */
+  55% {
+    transform: rotateX(85deg);
+    fill-opacity: 0.16;
+  }
+  70% {
+    transform: rotateX(92deg);
+    fill-opacity: 0;
+  }
+  /* a fresh page swings back and settles flat, fading out to the clean outline */
+  88% {
+    transform: rotateX(64deg);
+    fill-opacity: 0.12;
+  }
+  100% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+}
+@keyframes cicon-cal-dot {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cicon-cal-rings {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-2px);
+  }
+  55% {
+    transform: translateY(0.5px);
+  }
+}
+
+/* --- Shelf: the spines jostle and settle, left→right ---------------------- */
+.cicon--shelf .cicon-spine {
+  transform-origin: 50% 100%;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--shelf .cicon-spine {
+  animation: cicon-spine-jostle 0.5s var(--ease) calc(var(--i) * 50ms) both;
+}
+@keyframes cicon-spine-jostle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  40% {
+    transform: rotate(-5deg);
+  }
+  70% {
+    transform: rotate(2.5deg);
+  }
+}
+
+/* --- Deck: the cards deal in one after another --------------------------- */
+.cicon--deck .cicon-card {
+  transform-origin: 50% 50%;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--deck .cicon-card {
+  animation: cicon-card-deal 0.42s var(--ease) calc(var(--i) * 70ms) both;
+}
+@keyframes cicon-card-deal {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.2;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* --- List: each long rule sweeps in from its bullet, top→down ------------- */
+.cicon--list .cicon-line {
+  transform-origin: 0% 50%; /* grow from the left (the bullet side) */
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--list .cicon-line {
+  animation: cicon-line-sweep 0.4s var(--ease) calc(var(--i) * 80ms) both;
+}
+@keyframes cicon-line-sweep {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* --- Plus: a quarter-turn grow — "add" ----------------------------------- */
+.cicon--plus {
+  transform-origin: 50% 50%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--plus {
+  animation: cicon-plus-spin 0.4s var(--ease) both;
+}
+@keyframes cicon-plus-spin {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  60% {
+    transform: rotate(90deg) scale(1.18);
+  }
+  100% {
+    transform: rotate(90deg) scale(1);
+  }
+}
+
+/* --- Search: a small searching nudge of the whole lens ------------------- */
+.cicon--search {
+  transform-origin: 40% 40%; /* roughly the lens centre */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--search {
+  animation: cicon-search-nudge 0.55s var(--ease) both;
+}
+@keyframes cicon-search-nudge {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  30% {
+    transform: rotate(-9deg) scale(1.06);
+  }
+  65% {
+    transform: rotate(6deg) scale(1.06);
+  }
+}
+
+/* --- Tool: a couple of quick tightening wiggles -------------------------- */
+.cicon--tool {
+  transform-origin: 70% 30%; /* the wrench head */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--tool {
+  animation: cicon-tool-wiggle 0.5s var(--ease) both;
+}
+@keyframes cicon-tool-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  55% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-3deg);
+  }
+}
+
+/* --- User: a friendly little head nod ------------------------------------ */
+.cicon--user .cicon-user__head {
+  transform-origin: 50% 100%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--user .cicon-user__head {
+  animation: cicon-user-nod 0.5s var(--ease) both;
+}
+@keyframes cicon-user-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(0.6px) rotate(-7deg);
+  }
+}
+
+/* --- Users (Staff): front person bobs, the one behind leans in to join ---- */
+.cicon--users .cicon-users__head {
+  transform-origin: 50% 100%;
+}
+.cicon--users .cicon-users__back {
+  transform-origin: 100% 50%; /* pivot from the right, where they stand */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--users .cicon-users__head {
+  animation: cicon-users-bob 0.55s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--users .cicon-users__back {
+  animation: cicon-users-join 0.55s var(--ease) 60ms both;
+}
+@keyframes cicon-users-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(-1px) rotate(-6deg);
+  }
+}
+@keyframes cicon-users-join {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  50% {
+    transform: translateX(-1.2px) rotate(5deg);
+  }
+}
+
+/* --- Bookmark: dips down as if catching a page --------------------------- */
+.cicon--bookmark {
+  transform-origin: 50% 0%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--bookmark {
+  animation: cicon-bookmark-dip 0.5s var(--ease) both;
+}
+@keyframes cicon-bookmark-dip {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  45% {
+    transform: translateY(1px) scaleY(1.08);
+  }
+}
+
+/* --- Filter: the funnel gives a settling shimmy -------------------------- */
+.cicon--filter {
+  transform-origin: 50% 30%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--filter {
+  animation: cicon-filter-settle 0.5s var(--ease) both;
+}
+@keyframes cicon-filter-settle {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(0.86);
+  }
+}
+
+/* --- Reset: a full refreshing turn --------------------------------------- */
+.cicon--reset {
+  transform-origin: 50% 52%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--reset {
+  animation: cicon-reset-spin 0.6s var(--ease) both;
+}
+@keyframes cicon-reset-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Chevrons: a small directional nudge --------------------------------- */
+:where(button, a, summary, label, [role="button"]):hover .cicon--chev-right {
+  animation: cicon-chev-right 0.45s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--chev-left {
+  animation: cicon-chev-left 0.45s var(--ease) both;
+}
+@keyframes cicon-chev-right {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+@keyframes cicon-chev-left {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cicon,
+  .cicon [class^="cicon-"],
+  .cicon [class*=" cicon-"] {
+    animation: none !important;
+  }
+  /* Calendar at rest = a fresh page over the grid; date dots stay hidden. */
+  .cicon--cal .cicon-cal__dots circle {
+    transform: scale(0);
+    opacity: 0;
+  }
+  /* Book at rest = a clean closed book: cover unfilled over the pages, page
+     lines collapsed out of sight. */
+  .cicon--book .cicon-book__line {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
 .sidenav__brand-copy {
   min-width: 0;
 }
@@ -4131,7 +5129,6 @@ body {
   .toolbar,
   .filtertrigger,
   .calhead__actions,
-  .admin-tab__actions,
   .modal-root {
     display: none !important;
   }

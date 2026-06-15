@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { CampIcon } from "../icons";
 
 export type CalendarViewId = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
@@ -54,7 +54,17 @@ export function CalendarHeader({
         </button>
         <h2 className="calhead__title">{title}</h2>
       </div>
-      <div className="calhead__views" role="group" aria-label="Calendar view">
+      <div
+        className="calhead__views seg-slide"
+        role="group"
+        aria-label="Calendar view"
+        style={
+          {
+            "--seg-n": VIEW_LABELS.length,
+            "--seg-i": VIEW_LABELS.findIndex((item) => item.id === view),
+          } as CSSProperties
+        }
+      >
         {VIEW_LABELS.map((item) => (
           <button
             key={item.id}
