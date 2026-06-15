@@ -1298,7 +1298,7 @@ body > .cal-lib__item .cal-lib__name {
 }
 
 /* ---------- responsive ---------- */
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .calshell__fab {
     display: none;
   }
@@ -1310,7 +1310,7 @@ body > .cal-lib__item .cal-lib__name {
 /* Below the desktop breakpoint there's no sidebar (and no page-title bar), so
    the calendar header is the first thing on the page — it carries the notch
    clearance the old topbar used to provide. */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .calhead {
     padding-top: max(14px, calc(6px + env(safe-area-inset-top)));
   }

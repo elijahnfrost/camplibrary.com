@@ -4681,7 +4681,10 @@ body {
  * sidebar; search sits in a header toolbar; and detail / picker slide
  * in as a right-hand inspector panel (master–detail).
  * ============================================================ */
-@media (min-width: 1024px) {
+/* The shell switch (bottom tab bar -> sidebar "desk"). Landed at --bp-tablet
+   (768px) so iPad portrait gets the real sidebar + calendar rail the design
+   intends, instead of a stretched phone layout. Phones (<768) keep the tab bar. */
+@media (min-width: 768px) {
   body {
     background: var(--stage-bg);
   }
