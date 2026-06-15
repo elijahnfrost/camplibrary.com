@@ -673,6 +673,9 @@ body {
   background: var(--card);
   box-shadow: var(--e3);
   padding: var(--s-2);
+  /* Match the sibling floating menus (.cmenu/.cdate__pop) which already pop in;
+     the Select/TypePicker menu was the lone desktop menu that snapped in. */
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
 .typepick__option {
   display: flex;
@@ -950,10 +953,19 @@ body {
 .overlay--manager {
   width: min(440px, 92vw);
 }
+/* Align the title bar's inset with the body padding below so "Camps"/"Themes"
+   and the create form share one left edge, and give the bar room from the close
+   button on the right. */
+.overlay--manager .overlay__bar {
+  padding: 16px var(--s-7) 8px;
+}
 .manager {
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+  /* The body had zero horizontal padding, so the intro/input/list ran edge to
+     edge. Pad it (and the bottom) so content breathes inside the card. */
+  padding: 0 var(--s-7) var(--s-7);
 }
 .manager__title {
   margin: 0;
@@ -1782,7 +1794,9 @@ body {
   font-size: 9px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  /* --ink-soft to match the stronger .cat-row__meta (was --ink-faint, which
+     dips below AA on the lighter card surfaces at this size). */
+  color: var(--ink-soft);
   line-height: 1.55;
 }
 
@@ -2208,7 +2222,9 @@ body {
   opacity: 1;
   background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
   border-color: var(--line);
-  color: var(--ink-faint);
+  /* --ink-soft (5.8:1 on the disabled fill) instead of --ink-faint, so the
+     disabled "Add to library" label still meets AA. */
+  color: var(--ink-soft);
   box-shadow: none;
 }
 
@@ -2262,7 +2278,7 @@ body {
   gap: 16px;
   padding: 18px;
   border: 2px solid var(--ink);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--card);
 }
 .auth-form__copy,
@@ -2403,7 +2419,7 @@ body {
   gap: 16px;
   padding: 16px;
   border: 2px solid var(--ink);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--card);
 }
 .admin-panel__head {
@@ -2685,7 +2701,8 @@ body {
 /* ---- today's schedule ---- */
 .home-sched {
   background: var(--content);
-  border: 1.5px solid var(--ink);
+  /* 2px to match its sibling .home-guide__card on the same screen (was 1.5px). */
+  border: 2px solid var(--ink);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -2760,7 +2777,9 @@ body {
 /* ---- favorites grid (mini deck covers) ---- */
 .home-favs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Fluid like the Library deck (was a hard 1fr 1fr that rendered the covers
+     ~30% larger than the identical deck-card module). */
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
   gap: var(--s-5);
 }
 /* The home favorite cover reuses .deck-card wholesale; only the title scales
@@ -2913,7 +2932,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--s-4);
-  height: 38px;
+  height: var(--control-md);
   padding: 0 var(--s-6);
   background: var(--content);
   border: 1.5px solid var(--line);
@@ -3025,7 +3044,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   background: var(--paper);
-  animation: cl-rise 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-rise 260ms var(--ease-overlay) both;
 }
 .overlay--sheet {
   top: 76px;
@@ -3060,7 +3079,7 @@ body {
   border: 0;
   border-radius: 0;
   background: transparent;
-  animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-pop 220ms var(--ease-overlay) both;
 }
 .overlay--auth .overlay__handle {
   display: none;
@@ -3104,6 +3123,12 @@ body {
 }
 .overlay__bar-spacer {
   flex: 1;
+}
+/* Right-aligned cluster in an overlay title bar (e.g. Reset + Close). */
+.overlay__bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
 }
 .overlay__handle {
   position: absolute;
@@ -3181,7 +3206,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  /* 36px so the print pill lines up with the .rlv-headbtn / save controls in the
+     viewer header (touch bumps all three to 44px below). */
+  min-height: 36px;
   padding: 4px 9px;
   border: 1.5px solid var(--line);
   border-radius: 999px;
@@ -3192,6 +3219,31 @@ body {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Touch tier: the compact viewer-header / save chips keep their small footprint
+   on pointer-fine surfaces but reach the 44px tap target on touch devices. */
+@media (hover: none) {
+  .star--chip {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .rlv-headbtn {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .book-print-chip {
+    min-height: var(--tap);
+  }
+}
+/* On pointer-fine screens the header save chip matches the 36px edit/print
+   controls (its 30px catalog-row size stays untouched). On touch it keeps the
+   44px from the tier above. */
+@media (hover: hover) {
+  .rlv-head .star--chip {
+    width: 36px;
+    height: 36px;
+  }
 }
 .book-print-chip:hover {
   background: var(--card);
@@ -4233,6 +4285,15 @@ body {
   outline: none;
   transition: border-color 120ms;
 }
+/* Keyboard focus gets the global accent ring (the mouse-focus border-color shift
+   alone was a weak ~1.6:1 cue); :focus-visible re-adds the ring that the base
+   rule's outline:none suppresses. */
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .input::placeholder,
 .textarea::placeholder {
   color: var(--ink-faint);
@@ -4297,11 +4358,18 @@ body {
 }
 .seg button {
   flex: 1;
+  /* min-height var(--tap) makes the segment 44px tall (seg total 47px) so it
+     lines up with .input/.select on a shared grid row, and reaches the 44px
+     touch target. Flex-center the label now that height is min-height-driven. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
   background: var(--card);
   border: 0;
   border-right: 1.5px solid var(--line);
   cursor: pointer;
-  padding: 11px 4px;
+  padding: 4px;
   font-family: var(--hand-sc);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -4364,9 +4432,11 @@ body {
 .form__section {
   font-family: var(--script);
   font-weight: 700;
-  font-size: 26px;
+  /* Match the read-mode book headings (.rl-heading__t: 23px/ink) so a section
+     like "Details" or "How to play" reads identically opening vs editing. */
+  font-size: 23px;
   line-height: 1;
-  color: var(--accent-ink);
+  color: var(--ink);
   margin-top: 8px;
   padding-bottom: 9px;
   border-bottom: 1.5px dashed var(--line-soft);
@@ -4476,7 +4546,7 @@ body {
 
 /* ---------- misc ---------- */
 .fadein {
-  animation: cl-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-enter 240ms var(--ease-overlay) both;
 }
 @keyframes cl-enter {
   from {
@@ -4672,7 +4742,10 @@ body {
  * sidebar; search sits in a header toolbar; and detail / picker slide
  * in as a right-hand inspector panel (master–detail).
  * ============================================================ */
-@media (min-width: 1024px) {
+/* The shell switch (bottom tab bar -> sidebar "desk"). Landed at --bp-tablet
+   (768px) so iPad portrait gets the real sidebar + calendar rail the design
+   intends, instead of a stretched phone layout. Phones (<768) keep the tab bar. */
+@media (min-width: 768px) {
   body {
     background: var(--stage-bg);
   }
@@ -5077,7 +5150,6 @@ body {
     column-gap: var(--s-7);
   }
   .home-favs {
-    grid-template-columns: 1fr 1fr;
     gap: var(--s-6);
   }
 
@@ -5107,7 +5179,7 @@ body {
     border-top: 2px solid var(--ink);
     border-radius: var(--r-xl);
     box-shadow: var(--e4);
-    animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-pop 220ms var(--ease-overlay) both;
   }
   .overlay--card .overlay__handle,
   .overlay--viewer .overlay__handle {
@@ -5125,7 +5197,7 @@ body {
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-pop 220ms var(--ease-overlay) both;
   }
   .overlay--viewer .rlv-body {
     background: color-mix(in srgb, var(--card) 72%, var(--paper));
@@ -6397,6 +6469,13 @@ button.rl-node {
 .rl-block[draggable="true"]:active > .rl-block__main > .rl-row {
   cursor: grabbing;
 }
+/* Read mode (the detail-sheet book) has no row tools and nothing to drag, so the
+   54px right gutter is dead space and the grab cursor is misleading — make the
+   cards symmetric and static. */
+.rl.is-readonly .rl-row {
+  padding-right: 14px;
+  cursor: default;
+}
 .rl-block--step > .rl-block__main > .rl-row {
   background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 80%, var(--paper)) 100%);
 }
@@ -7240,17 +7319,52 @@ button.rl-node {
   border: 0;
   background: var(--shadow);
   cursor: pointer;
+  animation: cl-fade 180ms ease both;
 }
 .lightbox {
   position: relative;
-  width: min(640px, 96vw);
-  max-height: 94vh;
-  overflow-y: auto;
+  /* The "full screen … projector-friendly" diagram view: fill the screen as a
+     flex column so the diagram scales to the available height and the stepper
+     nav below stays visible (it used to be a 640px card barely bigger than the
+     inline diagram). */
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
+  overflow: hidden;
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--r-xl);
   box-shadow: var(--e4);
+  animation: cl-pop 220ms var(--ease-overlay) both;
   padding: var(--s-6);
+}
+/* The diagram fills the leftover height; the aspect-ratio SVG field scales to
+   fit it (centered), so caption + prev/next + dots never fall below the fold. */
+.lightbox .framestep {
+  flex: 1;
+  min-height: 0;
+}
+.lightbox .framestep__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox .framestep__stage .playbook-frame {
+  margin: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox .framestep__stage .playbook-field {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  min-height: 0;
 }
 .lightbox__head {
   display: flex;
@@ -7912,7 +8026,7 @@ button.rl-node {
     border-bottom: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
-    animation: cl-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-rise 220ms var(--ease-overlay) both;
   }
   .cselect__menu {
     max-height: 60vh;

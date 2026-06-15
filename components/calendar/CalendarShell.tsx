@@ -140,13 +140,20 @@ export function CalendarShell({
   // Coarse pointers (phones) default to Day; everything else to Week.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let resolved: CalendarViewId;
     if (storedView !== "auto") {
-      setResolvedView(storedView);
-      setActiveView(storedView);
-      return;
+      resolved = storedView;
+    } else {
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
+      resolved = coarse ? "timeGridDay" : "timeGridWeek";
     }
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const resolved: CalendarViewId = coarse ? "timeGridDay" : "timeGridWeek";
+    // The 7-column Week grid is unreadable under the wide-phone breakpoint
+    // (--bp-wide-phone 640) — coerce it to Day there regardless of the stored
+    // preference. Day and Month stay as chosen; Week is simply never forced onto
+    // a phone-width screen.
+    if (resolved === "timeGridWeek" && window.matchMedia("(max-width: 639px)").matches) {
+      resolved = "timeGridDay";
+    }
     setResolvedView(resolved);
     setActiveView(resolved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -891,6 +898,7 @@ export function CalendarShell({
               onClick={() => setHoursOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={hoursOpen}
+              aria-label="Camp hours"
               title="Set the camp hours the calendar shows"
             >
               <CampIcon.Clock />

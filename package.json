@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
     "lint:design-tokens": "node scripts/check-design-tokens.mjs",
     "env:check": "node scripts/check-env.mjs",
     "invite:create": "node scripts/create-invite-code.mjs"
@@ -28,6 +30,7 @@
     "svix": "^1.95.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

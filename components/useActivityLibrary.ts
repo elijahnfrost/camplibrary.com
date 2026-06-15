@@ -72,9 +72,14 @@ export function useActivityLibrary({
   const toggleFav = useCallback(
     (id: string) => {
       if (!requireStaff("save activities")) return;
+      const nowSaved = !favSet.has(id);
       setDoc("favs", (p) => (p.indexOf(id) !== -1 ? p.filter((x) => x !== id) : [id, ...p.filter((x) => x !== id)]));
+      // Announce like the other library mutations do, so the save toggle isn't
+      // silent to assistive tech (the icon-only star has no text change).
+      const title = byId[id]?.title ?? "activity";
+      announce(nowSaved ? "Saved " + title : "Removed " + title + " from saved");
     },
-    [requireStaff, setDoc]
+    [announce, byId, favSet, requireStaff, setDoc]
   );
 
   const setRating = useCallback(

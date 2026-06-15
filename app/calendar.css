@@ -716,7 +716,12 @@ body > .cal-lib__item .cal-lib__name {
   line-height: 1.1;
 }
 .cal-lib__meta {
+  /* The small-caps "stamp" treatment used for activity meta everywhere else
+     (.cat-row__meta / .deck-card__meta) — the rail was the lone exception. */
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 /* The quick-place "+" is a quiet ghost glyph until the pointer commits to it —
@@ -1095,6 +1100,9 @@ body > .cal-lib__item .cal-lib__name {
   border-radius: var(--r-lg);
   box-shadow: var(--e3);
   padding: var(--s-5);
+  /* Pop in like the other anchored floating menus (the desktop event popover was
+     the only one that snapped in; the mobile variant already animates). */
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
 .cal-popover__head {
   display: flex;
@@ -1298,7 +1306,7 @@ body > .cal-lib__item .cal-lib__name {
 }
 
 /* ---------- responsive ---------- */
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .calshell__fab {
     display: none;
   }
@@ -1310,7 +1318,7 @@ body > .cal-lib__item .cal-lib__name {
 /* Below the desktop breakpoint there's no sidebar (and no page-title bar), so
    the calendar header is the first thing on the page — it carries the notch
    clearance the old topbar used to provide. */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .calhead {
     padding-top: max(14px, calc(6px + env(safe-area-inset-top)));
   }
@@ -1349,7 +1357,7 @@ body > .cal-lib__item .cal-lib__name {
     border-bottom: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
-    animation: cl-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-rise 220ms var(--ease-overlay) both;
   }
   .cal-popover__scrim {
     background: var(--scrim-bg);

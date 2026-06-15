@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { AGE_GROUPS } from "@/lib/data";
 import type { AgeGroupId } from "@/lib/types";
+import { CampIcon } from "../icons";
 import {
   DEFAULT_CAMP_HOURS,
   hourOptions,
@@ -52,11 +53,18 @@ export function HoursPanel({
     <Modal label="Camp hours" onClose={onClose} overlayProps={{ className: "overlay--card overlay--hours" }}>
       <div className="overlay__bar">
         <h2 className="filtersheet__title">Camp hours</h2>
-        {!isDefault && (
-          <button type="button" className="sidesection__action" onClick={resetDefaults}>
-            Reset
+        <div className="overlay__bar-actions">
+          {!isDefault && (
+            <button type="button" className="sidesection__action" onClick={resetDefaults}>
+              Reset
+            </button>
+          )}
+          {/* A persistent close — the "Done" footer scrolls off on short viewports,
+              leaving no visible way out (scrim-tap/Escape aside). */}
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <CampIcon.Close />
           </button>
-        )}
+        </div>
       </div>
       <div className="overlay__body calhours">
         <p className="calhours__intro">
