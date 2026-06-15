@@ -51,7 +51,22 @@ export async function POST(request: NextRequest) {
     return Response.json({ ok: false, error: "Invite code could not be consumed" }, { status: 409 });
   }
 
-  await markUserInviteAccepted(userId, user?.privateMetadata);
+  // The invite is now consumed in Postgres. Marking the user accepted is a second
+  // Clerk write that cannot share that transaction, so if it fails (after its own
+  // retries) we surface a retriable 503 rather than an unhandled 500 — consume is
+  // idempotent, so a client retry re-reaches this mark and completes onboarding.
+  try {
+    await markUserInviteAccepted(userId, user?.privateMetadata);
+  } catch {
+    return Response.json(
+      {
+        ok: false,
+        error: "Could not finalize your account. Please retry.",
+        code: "INVITE_ACCEPT_RETRY",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

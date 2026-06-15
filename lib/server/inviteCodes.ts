@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { getSql } from "./db";
 import { getRequiredServerEnv } from "./env";
+import { cacheUntilFailure } from "./once";
 
 export type InviteCodeRecord = {
   id: string;
@@ -22,7 +23,7 @@ export type InviteCodeRecord = {
 
 type ReserveResult =
   | { ok: true; reservationId: string; invitedEmail: string | null }
-  | { ok: false; reason: "missing" | "invalid" | "email_mismatch" | "unavailable" | "expired" };
+  | { ok: false; reason: "missing" | "invalid" | "email_mismatch" | "unavailable" | "expired" | "rate_limited" };
 
 type DeactivateResult =
   | { ok: true; record: InviteCodeRecord }
@@ -49,8 +50,6 @@ export class InviteCodeValidationError extends Error {
     this.name = "InviteCodeValidationError";
   }
 }
-
-let schemaReady: Promise<void> | null = null;
 
 export function normalizeInviteCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -108,6 +107,12 @@ function codeDigest(code: string): string {
   return createHmac("sha256", getRequiredServerEnv("INVITE_CODE_SECRET")).update(normalized).digest("hex");
 }
 
+// Keyed hash of the reservation's client IP. We store only the digest (never the
+// raw IP) so reservations can be rate-limited per source without retaining PII.
+function ipDigest(ip: string): string {
+  return createHmac("sha256", getRequiredServerEnv("INVITE_CODE_SECRET")).update("ip:" + ip).digest("hex");
+}
+
 function randomCode(length = 12): string {
   let code = "";
   const bytes = randomBytes(length);
@@ -131,11 +136,9 @@ export function normalizeInviteMaxUses(value: unknown): number {
   return maxUses;
 }
 
-export async function ensureInviteCodeSchema() {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = getSql();
-      await sql`CREATE TABLE IF NOT EXISTS invite_codes (
+export const ensureInviteCodeSchema = cacheUntilFailure(async () => {
+  const sql = getSql();
+  await sql`CREATE TABLE IF NOT EXISTS invite_codes (
         id uuid PRIMARY KEY,
         code_hash text NOT NULL UNIQUE,
         label text,
@@ -229,17 +232,40 @@ export async function ensureInviteCodeSchema() {
           reserved_at timestamptz NOT NULL DEFAULT now(),
           reserved_until timestamptz NOT NULL,
           used_at timestamptz,
+          reserved_ip_hash text,
           CONSTRAINT invite_code_reservations_status_check CHECK (status IN ('reserved', 'used', 'revoked'))
         )
       `;
+      // Keyed hash of the reserving IP, for per-source reservation rate limiting.
+      await sql`ALTER TABLE invite_code_reservations ADD COLUMN IF NOT EXISTS reserved_ip_hash text`;
       await sql`
         CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
         ON invite_code_reservations (invite_code_id)
       `;
-    })();
-  }
-  return schemaReady;
-}
+      // DB backstop for one-seat-per-user: at most one 'used' reservation per
+      // (invite, clerk_user_id). Guarded so it is migration-safe — if a row set
+      // already violated it (a pre-fix drain), creation is skipped rather than
+      // throwing and bricking schema init; the in-transaction check in
+      // consumeInviteCode prevents any new violation regardless.
+      await sql`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM (
+              SELECT 1
+              FROM invite_code_reservations
+              WHERE status = 'used' AND clerk_user_id IS NOT NULL
+              GROUP BY invite_code_id, clerk_user_id
+              HAVING count(*) > 1
+            ) AS duplicates
+          ) THEN
+            CREATE UNIQUE INDEX IF NOT EXISTS invite_code_reservations_one_per_user_idx
+              ON invite_code_reservations (invite_code_id, clerk_user_id)
+              WHERE status = 'used' AND clerk_user_id IS NOT NULL;
+          END IF;
+        END $$;
+      `;
+});
 
 function mapRecord(row: Record<string, unknown>): InviteCodeRecord {
   return {
@@ -307,9 +333,11 @@ export async function createInviteCode({
 export async function reserveInviteCode({
   code,
   email,
+  clientIp,
 }: {
   code: string;
   email?: string;
+  clientIp?: string | null;
 }): Promise<ReserveResult> {
   if (!validateInviteCodeInput(code)) return { ok: false, reason: "invalid" };
   if (email && email.length > INVITE_EMAIL_MAX_LENGTH) return { ok: false, reason: "invalid" };
@@ -321,6 +349,11 @@ export async function reserveInviteCode({
   await ensureInviteCodeSchema();
   const sql = getSql();
   const digest = codeDigest(normalized);
+  // Reservation is anonymous (Google sign-up reserves before identity is known),
+  // so we cap concurrent in-flight reservations per source IP to stop one actor
+  // from squatting every seat of a multi-use invite. Skipped when the IP is
+  // unavailable (local/tests), so it fails open rather than blocking sign-up.
+  const reservationIpHash = clientIp ? ipDigest(clientIp) : null;
   const reservationId = randomUUID();
   const rows = await sql.begin(async (tx) => {
     const found = await tx`
@@ -357,6 +390,23 @@ export async function reserveInviteCode({
       return [{ failure_reason: "unavailable" }];
     }
 
+    // One in-flight reservation per source IP per invite. A legitimate signer-up
+    // only holds one at a time (the client releases it on retry/abandon), so this
+    // rejects an actor trying to grab a second seat from the same source, not a
+    // real user. Distinct people (distinct IPs) are unaffected.
+    if (reservationIpHash) {
+      const sameSource = await tx`
+        SELECT 1
+        FROM invite_code_reservations
+        WHERE invite_code_id = ${item.id}
+          AND reserved_ip_hash = ${reservationIpHash}
+          AND status = 'reserved'
+          AND reserved_until > now()
+        LIMIT 1
+      `;
+      if (sameSource.length) return [{ failure_reason: "rate_limited" }];
+    }
+
     const activeReservations = await tx`
       SELECT count(*)::int AS count
       FROM invite_code_reservations
@@ -376,14 +426,16 @@ export async function reserveInviteCode({
         invite_code_id,
         reservation_id,
         email,
-        reserved_until
+        reserved_until,
+        reserved_ip_hash
       )
       VALUES (
         ${randomUUID()},
         ${item.id},
         ${reservationId},
         ${providedEmail},
-        now() + (${RESERVATION_MINUTES} || ' minutes')::interval
+        now() + (${RESERVATION_MINUTES} || ' minutes')::interval,
+        ${reservationIpHash}
       )
     `;
 
@@ -403,7 +455,7 @@ export async function reserveInviteCode({
 
   if (!rows.length) return { ok: false, reason: "invalid" };
   const failureReason = rows[0].failure_reason;
-  if (failureReason) return { ok: false, reason: failureReason as "email_mismatch" | "unavailable" | "expired" };
+  if (failureReason) return { ok: false, reason: failureReason as "email_mismatch" | "unavailable" | "expired" | "rate_limited" };
   const row = rows[0] as { invited_email: string | null };
 
   return {
@@ -461,6 +513,32 @@ export async function consumeInviteCode({
 
     const item = found[0];
     if (item.reservation_status === "used" && item.clerk_user_id === clerkUserId) return [{ id: item.id }];
+
+    // One seat per distinct user. /reserve is public and uncapped per-identity,
+    // so one actor could hold every reservation of a maxUses>1 invite; without
+    // this guard each consume burned a seat, letting one person drain all N. If
+    // this user already consumed a *different* reservation on this invite, don't
+    // burn another seat — revoke this extra reservation and report idempotent
+    // success (they are already a member). The FOR UPDATE on invite_codes above
+    // serializes concurrent consumes of the same invite, so this read is current.
+    const priorSeat = await tx`
+      SELECT 1
+      FROM invite_code_reservations
+      WHERE invite_code_id = ${item.id}
+        AND clerk_user_id = ${clerkUserId}
+        AND status = 'used'
+        AND id <> ${item.reservation_row_id}
+      LIMIT 1
+    `;
+    if (priorSeat.length) {
+      await tx`
+        UPDATE invite_code_reservations
+        SET status = 'revoked'
+        WHERE id = ${item.reservation_row_id}
+          AND status = 'reserved'
+      `;
+      return [{ id: item.id }];
+    }
 
     const now = Date.now();
     const expiresAt = item.expires_at ? new Date(String(item.expires_at)).getTime() : null;

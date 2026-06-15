@@ -188,12 +188,34 @@ try {
       reserved_at timestamptz NOT NULL DEFAULT now(),
       reserved_until timestamptz NOT NULL,
       used_at timestamptz,
+      reserved_ip_hash text,
       CONSTRAINT invite_code_reservations_status_check CHECK (status IN ('reserved', 'used', 'revoked'))
     )
   `;
+  await sql`ALTER TABLE invite_code_reservations ADD COLUMN IF NOT EXISTS reserved_ip_hash text`;
   await sql`
     CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
     ON invite_code_reservations (invite_code_id)
+  `;
+  // One 'used' reservation per (invite, clerk_user_id) — see lib/server/inviteCodes.ts.
+  // Guarded so it is migration-safe on data that already violated it.
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM (
+          SELECT 1
+          FROM invite_code_reservations
+          WHERE status = 'used' AND clerk_user_id IS NOT NULL
+          GROUP BY invite_code_id, clerk_user_id
+          HAVING count(*) > 1
+        ) AS duplicates
+      ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS invite_code_reservations_one_per_user_idx
+          ON invite_code_reservations (invite_code_id, clerk_user_id)
+          WHERE status = 'used' AND clerk_user_id IS NOT NULL;
+      END IF;
+    END $$;
   `;
 
   const rows = await sql`

@@ -38,3 +38,21 @@ export function parseJsonObject(text: string): Record<string, unknown> {
     return {};
   }
 }
+
+const MAX_CLIENT_IP_LENGTH = 64;
+
+// Best-effort client IP for rate limiting. Prefers the headers a trusted edge
+// (Vercel) sets to the real peer and the client cannot forge; only falls back to
+// the left-most X-Forwarded-For entry. Returns null when nothing usable is
+// present so callers can fail open rather than block.
+export function clientIpFrom(request: Request): string | null {
+  const candidate =
+    request.headers.get("x-vercel-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0] ||
+    null;
+  if (!candidate) return null;
+  const ip = candidate.trim().toLowerCase();
+  if (!ip || ip.length > MAX_CLIENT_IP_LENGTH) return null;
+  return ip;
+}
