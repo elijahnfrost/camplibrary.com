@@ -4,7 +4,7 @@ import type { Activity } from "@/lib/types";
 import type { RunDoc } from "@/lib/runList";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { AddView } from "./AddView";
+import { AddView, type ThemeKit } from "./AddView";
 
 /**
  * The Add/Edit activity form as an in-Library sheet, replacing the old
@@ -15,11 +15,13 @@ export function ActivityEditorSheet({
   initialRunDoc,
   onClose,
   onSubmit,
+  themeKit,
 }: {
   editing: Activity | null;
   initialRunDoc: RunDoc | null;
   onClose: () => void;
-  onSubmit: (a: Activity, runDoc?: RunDoc) => void;
+  onSubmit: (a: Activity, runDoc?: RunDoc, themeId?: string | null) => void;
+  themeKit?: ThemeKit;
 }) {
   return (
     <Modal
@@ -46,6 +48,7 @@ export function ActivityEditorSheet({
           initialRunDoc={initialRunDoc}
           onCancelEdit={onClose}
           onSubmit={onSubmit}
+          themeKit={themeKit}
         />
       </div>
     </Modal>

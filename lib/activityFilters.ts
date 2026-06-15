@@ -4,6 +4,8 @@ import { hasRequiredMaterials } from "./materials";
 export type CatFilter = "All" | CategoryId;
 export type PlaceFilter = "All" | "Inside" | "Outside";
 export type AgeFilter = "All" | AgeGroupId;
+// "All", or a themeId. Themes are user-definable, so this can't be a fixed union.
+export type ThemeFilter = "All" | string;
 
 export interface ActivityFilterState {
   cat: CatFilter;
@@ -11,6 +13,10 @@ export interface ActivityFilterState {
   age: AgeFilter;
   query: string;
   availableMaterialTags?: string[];
+  /** Filter to one theme. Pairs with themeAssignments (activityId -> themeId)
+   *  since the theme lives in a side map, not on the activity itself. */
+  theme?: ThemeFilter;
+  themeAssignments?: Record<string, string>;
 }
 
 function searchableArray(values: unknown): string[] {
@@ -22,6 +28,9 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.place === "Inside" && !(a.place === "Inside" || a.place === "Both")) return false;
   if (filters.place === "Outside" && !(a.place === "Outside" || a.place === "Both")) return false;
   if (filters.age !== "All" && (a.ages || []).indexOf(filters.age) < 0) return false;
+  if (filters.theme && filters.theme !== "All" && (filters.themeAssignments?.[a.id] ?? "") !== filters.theme) {
+    return false;
+  }
   if (!hasRequiredMaterials(a, filters.availableMaterialTags || [])) return false;
 
   const q = filters.query.trim().toLowerCase();

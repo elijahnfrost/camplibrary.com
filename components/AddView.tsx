@@ -25,8 +25,10 @@ import {
   type RunDoc,
 } from "@/lib/runList";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "@/lib/calendar/time";
+import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Seg } from "./primitives";
+import { ThemeField } from "./ThemeField";
 import { ActivityRunList } from "./ActivityRunList";
 
 type EnergyWord = "Calm" | "Lively" | "Rowdy";
@@ -44,6 +46,16 @@ interface FormState {
   rating: number;
   blurb: string;
   materials: string;
+  themeId: string;
+}
+
+/** The theme vocabulary + quick-create, supplied by the library hook. Optional
+ *  so AddView still renders where themes aren't wired. Rename/delete live in the
+ *  Themes manager, so the editor field stays a clean select + create. */
+export interface ThemeKit {
+  themes: Theme[];
+  initialThemeId: string;
+  onCreate: (label: string) => Theme | null;
 }
 
 type ExtractedRunText = {
@@ -70,9 +82,10 @@ const BLANK_FORM: FormState = {
   rating: 0,
   blurb: "",
   materials: "",
+  themeId: "",
 };
 
-function formFromActivity(a: Activity): FormState {
+function formFromActivity(a: Activity, themeId: string): FormState {
   return {
     title: a.title,
     type: a.type,
@@ -86,6 +99,7 @@ function formFromActivity(a: Activity): FormState {
     rating: a.rating,
     blurb: a.blurb,
     materials: a.materials.join(", "),
+    themeId,
   };
 }
 
@@ -207,14 +221,19 @@ export function AddView({
   initial,
   initialRunDoc,
   onCancelEdit,
+  themeKit,
 }: {
-  onSubmit: (a: Activity, runDoc?: RunDoc) => void;
+  onSubmit: (a: Activity, runDoc?: RunDoc, themeId?: string | null) => void;
   initial?: Activity | null;
   initialRunDoc?: RunDoc | null;
   onCancelEdit?: () => void;
+  themeKit?: ThemeKit;
 }) {
   const isEdit = Boolean(initial);
-  const initialForm = useMemo(() => (initial ? formFromActivity(initial) : BLANK_FORM), [initial]);
+  const initialForm = useMemo(
+    () => (initial ? formFromActivity(initial, themeKit?.initialThemeId ?? "") : BLANK_FORM),
+    [initial, themeKit?.initialThemeId]
+  );
   const [f, setF] = useState<FormState>(() => initialForm);
   // Only the play content lives in the editor; the scaffold is form-owned.
   const [playDoc, setPlayDoc] = useState<RunDoc>(() => {
@@ -272,7 +291,7 @@ export function AddView({
     };
     const preparedDoc = prepareRunDoc(fullDoc, id, f.title.trim());
     const extracted = extractRunText(preparedDoc);
-    onSubmit(activityFromForm(f, id, extracted), preparedDoc);
+    onSubmit(activityFromForm(f, id, extracted), preparedDoc, f.themeId || null);
   }
 
   return (
@@ -332,6 +351,21 @@ export function AddView({
             })}
           </div>
         </div>
+        {themeKit && (
+          <div className="field">
+            <label className="field__label" htmlFor="activity-theme">
+              Theme <span className="field__hint">optional</span>
+            </label>
+            <ThemeField
+              id="activity-theme"
+              value={f.themeId}
+              themes={themeKit.themes}
+              onChange={(themeId) => set("themeId")(themeId ?? "")}
+              onCreate={themeKit.onCreate}
+              ariaLabel="Activity theme"
+            />
+          </div>
+        )}
         <div className="field">
           <span className="field__label" id="activity-place-label">Where</span>
           <Seg

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Draggable } from "@fullcalendar/interaction";
-import { matchesActivityFilters, type CatFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, type CatFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { categoryTint, durLabel } from "@/lib/data";
+import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
-import { SidebarSection, TypePicker } from "../primitives";
+import { SidebarSection, ThemePicker, TypePicker } from "../primitives";
 
 // The desktop drag source for "library → calendar": a rail in the left
 // sidebar. Rows are FullCalendar Draggables; the "+" button places at the
@@ -22,14 +23,24 @@ export function LibraryPanel({
   activities,
   onPlace,
   onPick,
+  themes,
+  themeAssignments,
 }: {
   activities: Activity[];
   onPlace: (activity: Activity) => void;
   onPick: (activity: Activity) => void;
+  themes: Theme[];
+  themeAssignments: Record<string, string>;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<CatFilter>("All");
+  const [theme, setTheme] = useState<ThemeFilter>("All");
+
+  // A theme deleted while selected falls back to "All" so the rail never strands.
+  useEffect(() => {
+    if (theme !== "All" && !themes.some((t) => t.id === theme)) setTheme("All");
+  }, [theme, themes]);
 
   // Register rail rows as external FullCalendar drag sources. eventData is
   // read from data attributes at drag time, so one Draggable covers every row.
@@ -98,10 +109,18 @@ export function LibraryPanel({
     () =>
       activities
         .filter((a) =>
-          matchesActivityFilters(a, { cat, place: "All", age: "All", query, availableMaterialTags: [] })
+          matchesActivityFilters(a, {
+            cat,
+            place: "All",
+            age: "All",
+            theme,
+            themeAssignments,
+            query,
+            availableMaterialTags: [],
+          })
         )
         .sort((a, b) => a.title.localeCompare(b.title)),
-    [activities, cat, query]
+    [activities, cat, theme, themeAssignments, query]
   );
 
   return (
@@ -117,6 +136,9 @@ export function LibraryPanel({
       </label>
       <div className="cal-lib__cats">
         <TypePicker value={cat} onChange={setCat} ariaLabel="Filter by type" />
+        {themes.length > 0 && (
+          <ThemePicker value={theme} onChange={setTheme} themes={themes} ariaLabel="Filter by theme" />
+        )}
       </div>
       <div className="cal-lib__list" ref={listRef} role="group" aria-label="Activity library">
         {filtered.map((activity) => (

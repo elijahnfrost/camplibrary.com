@@ -5,8 +5,10 @@ import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { categoryTint } from "@/lib/data";
+import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
+import { ThemeBadge } from "../primitives";
 import { useDialogFocus } from "../useDialogFocus";
 import { useFloatingPosition } from "../floating/useFloatingPosition";
 
@@ -19,6 +21,7 @@ import { useFloatingPosition } from "../floating/useFloatingPosition";
 export function EventPopover({
   event,
   activity,
+  theme = null,
   anchor,
   onOpenActivity,
   onEdit,
@@ -28,6 +31,8 @@ export function EventPopover({
 }: {
   event: CalendarEvent;
   activity: Activity | null;
+  /** The event's theme (inherited from its activity); display-only. */
+  theme?: Theme | null;
   anchor: DOMRect;
   onOpenActivity: (activity: Activity) => void;
   onEdit: () => void;
@@ -91,6 +96,7 @@ export function EventPopover({
               {formatEventDateLabel(event.date)} · {timeLabel}
             </p>
             {activity && <p className="cal-popover__meta">{activity.type}</p>}
+            {theme && <ThemeBadge theme={theme} className="cal-popover__theme" />}
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             <CampIcon.Close />

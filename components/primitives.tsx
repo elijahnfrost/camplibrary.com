@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
+import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 
 // ---- The "switch ledger" control family (desktop sidebar rails) ----
@@ -11,19 +12,30 @@ import { CampIcon } from "./icons";
 // pill for 2–4 way choices), and ToggleSwitch (a true on/off switch). The
 // mobile filter sheet keeps full chips — these controls are pointer-sized.
 
-/** The type selector: one pill trigger showing the current category (with its
- *  color swatch), expanding an inline menu of all types. `label` wraps it in a
- *  ledger row; without it the trigger stands alone (the calendar rail). */
-export function TypePicker<T extends string>({
+type SwatchOption = { id: string; label: string; tint?: string };
+
+/** The shared swatch-menu core: one pill trigger showing the current option
+ *  (with its color swatch), expanding an inline menu. `label` wraps it in a
+ *  ledger row; without it the trigger stands alone (the calendar rail). Both
+ *  the category TypePicker and the user-definable ThemePicker render through
+ *  this, so the two tag filters read identically. */
+function SwatchPicker({
   value,
   onChange,
+  options,
   label,
   ariaLabel,
+  manageLabel,
+  onManage,
 }: {
-  value: T;
-  onChange: (v: T) => void;
+  value: string;
+  onChange: (v: string) => void;
+  options: SwatchOption[];
   label?: string;
   ariaLabel: string;
+  /** Optional footer action in the menu (e.g. "Manage themes…"). */
+  manageLabel?: string;
+  onManage?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -45,10 +57,6 @@ export function TypePicker<T extends string>({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  const options = [
-    { id: "All", label: "All types", tint: undefined as string | undefined },
-    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
-  ];
   const current = options.find((o) => o.id === value) ?? options[0];
   const trigger = (
     <button
@@ -61,10 +69,10 @@ export function TypePicker<T extends string>({
     >
       <span
         className="typepick__swatch"
-        style={current.tint ? { background: current.tint } : undefined}
+        style={current?.tint ? { background: current.tint } : undefined}
         aria-hidden="true"
       />
-      {current.label}
+      {current?.label}
       <CampIcon.ChevronDown />
     </button>
   );
@@ -88,7 +96,7 @@ export function TypePicker<T extends string>({
               aria-selected={o.id === value}
               className={"typepick__option" + (o.id === value ? " is-on" : "")}
               onClick={() => {
-                onChange(o.id as T);
+                onChange(o.id);
                 setOpen(false);
               }}
             >
@@ -100,9 +108,105 @@ export function TypePicker<T extends string>({
               {o.label}
             </button>
           ))}
+          {onManage && (
+            <>
+              <span className="typepick__div" role="separator" aria-hidden="true" />
+              <button
+                type="button"
+                className="typepick__option typepick__manage"
+                onClick={() => {
+                  setOpen(false);
+                  onManage();
+                }}
+              >
+                <span className="typepick__swatch typepick__swatch--manage" aria-hidden="true">
+                  <CampIcon.Pencil />
+                </span>
+                {manageLabel ?? "Manage…"}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/** The category type selector (the fixed 5 Types). */
+export function TypePicker<T extends string>({
+  value,
+  onChange,
+  label,
+  ariaLabel,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  label?: string;
+  ariaLabel: string;
+}) {
+  const options: SwatchOption[] = [
+    { id: "All", label: "All types" },
+    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
+  ];
+  return (
+    <SwatchPicker
+      value={value}
+      onChange={(v) => onChange(v as T)}
+      options={options}
+      label={label}
+      ariaLabel={ariaLabel}
+    />
+  );
+}
+
+/** The theme selector — the user-definable parallel to TypePicker, fed the
+ *  current theme vocabulary. Selection-only (create/rename live in the editor's
+ *  ThemeField); value is "All" or a themeId. */
+export function ThemePicker({
+  value,
+  onChange,
+  themes,
+  label,
+  ariaLabel,
+  onManage,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  themes: Theme[];
+  label?: string;
+  ariaLabel: string;
+  /** Adds a "Manage themes…" footer to the menu (the library filter rail). */
+  onManage?: () => void;
+}) {
+  const options: SwatchOption[] = [
+    { id: "All", label: "All themes" },
+    ...themes.map((t) => ({ id: t.id, label: t.label, tint: t.tint })),
+  ];
+  return (
+    <SwatchPicker
+      value={value}
+      onChange={onChange}
+      options={options}
+      label={label}
+      ariaLabel={ariaLabel}
+      manageLabel="Manage themes…"
+      onManage={onManage}
+    />
+  );
+}
+
+/** A theme tag — swatch + label, so it never relies on color alone. Renders
+ *  nothing when the activity has no (resolvable) theme. */
+export function ThemeBadge({ theme, className }: { theme: Theme | null; className?: string }) {
+  if (!theme) return null;
+  return (
+    <span
+      className={"theme-badge" + (className ? " " + className : "")}
+      style={{ "--theme-tint": theme.tint } as CSSProperties}
+    >
+      <span className="theme-badge__swatch" aria-hidden="true" />
+      <span className="theme-badge__label">{theme.label}</span>
+    </span>
   );
 }
 

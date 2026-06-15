@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
@@ -23,14 +23,17 @@ import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
 import { CalendarShell } from "./calendar/CalendarShell";
+import { CampSwitcher } from "./calendar/CampSwitcher";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
 import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
+import { ListManagerModal } from "./ListManagerModal";
 import { Modal } from "./Modal";
 import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
+import { useCamps } from "./useCamps";
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
@@ -176,14 +179,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // (optimistic writes + offline outbox) once signed in.
   const cloud = useCloudUserData(signedInUserId);
   const lib = useActivityLibrary({ cloud, requireStaff, announce: setLiveMsg });
+  // Multiple camps: filters the calendar's event set + stamps new events. The
+  // shared library and every other surface are camp-agnostic.
+  const campKit = useCamps({ cloud, announce: setLiveMsg });
+  const calendarEvents = useMemo(() => campKit.filterEvents(cloud.events), [campKit, cloud.events]);
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
   const [cat, setCat] = useState<CatFilter>("All");
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
+  const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // The Themes manager (create/rename/delete the vocabulary), reached from the
+  // library filter's "Manage themes…" footer.
+  const [themesManagerOpen, setThemesManagerOpen] = useState(false);
+  const openThemesManager = useCallback(() => {
+    if (requireStaff("manage themes")) setThemesManagerOpen(true);
+  }, [requireStaff]);
 
   // The search query persists across tab switches — a quick Calendar
   // round-trip shouldn't cost you your search.
@@ -195,17 +209,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           cat,
           place,
           age,
+          theme,
+          themeAssignments: lib.themeAssignments,
           query,
           availableMaterialTags: lib.activeAvailableMaterials,
         })
       ),
-    [lib.all, lib.activeAvailableMaterials, cat, place, age, query]
+    [lib.all, lib.activeAvailableMaterials, lib.themeAssignments, cat, place, age, theme, query]
   );
   // Starred is a library-only lens; matchesActivityFilters stays fav-agnostic.
   const libraryItems = useMemo(
     () => (starredOnly ? filtered.filter((a) => lib.favSet.has(a.id)) : filtered),
     [filtered, starredOnly, lib.favSet]
   );
+
+  // If the active theme filter points at a theme that was deleted (here or on
+  // another device), fall back to "All" so the filter never strands the list.
+  useEffect(() => {
+    if (theme !== "All" && !lib.themes.some((t) => t.id === theme)) setTheme("All");
+  }, [theme, lib.themes]);
 
   // Activity viewer state. The event context is display-only strings from the
   // calendar event the viewer was opened from (never calendar types).
@@ -264,10 +286,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setEditorSheet({ activity });
   }
 
-  function submitEditorSheet(activity: Activity, runDoc?: RunDoc) {
+  function submitEditorSheet(activity: Activity, runDoc?: RunDoc, themeId?: string | null) {
     const isEditing = Boolean(editorSheet?.activity);
     const ok = isEditing ? lib.updateActivity(activity, runDoc) : lib.addActivity(activity, runDoc);
     if (!ok) return;
+    lib.assignTheme(activity.id, themeId ?? null);
     if (!isEditing) {
       setCat("All");
       lib.setView("catalog");
@@ -387,12 +410,16 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               cat={cat}
               place={place}
               age={age}
+              theme={theme}
+              themes={lib.themes}
               starredOnly={starredOnly}
               materialOptions={lib.materialOptions}
               availableMaterials={lib.activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onTheme={setTheme}
+              onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
@@ -437,12 +464,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               cat={cat}
               place={place}
               age={age}
+              theme={theme}
+              themes={lib.themes}
+              themeOf={lib.themeOf}
               starredOnly={starredOnly}
               materialOptions={lib.materialOptions}
               availableMaterials={lib.activeAvailableMaterials}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
+              onTheme={setTheme}
+              onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
@@ -457,8 +489,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           {tab === "calendar" && (
             <div className="app__scroll">
               <CalendarShell
-                events={cloud.events}
-                upsertEvent={cloud.upsertEvent}
+                events={calendarEvents}
+                upsertEvent={campKit.upsertEvent}
                 removeEvent={cloud.removeEvent}
                 activities={lib.all}
                 byId={lib.byId}
@@ -467,6 +499,28 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
                 railSlot={calRail}
+                themes={lib.themes}
+                themeAssignments={lib.themeAssignments}
+                themeOf={lib.themeOf}
+                headerActions={
+                  <CampSwitcher
+                    camps={campKit.camps}
+                    activeCampId={campKit.activeCampId}
+                    onSwitch={campKit.switchCamp}
+                    onCreate={(name) => {
+                      if (requireStaff("manage camps")) campKit.createCamp(name);
+                    }}
+                    onRename={(id, name) => {
+                      if (requireStaff("manage camps")) campKit.renameCamp(id, name);
+                    }}
+                    onDelete={(id, name) => {
+                      if (!requireStaff("manage camps")) return;
+                      if (window.confirm("Delete the “" + name + "” camp? Its events stay on the calendar but are no longer grouped.")) {
+                        campKit.deleteCamp(id);
+                      }
+                    }}
+                  />
+                }
               />
             </div>
           )}
@@ -533,12 +587,35 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           {liveMsg}
         </div>
 
+        {themesManagerOpen && (
+          <ListManagerModal
+            title="Themes"
+            intro="Themes group your activities — like Ocean Week or Jungle Week. Assign one to an activity from its editor; here you can add, rename, and remove them."
+            items={lib.themes.map((t) => ({ id: t.id, label: t.label, tint: t.tint }))}
+            createPlaceholder="e.g. Ocean Week"
+            createLabel="Add theme"
+            emptyHint="No themes yet. Add one, then tag activities with it from the activity editor."
+            onCreate={(name) => lib.createTheme(name)}
+            onRename={lib.renameTheme}
+            onDelete={(item) => {
+              if (window.confirm("Delete the “" + item.label + "” theme? It is removed from any activities using it.")) {
+                lib.deleteTheme(item.id);
+              }
+            }}
+            onClose={() => setThemesManagerOpen(false)}
+          />
+        )}
         {editorSheet && (
           <ActivityEditorSheet
             editing={editorSheet.activity}
             initialRunDoc={editorSheet.activity ? lib.resolveRunDoc(editorSheet.activity) : null}
             onClose={() => setEditorSheet(null)}
             onSubmit={submitEditorSheet}
+            themeKit={{
+              themes: lib.themes,
+              initialThemeId: editorSheet.activity ? lib.themeAssignments[editorSheet.activity.id] ?? "" : "",
+              onCreate: lib.createTheme,
+            }}
           />
         )}
         {detailActivity && (
@@ -563,6 +640,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}
             eventContext={detailEventContext ?? undefined}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
+            theme={lib.themeOf(detailActivity.id)}
           />
         )}
         {libMenu.state && (() => {

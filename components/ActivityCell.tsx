@@ -2,8 +2,9 @@
 
 import type { CSSProperties, MouseEvent } from "react";
 import type { Activity } from "@/lib/types";
+import type { Theme } from "@/lib/themes";
 import { ageLabel, categoryTint, durLabel, ENERGY } from "@/lib/data";
-import { SaveButton } from "./primitives";
+import { SaveButton, ThemeBadge } from "./primitives";
 
 export function ActivityCell({
   activity,
@@ -11,12 +12,14 @@ export function ActivityCell({
   onOpen,
   onToggleSaved,
   onContextMenu,
+  theme = null,
 }: {
   activity: Activity;
   saved?: boolean;
   onOpen: (activity: Activity) => void;
   onToggleSaved: (id: string) => void;
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
+  theme?: Theme | null;
 }) {
   return (
     <div
@@ -36,6 +39,7 @@ export function ActivityCell({
             {activity.type} · {activity.place} · {durLabel(activity)} · {ageLabel(activity)} ·{" "}
             {ENERGY[activity.energy]}
           </span>
+          {theme && <ThemeBadge theme={theme} className="cat-row__theme" />}
         </span>
       </button>
       <SaveButton on={saved} onToggle={() => onToggleSaved(activity.id)} />

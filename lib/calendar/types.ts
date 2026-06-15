@@ -16,6 +16,7 @@ export interface CalendarEvent {
   kind: CalendarEventKind;
   title: string; // denormalized activity title for chips/cards
   activityId?: string;
+  campId?: string; // which camp this event belongs to; undefined = unscoped
   allDay?: boolean;
   updatedAt: number; // epoch ms, last-write-wins
 }
@@ -55,6 +56,7 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   }
 
   const activityId = typeof value.activityId === "string" && value.activityId ? value.activityId : undefined;
+  const campId = typeof value.campId === "string" && value.campId ? value.campId : undefined;
   const event: CalendarEvent = {
     id: value.id,
     date: value.date,
@@ -65,6 +67,7 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
     updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : 0,
   };
   if (activityId) event.activityId = activityId;
+  if (campId) event.campId = campId;
   if (allDay) event.allDay = true;
   return event;
 }
