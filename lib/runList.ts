@@ -14,6 +14,7 @@ import type { Activity } from "./types";
 import { ageSpan, ENERGY, groupLabel } from "./data";
 import {
   blankPlaybook,
+  clonePlaybook,
   normalizePlaybook,
   type ActivityPlaybookData,
 } from "./playbooks";
@@ -102,7 +103,7 @@ const RUN_BLOCK_TYPES: RunBlockType[] = [
 export const RUN_CHILD_META: Record<RunChildType, { label: string; placeholder: string }> = {
   note: { label: "Note", placeholder: "Add a side note…" },
   safety: { label: "Safety", placeholder: "What's the safety call here?" },
-  video: { label: "Video", placeholder: "paste a YouTube link…" },
+  video: { label: "Media", placeholder: "YouTube, Vimeo, or a link…" },
   variation: { label: "Variation", placeholder: "Describe a variation…" },
   substep: { label: "Sub-step", placeholder: "Break it down a step…" },
   diagram: { label: "Diagram", placeholder: "" },
@@ -128,7 +129,7 @@ export function runId(prefix = "rb"): string {
 
 // Pluralized summary label for the collapsed-step pills ("2 safety notes").
 export function runPillLabel(type: RunChildType, n: number): string {
-  if (type === "video") return n > 1 ? n + " videos" : "video";
+  if (type === "video") return n > 1 ? n + " media" : "media";
   if (type === "safety") return n > 1 ? n + " safety notes" : "safety note";
   if (type === "substep") return n + " sub-step" + (n > 1 ? "s" : "");
   if (type === "variation") return n > 1 ? n + " variations" : "variation";
@@ -449,12 +450,159 @@ export function insertBlockAt(doc: RunDoc, index: number, block: RunBlock): RunD
   return { blocks: [...doc.blocks.slice(0, at), block, ...doc.blocks.slice(at)] };
 }
 
+// ---- drag + drop model (pure, unit-tested) ----------------------------------
+// Extracted from the view so the placement RULES are testable and predictable.
+// Two deliberate guarantees fix the old "feels cumbersome / lands in the wrong
+// place" behavior:
+//   1. Dropping in the gap before/after ANY block is always a top-level move —
+//      a block can never be sucked *into* a step (or a heading) just because the
+//      step happened to be expanded. That implicit auto-nest is gone.
+//   2. Nesting a detail under a step is intentional: it only happens when you
+//      drop directly ONTO one of that step's existing detail rows.
+
+export type DragItem =
+  | { kind: "top"; id: string }
+  | { kind: "child"; parentId: string; id: string };
+
+export type DropPosition = "before" | "after";
+
+export type DropTarget = {
+  item: DragItem;
+  position: DropPosition;
+};
+
+export type DropDestination =
+  | { scope: "top"; targetId: string; position: DropPosition }
+  | { scope: "children"; parentId: string; targetChildId: string | null; position: DropPosition };
+
+export function sameDragItem(a: DragItem | null, b: DragItem): boolean {
+  if (!a || a.kind !== b.kind || a.id !== b.id) return false;
+  return a.kind === "top" || b.kind === "top" || a.parentId === b.parentId;
+}
+
+// A top-level block that can also live as a detail under a step.
+export function childFromTop(block: RunBlock): RunChild | null {
+  if (block.type === "note" || block.type === "safety" || block.type === "variation") {
+    return { id: block.id, type: block.type, text: block.text || "" };
+  }
+  if (block.type === "materials") return { id: block.id, type: "materials" };
+  return null;
+}
+
+// A detail that can be promoted to a top-level block.
+export function topFromChild(child: RunChild): RunBlock | null {
+  if (child.type === "note" || child.type === "safety" || child.type === "variation") {
+    return { id: child.id, type: child.type, text: child.text || "", children: [] };
+  }
+  if (child.type === "substep") {
+    return { id: child.id, type: "step", text: child.text || "", collapsed: false, children: [] };
+  }
+  if (child.type === "materials") return { id: child.id, type: "materials", children: [] };
+  return null;
+}
+
+export function isChildCapable(item: DragItem, blocks: RunBlock[]): boolean {
+  if (item.kind === "child") return true;
+  const block = blocks.find((b) => b.id === item.id);
+  return Boolean(block && childFromTop(block));
+}
+
+export function isTopCapable(item: DragItem, blocks: RunBlock[]): boolean {
+  if (item.kind === "top") return true;
+  const parent = blocks.find((b) => b.id === item.parentId);
+  const child = parent?.children?.find((k) => k.id === item.id);
+  return Boolean(child && topFromChild(child));
+}
+
+// Where a drag lands. Returns null when the move is a no-op or not allowed.
+export function resolveDrop(source: DragItem, target: DropTarget, blocks: RunBlock[]): DropDestination | null {
+  if (sameDragItem(source, target.item)) return null;
+
+  // Dropping onto an existing detail row nests the source as a sibling detail —
+  // the ONE intentional way to nest under a step.
+  if (target.item.kind === "child") {
+    if (!isChildCapable(source, blocks)) return null;
+    return {
+      scope: "children",
+      parentId: target.item.parentId,
+      targetChildId: target.item.id,
+      position: target.position,
+    };
+  }
+
+  // Dropping onto (the gap around) a top-level block is always a top-level move.
+  const targetBlock = blocks.find((b) => b.id === target.item.id);
+  if (!targetBlock) return null;
+  if (!isTopCapable(source, blocks)) return null;
+  return { scope: "top", targetId: targetBlock.id, position: target.position };
+}
+
+// Apply a resolved destination, returning the new block list (or null on a
+// stale/invalid move). Pure — never mutates the input.
+export function applyDrop(blocks: RunBlock[], source: DragItem, destination: DropDestination): RunBlock[] | null {
+  let movingTop: RunBlock | null = null;
+  let movingChild: RunChild | null = null;
+  let next: RunBlock[] = blocks.map((b) => ({ ...b, children: [...(b.children || [])] }));
+
+  if (source.kind === "top") {
+    const sourceIndex = next.findIndex((b) => b.id === source.id);
+    if (sourceIndex < 0) return null;
+    [movingTop] = next.splice(sourceIndex, 1);
+  } else {
+    next = next.map((b) => {
+      if (b.id !== source.parentId) return b;
+      const childIndex = (b.children || []).findIndex((k) => k.id === source.id);
+      if (childIndex < 0) return b;
+      const nextChildren = [...(b.children || [])];
+      [movingChild] = nextChildren.splice(childIndex, 1);
+      return { ...b, children: nextChildren };
+    });
+    if (!movingChild) return null;
+  }
+
+  if (destination.scope === "top") {
+    const block = movingTop || (movingChild ? topFromChild(movingChild) : null);
+    const targetIndex = next.findIndex((b) => b.id === destination.targetId);
+    if (!block || targetIndex < 0) return null;
+    next.splice(destination.position === "before" ? targetIndex : targetIndex + 1, 0, block);
+    return next;
+  }
+
+  const child = movingChild || (movingTop ? childFromTop(movingTop) : null);
+  if (!child) return null;
+  let inserted = false;
+  next = next.map((b) => {
+    if (b.id !== destination.parentId) return b;
+    const children = [...(b.children || [])];
+    const targetIndex =
+      destination.targetChildId == null ? -1 : children.findIndex((k) => k.id === destination.targetChildId);
+    const insertAt =
+      destination.targetChildId == null
+        ? 0
+        : destination.position === "before"
+          ? targetIndex
+          : targetIndex + 1;
+    if (insertAt < 0) return b;
+    children.splice(insertAt, 0, child);
+    inserted = true;
+    return { ...b, children };
+  });
+  return inserted ? next : null;
+}
+
+// Copy a single detail, deep-cloning any embedded diagram so the copy can never
+// share a frame/marker/zone with the source. `id` defaults to the source id
+// (id-preserving clone); pass a fresh id to reissue identity.
+export function cloneRunChild(child: RunChild, id: string = child.id): RunChild {
+  return child.diagram ? { ...child, id, diagram: clonePlaybook(child.diagram) } : { ...child, id };
+}
+
 // A deep, id-preserving clone so the editor never mutates persisted state.
 export function cloneRunDoc(doc: RunDoc): RunDoc {
   return {
     blocks: doc.blocks.map((b) => ({
       ...b,
-      children: (b.children || []).map((c) => ({ ...c })),
+      children: (b.children || []).map((c) => cloneRunChild(c)),
     })),
   };
 }
@@ -474,7 +622,7 @@ export function rekeyRunDoc(doc: RunDoc, oldActivityId: string, newActivityId: s
     blocks: doc.blocks.map((b) => ({
       ...b,
       id: rekeyBlockId(b.id),
-      children: (b.children || []).map((c) => ({ ...c, id: runId("k") })),
+      children: (b.children || []).map((c) => cloneRunChild(c, runId("k"))),
     })),
   };
 }

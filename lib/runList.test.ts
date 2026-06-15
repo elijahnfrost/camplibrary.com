@@ -8,6 +8,7 @@ import {
   blankDiagramChild,
   blankStepBlock,
   buildRunDoc,
+  cloneRunChild,
   cloneRunDoc,
   insertBlockAfter,
   insertBlockAt,
@@ -66,7 +67,7 @@ function blockSummary(doc: RunDoc): string[] {
 describe("run list model", () => {
   it("exposes stable UI metadata and factories", () => {
     expect(RUN_CHILD_TYPES).toEqual(["note", "safety", "variation", "substep", "video", "diagram", "materials"]);
-    expect(RUN_CHILD_META.video).toEqual({ label: "Video", placeholder: "paste a YouTube link\u2026" });
+    expect(RUN_CHILD_META.video).toEqual({ label: "Media", placeholder: "YouTube, Vimeo, or a link\u2026" });
     expect(RUN_TOP_LABEL.details).toBe("Specific details");
 
     const first = runId("x");
@@ -75,7 +76,7 @@ describe("run list model", () => {
     expect(second).toMatch(/^x-/);
     expect(first).not.toBe(second);
 
-    expect(runPillLabel("video", 2)).toBe("2 videos");
+    expect(runPillLabel("video", 2)).toBe("2 media");
     expect(runPillLabel("safety", 1)).toBe("safety note");
     expect(runPillLabel("substep", 2)).toBe("2 sub-steps");
     expect(runPillLabel("variation", 1)).toBe("variation");
@@ -357,5 +358,34 @@ describe("insertBlockAfter / insertBlockAt", () => {
     expect(insertBlockAt(base, 0, fresh).blocks[0].id).toBe(fresh.id);
     expect(insertBlockAt(base, 99, fresh).blocks[2].id).toBe(fresh.id);
     expect(insertBlockAt(base, -5, fresh).blocks[0].id).toBe(fresh.id);
+  });
+});
+
+describe("cloneRunChild — diagram independence", () => {
+  it("deep-clones an embedded diagram so a copy never shares frames with the source", () => {
+    const original = blankDiagramChild("act-1", "Kickball");
+    const copy = cloneRunChild(original, "fresh-id");
+
+    expect(copy.id).toBe("fresh-id");
+    expect(copy.diagram).not.toBe(original.diagram); // different object reference
+    expect(copy.diagram?.frames).not.toBe(original.diagram?.frames);
+    expect(copy.diagram?.frames[0]).not.toBe(original.diagram?.frames[0]);
+
+    // Mutating the copy's diagram must not bleed into the original.
+    copy.diagram!.frames[0].name = "CHANGED";
+    expect(original.diagram?.frames[0].name).not.toBe("CHANGED");
+  });
+
+  it("preserves the source id when none is given (id-preserving clone)", () => {
+    const original = blankDiagramChild("act-1", "Kickball");
+    expect(cloneRunChild(original).id).toBe(original.id);
+  });
+
+  it("cloneRunDoc deep-clones diagram children", () => {
+    const doc: RunDoc = {
+      blocks: [{ id: "s1", type: "step", text: "Set up", children: [blankDiagramChild("act-1", "Kickball")] }],
+    };
+    const clone = cloneRunDoc(doc);
+    expect(clone.blocks[0].children?.[0].diagram).not.toBe(doc.blocks[0].children?.[0].diagram);
   });
 });

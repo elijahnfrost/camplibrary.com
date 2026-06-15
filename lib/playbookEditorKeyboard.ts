@@ -1,6 +1,6 @@
 import type { PlaybookFrame } from "./playbooks";
 
-export type PlaybookSelectionType = "player" | "flag" | "zone" | "arrow";
+export type PlaybookSelectionType = "player" | "flag" | "zone" | "arrow" | "marker";
 
 export interface PlaybookSelection {
   type: PlaybookSelectionType;
@@ -57,6 +57,17 @@ export function describePlaybookSelection(frame: PlaybookFrame, selection: Playb
     if (arrow) return withKeyboardHint(teamLabel(arrow.team) + " arrow " + (index + 1));
   }
 
+  if (selection.type === "marker") {
+    const markers = frame.markers || [];
+    const index = markers.findIndex((marker) => marker.id === selection.id);
+    const marker = markers[index];
+    if (marker) {
+      const label = (marker.label || "").trim();
+      const what = marker.shape === "text" ? "label" : marker.color + " " + marker.shape + " marker";
+      return withKeyboardHint((label ? label + " — " : "") + what + " " + (index + 1));
+    }
+  }
+
   return withKeyboardHint("Diagram item");
 }
 
@@ -97,6 +108,17 @@ export function nudgePlaybookSelection(
       };
     });
     return changed ? { ...frame, zones } : frame;
+  }
+
+  if (selection.type === "marker") {
+    const markers = frame.markers || [];
+    let changed = false;
+    const next = markers.map((marker) => {
+      if (marker.id !== selection.id) return marker;
+      changed = true;
+      return { ...marker, x: clamp(marker.x + nudge.dx, 3, 97), y: clamp(marker.y + nudge.dy, 3, 97) };
+    });
+    return changed ? { ...frame, markers: next } : frame;
   }
 
   if (selection.type === "arrow") {

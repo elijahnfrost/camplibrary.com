@@ -33,6 +33,7 @@ export function FrameStepper({
         <FieldFrame
           frame={frame}
           split={playbook.surface?.split}
+          grid={playbook.surface?.grid}
           showHead={false}
           markerBase={idBase + "-" + frame.id}
         />

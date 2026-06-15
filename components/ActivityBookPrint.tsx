@@ -13,7 +13,7 @@ import { ActivityPlaybook } from "./ActivityPlaybook";
 const CHILD_LABEL: Record<RunChild["type"], string> = {
   note: "Note",
   safety: "Safety",
-  video: "Video",
+  video: "Media",
   variation: "Variation",
   substep: "Sub-step",
   diagram: "Diagram",
@@ -65,8 +65,8 @@ function PrintChild({ child, activity }: { child: RunChild; activity: Activity }
   if (child.type === "video") {
     return (
       <div className="print-run-child">
-        <h3>Video</h3>
-        <p>{child.title || child.url || "Video reference"}</p>
+        <h3>Media</h3>
+        <p>{child.title || child.url || "Linked media"}</p>
         {child.url ? <small>{child.url}</small> : null}
       </div>
     );
