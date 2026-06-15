@@ -20,14 +20,11 @@ export const config = {
     "/sso-callback",
     "/sso-callback/(.*)",
     "/auth/complete",
-    "/api/auth",
-    "/api/auth/(.*)",
-    "/api/invite-codes",
-    "/api/invite-codes/(.*)",
-    "/api/user-data",
-    "/api/user-data/(.*)",
-    "/api/calendar-events",
-    "/api/calendar-events/(.*)",
-    "/api/webhooks/clerk",
+    // Every API route runs clerkMiddleware so any handler may call auth()/
+    // currentUser() without throwing "auth() was called but Clerk can't detect
+    // usage of clerkMiddleware()". Enumerating individual paths let /api/health
+    // (which elevates via requireAdminSession → auth()) fall outside the matcher
+    // and 500 in production; one /api/(.*) entry covers it and any future route.
+    "/api/(.*)",
   ],
 };
