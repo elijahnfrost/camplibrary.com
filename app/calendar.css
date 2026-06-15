@@ -716,7 +716,12 @@ body > .cal-lib__item .cal-lib__name {
   line-height: 1.1;
 }
 .cal-lib__meta {
+  /* The small-caps "stamp" treatment used for activity meta everywhere else
+     (.cat-row__meta / .deck-card__meta) — the rail was the lone exception. */
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 /* The quick-place "+" is a quiet ghost glyph until the pointer commits to it —

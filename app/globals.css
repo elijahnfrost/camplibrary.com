@@ -2271,7 +2271,7 @@ body {
   gap: 16px;
   padding: 18px;
   border: 2px solid var(--ink);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--card);
 }
 .auth-form__copy,
@@ -2412,7 +2412,7 @@ body {
   gap: 16px;
   padding: 16px;
   border: 2px solid var(--ink);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--card);
 }
 .admin-panel__head {
@@ -2694,7 +2694,8 @@ body {
 /* ---- today's schedule ---- */
 .home-sched {
   background: var(--content);
-  border: 1.5px solid var(--ink);
+  /* 2px to match its sibling .home-guide__card on the same screen (was 1.5px). */
+  border: 2px solid var(--ink);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -4373,9 +4374,11 @@ body {
 .form__section {
   font-family: var(--script);
   font-weight: 700;
-  font-size: 26px;
+  /* Match the read-mode book headings (.rl-heading__t: 23px/ink) so a section
+     like "Details" or "How to play" reads identically opening vs editing. */
+  font-size: 23px;
   line-height: 1;
-  color: var(--accent-ink);
+  color: var(--ink);
   margin-top: 8px;
   padding-bottom: 9px;
   border-bottom: 1.5px dashed var(--line-soft);
