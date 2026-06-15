@@ -7,7 +7,7 @@ import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { MiniSeg, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
+import { AgePicker, MiniSeg, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The shared color hook: the removable active-filter chip carries its
@@ -275,22 +275,7 @@ function LedgerFilters({
           ]}
         />
       </div>
-      <div className="ledger__row">
-        <span className="ledger__label">Ages</span>
-        <MiniSeg
-          ariaLabel="Filter by age group"
-          value={age}
-          onChange={onAge}
-          options={[
-            { id: "All" as AgeFilter, label: "All" },
-            ...AGE_GROUPS.map((g) => ({
-              id: g.id as AgeFilter,
-              label: g.short.replace("Gr ", "").replace("PreK", "PK"),
-              ariaLabel: g.label,
-            })),
-          ]}
-        />
-      </div>
+      <AgePicker value={age} onChange={onAge} label="Ages" ariaLabel="Filter by age group" />
       {onStarredOnly && (
         <div className="ledger__row">
           <span className="ledger__label">Starred only</span>
