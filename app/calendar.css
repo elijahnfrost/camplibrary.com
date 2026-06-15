@@ -1100,6 +1100,9 @@ body > .cal-lib__item .cal-lib__name {
   border-radius: var(--r-lg);
   box-shadow: var(--e3);
   padding: var(--s-5);
+  /* Pop in like the other anchored floating menus (the desktop event popover was
+     the only one that snapped in; the mobile variant already animates). */
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
 .cal-popover__head {
   display: flex;
