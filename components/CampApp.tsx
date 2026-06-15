@@ -364,10 +364,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     () => (isAdmin || tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
     [isAdmin, tab]
   );
-  const mobileNavTabs = useMemo(
-    () => (isAdmin || tab === "admin" ? [...MOBILE_TABS, STAFF_TAB, ADMIN_TAB] : [...MOBILE_TABS, STAFF_TAB]),
-    [isAdmin, tab]
-  );
+  // The phone tab bar stays lean: Home / Library / Calendar / Staff. Admin
+  // (invite codes) is desktop-only chrome — it's reachable from the sidenav on a
+  // large screen and via deep link, so it never crowds the four-slot mobile bar.
+  const mobileNavTabs = useMemo(() => [...MOBILE_TABS, STAFF_TAB], []);
 
   return (
     <div className="stage">
