@@ -233,6 +233,29 @@ export const ensureInviteCodeSchema = cacheUntilFailure(async () => {
         CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
         ON invite_code_reservations (invite_code_id)
       `;
+      // DB backstop for one-seat-per-user: at most one 'used' reservation per
+      // (invite, clerk_user_id). Guarded so it is migration-safe — if a row set
+      // already violated it (a pre-fix drain), creation is skipped rather than
+      // throwing and bricking schema init; the in-transaction check in
+      // consumeInviteCode prevents any new violation regardless.
+      await sql`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM (
+              SELECT 1
+              FROM invite_code_reservations
+              WHERE status = 'used' AND clerk_user_id IS NOT NULL
+              GROUP BY invite_code_id, clerk_user_id
+              HAVING count(*) > 1
+            ) AS duplicates
+          ) THEN
+            CREATE UNIQUE INDEX IF NOT EXISTS invite_code_reservations_one_per_user_idx
+              ON invite_code_reservations (invite_code_id, clerk_user_id)
+              WHERE status = 'used' AND clerk_user_id IS NOT NULL;
+          END IF;
+        END $$;
+      `;
 });
 
 function mapRecord(row: Record<string, unknown>): InviteCodeRecord {
@@ -455,6 +478,32 @@ export async function consumeInviteCode({
 
     const item = found[0];
     if (item.reservation_status === "used" && item.clerk_user_id === clerkUserId) return [{ id: item.id }];
+
+    // One seat per distinct user. /reserve is public and uncapped per-identity,
+    // so one actor could hold every reservation of a maxUses>1 invite; without
+    // this guard each consume burned a seat, letting one person drain all N. If
+    // this user already consumed a *different* reservation on this invite, don't
+    // burn another seat — revoke this extra reservation and report idempotent
+    // success (they are already a member). The FOR UPDATE on invite_codes above
+    // serializes concurrent consumes of the same invite, so this read is current.
+    const priorSeat = await tx`
+      SELECT 1
+      FROM invite_code_reservations
+      WHERE invite_code_id = ${item.id}
+        AND clerk_user_id = ${clerkUserId}
+        AND status = 'used'
+        AND id <> ${item.reservation_row_id}
+      LIMIT 1
+    `;
+    if (priorSeat.length) {
+      await tx`
+        UPDATE invite_code_reservations
+        SET status = 'revoked'
+        WHERE id = ${item.reservation_row_id}
+          AND status = 'reserved'
+      `;
+      return [{ id: item.id }];
+    }
 
     const now = Date.now();
     const expiresAt = item.expires_at ? new Date(String(item.expires_at)).getTime() : null;

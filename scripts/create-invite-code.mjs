@@ -195,6 +195,26 @@ try {
     CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
     ON invite_code_reservations (invite_code_id)
   `;
+  // One 'used' reservation per (invite, clerk_user_id) — see lib/server/inviteCodes.ts.
+  // Guarded so it is migration-safe on data that already violated it.
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM (
+          SELECT 1
+          FROM invite_code_reservations
+          WHERE status = 'used' AND clerk_user_id IS NOT NULL
+          GROUP BY invite_code_id, clerk_user_id
+          HAVING count(*) > 1
+        ) AS duplicates
+      ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS invite_code_reservations_one_per_user_idx
+          ON invite_code_reservations (invite_code_id, clerk_user_id)
+          WHERE status = 'used' AND clerk_user_id IS NOT NULL;
+      END IF;
+    END $$;
+  `;
 
   const rows = await sql`
     INSERT INTO invite_codes (id, code_hash, label, invited_email, expires_at, max_uses)
