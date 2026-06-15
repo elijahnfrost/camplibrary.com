@@ -33,6 +33,9 @@ function errorMessage(reason: string) {
   if (reason === "email_mismatch") return "That invite code was issued for a different email.";
   if (reason === "expired") return "That invite code has expired.";
   if (reason === "unavailable") return "That invite code is no longer available.";
+  if (reason === "rate_limited") {
+    return "Another sign-up from your network is still finishing. Wait a moment and try again.";
+  }
   return "That invite code is not valid.";
 }
 

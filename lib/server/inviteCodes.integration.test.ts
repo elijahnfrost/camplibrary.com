@@ -10,6 +10,7 @@ describe.skipIf(!TEST_DB)("consumeInviteCode — one seat per distinct user (int
   let createInviteCode: typeof import("./inviteCodes").createInviteCode;
   let reserveInviteCode: typeof import("./inviteCodes").reserveInviteCode;
   let consumeInviteCode: typeof import("./inviteCodes").consumeInviteCode;
+  let releaseInviteCode: typeof import("./inviteCodes").releaseInviteCode;
   let getSql: typeof import("./db").getSql;
 
   beforeAll(async () => {
@@ -19,6 +20,7 @@ describe.skipIf(!TEST_DB)("consumeInviteCode — one seat per distinct user (int
     createInviteCode = mod.createInviteCode;
     reserveInviteCode = mod.reserveInviteCode;
     consumeInviteCode = mod.consumeInviteCode;
+    releaseInviteCode = mod.releaseInviteCode;
     getSql = (await import("./db")).getSql;
   });
 
@@ -96,5 +98,34 @@ describe.skipIf(!TEST_DB)("consumeInviteCode — one seat per distinct user (int
       SELECT indexname FROM pg_indexes WHERE indexname = 'invite_code_reservations_one_per_user_idx'
     `;
     expect(rows).toHaveLength(1);
+  });
+
+  it("caps in-flight reservations to one per source IP, but not across IPs", async () => {
+    const { code } = await createInviteCode({ maxUses: 5 });
+
+    // Same IP twice → the second is rate-limited, not granted a second seat.
+    expect((await reserveInviteCode({ code, clientIp: "203.0.113.10" })).ok).toBe(true);
+    const second = await reserveInviteCode({ code, clientIp: "203.0.113.10" });
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.reason).toBe("rate_limited");
+
+    // A different IP is unaffected (distinct people, distinct sources).
+    expect((await reserveInviteCode({ code, clientIp: "203.0.113.20" })).ok).toBe(true);
+
+    // No IP available → fails open (preserves the local/test path).
+    expect((await reserveInviteCode({ code })).ok).toBe(true);
+  });
+
+  it("frees the per-IP slot once the prior reservation is released", async () => {
+    const { code } = await createInviteCode({ maxUses: 5 });
+
+    const first = await reserveInviteCode({ code, clientIp: "198.51.100.5" });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect((await reserveInviteCode({ code, clientIp: "198.51.100.5" })).ok).toBe(false);
+
+    // Releasing (as the client does on retry/abandon) lets the same IP reserve again.
+    await releaseInviteCode({ code, reservationId: first.reservationId });
+    expect((await reserveInviteCode({ code, clientIp: "198.51.100.5" })).ok).toBe(true);
   });
 });

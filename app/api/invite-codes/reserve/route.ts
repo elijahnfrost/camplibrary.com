@@ -1,6 +1,6 @@
 import { INVITE_CODE_INPUT_MAX_LENGTH, INVITE_EMAIL_MAX_LENGTH, reserveInviteCode } from "@/lib/server/inviteCodes";
 import { getBackendEnvStatus } from "@/lib/server/env";
-import { parseJsonObject, readTextBodyWithLimit } from "@/lib/server/requestBody";
+import { clientIpFrom, parseJsonObject, readTextBodyWithLimit } from "@/lib/server/requestBody";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -45,10 +45,12 @@ export async function POST(request: NextRequest) {
   const result = await reserveInviteCode({
     code,
     email,
+    clientIp: clientIpFrom(request),
   });
 
   if (!result.ok) {
-    const status = result.reason === "missing" ? 400 : 403;
+    const status =
+      result.reason === "missing" ? 400 : result.reason === "rate_limited" ? 429 : 403;
     return Response.json({ ok: false, reason: result.reason }, { status });
   }
 

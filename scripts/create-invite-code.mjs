@@ -188,9 +188,11 @@ try {
       reserved_at timestamptz NOT NULL DEFAULT now(),
       reserved_until timestamptz NOT NULL,
       used_at timestamptz,
+      reserved_ip_hash text,
       CONSTRAINT invite_code_reservations_status_check CHECK (status IN ('reserved', 'used', 'revoked'))
     )
   `;
+  await sql`ALTER TABLE invite_code_reservations ADD COLUMN IF NOT EXISTS reserved_ip_hash text`;
   await sql`
     CREATE INDEX IF NOT EXISTS invite_code_reservations_invite_code_id_idx
     ON invite_code_reservations (invite_code_id)

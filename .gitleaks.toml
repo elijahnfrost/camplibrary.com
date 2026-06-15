@@ -10,11 +10,15 @@
 useDefault = true
 
 [allowlist]
-description = "Intentional dummy/placeholder values, not real secrets"
+description = "Intentional dummy/placeholder values and test fixtures, not real secrets"
 regexTarget = "match"
 regexes = [
+  # Dummy Clerk markers used to detect unconfigured keys (see lib/auth.ts).
   '''sk_test_dgvzdhnly3jldgtlewzvcmxvy2fszgv2''',
   '''pk_test_zm9vlwjhci0xmjmu''',
+  # Hardcoded fixtures in *.test.ts — fake values, never real credentials.
+  '''integration-test-invite-secret-[0-9a-z]+''',
+  '''invite-admin-token-for-tests-[0-9a-z]+''',
 ]
 paths = [
   '''(^|/)\.env\.example$''',
