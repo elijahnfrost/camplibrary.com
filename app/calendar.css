@@ -134,12 +134,36 @@
 .calhead__actions {
   display: flex;
   align-items: center;
+  gap: var(--s-3);
   flex: none;
+}
+/* "Hours" opens the camp-hours sheet — sits with the view switcher, sized to
+   match the Today pill / view segment so the header reads as one control row. */
+.calhead__hours {
+  height: var(--control-md);
+  padding: 0 var(--s-5);
+  border-radius: var(--r-md);
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.calhead__hours:hover {
+  color: var(--ink);
+}
+.calhead__hours svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ---------- FullCalendar theme ---------- */
 .calshell .fc {
-  --fc-border-color: var(--line-soft);
+  /* The grid is CHROME, not content. Every interior border is kept lighter than
+     an event's tint wash (~rgb(216,224,204) over paper) so placed blocks always
+     read as the foreground and the ruler recedes beneath them. --line-soft on
+     its own already out-contrasts an event, so the structural day-dividers are
+     thinned to roughly half its weight here. */
+  --fc-border-color: color-mix(in srgb, var(--line-soft) 50%, transparent);
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: color-mix(in srgb, var(--paper-2) 55%, var(--card));
   /* No today-column wash — the green today circle (.fc-day-today day-number /
@@ -171,7 +195,28 @@
   color: var(--ink-soft);
 }
 .calshell .fc .fc-timegrid-slot {
-  height: 2.6em;
+  height: 1.3em;
+}
+/* The visible grid is intentionally coarse AND quiet: it's a ruler the events
+   sit ON, so it stays lighter than an event's tint wash. The :15/:45 quarter
+   marks are NOT drawn — snapDuration stays 15 min, so blocks still snap to the
+   quarter, but it's the block's own top edge (not a grid line) that shows where
+   it landed. Modern calendars (Google, Apple, Notion) draw at most an hour +
+   half-hour line, faint, and let the snap grid stay invisible.
+     · HOUR (:00) — the clock tick, matched to the day-divider weight so the grid
+       reads as one calm, uniform mesh; the hour LABELS carry the emphasis, not a
+       heavier line. Well below event weight.
+     · HALF (:30) — a barely-there whisper, just enough to hint the halfway point
+       for short blocks without adding to the grid's weight.
+     · :15/:45 — transparent (border width kept, so no layout shift). */
+.calshell .fc .fc-timegrid-slot:not(.fc-timegrid-slot-minor) {
+  border-top-color: color-mix(in srgb, var(--line-soft) 55%, transparent);
+}
+.calshell .fc .fc-timegrid-slot.fc-timegrid-slot-minor {
+  border-top-color: transparent;
+}
+.calshell .fc .fc-timegrid-slot.fc-timegrid-slot-minor[data-time$=":30:00"] {
+  border-top-color: color-mix(in srgb, var(--line-soft) 26%, transparent);
 }
 .calshell .fc .fc-timegrid-slot-label-cushion {
   font-size: var(--fs-label);
@@ -181,13 +226,17 @@
   color: var(--ink);
   padding: var(--s-2) var(--s-3);
 }
-/* Drop preview (drag-create selection + external drag-over): a clear sage wash
-   marks the landing slot. NO dashed border — during a timed drag-select FC also
-   renders a selectMirror event in the same slot, and a border here stacked with
-   the mirror's spine + 1px ring read as a doubled, inconsistent outline. The
-   wash alone (plus the mirror when present) is the single, clean preview. */
+/* Drag-create landing box + external drag-over target. selectMirror is OFF
+   (CalendarShell), so this single highlight IS the whole preview — no stacked
+   mirror card and no offset green wash behind it (the old "weird shadow"). It
+   echoes the move snap-box's dashed outline but FILLED, so a new event reads as
+   being placed into the slot — and it stays put after the drag while QuickAdd is
+   open (unselectAuto is off; the sheet-close effect clears it). */
 .calshell .fc .fc-highlight {
   border-radius: var(--r-sm);
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--accent) 15%, var(--card));
+  border: 2px dashed var(--accent);
 }
 .calshell .fc .fc-day-today .fc-daygrid-day-number {
   background: var(--accent);
@@ -419,20 +468,31 @@ body > .cal-lib__item .cal-lib__name {
   overflow: hidden;
   height: 100%;
 }
-/* Short events (<= 30 min): one Google-style line, no clipping. */
-.cal-card--compact {
-  flex-direction: row;
-  align-items: baseline;
-  gap: var(--s-2);
-  padding: var(--s-1) var(--s-3);
+/* The event block (and the drag follower, sized to match it) is a SIZE
+   CONTAINER, so the card relayouts from its LIVE rendered height. As a resize
+   shrinks the block past the point a stacked title + time fits, the card
+   collapses to one Google-style line — and expands back — AS you drag, so text
+   never clips mid-resize. Replaces the old stored-duration branch that only
+   updated when the drag dropped. */
+.calshell .fc-timegrid-event-harness,
+.cal-dragfollow {
+  container: calevent / size;
 }
-.cal-card--compact .cal-card__title {
-  white-space: nowrap;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-.cal-card--compact .cal-card__time {
-  flex: none;
+@container calevent (max-height: 50px) {
+  .cal-card {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--s-2);
+    padding: var(--s-1) var(--s-3);
+  }
+  .cal-card__title {
+    white-space: nowrap;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .cal-card__time {
+    flex: none;
+  }
 }
 .cal-card__title {
   font-family: var(--hand);
@@ -443,6 +503,7 @@ body > .cal-lib__item .cal-lib__name {
   text-overflow: ellipsis;
 }
 .cal-card__time {
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
   color: var(--ink-soft);
 }
@@ -455,16 +516,11 @@ body > .cal-lib__item .cal-lib__name {
   font-size: var(--fs-label);
   color: var(--ink);
 }
-/* Month chips carry the same left spine as every other activity block — a
-   short 3px tick, not a dot, so the category mark is one shape app-wide. */
-.cal-chip__dot {
-  width: 3px;
-  height: 13px;
-  flex: none;
-  border-radius: var(--r-pill);
-  background: var(--cal-tint, var(--accent));
-}
+/* Month chips wear ONE category mark: the left spine on the chip itself
+   (the .fc-daygrid-event border-left), the same shape as every other block —
+   no second inner tick stacked on top of it. */
 .cal-chip__time {
+  font-family: var(--hand-sc);
   color: var(--ink-soft);
   flex: none;
 }
@@ -1137,6 +1193,92 @@ body > .cal-lib__item .cal-lib__name {
   }
 }
 
+/* ---------- camp hours sheet ---------- */
+.calhours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 4px var(--page-x) 14px;
+}
+.calhours__intro {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-label);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.calhours__list {
+  display: flex;
+  flex-direction: column;
+}
+.calhours__camp {
+  padding: var(--s-3) 0 var(--s-4);
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.calhours__camp:last-child {
+  border-bottom: 0;
+}
+.calhours__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  min-height: 38px;
+}
+.calhours__name {
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+/* A disabled camp greys its name (its hours no longer move the grid) but keeps
+   the toggle bright so re-enabling stays one tap away. */
+.calhours__camp:not(.is-on) .calhours__name {
+  color: var(--ink-faint);
+}
+.calhours__times {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.calhours__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+}
+.calhours__fieldlabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.calhours__field .cselect {
+  width: 100%;
+}
+.calhours__field .cselect__trigger {
+  width: 100%;
+}
+.calhours__dash {
+  padding-bottom: var(--s-4);
+  color: var(--ink-faint);
+}
+.calhours__summary {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.calhours__summary strong {
+  font-family: var(--hand-sc);
+  color: var(--accent-ink);
+}
+.calhours__done {
+  margin-top: var(--s-2);
+}
+
 /* ---------- responsive ---------- */
 @media (min-width: 1024px) {
   .calshell__fab {
@@ -1159,6 +1301,13 @@ body > .cal-lib__item .cal-lib__name {
 @media (max-width: 767px) {
   .calhead {
     gap: var(--s-3);
+  }
+  /* Tight header: the clock icon alone carries "Hours". */
+  .calhead__hours-label {
+    display: none;
+  }
+  .calhead__hours {
+    padding: 0 var(--s-3);
   }
   /* The sheet is pinned to the screen bottom — keep the commit buttons clear
      of the home indicator. */
