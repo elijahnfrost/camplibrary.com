@@ -31,7 +31,6 @@ export default defineConfig({
     deviceScaleFactor: 1,
     locale: "en-US",
     timezoneId: "America/New_York",
-    reducedMotion: "reduce",
     colorScheme: "light",
   },
   projects: [

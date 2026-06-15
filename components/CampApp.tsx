@@ -239,6 +239,22 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     if (theme !== "All" && !lib.themes.some((t) => t.id === theme)) setTheme("All");
   }, [theme, lib.themes]);
 
+  // Announce the filtered result count to assistive tech when a filter or search
+  // changes it. Skips the initial render and tab arrivals (prev = null) so only a
+  // real change while viewing the library speaks; the count itself is visible.
+  const prevLibCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (tab !== "library") {
+      prevLibCountRef.current = null;
+      return;
+    }
+    const count = libraryItems.length;
+    if (prevLibCountRef.current !== null && prevLibCountRef.current !== count) {
+      setLiveMsg(count + (count === 1 ? " activity" : " activities"));
+    }
+    prevLibCountRef.current = count;
+  }, [libraryItems.length, tab]);
+
   // Activity viewer state. The event context is display-only strings from the
   // calendar event the viewer was opened from (never calendar types).
   const [detail, setDetail] = useState<Activity | null>(null);

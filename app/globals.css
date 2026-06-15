@@ -3044,7 +3044,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   background: var(--paper);
-  animation: cl-rise 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-rise 260ms var(--ease-overlay) both;
 }
 .overlay--sheet {
   top: 76px;
@@ -3079,7 +3079,7 @@ body {
   border: 0;
   border-radius: 0;
   background: transparent;
-  animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-pop 220ms var(--ease-overlay) both;
 }
 .overlay--auth .overlay__handle {
   display: none;
@@ -3206,7 +3206,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  /* 36px so the print pill lines up with the .rlv-headbtn / save controls in the
+     viewer header (touch bumps all three to 44px below). */
+  min-height: 36px;
   padding: 4px 9px;
   border: 1.5px solid var(--line);
   border-radius: 999px;
@@ -3232,6 +3234,15 @@ body {
   }
   .book-print-chip {
     min-height: var(--tap);
+  }
+}
+/* On pointer-fine screens the header save chip matches the 36px edit/print
+   controls (its 30px catalog-row size stays untouched). On touch it keeps the
+   44px from the tier above. */
+@media (hover: hover) {
+  .rlv-head .star--chip {
+    width: 36px;
+    height: 36px;
   }
 }
 .book-print-chip:hover {
@@ -4535,7 +4546,7 @@ body {
 
 /* ---------- misc ---------- */
 .fadein {
-  animation: cl-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cl-enter 240ms var(--ease-overlay) both;
 }
 @keyframes cl-enter {
   from {
@@ -5168,7 +5179,7 @@ body {
     border-top: 2px solid var(--ink);
     border-radius: var(--r-xl);
     box-shadow: var(--e4);
-    animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-pop 220ms var(--ease-overlay) both;
   }
   .overlay--card .overlay__handle,
   .overlay--viewer .overlay__handle {
@@ -5186,7 +5197,7 @@ body {
     border-radius: 0;
     background: transparent;
     box-shadow: none;
-    animation: cl-pop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-pop 220ms var(--ease-overlay) both;
   }
   .overlay--viewer .rlv-body {
     background: color-mix(in srgb, var(--card) 72%, var(--paper));
@@ -8015,7 +8026,7 @@ button.rl-node {
     border-bottom: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
-    animation: cl-rise 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: cl-rise 220ms var(--ease-overlay) both;
   }
   .cselect__menu {
     max-height: 60vh;
