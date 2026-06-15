@@ -49,6 +49,10 @@ export default defineConfig({
       use: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
     },
   ],
+  // NOTE: this starts its own `next dev` on PORT. Next locks .next/, so stop any
+  // other dev server first (`npm run dev`) — a second one fails with "Another
+  // next dev server is already running". reuseExistingServer lets a server you
+  // already have on PORT be reused locally.
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
     url: BASE_URL,
