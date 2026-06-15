@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import type { AuthSession } from "@/lib/auth";
 import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable, isLocalHost, LOCAL_STAFF_SESSION } from "@/lib/auth";
 import { getBackendEnvStatus } from "./env";
+import { withRetries } from "./once";
 
 // True when the current request is served from a loopback host. The request's
 // host is read from the NextRequest when available, otherwise from the inbound
@@ -62,8 +63,14 @@ export async function markUserInviteAccepted(
         ? existingPrivateMetadata[INVITE_ACCEPTED_AT_METADATA_KEY]
         : new Date().toISOString(),
   };
-  const client = await clerkClient();
-  await client.users.updateUserMetadata(clerkUserId, { privateMetadata: metadata });
+  // This write runs AFTER the invite is already consumed in Postgres, so a
+  // transient Clerk failure here would otherwise burn the seat while leaving the
+  // user unmarked (and therefore treated as anonymous). Retry to keep the two
+  // systems in sync; a persistent failure still throws for the caller to handle.
+  await withRetries(async () => {
+    const client = await clerkClient();
+    await client.users.updateUserMetadata(clerkUserId, { privateMetadata: metadata });
+  });
 }
 
 export async function getServerAuthSession(request?: NextRequest): Promise<AuthSession> {

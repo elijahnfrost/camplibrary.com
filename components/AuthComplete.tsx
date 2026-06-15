@@ -40,15 +40,32 @@ export function AuthComplete() {
     let cancelled = false;
 
     async function completeAccount() {
+      // The invite is consumed server-side before the account is marked accepted;
+      // a transient failure of that second step returns a retriable 503 (code
+      // INVITE_ACCEPT_RETRY). Because consume is idempotent, retrying the same
+      // request re-reaches the mark and finishes onboarding instead of stranding
+      // the user with a burned seat. Any other failure is terminal as before.
+      const MAX_ATTEMPTS = 4;
       try {
-        const response = await fetch("/api/invite-codes/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: inviteCode, reservationId }),
-        });
-        if (!response.ok) throw new Error("Could not finalize invite code.");
-        window.sessionStorage.removeItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
-        if (!cancelled) router.replace("/");
+        for (let attempt = 1; ; attempt += 1) {
+          const response = await fetch("/api/invite-codes/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: inviteCode, reservationId }),
+          });
+          if (response.ok) {
+            window.sessionStorage.removeItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
+            if (!cancelled) router.replace("/");
+            return;
+          }
+          const body = (await response.json().catch(() => null)) as { code?: string } | null;
+          const retriable = response.status === 503 && body?.code === "INVITE_ACCEPT_RETRY";
+          if (!retriable || attempt >= MAX_ATTEMPTS || cancelled) {
+            throw new Error("Could not finalize invite code.");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+          if (cancelled) return;
+        }
       } catch (error) {
         await releaseInviteCode(inviteCode, reservationId);
         window.sessionStorage.removeItem(PENDING_GOOGLE_INVITE_RESERVATION_KEY);
