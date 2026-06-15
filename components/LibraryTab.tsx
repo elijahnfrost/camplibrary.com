@@ -5,8 +5,9 @@
 // desktop filter rail renders inside the sidenav.
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import type { MaterialOption } from "@/lib/materials";
+import type { Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters } from "./Filters";
@@ -22,12 +23,17 @@ export function LibraryTab({
   cat,
   place,
   age,
+  theme,
+  themes,
+  themeOf,
   starredOnly,
   materialOptions,
   availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onTheme,
+  onManageThemes,
   onStarredOnly,
   onToggleMaterial,
   onClearMaterials,
@@ -45,12 +51,17 @@ export function LibraryTab({
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  theme: ThemeFilter;
+  themes: Theme[];
+  themeOf: (id: string) => Theme | null;
   starredOnly: boolean;
   materialOptions: MaterialOption[];
   availableMaterials: string[];
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
+  onTheme: (v: ThemeFilter) => void;
+  onManageThemes: () => void;
   onStarredOnly: (v: boolean) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
@@ -144,6 +155,8 @@ export function LibraryTab({
         cat={cat}
         place={place}
         age={age}
+        theme={theme}
+        themes={themes}
         starredOnly={starredOnly}
         materialOptions={materialOptions}
         availableMaterials={availableMaterials}
@@ -151,6 +164,8 @@ export function LibraryTab({
         onCat={onCat}
         onPlace={onPlace}
         onAge={onAge}
+        onTheme={onTheme}
+        onManageThemes={onManageThemes}
         onStarredOnly={onStarredOnly}
         onToggleMaterial={onToggleMaterial}
         onClearMaterials={onClearMaterials}
@@ -184,10 +199,13 @@ export function LibraryTab({
                   cat={cat}
                   place={place}
                   age={age}
+                  theme={theme}
+                  themes={themes}
                   availableMaterials={availableMaterials}
                   onCat={onCat}
                   onPlace={onPlace}
                   onAge={onAge}
+                  onTheme={onTheme}
                   onClearMaterials={onClearMaterials}
                 />
                 <button
@@ -197,6 +215,7 @@ export function LibraryTab({
                     onCat("All");
                     onPlace("All");
                     onAge("All");
+                    onTheme("All");
                     onStarredOnly(false);
                     onClearMaterials();
                   }}
@@ -209,13 +228,13 @@ export function LibraryTab({
         ) : (
           <>
             {view === "shelf" && (
-              <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
+              <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} themeOf={themeOf} />
             )}
             {view === "deck" && (
-              <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
+              <DeckView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} themeOf={themeOf} />
             )}
             {view === "catalog" && (
-              <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} />
+              <CatalogView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} themeOf={themeOf} />
             )}
           </>
         )}

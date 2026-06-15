@@ -507,6 +507,24 @@ body > .cal-lib__item .cal-lib__name {
   font-size: var(--fs-meta);
   color: var(--ink-soft);
 }
+/* The title line pairs the (optional) theme dot with the title so it never
+   stacks onto its own row in the column card. */
+.cal-card__line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+}
+/* A secondary theme accent — distinct from the category spine (--cal-tint).
+   Sits before the title; labelled in markup, so never color-alone. */
+.cal-card__theme {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--theme-tint, var(--accent));
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--card) 70%, transparent);
+}
 .cal-chip {
   display: flex;
   align-items: center;

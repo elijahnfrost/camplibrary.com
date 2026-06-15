@@ -16,6 +16,7 @@ import {
   rekeyRunDoc,
   type RunDoc,
 } from "@/lib/runList";
+import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 
 export function useActivityLibrary({
@@ -30,6 +31,7 @@ export function useActivityLibrary({
   const { docs, setDoc } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view } = docs;
   const availableMaterials = docs.availableMaterials;
+  const { themes, themeAssignments } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
 
@@ -81,6 +83,80 @@ export function useActivityLibrary({
       setDoc("ratings", (p) => ({ ...p, [id]: value }));
     },
     [requireStaff, setDoc]
+  );
+
+  // ---- Themes: a user-definable tag axis. The vocabulary lives in the
+  // `themes` doc; the per-activity assignment in `themeAssignments` (mirroring
+  // the ratings map, so it works for built-in AND custom activities and rides
+  // the existing delete/duplicate cleanup). ----
+  const themeById = useMemo(() => {
+    const map: Record<string, Theme> = {};
+    themes.forEach((theme) => (map[theme.id] = theme));
+    return map;
+  }, [themes]);
+
+  // Resolve an activity's theme, degrading to null for unassigned activities or
+  // assignments whose theme was since deleted.
+  const themeOf = useCallback(
+    (activityId: string): Theme | null => themeById[themeAssignments[activityId]] ?? null,
+    [themeById, themeAssignments]
+  );
+
+  const assignTheme = useCallback(
+    (activityId: string, themeId: string | null) => {
+      setDoc("themeAssignments", (prev) => {
+        if (!themeId) {
+          if (prev[activityId] == null) return prev;
+          const next = { ...prev };
+          delete next[activityId];
+          return next;
+        }
+        if (prev[activityId] === themeId) return prev;
+        return { ...prev, [activityId]: themeId };
+      });
+    },
+    [setDoc]
+  );
+
+  const createTheme = useCallback(
+    (label: string): Theme | null => {
+      const trimmed = label.trim().slice(0, MAX_THEME_LABEL);
+      if (!trimmed) return null;
+      const theme: Theme = { id: createThemeId(), label: trimmed, tint: nextPaletteTint(themes.length) };
+      setDoc("themes", (prev) => [...prev, theme]);
+      return theme;
+    },
+    [setDoc, themes.length]
+  );
+
+  const renameTheme = useCallback(
+    (id: string, label: string) => {
+      const trimmed = label.trim().slice(0, MAX_THEME_LABEL);
+      if (!trimmed) return;
+      setDoc("themes", (prev) => prev.map((theme) => (theme.id === id ? { ...theme, label: trimmed } : theme)));
+    },
+    [setDoc]
+  );
+
+  // Deleting a theme drops it from the vocabulary AND purges every assignment
+  // that referenced it, so no activity is left pointing at a dead id.
+  const deleteTheme = useCallback(
+    (id: string) => {
+      setDoc("themes", (prev) => prev.filter((theme) => theme.id !== id));
+      setDoc("themeAssignments", (prev) => {
+        let changed = false;
+        const next: Record<string, string> = {};
+        for (const [activityId, themeId] of Object.entries(prev)) {
+          if (themeId === id) {
+            changed = true;
+            continue;
+          }
+          next[activityId] = themeId;
+        }
+        return changed ? next : prev;
+      });
+    },
+    [setDoc]
   );
 
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
@@ -159,6 +235,9 @@ export function useActivityLibrary({
       setDoc("extra", (p) => [copy, ...p]);
       setDoc("runLists", (p) => ({ ...p, [newId]: copiedDoc }));
       if (copy.rating > 0) setDoc("ratings", (p) => ({ ...p, [newId]: copy.rating }));
+      // Carry the source's theme onto the copy (the source may be a built-in,
+      // so this reads from the assignment map, not the activity object).
+      setDoc("themeAssignments", (p) => (p[activity.id] ? { ...p, [newId]: p[activity.id] } : p));
       announce("Duplicated " + activity.title);
       return copy;
     },
@@ -193,6 +272,12 @@ export function useActivityLibrary({
         delete next[activity.id];
         return next;
       });
+      setDoc("themeAssignments", (p) => {
+        if (p[activity.id] == null) return p;
+        const next = { ...p };
+        delete next[activity.id];
+        return next;
+      });
       announce("Deleted " + activity.title);
       return true;
     },
@@ -221,6 +306,14 @@ export function useActivityLibrary({
     updateActivity,
     duplicateActivity,
     deleteActivity,
+    themes,
+    themeAssignments,
+    themeById,
+    themeOf,
+    assignTheme,
+    createTheme,
+    renameTheme,
+    deleteTheme,
   };
 }
 

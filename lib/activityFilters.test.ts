@@ -59,6 +59,21 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(activity({ ages: ["g13"] }), filters({ age: "g46" }))).toBe(false);
   });
 
+  it("filters by theme using the assignment map", () => {
+    const ocean = activity({ id: "a-ocean" });
+    const jungle = activity({ id: "a-jungle" });
+    const untagged = activity({ id: "a-plain" });
+    const themeAssignments = { "a-ocean": "theme-ocean", "a-jungle": "theme-jungle" };
+
+    // "All" ignores theme entirely.
+    expect(matchesActivityFilters(untagged, filters({ theme: "All", themeAssignments }))).toBe(true);
+
+    expect(matchesActivityFilters(ocean, filters({ theme: "theme-ocean", themeAssignments }))).toBe(true);
+    expect(matchesActivityFilters(jungle, filters({ theme: "theme-ocean", themeAssignments }))).toBe(false);
+    // An untagged activity never matches a specific theme.
+    expect(matchesActivityFilters(untagged, filters({ theme: "theme-ocean", themeAssignments }))).toBe(false);
+  });
+
   it("composes material availability with other filters", () => {
     const base = activity({ type: "Game", materials: ["Cones", "Rope"] });
 

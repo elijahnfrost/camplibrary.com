@@ -4,12 +4,17 @@
 
 import type { EventInput } from "@fullcalendar/core";
 import { categoryTint } from "@/lib/data";
+import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { fromDateKey, minutesOfDay, toDateKey } from "./dates";
 import { MIN_DURATION_MIN, MINUTES_PER_DAY, SNAP_MIN, snapMinutes } from "./time";
 import type { CalendarEvent } from "./types";
 
 export type ActivityIndex = Record<string, Activity>;
+
+// Resolve the theme an activity carries (events inherit their activity's theme;
+// custom events have none). Supplied by the library hook.
+export type ThemeResolver = (activityId: string) => Theme | null;
 
 // Stale activity refs (the activity was deleted) self-heal on read: the event
 // survives as a custom event carrying its denormalized title.
@@ -20,10 +25,11 @@ export function healEvent(event: CalendarEvent, byId: ActivityIndex): CalendarEv
   return healed;
 }
 
-export function toFcEvent(event: CalendarEvent, byId: ActivityIndex): EventInput {
+export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: ThemeResolver): EventInput {
   const activity = event.activityId ? byId[event.activityId] : undefined;
   const title = activity?.title || event.title || "Untitled";
   const tint = categoryTint(activity?.type);
+  const theme = activity && themeOf ? themeOf(activity.id) : null;
   const dayStart = fromDateKey(event.date);
 
   const base: EventInput = {
@@ -34,6 +40,8 @@ export function toFcEvent(event: CalendarEvent, byId: ActivityIndex): EventInput
       activityId: activity ? event.activityId : undefined,
       tint,
       categoryLabel: activity?.type,
+      themeTint: theme?.tint,
+      themeLabel: theme?.label,
     },
   };
 

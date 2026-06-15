@@ -31,6 +31,7 @@ import {
   snapDurationMin,
   snapMinutes,
 } from "@/lib/calendar/time";
+import type { ThemeResolver } from "@/lib/calendar/adapter";
 import {
   DEFAULT_CAMP_HOURS,
   campHoursStorage,
@@ -38,6 +39,7 @@ import {
   type CampHoursMap,
 } from "@/lib/calendar/hours";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
@@ -77,6 +79,9 @@ export function CalendarShell({
   announce,
   railSlot,
   headerActions,
+  themes,
+  themeAssignments,
+  themeOf,
 }: {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
@@ -92,6 +97,11 @@ export function CalendarShell({
   railSlot?: HTMLElement | null;
   /** Rendered at the right end of the calendar header (e.g. the auth pill). */
   headerActions?: ReactNode;
+  /** Theme vocabulary + assignment map + resolver, for the rail filter and the
+   *  per-event theme badge (events reflect their activity's theme). */
+  themes: Theme[];
+  themeAssignments: Record<string, string>;
+  themeOf: ThemeResolver;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const [storedView, setStoredView] = useLocalStorage<CalendarViewId | "auto">(
@@ -161,7 +171,10 @@ export function CalendarShell({
     return effectiveWindow(scoped, campWindow);
   }, [healedEvents, visibleRange, campWindow]);
 
-  const fcEvents = useMemo(() => healedEvents.map((event) => toFcEvent(event, byId)), [healedEvents, byId]);
+  const fcEvents = useMemo(
+    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
+    [healedEvents, byId, themeOf]
+  );
 
   const scrollTime = useMemo(() => {
     const anchor = Math.max(window_.startMin, Math.min(nowMinutes() - 90, window_.endMin - 120));
@@ -729,12 +742,26 @@ export function CalendarShell({
   const onEventDidMount = useCallback((info: EventMountArg) => {
     const tint = info.event.extendedProps.tint;
     if (typeof tint === "string") info.el.style.setProperty("--cal-tint", tint);
+    // The theme tint rides a second channel so the badge dot can carry the
+    // theme color without disturbing the category spine (--cal-tint).
+    const themeTint = info.event.extendedProps.themeTint;
+    if (typeof themeTint === "string") info.el.style.setProperty("--theme-tint", themeTint);
     // Stamp the id so the delegated contextmenu listener can resolve the event
     // from FullCalendar's (non-React) event DOM.
     info.el.dataset.eventId = info.event.id;
   }, []);
 
   const renderEventContent = useCallback((arg: EventContentArg) => {
+    // A secondary theme dot, drawn only when the event's activity carries a
+    // theme. The category color stays the spine (--cal-tint); theme is an
+    // accent dot, never a replacement, and is labelled so it never reads as
+    // color-alone. Skipped on dense month chips, which already carry a tick.
+    const themeLabel = arg.event.extendedProps.themeLabel;
+    const dot =
+      typeof themeLabel === "string" && themeLabel ? (
+        <span className="cal-card__theme" title={"Theme: " + themeLabel} aria-label={"Theme: " + themeLabel} />
+      ) : null;
+
     if (arg.view.type === "dayGridMonth") {
       // One left spine carries the category colour (the .fc-daygrid-event
       // border-left); no inner tick on top of it.
@@ -749,10 +776,15 @@ export function CalendarShell({
     // calendar.css), so it recalibrates its own layout from its LIVE rendered
     // height — collapsing a stacked title + time onto one Google-style line the
     // instant a resize makes the block too short, and back — instead of
-    // branching here on a stored duration that only updates when the drag drops.
+    // branching here on a stored duration that only updated when the drag dropped.
+    // The theme dot rides in .cal-card__line so it stays beside the title in
+    // both the stacked and the collapsed layouts.
     return (
       <div className="cal-card">
-        <span className="cal-card__title">{arg.event.title}</span>
+        <span className="cal-card__line">
+          {dot}
+          <span className="cal-card__title">{arg.event.title}</span>
+        </span>
         {!arg.event.allDay && <span className="cal-card__time">{arg.timeText}</span>}
       </div>
     );
@@ -935,7 +967,13 @@ export function CalendarShell({
             is unchanged. Null slot (mobile) → the FAB + sheet below take over. */}
         {railSlot &&
           createPortal(
-            <LibraryPanel activities={activities} onPlace={placeActivity} onPick={pickActivity} />,
+            <LibraryPanel
+              activities={activities}
+              onPlace={placeActivity}
+              onPick={pickActivity}
+              themes={themes}
+              themeAssignments={themeAssignments}
+            />,
             railSlot
           )}
       </div>
@@ -979,6 +1017,7 @@ export function CalendarShell({
         <EventPopover
           event={popover.event}
           activity={popoverActivity}
+          theme={popoverActivity ? themeOf(popoverActivity.id) : null}
           anchor={popover.anchor}
           onOpenActivity={(activity) => {
             setPopover(null);

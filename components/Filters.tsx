@@ -1,13 +1,14 @@
 "use client";
 
 import { Fragment, useState, type CSSProperties } from "react";
-import type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
+import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { MiniSeg, SidebarSection, ToggleSwitch, TypePicker } from "./primitives";
-export type { AgeFilter, CatFilter, PlaceFilter } from "@/lib/activityFilters";
+import { MiniSeg, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
+export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The shared color hook: the removable active-filter chip carries its
  *  dimension's tint via --chip-on (the .chip.is-on recipe darkens it for AA).
@@ -24,11 +25,15 @@ interface ActiveFilterProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  /** Omit theme props to hide the theme chip (surfaces without themes). */
+  theme?: ThemeFilter;
+  themes?: Theme[];
   starredOnly?: boolean;
   availableMaterials: string[];
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
+  onTheme?: (v: ThemeFilter) => void;
   onStarredOnly?: (v: boolean) => void;
   onClearMaterials: () => void;
 }
@@ -43,6 +48,15 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
       label: CATEGORIES.find((c) => c.id === p.cat)?.label ?? p.cat,
       tint: categoryTint(p.cat),
       onRemove: () => p.onCat("All"),
+    });
+  }
+  if (p.theme && p.theme !== "All" && p.onTheme) {
+    const match = p.themes?.find((t) => t.id === p.theme);
+    chips.push({
+      key: "theme",
+      label: match?.label ?? "Theme",
+      tint: match?.tint,
+      onRemove: () => p.onTheme?.("All"),
     });
   }
   if (p.place !== "All") chips.push({ key: "place", label: p.place, onRemove: () => p.onPlace("All") });
@@ -89,6 +103,8 @@ interface FiltersProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  theme: ThemeFilter;
+  themes: Theme[];
   /** Omit both starred props to hide the Starred control (surfaces without favorites). */
   starredOnly?: boolean;
   materialOptions: MaterialOption[];
@@ -98,6 +114,9 @@ interface FiltersProps {
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
+  onTheme: (v: ThemeFilter) => void;
+  /** Opens the Themes manager (create/rename/delete) — the menu's footer. */
+  onManageThemes?: () => void;
   onStarredOnly?: (v: boolean) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
@@ -216,12 +235,16 @@ function LedgerFilters({
   cat,
   place,
   age,
+  theme,
+  themes,
   starredOnly,
   materialOptions,
   availableMaterials,
   onCat,
   onPlace,
   onAge,
+  onTheme,
+  onManageThemes,
   onStarredOnly,
   onToggleMaterial,
   onClearMaterials,
@@ -229,6 +252,16 @@ function LedgerFilters({
   return (
     <div className="ledger">
       <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
+      {/* Always shown so themes are discoverable — the menu footer creates the
+          first one when none exist yet. */}
+      <ThemePicker
+        value={theme}
+        onChange={onTheme}
+        themes={themes}
+        label="Theme"
+        ariaLabel="Filter by theme"
+        onManage={onManageThemes}
+      />
       <div className="ledger__row">
         <span className="ledger__label">Where</span>
         <MiniSeg
@@ -283,6 +316,8 @@ export function Filters({
   cat,
   place,
   age,
+  theme,
+  themes,
   starredOnly,
   materialOptions,
   availableMaterials,
@@ -290,6 +325,8 @@ export function Filters({
   onCat,
   onPlace,
   onAge,
+  onTheme,
+  onManageThemes,
   onStarredOnly,
   onToggleMaterial,
   onClearMaterials,
@@ -299,16 +336,20 @@ export function Filters({
     cat,
     place,
     age,
+    theme,
+    themes,
     starredOnly,
     availableMaterials,
     onCat,
     onPlace,
     onAge,
+    onTheme,
     onStarredOnly,
     onClearMaterials,
   };
   const activeCount =
     (cat !== "All" ? 1 : 0) +
+    (theme !== "All" ? 1 : 0) +
     (place !== "All" ? 1 : 0) +
     (age !== "All" ? 1 : 0) +
     (starredOnly ? 1 : 0) +
@@ -318,6 +359,7 @@ export function Filters({
     onCat("All");
     onPlace("All");
     onAge("All");
+    onTheme("All");
     onStarredOnly?.(false);
     onClearMaterials();
   };
@@ -327,12 +369,16 @@ export function Filters({
       cat={cat}
       place={place}
       age={age}
+      theme={theme}
+      themes={themes}
       starredOnly={starredOnly}
       materialOptions={materialOptions}
       availableMaterials={availableMaterials}
       onCat={onCat}
       onPlace={onPlace}
       onAge={onAge}
+      onTheme={onTheme}
+      onManageThemes={onManageThemes}
       onStarredOnly={onStarredOnly}
       onToggleMaterial={onToggleMaterial}
       onClearMaterials={onClearMaterials}

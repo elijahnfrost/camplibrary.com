@@ -2,9 +2,10 @@
 
 import { useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
+import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
 import { CampIcon } from "./icons";
-import { SaveButton } from "./primitives";
+import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
 import { ActivityRunList } from "./ActivityRunList";
 
@@ -26,6 +27,7 @@ export function DetailSheet({
   onSaveRunDoc,
   eventContext,
   backLabel = "Library",
+  theme = null,
 }: {
   activity: Activity;
   isFav: (id: string) => boolean;
@@ -46,6 +48,8 @@ export function DetailSheet({
   eventContext?: { dateLabel: string; timeLabel: string };
   /** Where closing the viewer returns to (the surface it was opened from). */
   backLabel?: string;
+  /** The activity's theme tag (null = untagged); display-only here. */
+  theme?: Theme | null;
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number; scrollTop: number } | null>(null);
@@ -176,6 +180,7 @@ export function DetailSheet({
 
             <h2 className="rlv-title">{a.title}</h2>
             {a.blurb ? <p className="rlv-blurb">{a.blurb}</p> : null}
+            {theme && <ThemeBadge theme={theme} className="rlv-theme" />}
           </header>
 
           <ActivityRunList

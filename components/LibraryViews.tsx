@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Activity } from "@/lib/types";
+import type { Theme } from "@/lib/themes";
 import {
   ageLabel,
   CATEGORIES,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/data";
 import type { CSSProperties, MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
-import { EmptyResults, SaveButton } from "./primitives";
+import { EmptyResults, SaveButton, ThemeBadge } from "./primitives";
 
 interface ViewProps {
   items: Activity[];
@@ -20,6 +21,8 @@ interface ViewProps {
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
   onContextMenu?: (a: Activity, event: MouseEvent) => void;
+  /** Resolve an activity's theme tag (null = untagged). */
+  themeOf?: (id: string) => Theme | null;
 }
 
 function hash(s: string): number {
@@ -90,11 +93,13 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
 }
 
 // ---------- Deck view ----------
-export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu }: ViewProps) {
+export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
   if (!items.length) return <EmptyResults />;
   return (
     <div className="deck fadein">
-      {items.map((a) => (
+      {items.map((a) => {
+        const theme = themeOf?.(a.id) ?? null;
+        return (
         <div
           className="deck-card"
           key={a.id}
@@ -114,6 +119,7 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu }: V
               <br />
               {ageLabel(a)} · {ENERGY[a.energy]}
             </div>
+            {theme && <ThemeBadge theme={theme} className="deck-card__theme" />}
           </div>
           <button
             type="button"
@@ -129,13 +135,14 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu }: V
             />
           </span>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 // ---------- Catalog view ----------
-export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu }: ViewProps) {
+export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
   const [sort, setSort] = useState<"az" | "rating">("az");
   if (!items.length) return <EmptyResults />;
   const sorted = [...items].sort((a, b) =>
@@ -163,6 +170,7 @@ export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu }
           onOpen={onOpen}
           onToggleSaved={onToggleFav}
           onContextMenu={onContextMenu}
+          theme={themeOf?.(a.id) ?? null}
         />
       ))}
       <div style={{ height: 10 }} />

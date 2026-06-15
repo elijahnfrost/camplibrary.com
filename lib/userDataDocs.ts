@@ -13,6 +13,8 @@ import { normalizeActivities } from "./activityValidation";
 import { normalizePlaybook, type ActivityPlaybookData } from "./playbooks";
 import { normalizeRunDoc, type RunDoc } from "./runList";
 import type { StorageValidator } from "./store";
+import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes";
+import { normalizeCamps, type Camp } from "./camps";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -22,6 +24,9 @@ export const USER_DOC_KEYS = [
   "playbookOverrides",
   "view",
   "availableMaterials",
+  "themes",
+  "themeAssignments",
+  "camps",
 ] as const;
 
 export type UserDocKey = (typeof USER_DOC_KEYS)[number];
@@ -34,6 +39,9 @@ export type DocValueMap = {
   playbookOverrides: Record<string, ActivityPlaybookData>;
   view: LibraryView;
   availableMaterials: string[];
+  themes: Theme[];
+  themeAssignments: Record<string, string>;
+  camps: Camp[];
 };
 
 // localStorage names predate the doc keys: "runLists.v2" (doc-model bump) and
@@ -46,6 +54,9 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   playbookOverrides: "playbooks",
   view: "view",
   availableMaterials: "availableMaterials",
+  themes: "themes",
+  themeAssignments: "themeAssignments",
+  camps: "camps",
 };
 
 const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
@@ -56,6 +67,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   playbookOverrides: () => ({}),
   view: () => "deck",
   availableMaterials: () => [],
+  themes: () => [],
+  themeAssignments: () => ({}),
+  camps: () => [],
 };
 
 export function docDefault<K extends UserDocKey>(key: K): DocValueMap[K] {
@@ -120,6 +134,17 @@ export const runListOverridesDoc: StorageValidator<Record<string, RunDoc>> = (va
 export const viewDoc: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
 
+// The user-definable theme vocabulary, and the activityId -> themeId map that
+// assigns one to each activity. Both validators run client + server.
+export const themesDoc: StorageValidator<Theme[]> = (value, fallback) =>
+  normalizeThemes(value, fallback);
+
+export const themeAssignmentsDoc: StorageValidator<Record<string, string>> = (value, fallback) =>
+  normalizeThemeAssignments(value, fallback);
+
+// The user's camps (separate scheduling containers; the catalog stays shared).
+export const campsDoc: StorageValidator<Camp[]> = (value, fallback) => normalizeCamps(value, fallback);
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -128,6 +153,9 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   playbookOverrides: playbookOverridesDoc,
   view: viewDoc,
   availableMaterials: stringArrayDoc,
+  themes: themesDoc,
+  themeAssignments: themeAssignmentsDoc,
+  camps: campsDoc,
 };
 
 export function normalizeDoc<K extends UserDocKey>(key: K, raw: unknown): DocValueMap[K] {
