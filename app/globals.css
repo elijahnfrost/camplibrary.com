@@ -1791,7 +1791,9 @@ body {
   font-size: 9px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  /* --ink-soft to match the stronger .cat-row__meta (was --ink-faint, which
+     dips below AA on the lighter card surfaces at this size). */
+  color: var(--ink-soft);
   line-height: 1.55;
 }
 
@@ -2217,7 +2219,9 @@ body {
   opacity: 1;
   background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
   border-color: var(--line);
-  color: var(--ink-faint);
+  /* --ink-soft (5.8:1 on the disabled fill) instead of --ink-faint, so the
+     disabled "Add to library" label still meets AA. */
+  color: var(--ink-soft);
   box-shadow: none;
 }
 
@@ -2925,7 +2929,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--s-4);
-  height: 38px;
+  height: var(--control-md);
   padding: 0 var(--s-6);
   background: var(--content);
   border: 1.5px solid var(--line);
@@ -3204,6 +3208,22 @@ body {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Touch tier: the compact viewer-header / save chips keep their small footprint
+   on pointer-fine surfaces but reach the 44px tap target on touch devices. */
+@media (hover: none) {
+  .star--chip {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .rlv-headbtn {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .book-print-chip {
+    min-height: var(--tap);
+  }
 }
 .book-print-chip:hover {
   background: var(--card);
@@ -4244,6 +4264,15 @@ body {
   padding: 11px 13px;
   outline: none;
   transition: border-color 120ms;
+}
+/* Keyboard focus gets the global accent ring (the mouse-focus border-color shift
+   alone was a weak ~1.6:1 cue); :focus-visible re-adds the ring that the base
+   rule's outline:none suppresses. */
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .input::placeholder,
 .textarea::placeholder {

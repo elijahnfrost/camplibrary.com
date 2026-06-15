@@ -898,6 +898,7 @@ export function CalendarShell({
               onClick={() => setHoursOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={hoursOpen}
+              aria-label="Camp hours"
               title="Set the camp hours the calendar shows"
             >
               <CampIcon.Clock />
