@@ -6282,7 +6282,7 @@ body {
   align-items: center;
   justify-content: center;
   border: 1.5px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--card);
   cursor: pointer;
   color: var(--ink-soft);
@@ -6303,6 +6303,41 @@ body {
 .rlv-headbtn--danger {
   color: var(--clay);
   border-color: color-mix(in srgb, var(--clay) 42%, var(--line));
+}
+/* The edit toggle reads as "on" while editing — a filled accent box so the
+   header clearly shows the run sheet is in edit mode. */
+.rlv-headbtn.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.rlv-headbtn.is-on:hover {
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+/* The three header controls — edit, print, save — read as one family: the same
+   paper box, border tone, and 10px radius. (Before, the bookmark was a
+   cooler-edged circle and the print chip a full pill, so they looked like three
+   unrelated materials.) Scoped to the viewer header so catalog/list-row stars
+   keep their circle. */
+.rlv-head .book-print-chip,
+.rlv-head .star--chip {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+}
+.rlv-head .book-print-chip:hover,
+.rlv-head .star--chip:hover {
+  border-color: var(--ink-soft);
+  background: var(--card);
+  color: var(--ink);
+  transform: none;
+}
+.rlv-head .star--chip.is-on {
+  color: var(--tone-edge, var(--star-ink));
+  background: color-mix(in srgb, var(--tone-fill, var(--star-gold)) 28%, var(--card));
+  border-color: var(--tone-fill, var(--star-gold));
 }
 .rlv-eyebrow {
   font-family: var(--hand-sc);
@@ -6581,6 +6616,15 @@ button.rl-node {
 .rl-node--details {
   color: var(--accent-ink);
 }
+/* An invisible, node-sized placeholder so an add/insert palette row (which has
+   no real node) lines its content column up with the sibling rows — the flex
+   gap does the spacing, so it stays aligned in any context (viewer + form). */
+.rl-node--spacer {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
 
 /* ---------- rows (the cards) ---------- */
 .rl-row {
@@ -6729,6 +6773,52 @@ button.rl-node {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* ---- editable detail tags (edit mode) ---- */
+.rl-detailtag--edit {
+  padding-right: var(--s-2);
+  cursor: text;
+}
+.rl-detailtag__t {
+  min-width: 1ch;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+.rl-detailtag__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.rl-detailtag__x:hover {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
+}
+.rl-detailtag__x svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+.rl-detailtag--add {
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--ink-faint);
+  background: transparent;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.rl-detailtag--add:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink-soft);
 }
 .rl-detailrating {
   display: flex;
@@ -7216,6 +7306,12 @@ button.rl-node {
 .rl-block.is-dragging .rl-block__main {
   opacity: 0.4;
 }
+/* While a row drag is live, the editable cells stop being drop targets, so the
+   browser never shows a text caret in a title and an item can't be dropped
+   *into* another's text — the row underneath owns the drop. */
+.rl.is-dnd .rl-ed {
+  pointer-events: none;
+}
 .rl-block.is-over-before > .rl-block__main::before,
 .rl-block.is-over-after > .rl-block__main::before {
   content: "";
@@ -7228,11 +7324,15 @@ button.rl-node {
   z-index: 5;
   box-shadow: 0 0 0 3px var(--accent-tint);
 }
+/* One spatial position per gap: the before/after lines sit at a single, uniform
+   inset (half the standard block gap) regardless of block type, so "after the
+   upper row" and "before the lower row" land on the same line instead of two
+   slightly different spots. */
 .rl-block.is-over-before > .rl-block__main::before {
-  top: calc(var(--rl-next-gap) / -2);
+  top: calc(var(--rl-block-gap) / -2);
 }
 .rl-block.is-over-after > .rl-block__main::before {
-  bottom: calc(var(--rl-next-gap) / -2);
+  bottom: calc(var(--rl-block-gap) / -2);
 }
 
 /* ---------- diagram + materials detail children ---------- */

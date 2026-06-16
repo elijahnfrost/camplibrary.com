@@ -205,7 +205,11 @@ export function ensureSectionHeadings(activity: Activity, doc: RunDoc): RunDoc {
   let blocks = doc.blocks.map((block) => {
     if (block.type !== "details") return block;
     found = true;
-    return { ...block, tags };
+    // Seed the derived activity facts only when the details block carries no
+    // tags of its own. Once a staffer hand-edits them on the run sheet, those
+    // tags persist (the same override philosophy as steps/notes/safety); the
+    // form re-strips them on save, so a form edit still refreshes the facts.
+    return block.tags && block.tags.length ? block : { ...block, tags };
   });
 
   if (!found) {
