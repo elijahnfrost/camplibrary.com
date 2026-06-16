@@ -54,6 +54,7 @@ import {
   type RunBlockType,
   type RunChild,
   type RunChildType,
+  type RunDetailTag,
   type RunDoc,
 } from "@/lib/runList";
 import type { ActivityPlaybookData } from "@/lib/playbooks";
@@ -417,6 +418,31 @@ export function ActivityRunList({
           : b
       ),
     });
+
+  // ---- "Specific details" tags (stored on the details block, so a hand edit
+  // persists with the run-doc override — the same pattern as steps/notes). The
+  // block's seeded facts fall back to the live activity until one is touched.
+  const detailTagsOf = (b: RunBlock): RunDetailTag[] =>
+    b.tags && b.tags.length ? b.tags : detailTags;
+
+  const commitDetailTag = (b: RunBlock, tagId: string, label: string) => {
+    const trimmed = label.trim();
+    const tags = detailTagsOf(b);
+    // Clearing a tag's text removes it — the same "empty = gone" feel as steps.
+    const next = trimmed
+      ? tags.map((t) => (t.id === tagId ? { ...t, label: trimmed } : t))
+      : tags.filter((t) => t.id !== tagId);
+    patchTop(b.id, { tags: next });
+  };
+
+  const removeDetailTag = (b: RunBlock, tagId: string) =>
+    patchTop(b.id, { tags: detailTagsOf(b).filter((t) => t.id !== tagId) });
+
+  const addDetailTag = (b: RunBlock) => {
+    const id = runId("tag");
+    pendingFocusRef.current = { id, caret: "end" };
+    patchTop(b.id, { tags: [...detailTagsOf(b), { id, label: "" }] });
+  };
 
   // Destructive removals snapshot the doc for a 6-second Undo — a mis-tap on
   // the trash can no longer silently destroys a step and all its details.
@@ -1009,10 +1035,13 @@ export function ActivityRunList({
     if (!editable) return null;
     // While dragging, the only positioning cue on screen is the drop indicator —
     // the between-row "+" affordances stay out of the way to cut the clutter.
-    if (dragItem) return null;
+    // Keep the gap's height (an empty spacer) rather than removing it, or the
+    // whole list would collapse upward the instant a drag starts ("reframes").
+    if (dragItem) return <li className="rl-insert" aria-hidden="true" />;
     if (insertAt === index) {
       return (
         <li className="rl-block rl-block--add rl-insertopen">
+          <span className="rl-node rl-node--spacer" aria-hidden="true" />
           <div className="rl-block__main">
             <div
               className="rl-palette rl-palette--flat"
@@ -1060,7 +1089,7 @@ export function ActivityRunList({
   };
 
   return (
-    <div className={"rl" + (editable ? "" : " is-readonly")}>
+    <div className={"rl" + (editable ? "" : " is-readonly") + (dragItem ? " is-dnd" : "")}>
       <div className="rl-toolbar">
         {hasSteps && (
           <>
@@ -1145,12 +1174,49 @@ export function ActivityRunList({
                       <div className="rl-body">
                         <div className="rl-time">{RUN_TOP_LABEL.details}</div>
                         <div className="rl-detailtags">
-                          {detailTags.filter((tag) => tag.id !== "rating" || !onSetRating).map((tag) => (
-                            <span className="rl-detailtag" key={tag.id}>
-                              {detailIcon(tag.icon)}
-                              {tag.label}
-                            </span>
-                          ))}
+                          {detailTagsOf(b)
+                            .filter((tag) => tag.id !== "rating" || !onSetRating)
+                            .map((tag) =>
+                              editable ? (
+                                <span className="rl-detailtag rl-detailtag--edit" key={tag.id}>
+                                  {detailIcon(tag.icon)}
+                                  <Editable
+                                    tag="span"
+                                    className="rl-detailtag__t"
+                                    value={tag.label}
+                                    editable
+                                    placeholder="Tag"
+                                    ariaLabel="Detail tag"
+                                    focusKey={tag.id}
+                                    onCommit={(v) => commitDetailTag(b, tag.id, v)}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="rl-detailtag__x"
+                                    onClick={() => removeDetailTag(b, tag.id)}
+                                    aria-label={"Remove " + (tag.label || "tag")}
+                                  >
+                                    <CampIcon.Close />
+                                  </button>
+                                </span>
+                              ) : (
+                                <span className="rl-detailtag" key={tag.id}>
+                                  {detailIcon(tag.icon)}
+                                  {tag.label}
+                                </span>
+                              )
+                            )}
+                          {editable && (
+                            <button
+                              type="button"
+                              className="rl-detailtag rl-detailtag--add"
+                              onClick={() => addDetailTag(b)}
+                              aria-label="Add a detail tag"
+                            >
+                              <CampIcon.Plus />
+                              Add
+                            </button>
+                          )}
                         </div>
                         {onSetRating && (
                           <div className="rl-detailrating">
@@ -1389,6 +1455,7 @@ export function ActivityRunList({
 
                 {editable && !collapsedNow && !closingNow && openKid === b.id && (
                   <li key={b.id + "-add"} className="rl-block rl-block--detail rl-block--add">
+                    <span className="rl-node rl-node--spacer" aria-hidden="true" />
                     <div className="rl-block__main">
                       <div
                         className="rl-palette rl-palette--flat"
