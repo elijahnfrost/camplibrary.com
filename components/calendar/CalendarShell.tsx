@@ -17,7 +17,7 @@ import type {
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import { fromFcDates, healEvent, toFcEvent } from "@/lib/calendar/adapter";
-import { formatEventDateLabel, fromDateKey, minutesOfDay, toDateKey, todayKey } from "@/lib/calendar/dates";
+import { formatEventDateLabel, fromDateKey, minutesOfDay, startOfWeek, toDateKey, todayKey } from "@/lib/calendar/dates";
 import {
   DEFAULT_DURATION_MIN,
   DEFAULT_PLANNING_START_MIN,
@@ -48,9 +48,37 @@ import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
 import { EventPopover } from "./EventPopover";
 import { HoursPanel } from "./HoursPanel";
 import { LibraryPanel } from "./LibraryPanel";
+import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 
 const VIEW_IDS = new Set<string>(["timeGridDay", "timeGridWeek", "dayGridMonth"]);
+
+// Monday — the week start the rolling week view aligns to and the snap target
+// for Today / mini-month picks (camp weeks read Mon-first).
+const FIRST_DAY = 1;
+
+// The sidebar mini-month is a MONTH grid, so it starts on Sunday to match the
+// main Month view's column order (FullCalendar renders dayGridMonth Sunday-first
+// here) — keeping the two month grids aligned when both are on screen.
+const MINI_FIRST_DAY = 0;
+
+// Week is a ROLLING, day-aligned 7-day window. It still shows seven days, but
+// it slides one day at a time (dateIncrement) and may begin on any weekday
+// (dateAlignment "day"). That's what lets a horizontal trackpad swipe or grid
+// drag scroll the day timeline continuously like Google/Apple Calendar instead
+// of jumping a whole week. The prev/next BUTTONS still page a full week and
+// Today snaps to the week start (see pageView / goToday) — only the continuous
+// gestures slide by single days. (dayMinWidth-based horizontal scrolling needs
+// FullCalendar's premium scrollgrid plugin, which this app doesn't ship; the
+// rolling window gives the same feel with the free plugins.)
+const CALENDAR_VIEWS = {
+  timeGridWeek: {
+    type: "timeGrid",
+    duration: { days: 7 },
+    dateAlignment: "day",
+    dateIncrement: { days: 1 },
+  },
+};
 
 type PopoverState = { event: CalendarEvent; anchor: DOMRect };
 type MenuState = { event: CalendarEvent; point: { x: number; y: number } };
@@ -104,6 +132,7 @@ export function CalendarShell({
   themeOf: ThemeResolver;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [storedView, setStoredView] = useLocalStorage<CalendarViewId | "auto">(
     "calendarView",
     "auto",
@@ -165,6 +194,14 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
+  // Which days carry at least one event in the active camp — the mini-month
+  // dots each of these so the sidebar previews where the schedule is busy.
+  const eventDays = useMemo(() => {
+    const days = new Set<string>();
+    for (const event of healedEvents) days.add(event.date);
+    return days;
+  }, [healedEvents]);
+
   // The base window comes from the configured camp hours (union of the enabled
   // camps' drop-off → pickup); auto-extend only ever stretches it outward.
   const campWindow = useMemo(() => windowFromCampHours(campHours), [campHours]);
@@ -221,10 +258,51 @@ export function CalendarShell({
     (view: CalendarViewId) => {
       setActiveView(view);
       setStoredView(view);
-      calendarRef.current?.getApi().changeView(view);
+      const api = calendarRef.current?.getApi();
+      api?.changeView(view);
+      // Entering the rolling week always lands on a whole, week-aligned span so
+      // the view reads as "this week" — continuous day-sliding starts from there.
+      if (view === "timeGridWeek" && api) api.gotoDate(startOfWeek(api.getDate(), FIRST_DAY));
     },
     [setStoredView]
   );
+
+  // The continuous gesture step (horizontal trackpad scroll, touch swipe): one
+  // day at a time on the time-grid views, so the visible window slides smoothly
+  // across the day timeline. Month is paged elsewhere; never slide it.
+  const slide = useCallback((dir: 1 | -1) => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    const type = api.view.type;
+    if (type === "timeGridWeek" || type === "timeGridDay") api.incrementDate({ days: dir });
+  }, []);
+
+  // The discrete step for the prev/next buttons and arrow keys: a whole week in
+  // Week view, a day in Day view, a month in Month view — the familiar paging.
+  const pageView = useCallback((dir: 1 | -1) => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    if (api.view.type === "timeGridWeek") api.incrementDate({ days: 7 * dir });
+    else if (dir < 0) api.prev();
+    else api.next();
+  }, []);
+
+  // Today snaps the rolling week back onto the current week (not today-as-left-edge).
+  const goToday = useCallback(() => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    if (api.view.type === "timeGridWeek") api.gotoDate(startOfWeek(new Date(), FIRST_DAY));
+    else api.today();
+  }, []);
+
+  // A mini-month pick navigates the main grid: in Week view it shows the whole
+  // week containing the date; otherwise it jumps straight to that day/month.
+  const gotoMiniDate = useCallback((date: Date) => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    if (api.view.type === "timeGridWeek") api.gotoDate(startOfWeek(date, FIRST_DAY));
+    else api.gotoDate(date);
+  }, []);
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
     setTitle(arg.view.title);
@@ -837,10 +915,45 @@ export function CalendarShell({
     const api = calendarRef.current?.getApi();
     if (!api || api.view.type === "dayGridMonth") return;
     setSwipeDir(dx < 0 ? "left" : "right");
-    if (dx < 0) api.next();
-    else api.prev();
+    slide(dx < 0 ? 1 : -1);
     window.setTimeout(() => setSwipeDir(null), 240);
-  }, []);
+  }, [slide]);
+
+  // Horizontal trackpad/wheel scrolling slides the day timeline like Google
+  // Calendar — a two-finger horizontal swipe rolls the week one day at a time.
+  // Only horizontal-dominant deltas are claimed (vertical keeps scrolling the
+  // time grid), and they're accumulated into day steps and throttled so a fast
+  // flick glides through days instead of teleporting. Day/Week only; Month is
+  // paged by the buttons and the mini-month. A native non-passive listener is
+  // required to preventDefault the browser's own horizontal page scroll.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    let buffer = 0;
+    let lastStepAt = 0;
+    const STEP_PX = 90;
+    const MIN_INTERVAL_MS = 150;
+    const onWheel = (event: WheelEvent) => {
+      const api = calendarRef.current?.getApi();
+      if (!api) return;
+      const type = api.view.type;
+      if (type !== "timeGridWeek" && type !== "timeGridDay") return;
+      // Let clearly-vertical scrolls fall through to the grid's own scroller.
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 1.2) return;
+      event.preventDefault();
+      // A direction reversal discards the leftover so it can't overshoot back.
+      if (buffer !== 0 && Math.sign(event.deltaX) !== Math.sign(buffer)) buffer = 0;
+      buffer += event.deltaX;
+      const now = Date.now();
+      if (Math.abs(buffer) >= STEP_PX && now - lastStepAt >= MIN_INTERVAL_MS) {
+        slide(buffer > 0 ? 1 : -1);
+        buffer = 0;
+        lastStepAt = now;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [slide]);
 
   // Keyboard shortcuts: t today, d/w/m views, arrows navigate.
   useEffect(() => {
@@ -852,7 +965,7 @@ export function CalendarShell({
       if (!api) return;
       switch (event.key) {
         case "t":
-          api.today();
+          goToday();
           break;
         case "d":
           changeView("timeGridDay");
@@ -864,10 +977,10 @@ export function CalendarShell({
           changeView("dayGridMonth");
           break;
         case "ArrowLeft":
-          api.prev();
+          pageView(-1);
           break;
         case "ArrowRight":
-          api.next();
+          pageView(1);
           break;
         default:
           return;
@@ -876,7 +989,7 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, sheet, popover]);
+  }, [changeView, goToday, pageView, sheet, popover]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -887,9 +1000,9 @@ export function CalendarShell({
         view={activeView}
         todayInView={todayInView}
         onView={changeView}
-        onToday={() => calendarRef.current?.getApi().today()}
-        onPrev={() => calendarRef.current?.getApi().prev()}
-        onNext={() => calendarRef.current?.getApi().next()}
+        onToday={goToday}
+        onPrev={() => pageView(-1)}
+        onNext={() => pageView(1)}
         actions={
           <>
             <button
@@ -910,6 +1023,7 @@ export function CalendarShell({
       />
       <div className="calshell__body">
         <div
+          ref={gridRef}
           className={"calshell__grid" + (swipeDir ? " is-swipe-" + swipeDir : "")}
           onTouchStart={onGridTouchStart}
           onTouchEnd={onGridTouchEnd}
@@ -920,8 +1034,10 @@ export function CalendarShell({
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={resolvedView}
+            initialDate={resolvedView === "timeGridWeek" ? startOfWeek(new Date(), FIRST_DAY) : undefined}
+            views={CALENDAR_VIEWS}
             headerToolbar={false}
-            firstDay={1}
+            firstDay={FIRST_DAY}
             height="100%"
             nowIndicator
             editable={canEdit}
@@ -969,19 +1085,31 @@ export function CalendarShell({
               traceFollower; aria-hidden — purely a visual drag preview. */}
           <div ref={followRef} className="cal-dragfollow fc-event" aria-hidden="true" />
         </div>
-        {/* The activity library lives in the left sidebar (rendered into a slot
-            CampApp owns), so there's one sidebar and the grid spans full width.
-            It stays a child of CalendarShell so all the place/pick/drag wiring
-            is unchanged. Null slot (mobile) → the FAB + sheet below take over. */}
+        {/* The sidebar (a slot CampApp owns) carries the calendar's left rail:
+            the mini-month overview on top, the activity library below it. Both
+            stay children of CalendarShell so the calendar API, view range, and
+            place/pick/drag wiring are all in reach. Null slot (mobile) → the FAB
+            + sheet below take over. */}
         {railSlot &&
           createPortal(
-            <LibraryPanel
-              activities={activities}
-              onPlace={placeActivity}
-              onPick={pickActivity}
-              themes={themes}
-              themeAssignments={themeAssignments}
-            />,
+            <>
+              <MiniMonth
+                anchorDate={visibleRange ? fromDateKey(visibleRange.start) : new Date()}
+                viewStart={visibleRange?.start ?? null}
+                viewEnd={visibleRange?.end ?? null}
+                today={todayKey()}
+                eventDays={eventDays}
+                firstDay={MINI_FIRST_DAY}
+                onPick={gotoMiniDate}
+              />
+              <LibraryPanel
+                activities={activities}
+                onPlace={placeActivity}
+                onPick={pickActivity}
+                themes={themes}
+                themeAssignments={themeAssignments}
+              />
+            </>,
             railSlot
           )}
       </div>
