@@ -29,6 +29,21 @@ export function addDays(key: DateKey, days: number): DateKey {
   return toDateKey(date);
 }
 
+// The local-midnight start of the week containing `date`, where `firstDay` is
+// the week's first weekday (0 = Sunday, 1 = Monday — the calendar's default).
+// Used to snap the rolling week view and mini-calendar picks onto a whole week.
+export function startOfWeek(date: Date, firstDay = 1): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const offset = (d.getDay() - firstDay + 7) % 7;
+  d.setDate(d.getDate() - offset);
+  return d;
+}
+
+// Whole-day span between two DateKeys (end exclusive), e.g. a 7-day week → 7.
+export function daySpan(start: DateKey, end: DateKey): number {
+  return Math.round((fromDateKey(end).getTime() - fromDateKey(start).getTime()) / 86_400_000);
+}
+
 export function minutesOfDay(date: Date): number {
   return date.getHours() * 60 + date.getMinutes();
 }
