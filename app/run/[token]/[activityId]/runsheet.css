@@ -1,0 +1,217 @@
+/* Public, read-only run-sheet page. Self-contained layout on the app's warm
+   palette (tokens from globals.css), so a subscriber who lands here from a
+   calendar event gets the cozy Camp Library look without any app chrome. */
+
+.runsheet-page {
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--text);
+  padding: clamp(1rem, 4vw, 3rem) 1rem 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.runsheet-page__bar {
+  width: min(100%, 52rem);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.runsheet-page__brand {
+  font-family: var(--hand);
+  font-size: 1.25rem;
+  color: var(--accent-ink);
+}
+
+.runsheet-page__eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.runsheet {
+  width: min(100%, 52rem);
+  background: var(--content);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xl);
+  box-shadow: 0 10px 30px -18px var(--shadow);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.runsheet__header {
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.runsheet__kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.runsheet__title {
+  font-family: var(--hand);
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  line-height: 1.05;
+  margin: 0.25rem 0 0;
+}
+
+.runsheet__blurb {
+  margin: 0.5rem 0 0;
+  color: var(--ink-soft);
+}
+
+.runsheet__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.runsheet__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: var(--chrome-well);
+  border-radius: var(--r-md);
+  padding: 0.5rem 0.7rem;
+}
+
+.runsheet__fact span {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.runsheet__fact strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.runsheet__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.runsheet__heading {
+  font-family: var(--hand-sc);
+  font-size: 1.25rem;
+  margin: 0.75rem 0 0;
+  color: var(--accent-ink);
+}
+
+.runsheet__step {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: 0.85rem 1rem;
+  background: var(--card);
+}
+
+.runsheet__step-main {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.runsheet__step-main p {
+  margin: 0;
+  flex: 1;
+}
+
+.runsheet__cue {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+  border-radius: var(--r-pill);
+  padding: 0.1rem 0.55rem;
+}
+
+.runsheet__detail {
+  margin-top: 0.65rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--line-soft);
+}
+
+.runsheet__detail h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.runsheet__detail p {
+  margin: 0;
+}
+
+.runsheet__detail--safety {
+  border-left-color: var(--danger);
+}
+
+.runsheet__detail--safety h4 {
+  color: var(--danger-ink);
+}
+
+.runsheet__block {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: 0.85rem 1rem;
+  background: var(--card);
+}
+
+.runsheet__block h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.runsheet__block p {
+  margin: 0;
+}
+
+.runsheet__block--safety {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line-soft));
+}
+
+.runsheet__block--safety h3 {
+  color: var(--danger-ink);
+}
+
+.runsheet__chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.runsheet__chips li {
+  font-size: 0.85rem;
+  background: var(--chrome-well);
+  border-radius: var(--r-pill);
+  padding: 0.15rem 0.6rem;
+}
+
+.runsheet__muted {
+  margin: 0;
+  color: var(--ink-faint);
+}
+
+.runsheet__detail--diagram :is(svg, .playbook) {
+  max-width: 100%;
+}
