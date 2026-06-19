@@ -8,14 +8,12 @@ import { useCallback, useMemo } from "react";
 import type { CloudUserData } from "@/lib/cloudStore";
 import { ACTIVITIES } from "@/lib/data";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
-import { PLAYBOOKS_BY_ACTIVITY_ID, type ActivityPlaybookData } from "@/lib/playbooks";
+import { type ActivityPlaybookData } from "@/lib/playbooks";
+import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
 import {
-  buildRunDoc,
-  ensureSectionHeadings,
-  promoteMaterialsBlocks,
-  rekeyRunDoc,
-  type RunDoc,
-} from "@/lib/runList";
+  resolvePlaybook as resolvePlaybookFor,
+  resolveRunDoc as resolveRunDocFor,
+} from "@/lib/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 
@@ -167,10 +165,10 @@ export function useActivityLibrary({
   const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
 
   // A custom book carries its own diagram; built-in books fall back to an
-  // editable override, then the seed registry.
+  // editable override, then the seed registry. (Logic lives in lib/runListResolve
+  // so the server-rendered public run-sheet page resolves identically.)
   const resolvePlaybook = useCallback(
-    (activity: Activity): ActivityPlaybookData | null =>
-      activity.playbook ?? playbookOverrides[activity.id] ?? PLAYBOOKS_BY_ACTIVITY_ID[activity.id] ?? null,
+    (activity: Activity): ActivityPlaybookData | null => resolvePlaybookFor(activity, playbookOverrides),
     [playbookOverrides]
   );
 
@@ -178,15 +176,8 @@ export function useActivityLibrary({
   // activity — its steps/notes/safety plus a materials block and (when the
   // activity has one) the field diagram seeded in as a diagram block.
   const resolveRunDoc = useCallback(
-    (activity: Activity): RunDoc => {
-      const hasOverride = Object.prototype.hasOwnProperty.call(runListOverrides, activity.id);
-      const doc = hasOverride
-        ? promoteMaterialsBlocks(runListOverrides[activity.id])
-        : buildRunDoc(activity, resolvePlaybook(activity));
-      if (hasOverride && doc.blocks.length === 0) return doc;
-      return ensureSectionHeadings(activity, doc);
-    },
-    [runListOverrides, resolvePlaybook]
+    (activity: Activity): RunDoc => resolveRunDocFor(activity, runListOverrides, playbookOverrides),
+    [runListOverrides, playbookOverrides]
   );
 
   const saveRunDoc = useCallback(

@@ -24,6 +24,7 @@ import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
 import { CalendarShell } from "./calendar/CalendarShell";
 import { CampSwitcher } from "./calendar/CampSwitcher";
+import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
 import { HomeTab } from "./HomeTab";
@@ -529,6 +530,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 themeAssignments={lib.themeAssignments}
                 themeOf={lib.themeOf}
                 headerActions={
+                  <>
+                  <SubscribeFeedButton
+                    activeCampId={campKit.activeCampId}
+                    activeCampName={campKit.activeCamp?.name ?? null}
+                    canEdit={isSignedIn}
+                  />
                   <CampSwitcher
                     camps={campKit.camps}
                     activeCampId={campKit.activeCampId}
@@ -546,6 +553,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                       }
                     }}
                   />
+                  </>
                 }
               />
             </div>

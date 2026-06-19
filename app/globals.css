@@ -1081,6 +1081,64 @@ body {
   color: var(--ink-faint);
 }
 
+/* ---- Calendar subscription (.ics feed) dropdown ---- */
+/* Reuses the .campmenu shell; widened to fit a subscribe URL. */
+.subfeed__menu {
+  min-width: 288px;
+  max-width: 360px;
+}
+.subfeed__intro {
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-2);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.subfeed__urlrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.subfeed__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.subfeed__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.subfeed__links .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+  font-size: var(--fs-meta);
+}
+.subfeed__reset {
+  align-self: flex-start;
+  margin-top: var(--s-3);
+  background: none;
+  border: none;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.subfeed__reset:hover:not(:disabled) {
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+.subfeed__reset:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.subfeed__muted {
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-2);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
 /* ---- List manager modal (Camps, Themes) — a clear create/manage screen ---- */
 .overlay--manager {
   width: min(440px, 92vw);
