@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
+import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
@@ -30,6 +31,8 @@ import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
 import { ListManagerModal } from "./ListManagerModal";
 import { Modal } from "./Modal";
+import { PrintTab } from "./print/PrintTab";
+import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
@@ -43,6 +46,7 @@ type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof C
 const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
+  { id: "print", label: "Print", icon: CampIcon.Print },
 ];
 // The single intentional sign-in / account surface. Shown to everyone (signed
 // out it's "Sign in"; signed in it's the account panel) — it replaces the old
@@ -344,44 +348,36 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // sheet (which also carries Edit/Delete/Duplicate in its header).
   const libMenu = useContextMenu<Activity>();
 
-  // Print: the activity book is the one surviving print artifact.
+  // Print: the activity book (from the viewer) and the schedule range (from the
+  // Print tab) are the two print artifacts. Both mount a hidden `.print-root`
+  // sheet and fire the dialog through the shared usePrintIntent hook.
   const [printActivityId, setPrintActivityId] = useState<string | null>(null);
   const printActivity = printActivityId ? lib.byId[printActivityId] ?? null : null;
-
-  useEffect(() => {
-    if (!printActivity) return;
-    const clearPrintIntent = () => setPrintActivityId(null);
-    let fallback = 0;
-    let secondFrame = 0;
-    // iOS Safari fires afterprint unreliably — belt and braces so a stale
-    // hidden book can never hijack a later Cmd+P.
-    const printMedia = window.matchMedia("print");
-    const onPrintMediaChange = (e: MediaQueryListEvent) => {
-      if (!e.matches) clearPrintIntent();
-    };
-    printMedia.addEventListener?.("change", onPrintMediaChange);
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        window.print();
-        // window.print() blocks while the dialog is open in most browsers,
-        // so this fires once it's dismissed.
-        fallback = window.setTimeout(clearPrintIntent, 1000);
-      });
-    });
-    window.addEventListener("afterprint", clearPrintIntent, { once: true });
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      if (secondFrame) window.cancelAnimationFrame(secondFrame);
-      if (fallback) window.clearTimeout(fallback);
-      printMedia.removeEventListener?.("change", onPrintMediaChange);
-      window.removeEventListener("afterprint", clearPrintIntent);
-    };
-  }, [printActivity]);
+  const clearPrintActivity = useCallback(() => setPrintActivityId(null), []);
+  usePrintIntent(Boolean(printActivity), clearPrintActivity);
 
   function requestPrint(activity: Activity) {
     setPrintActivityId(activity.id);
     setLiveMsg("Preparing " + activity.title + " for print");
   }
+
+  // The Print tab portals its hidden `.print-root` schedule sheet into this slot
+  // (a direct child of `.app`, a sibling of <main> — the same DOM position the
+  // activity book uses, so the existing `.app:has(.print-root)` chrome-hiding
+  // print rules apply). Mirrors the calendar rail's node-state pattern.
+  const [printHost, setPrintHost] = useState<HTMLDivElement | null>(null);
+  const printHostRef = useCallback((node: HTMLDivElement | null) => setPrintHost(node), []);
+
+  const printData: SchedulePrintData = useMemo(
+    () => ({
+      events: cloud.events,
+      byId: lib.byId,
+      resolveRunDoc: lib.resolveRunDoc,
+      themeOf: lib.themeOf,
+      camps: campKit.camps,
+    }),
+    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps]
+  );
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
   // Desktop sidebar omits Home (the brand mark is Home). The mobile tab bar
@@ -551,6 +547,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             </div>
           )}
 
+          {tab === "print" && (
+            <PrintTab
+              data={printData}
+              activeCampId={campKit.activeCampId}
+              printHost={printHost}
+              announce={setLiveMsg}
+            />
+          )}
+
           {tab === "admin" && (
             <div className="app__scroll">
               <div className="admin-tab">
@@ -702,6 +707,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           );
         })()}
         {printActivity && <ActivityBookPrint activity={printActivity} runDoc={lib.resolveRunDoc(printActivity)} />}
+        <div ref={printHostRef} className="print-host" />
         {staffPrompt && (
           <StaffPromptModal
             prompt={staffPrompt}
