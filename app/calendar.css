@@ -601,6 +601,158 @@ body > .cal-lib__item .cal-lib__name {
 .sidenav__calrail .cal-lib__list {
   padding-inline: 0;
 }
+
+/* ---------- sidebar mini-month ---------- */
+/* The month overview that rides ABOVE the activity rail on the calendar tab
+   (below the nav). It echoes the main grid: today circled in accent, the days
+   currently in the main view lit as one connected band, busy days dotted. It
+   sits on the sidebar's chrome — no card — so it reads as part of the rail. The
+   26px top margin matches .sidesection / the activity rail so the zone never
+   jumps when switching tabs. */
+.cal-mini {
+  flex: none;
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cal-mini__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.cal-mini__label {
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.cal-mini__nav {
+  display: flex;
+  gap: var(--s-1);
+}
+.cal-mini__navbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cal-mini__navbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-mini__navbtn:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cal-mini__navbtn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.cal-mini__grid {
+  display: flex;
+  flex-direction: column;
+}
+.cal-mini__row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.cal-mini__dowcell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.cal-mini__day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+}
+.cal-mini__day.is-out {
+  color: var(--ink-faint);
+}
+/* The in-view band: a continuous accent strip behind the row's in-view days,
+   bled to the cell edges (no gaps) so a contiguous run reads as one bar. Only
+   the run's ends round — MiniMonth tags is-band-start / is-band-end, so a week
+   that wraps two mini rows still draws clean caps on each segment. */
+.cal-mini__day.is-inview::before {
+  content: "";
+  position: absolute;
+  inset: 2px 0;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.cal-mini__day.is-band-start::before {
+  left: 3px;
+  border-top-left-radius: var(--r-round);
+  border-bottom-left-radius: var(--r-round);
+}
+.cal-mini__day.is-band-end::before {
+  right: 3px;
+  border-top-right-radius: var(--r-round);
+  border-bottom-right-radius: var(--r-round);
+}
+.cal-mini__num {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-round);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cal-mini__day:hover .cal-mini__num {
+  background: var(--chrome-well);
+}
+/* Today's solid accent disc must outrank the hover wash, so it follows it. */
+.cal-mini__day.is-today .cal-mini__num {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.cal-mini__dot {
+  position: absolute;
+  z-index: 1;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+.cal-mini__day.is-out .cal-mini__dot {
+  background: var(--ink-faint);
+}
+.cal-mini__day.is-today .cal-mini__dot {
+  background: var(--on-accent);
+}
 /* The rail body fills the section. Unlike the Library filter rail (where the
    whole body scrolls), here the search + type chips stay fixed and only the
    activity list scrolls — so the body itself does NOT scroll; .cal-lib__list
