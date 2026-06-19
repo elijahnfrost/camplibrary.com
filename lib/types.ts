@@ -50,4 +50,4 @@ export interface Activity {
 
 export type LibraryView = "shelf" | "deck" | "catalog";
 
-export type TabId = "home" | "library" | "calendar" | "staff" | "admin";
+export type TabId = "home" | "library" | "calendar" | "print" | "staff" | "admin";

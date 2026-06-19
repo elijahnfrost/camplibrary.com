@@ -208,6 +208,15 @@ export const CampIcon = {
       <path d="M17.5 11.5h.01" />
     </>
   ),
+  // A page with a down-arrow dropping out of it — "export / download this doc".
+  Export: svg(
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v6.5" />
+      <path d="M14 3l5 5v11a2 2 0 0 1-2 2H8" />
+      <path d="M14 3v5h5" />
+      <path d="M5 15v6M5 21l-2.5-2.5M5 21l2.5-2.5" />
+    </>
+  ),
   // Refresh arrow; on hover it spins a full turn — "reset".
   Reset: svg(
     <>
