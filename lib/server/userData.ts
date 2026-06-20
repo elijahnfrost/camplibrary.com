@@ -73,6 +73,51 @@ export const ensureUserDataSchema = cacheUntilFailure(async () => {
         CREATE INDEX IF NOT EXISTS calendar_events_user_date_idx
         ON calendar_events (clerk_user_id, event_date)
       `;
+  // Subscribable .ics feed tokens. Lookups go through token_hash (the HMAC
+  // digest); token_enc holds the same token AES-256-GCM-encrypted under a key
+  // derived from INVITE_CODE_SECRET so the owner can re-copy the feed URL later.
+  // A DB leak alone exposes neither (both need the app secret). camp_id NULL =
+  // all of the user's events; a per-camp feed pins one camp. Revoke = soft-delete.
+  await sql`CREATE TABLE IF NOT EXISTS calendar_feed_tokens (
+        id uuid PRIMARY KEY,
+        clerk_user_id text NOT NULL,
+        token_hash text NOT NULL UNIQUE,
+        token_enc text,
+        camp_id text,
+        label text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz,
+        revoked_at timestamptz
+      )`;
+  // Backfill the column on any table created before token_enc existed.
+  await sql`ALTER TABLE calendar_feed_tokens ADD COLUMN IF NOT EXISTS token_enc text`;
+  await sql`
+        CREATE INDEX IF NOT EXISTS calendar_feed_tokens_user_idx
+        ON calendar_feed_tokens (clerk_user_id)
+      `;
+  // Exactly one live feed per (user, camp). Self-heal first — revoke all but the
+  // newest active feed in each (user, camp) slot — then make the rule structural
+  // with a partial unique index. COALESCE folds the "all events" feed (camp_id
+  // NULL) into a single slot per user too. Runs once per process via the
+  // ensureUserDataSchema cache; both statements are idempotent.
+  await sql`
+        WITH ranked AS (
+          SELECT id, row_number() OVER (
+            PARTITION BY clerk_user_id, COALESCE(camp_id, '') ORDER BY created_at DESC
+          ) AS rn
+          FROM calendar_feed_tokens
+          WHERE revoked_at IS NULL
+        )
+        UPDATE calendar_feed_tokens t
+        SET revoked_at = now()
+        FROM ranked r
+        WHERE t.id = r.id AND r.rn > 1
+      `;
+  await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS calendar_feed_tokens_one_per_camp_idx
+        ON calendar_feed_tokens (clerk_user_id, COALESCE(camp_id, ''))
+        WHERE revoked_at IS NULL
+      `;
 });
 
 export function isValidDateKey(value: unknown): value is string {

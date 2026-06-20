@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -142,6 +142,7 @@ export function CalendarShell({
   announce,
   railSlot,
   onOpenCamps,
+  headerActions,
   themeOf,
 }: {
   events: Record<string, CalendarEvent>;
@@ -159,6 +160,9 @@ export function CalendarShell({
   /** Opens the camp manager (add / switch / rename / delete). Lives in the
    *  sidebar's View settings, so the header has no camp pill. */
   onOpenCamps: () => void;
+  /** Header-cluster slot for camp-scoped actions composed by CampApp (where the
+   *  camp data lives) — currently the Subscribe / .ics feed pill. */
+  headerActions?: ReactNode;
   /** Resolves an activity's theme, for the per-event theme badge (events reflect
    *  their activity's theme). */
   themeOf: ThemeResolver;
@@ -1451,6 +1455,7 @@ export function CalendarShell({
         onToday={goToday}
         onOpenSettings={() => setSettingsOpen(true)}
         onAdd={openAddSheet}
+        actions={headerActions}
       />
       <div className="calshell__body">
         <div

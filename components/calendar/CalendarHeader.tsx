@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { CampIcon } from "../icons";
 import { ViewSwitch } from "./ViewSwitch";
 import type { ViewKey } from "@/lib/calendar/views";
@@ -23,6 +24,7 @@ export function CalendarHeader({
   onToday,
   onOpenSettings,
   onAdd,
+  actions,
 }: {
   title: string;
   view: ViewKey;
@@ -33,11 +35,15 @@ export function CalendarHeader({
   onOpenSettings: () => void;
   /** Opens the event composer (QuickAdd) — the green Add button, like the Library. */
   onAdd: () => void;
+  /** Camp-scoped actions composed by CampApp (the Subscribe / .ics feed pill);
+   *  sits at the head of the controls cluster as a peer to the view switch. */
+  actions?: ReactNode;
 }) {
   return (
     <div className="calhead">
       <h2 className="calhead__title">{title}</h2>
       <div className="calhead__controls">
+        {actions}
         <ViewSwitch view={view} onView={onView} />
         {/* Today is mobile-only here — desktop's lives in the sidebar mini-month
             (CSS hides this from the 768px sidebar breakpoint up). */}
