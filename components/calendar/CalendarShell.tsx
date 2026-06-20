@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -17,7 +17,26 @@ import type {
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import { fromFcDates, healEvent, toFcEvent } from "@/lib/calendar/adapter";
-import { formatEventDateLabel, fromDateKey, minutesOfDay, startOfWeek, toDateKey, todayKey } from "@/lib/calendar/dates";
+import {
+  addDays,
+  daySpan,
+  formatEventDateLabel,
+  fromDateKey,
+  minutesOfDay,
+  toDateKey,
+  todayKey,
+} from "@/lib/calendar/dates";
+import {
+  clampNDays,
+  DEFAULT_WEEK_START,
+  isNDaysView,
+  parseStoredView,
+  parseWeekStart,
+  viewTitle,
+  type StoredViewPref,
+  type ViewKey,
+  type WeekStart,
+} from "@/lib/calendar/views";
 import {
   DEFAULT_DURATION_MIN,
   DEFAULT_PLANNING_START_MIN,
@@ -39,46 +58,64 @@ import {
   type CampHoursMap,
 } from "@/lib/calendar/hours";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
-import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
+import { Modal } from "../Modal";
 import { ContextMenu } from "../floating/ContextMenu";
-import { CalendarHeader, type CalendarViewId } from "./CalendarHeader";
+import { CalendarHeader } from "./CalendarHeader";
+import { CalendarViewSettings } from "./CalendarViewSettings";
 import { EventPopover } from "./EventPopover";
 import { HoursPanel } from "./HoursPanel";
-import { LibraryPanel } from "./LibraryPanel";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 
-const VIEW_IDS = new Set<string>(["timeGridDay", "timeGridWeek", "dayGridMonth"]);
+// The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
+// "day"), so they list consecutive days from wherever you've scrolled and never
+// snap to a week boundary — FullCalendar's firstDay is inert for them. We still
+// hand FC a value while the strip is mounted; Month is the one view whose column
+// order honours the configurable "Start week on" pref (weekStart). The sidebar
+// mini-month is a month grid too, so it reads the same pref.
+const STRIP_FIRST_DAY = 1;
 
-// Monday — the week start the rolling week view aligns to and the snap target
-// for Today / mini-month picks (camp weeks read Mon-first).
-const FIRST_DAY = 1;
+// The timed views (Day / Week / Number-of-days) are ONE continuous, day-aligned
+// strip you scroll horizontally — fixed-width day columns, native momentum, and
+// CSS scroll-snap that loosely aligns to the nearest day so a day is never left
+// half cut off at the edge (the free equivalent of the premium scrollgrid's
+// dayMinWidth). Day/Week/N just set the ZOOM: how many days are sized to fit the
+// viewport (1 / 7 / N) — which then determines the day width. We render a wide
+// strip (STRIP_DAYS) and re-anchor it as you scroll near either end so the scroll
+// feels endless. Month stays its own grid.
+const STRIP_DAYS = 35;
+// Re-anchor when the visible window comes within this many days of a strip edge,
+// recentering the strip by this much so there's always runway to keep scrolling.
+const REANCHOR_MARGIN = 4;
+const REANCHOR_SHIFT = 14;
+// A day column never narrows past this (so a 9-day zoom on a phone stays legible
+// and simply overflows / scrolls instead of crushing the columns).
+const MIN_DAY_WIDTH = 84;
 
-// The sidebar mini-month is a MONTH grid, so it starts on Sunday to match the
-// main Month view's column order (FullCalendar renders dayGridMonth Sunday-first
-// here) — keeping the two month grids aligned when both are on screen.
-const MINI_FIRST_DAY = 0;
-
-// Week is a ROLLING, day-aligned 7-day window. It still shows seven days, but
-// it slides one day at a time (dateIncrement) and may begin on any weekday
-// (dateAlignment "day"). That's what lets a horizontal trackpad swipe or grid
-// drag scroll the day timeline continuously like Google/Apple Calendar instead
-// of jumping a whole week. The prev/next BUTTONS still page a full week and
-// Today snaps to the week start (see pageView / goToday) — only the continuous
-// gestures slide by single days. (dayMinWidth-based horizontal scrolling needs
-// FullCalendar's premium scrollgrid plugin, which this app doesn't ship; the
-// rolling window gives the same feel with the free plugins.)
 const CALENDAR_VIEWS = {
-  timeGridWeek: {
+  timeGridStrip: {
     type: "timeGrid",
-    duration: { days: 7 },
+    duration: { days: STRIP_DAYS },
     dateAlignment: "day",
     dateIncrement: { days: 1 },
   },
 };
+
+// The FullCalendar view-type string for a ViewKey: every timed view is the one
+// scrollable strip; only Month is its own grid.
+function fcType(view: ViewKey): string {
+  return view === "dayGridMonth" ? "dayGridMonth" : "timeGridStrip";
+}
+
+// How many days the chosen view sizes to fit the viewport (the zoom level).
+function targetDaysFor(view: ViewKey): number {
+  if (isNDaysView(view)) return clampNDays(view.n);
+  if (view === "timeGridDay") return 1;
+  return 7; // Week (Month doesn't use the strip)
+}
 
 type PopoverState = { event: CalendarEvent; anchor: DOMRect };
 type MenuState = { event: CalendarEvent; point: { x: number; y: number } };
@@ -90,10 +127,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-const viewStorage = (value: unknown, fallback: CalendarViewId | "auto") =>
-  value === "timeGridDay" || value === "timeGridWeek" || value === "dayGridMonth"
-    ? value
-    : fallback;
+const boolStorage = (value: unknown, fallback: boolean) =>
+  typeof value === "boolean" ? value : fallback;
 
 export function CalendarShell({
   events,
@@ -106,9 +141,7 @@ export function CalendarShell({
   onOpenActivity,
   announce,
   railSlot,
-  headerActions,
-  themes,
-  themeAssignments,
+  onOpenCamps,
   themeOf,
 }: {
   events: Record<string, CalendarEvent>;
@@ -120,23 +153,22 @@ export function CalendarShell({
   requireStaff: (action: string) => boolean;
   onOpenActivity: (activity: Activity, eventContext: CalendarEvent) => void;
   announce: (message: string) => void;
-  /** Desktop: the left-sidebar slot the activity library renders into (one
-   *  sidebar shared with the Library tab's filters). Null on mobile. */
+  /** Desktop: the left-sidebar slot the mini-month + View settings render into
+   *  (one sidebar shared with the Library tab's filters). Null on mobile. */
   railSlot?: HTMLElement | null;
-  /** Rendered at the right end of the calendar header (e.g. the auth pill). */
-  headerActions?: ReactNode;
-  /** Theme vocabulary + assignment map + resolver, for the rail filter and the
-   *  per-event theme badge (events reflect their activity's theme). */
-  themes: Theme[];
-  themeAssignments: Record<string, string>;
+  /** Opens the camp manager (add / switch / rename / delete). Lives in the
+   *  sidebar's View settings, so the header has no camp pill. */
+  onOpenCamps: () => void;
+  /** Resolves an activity's theme, for the per-event theme badge (events reflect
+   *  their activity's theme). */
   themeOf: ThemeResolver;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const [storedView, setStoredView] = useLocalStorage<CalendarViewId | "auto">(
+  const [storedView, setStoredView] = useLocalStorage<StoredViewPref>(
     "calendarView",
     "auto",
-    viewStorage
+    parseStoredView
   );
   // Camp hours: the editable per-camp drop-off/pickup that sets how far the day
   // is viewed. A local view preference (like the stored view), so it lives in
@@ -147,10 +179,53 @@ export function CalendarShell({
     campHoursStorage
   );
   const [hoursOpen, setHoursOpen] = useState(false);
+  // The view-settings sheet — mobile's home for the settings that live in the
+  // sidebar "View" section on desktop (the rail isn't rendered on phones).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Shade Saturday/Sunday columns with a subtle warm wash (Notion's weekend
+  // shading). On by default; another local view pref, never gated on staff.
+  const [shadeWeekends, setShadeWeekends] = useLocalStorage<boolean>(
+    "calendarShadeWeekends",
+    true,
+    boolStorage
+  );
+  // Which weekday the MONTH grids start on (Notion's "Start week on"). Only the
+  // Month view + the sidebar mini-month honour it — the rolling strip is
+  // day-aligned. Default Monday matches the camp Mon–Fri rhythm.
+  const [weekStart, setWeekStart] = useLocalStorage<WeekStart>(
+    "calendarWeekStart",
+    DEFAULT_WEEK_START,
+    parseWeekStart
+  );
   // The initial view resolves client-side (coarse pointer → Day); the grid
   // mounts only after resolution so phones never flash Week first.
-  const [resolvedView, setResolvedView] = useState<CalendarViewId | null>(null);
-  const [activeView, setActiveView] = useState<CalendarViewId>("timeGridWeek");
+  const [resolvedView, setResolvedView] = useState<ViewKey | null>(null);
+  const [activeView, setActiveView] = useState<ViewKey>("timeGridWeek");
+  // How many days the active timed view sizes to fit the viewport (the zoom).
+  const targetDays = targetDaysFor(activeView);
+  const targetDaysRef = useRef(targetDays);
+  targetDaysRef.current = targetDays;
+  // The first day of the rendered scroll strip. We render STRIP_DAYS from here and
+  // re-anchor as the user scrolls near an edge; null until resolved on mount.
+  const [stripStart, setStripStart] = useState<DateKey | null>(null);
+  const stripStartRef = useRef<DateKey | null>(null);
+  stripStartRef.current = stripStart;
+  // The day-column width driving the strip's total width (so the active zoom fits
+  // the viewport). A change to it re-triggers the scroll-restore effect.
+  const [dayWidth, setDayWidth] = useState(0);
+  // After a re-anchor (or zoom/resize) re-render, this is the day to land back at
+  // the left edge so the view doesn't visibly jump. lastFirstDay dedupes the live
+  // title update to once per day actually crossed (not once per scroll frame).
+  const keepDayRef = useRef<DateKey | null>(null);
+  const lastFirstDayRef = useRef<DateKey | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
+  const scrollSettleRef = useRef<number | null>(null);
+  // True once the first paint has scrolled the strip onto today — gates the
+  // re-anchor (and the resize keep-day capture) so neither fires prematurely.
+  const didInitialScrollRef = useRef(false);
+  // Skip the strip-re-anchor effect's first run (the initial mount); it's only
+  // for genuine re-anchors / re-entering the strip from Month.
+  const stripFirstRunRef = useRef(true);
   const [title, setTitle] = useState("");
   const [todayInView, setTodayInView] = useState(true);
   const [visibleRange, setVisibleRange] = useState<{ start: DateKey; end: DateKey } | null>(null);
@@ -163,26 +238,29 @@ export function CalendarShell({
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
-  const [swipeDir, setSwipeDir] = useState<"left" | "right" | null>(null);
-  const swipeRef = useRef<{ x: number; y: number; at: number; onEvent: boolean } | null>(null);
 
   // Coarse pointers (phones) default to Day; everything else to Week.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let resolved: CalendarViewId;
+    let resolved: ViewKey;
     if (storedView !== "auto") {
       resolved = storedView;
     } else {
       const coarse = window.matchMedia("(pointer: coarse)").matches;
       resolved = coarse ? "timeGridDay" : "timeGridWeek";
     }
-    // The 7-column Week grid is unreadable under the wide-phone breakpoint
-    // (--bp-wide-phone 640) — coerce it to Day there regardless of the stored
-    // preference. Day and Month stay as chosen; Week is simply never forced onto
-    // a phone-width screen.
-    if (resolved === "timeGridWeek" && window.matchMedia("(max-width: 639px)").matches) {
+    // Any multi-day zoom (Week or an N-day window) is unreadable under the
+    // wide-phone breakpoint (--bp-wide-phone 640) — coerce it to Day there
+    // regardless of the stored preference. Day and Month stay as chosen.
+    if (
+      (resolved === "timeGridWeek" || isNDaysView(resolved)) &&
+      window.matchMedia("(max-width: 639px)").matches
+    ) {
       resolved = "timeGridDay";
     }
+    // Seed the scroll strip with back-runway before today so the user can scroll
+    // into the past immediately; the initial scroll lands on today's week.
+    setStripStart(addDays(todayKey(), -REANCHOR_SHIFT));
     setResolvedView(resolved);
     setActiveView(resolved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,18 +280,33 @@ export function CalendarShell({
     return days;
   }, [healedEvents]);
 
+  // Which month the mini-month surfaces: the one the visible window MOSTLY falls
+  // in, not whichever month its first column happens to start in. A multi-day
+  // window that straddles a boundary (e.g. Jun 29 – Jul 5) is read as the
+  // majority month by anchoring on the range's midpoint, so the mini's label and
+  // grid agree with the period the header states instead of lagging a month
+  // behind. Day and Month views keep their month (their midpoint stays inside).
+  const miniAnchor = useMemo(() => {
+    if (!visibleRange) return new Date();
+    const mid = Math.floor(daySpan(visibleRange.start, visibleRange.end) / 2);
+    return fromDateKey(addDays(visibleRange.start, mid));
+  }, [visibleRange]);
+
   // The base window comes from the configured camp hours (union of the enabled
   // camps' drop-off → pickup); auto-extend only ever stretches it outward.
   const campWindow = useMemo(() => windowFromCampHours(campHours), [campHours]);
 
-  // The day window auto-extends only around events in the VISIBLE range — a
-  // stray 6am event last month shouldn't stretch every day's grid forever.
+  // The day window auto-extends around events in the rendered STRIP (stable while
+  // you scroll, so the grid hours don't jitter), not the live visible sub-range —
+  // a stray 6am event elsewhere shouldn't stretch every day's grid forever.
   const window_ = useMemo(() => {
-    const scoped = visibleRange
-      ? healedEvents.filter((event) => event.date >= visibleRange.start && event.date < visibleRange.end)
-      : healedEvents;
+    const stripEnd = stripStart ? addDays(stripStart, STRIP_DAYS) : null;
+    const scoped =
+      stripStart && stripEnd
+        ? healedEvents.filter((event) => event.date >= stripStart && event.date < stripEnd)
+        : healedEvents;
     return effectiveWindow(scoped, campWindow);
-  }, [healedEvents, visibleRange, campWindow]);
+  }, [healedEvents, stripStart, campWindow]);
 
   const fcEvents = useMemo(
     () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
@@ -254,66 +347,175 @@ export function CalendarShell({
     if (!sheet) calendarRef.current?.getApi().unselect();
   }, [sheet]);
 
-  const changeView = useCallback(
-    (view: CalendarViewId) => {
-      setActiveView(view);
-      setStoredView(view);
-      const api = calendarRef.current?.getApi();
-      api?.changeView(view);
-      // Entering the rolling week always lands on a whole, week-aligned span so
-      // the view reads as "this week" — continuous day-sliding starts from there.
-      if (view === "timeGridWeek" && api) api.gotoDate(startOfWeek(api.getDate(), FIRST_DAY));
+  // ---- continuous day-strip navigation --------------------------------------
+  // The timed views are one horizontally-scrolling strip of fixed-width days;
+  // navigation is just scrolling it, and the dropdown only changes the zoom (how
+  // many days are sized to fit). Month is the one view with its own grid.
+
+  // The viewport x where the day area begins — the right edge of the sticky time
+  // gutter — measured straight from the DOM (no width estimate to drift on).
+  const dayAreaLeftX = useCallback((grid: HTMLElement): number | null => {
+    const gutter = grid.querySelector<HTMLElement>(".fc-timegrid-slot-label, .fc-timegrid-axis");
+    return gutter ? gutter.getBoundingClientRect().right : null;
+  }, []);
+
+  // The DateKey whose column currently sits at the strip's left edge.
+  const firstVisibleDay = useCallback((): DateKey => {
+    const grid = gridRef.current;
+    const start = stripStartRef.current;
+    if (!grid || !start) return start ?? todayKey();
+    const edge = dayAreaLeftX(grid);
+    const cells = Array.from(grid.querySelectorAll<HTMLElement>(".fc-col-header-cell[data-date]"));
+    if (edge == null || !cells.length) return start;
+    let best = cells[0];
+    let bd = Infinity;
+    for (const c of cells) {
+      const d = Math.abs(c.getBoundingClientRect().left - edge);
+      if (d < bd) {
+        bd = d;
+        best = c;
+      }
+    }
+    return (best.dataset.date as DateKey) ?? start;
+  }, [dayAreaLeftX]);
+
+  // Scroll so `dayKey`'s column aligns to the day area's left edge. Works by the
+  // measured DELTA between the cell and the gutter's right edge, so repeated
+  // calls converge even as FullCalendar settles its layout — CSS scroll-snap only
+  // fixes USER scrolls, never these programmatic ones. Returns false (→ caller
+  // re-anchors) when that day isn't in the rendered strip.
+  const scrollDayToLeft = useCallback(
+    (dayKey: DateKey, behavior: ScrollBehavior) => {
+      const grid = gridRef.current;
+      if (!grid) return false;
+      const cell = grid.querySelector<HTMLElement>(`.fc-col-header-cell[data-date="${dayKey}"]`);
+      const edge = dayAreaLeftX(grid);
+      if (!cell || edge == null) return false;
+      const delta = cell.getBoundingClientRect().left - edge;
+      // A small deadzone keeps the settle-snap from chasing sub-pixel jitter
+      // (which would loop: scroll → scroll event → settle → scroll …).
+      if (Math.abs(delta) > 2) {
+        grid.scrollTo({ left: Math.max(0, Math.round(grid.scrollLeft + delta)), behavior });
+      }
+      return true;
     },
-    [setStoredView]
+    [dayAreaLeftX]
   );
 
-  // The continuous gesture step (horizontal trackpad scroll, touch swipe): one
-  // day at a time on the time-grid views, so the visible window slides smoothly
-  // across the day timeline. Month is paged elsewhere; never slide it.
-  const slide = useCallback((dir: 1 | -1) => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-    const type = api.view.type;
-    if (type === "timeGridWeek" || type === "timeGridDay") api.incrementDate({ days: dir });
-  }, []);
+  // Push the visible window (header title, mini-month band, Today enablement,
+  // tap-to-place day) from the live scroll position — deduped to once per day
+  // (and per zoom) actually crossed so scrolling doesn't thrash React.
+  const syncVisible = useCallback(() => {
+    if (!stripStartRef.current) return;
+    const firstKey = firstVisibleDay();
+    const n = targetDaysRef.current;
+    const stamp = firstKey + "|" + n;
+    if (stamp === lastFirstDayRef.current) return;
+    lastFirstDayRef.current = stamp;
+    const endKey = addDays(firstKey, n);
+    setTitle(viewTitle(fromDateKey(firstKey), n));
+    setVisibleRange({ start: firstKey, end: endKey });
+    const tkey = todayKey();
+    const todayVisible = tkey >= firstKey && tkey < endKey;
+    setTodayInView(todayVisible);
+    focusDateRef.current = todayVisible ? tkey : firstKey;
+  }, [firstVisibleDay]);
 
-  // The discrete step for the prev/next buttons and arrow keys: a whole week in
-  // Week view, a day in Day view, a month in Month view — the familiar paging.
-  const pageView = useCallback((dir: 1 | -1) => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-    if (api.view.type === "timeGridWeek") api.incrementDate({ days: 7 * dir });
-    else if (dir < 0) api.prev();
-    else api.next();
-  }, []);
+  // Bring `dayKey` to the left edge; re-anchor the strip first if it isn't
+  // rendered (the post-render effect finishes the scroll via keepDayRef). A
+  // plain scroll only works when the day can actually SIT at the left edge —
+  // i.e. its index is within [0, lastStart]. A day in the strip's final window
+  // (idx > lastStart) still has a cell, so scrollDayToLeft would report success,
+  // yet it can never reach the edge — which left Today (and far mini-month picks
+  // into the past, where today lands near the strip's right end) silently
+  // stalled. Re-anchor those onto a fresh strip centred on the day instead.
+  const goToDay = useCallback(
+    (dayKey: DateKey, behavior: ScrollBehavior) => {
+      const start = stripStartRef.current;
+      const lastStart = STRIP_DAYS - targetDaysRef.current;
+      const idx = start != null ? daySpan(start, dayKey) : -1;
+      if (start != null && idx >= 0 && idx <= lastStart && scrollDayToLeft(dayKey, behavior)) return;
+      keepDayRef.current = dayKey;
+      setStripStart(addDays(dayKey, -Math.floor((STRIP_DAYS - targetDaysRef.current) / 2)));
+    },
+    [scrollDayToLeft]
+  );
 
-  // Today snaps the rolling week back onto the current week (not today-as-left-edge).
+  // Prev/next (buttons, arrows, j/k): page by the visible window, smoothly.
+  const nudge = useCallback(
+    (dir: 1 | -1) => {
+      goToDay(addDays(firstVisibleDay(), dir * targetDaysRef.current), "smooth");
+    },
+    [firstVisibleDay, goToDay]
+  );
+
+  // Switch view. Day/Week/N-day are zoom levels of the one strip (the day width
+  // changes; the focused day is kept at the left edge by the zoom effect). Month
+  // is its own grid. Either way we carry the currently-focused day across.
+  const changeView = useCallback(
+    (view: ViewKey) => {
+      const api = calendarRef.current?.getApi();
+      const anchorDay =
+        api && api.view.type === "timeGridStrip" ? firstVisibleDay() : focusDateRef.current;
+      setActiveView(view);
+      setStoredView(view);
+      if (!api) return;
+      if (view === "dayGridMonth") {
+        api.changeView("dayGridMonth", fromDateKey(anchorDay));
+        return;
+      }
+      // Keep the focused day at the left edge after the zoom/strip re-lays out.
+      keepDayRef.current = anchorDay;
+      if (api.view.type !== "timeGridStrip") {
+        // Re-entering the strip from Month: switch the FC view AND recenter the
+        // rendered strip on the focused day (the stripStart effect re-aligns).
+        const newStart = addDays(anchorDay, -Math.floor((STRIP_DAYS - targetDaysFor(view)) / 2));
+        api.changeView("timeGridStrip", fromDateKey(newStart));
+        setStripStart(newStart);
+      }
+    },
+    [firstVisibleDay, setStoredView]
+  );
+
+  // Today: bring today to the strip's left edge (or jump the Month grid to it).
   const goToday = useCallback(() => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-    if (api.view.type === "timeGridWeek") api.gotoDate(startOfWeek(new Date(), FIRST_DAY));
-    else api.today();
-  }, []);
+    if (api.view.type === "dayGridMonth") {
+      api.today();
+      return;
+    }
+    goToDay(todayKey(), "smooth");
+  }, [goToDay]);
 
-  // A mini-month pick navigates the main grid: in Week view it shows the whole
-  // week containing the date; otherwise it jumps straight to that day/month.
-  const gotoMiniDate = useCallback((date: Date) => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-    if (api.view.type === "timeGridWeek") api.gotoDate(startOfWeek(date, FIRST_DAY));
-    else api.gotoDate(date);
-  }, []);
+  // A mini-month pick scrolls the strip so that day is at the left edge (Month
+  // jumps its grid to that date).
+  const gotoMiniDate = useCallback(
+    (date: Date) => {
+      const api = calendarRef.current?.getApi();
+      if (!api) return;
+      if (api.view.type === "dayGridMonth") {
+        api.gotoDate(date);
+        return;
+      }
+      goToDay(toDateKey(date), "smooth");
+    },
+    [goToDay]
+  );
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
-    setTitle(arg.view.title);
     // Navigation/view changes re-render the grid, so a cursor-anchored menu or
     // a rect-anchored popover would detach — dismiss them.
     setMenu(null);
     setPopover(null);
-    if (VIEW_IDS.has(arg.view.type)) setActiveView(arg.view.type as CalendarViewId);
-    // Track the day tap-to-place targets: today when visible, else range start.
+    // The strip's visible window + title are driven by scroll position
+    // (syncVisible), NOT by the full rendered range — so the strip ignores this.
+    // Only Month, with its own grid, reads its window straight from FullCalendar.
+    if (arg.view.type !== "dayGridMonth") return;
     const start = arg.view.currentStart;
     const end = arg.view.currentEnd;
+    setActiveView("dayGridMonth");
+    setTitle(arg.view.title);
     const now = new Date();
     const todayVisible = now >= start && now < end;
     focusDateRef.current = todayVisible ? toDateKey(now) : toDateKey(start);
@@ -399,62 +601,8 @@ export function CalendarShell({
     [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
   );
 
-  // Tap-to-place: drop the activity at the next free slot on the focused day.
-  const placeActivity = useCallback(
-    (activity: Activity) => {
-      if (!requireStaff("plan the calendar")) return;
-      const dateKey = focusDateRef.current;
-      const dayEvents = healedEvents.filter((event) => event.date === dateKey);
-      const notBefore =
-        dateKey === todayKey() ? Math.max(nowMinutes(), DEFAULT_PLANNING_START_MIN) : DEFAULT_PLANNING_START_MIN;
-      const duration = snapDurationMin(activity.durationMin);
-      const start = nextFreeStartForDay(dayEvents, duration, notBefore, window_);
-      if (start == null) {
-        announce("No open time for " + activity.title);
-        showToast({ message: "No open time for " + activity.title });
-        return;
-      }
-      const event: CalendarEvent = {
-        id: crypto.randomUUID(),
-        date: dateKey,
-        startMin: start,
-        endMin: Math.min(MINUTES_PER_DAY, start + duration),
-        kind: "activity",
-        title: activity.title,
-        activityId: activity.id,
-        updatedAt: Date.now(),
-      };
-      upsertEvent(event);
-      announce(activity.title + " added at " + formatClock(start));
-      showToast({
-        message: "Added " + activity.title + " · " + formatClock(start),
-        onUndo: () => removeEvent(event.id),
-      });
-    },
-    [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
-  );
-
-  // "Pick a time": the same event window, with the when-row showing and the
-  // chosen activity preselected.
-  const pickActivity = useCallback(
-    (activity: Activity) => {
-      if (!requireStaff("plan the calendar")) return;
-      setSheet({
-        draft: {
-          date: focusDateRef.current,
-          startMin: DEFAULT_PLANNING_START_MIN,
-          durationMin: snapDurationMin(activity.durationMin || DEFAULT_DURATION_MIN),
-          allDay: false,
-          activityId: activity.id,
-          title: activity.title,
-        },
-        pickTime: true,
-      });
-    },
-    [requireStaff]
-  );
-
-  // The mobile + button: same window, nothing prechosen.
+  // The Add button (header on desktop, FAB on mobile): the event composer with
+  // nothing prechosen. Picking a library activity happens inside QuickAdd.
   const openAddSheet = useCallback(() => {
     if (!requireStaff("plan the calendar")) return;
     setSheet({
@@ -879,7 +1027,16 @@ export function CalendarShell({
   const renderDayHeader = useCallback((arg: DayHeaderContentArg) => {
     const weekday = arg.date.toLocaleDateString(undefined, { weekday: "short" });
     if (arg.view.type === "dayGridMonth") {
-      return <span className="cal-dayhead__dow">{weekday}</span>;
+      // Month headers are days-of-week, not real dates. FullCalendar's arg.date
+      // there is a fixed Sunday-based reference week, so recomputing the weekday
+      // from it lands one column behind once firstDay rotates the columns (the
+      // pre-existing "Sun-month" label bug). arg.dow is the column's true
+      // day-of-week — the same basis as its fc-day-* class — so label from that
+      // off a known Sunday (Jan 7 2024) to stay locale-correct and firstDay-safe.
+      const dowName = new Date(2024, 0, 7 + arg.dow).toLocaleDateString(undefined, {
+        weekday: "short",
+      });
+      return <span className="cal-dayhead__dow">{dowName}</span>;
     }
     return (
       <div className={"cal-dayhead" + (arg.isToday ? " is-today" : "")}>
@@ -889,78 +1046,254 @@ export function CalendarShell({
     );
   }, []);
 
-  // Swipe between days/weeks like the Google Calendar app: a quick,
-  // mostly-horizontal swipe on the grid background navigates prev/next.
-  // Touches that start on an event are ignored (long-press drag owns those),
-  // and the 2:1 horizontal-intent threshold keeps vertical scrolling free.
-  const onGridTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 1) {
-      swipeRef.current = null;
-      return;
-    }
-    const touch = event.touches[0];
-    const onEvent = Boolean((event.target as HTMLElement).closest(".fc-event"));
-    swipeRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now(), onEvent };
+  // Size the day columns so the active zoom (1 / 7 / N days) fits the viewport:
+  // day width = (grid width − padding − time gutter) / target days. We set the
+  // strip's total width as a CSS var (gutter + dayW × STRIP) and remember the
+  // measured day width for the scroll math.
+  const recomputeDayWidth = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const cs = getComputedStyle(grid);
+    const padL = parseFloat(cs.paddingLeft || "0");
+    const padX = padL + parseFloat(cs.paddingRight || "0");
+    const axis = grid.querySelector<HTMLElement>(".fc-timegrid-axis");
+    const gutter = axis ? axis.getBoundingClientRect().width : 52;
+    const avail = grid.clientWidth - padX - gutter;
+    const w = Math.max(MIN_DAY_WIDTH, avail / targetDaysRef.current);
+    grid.style.setProperty("--cal-strip-w", Math.round(gutter + w * STRIP_DAYS) + "px");
+    // scroll-snap aligns a day's start to the scrollport's border edge; offsetting
+    // snap by the padding + gutter lands days at the gutter's RIGHT edge (where
+    // they're visible), matching our programmatic scroll so the two never fight.
+    grid.style.setProperty("--cal-gutter", Math.round(padL + gutter) + "px");
+    // The all-day row pins just below the day-name header — feed it the header's
+    // measured height so the offset is exact regardless of font/zoom.
+    const head = grid.querySelector<HTMLElement>(".fc-scrollgrid-section-header");
+    if (head) grid.style.setProperty("--cal-headh", Math.round(head.getBoundingClientRect().height) + "px");
+    // FullCalendar caches its column widths and does NOT notice the CSS
+    // min-width change on its own — without this it only re-lays-out when some
+    // OTHER prop (e.g. a new event) forces a re-render. updateSize() makes it
+    // re-measure now so a zoom / resize takes effect immediately.
+    calendarRef.current?.getApi().updateSize();
+    setDayWidth(w);
   }, []);
 
-  const onGridTouchEnd = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
-    const start = swipeRef.current;
-    swipeRef.current = null;
-    if (!start || start.onEvent || event.changedTouches.length !== 1) return;
-    if (Date.now() - start.at > 600) return;
-    const touch = event.changedTouches[0];
-    const dx = touch.clientX - start.x;
-    const dy = touch.clientY - start.y;
-    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 2) return;
-    const api = calendarRef.current?.getApi();
-    if (!api || api.view.type === "dayGridMonth") return;
-    setSwipeDir(dx < 0 ? "left" : "right");
-    slide(dx < 0 ? 1 : -1);
-    window.setTimeout(() => setSwipeDir(null), 240);
-  }, [slide]);
-
-  // Horizontal trackpad/wheel scrolling slides the day timeline like Google
-  // Calendar — a two-finger horizontal swipe rolls the week one day at a time.
-  // Only horizontal-dominant deltas are claimed (vertical keeps scrolling the
-  // time grid), and they're accumulated into day steps and throttled so a fast
-  // flick glides through days instead of teleporting. Day/Week only; Month is
-  // paged by the buttons and the mini-month. A native non-passive listener is
-  // required to preventDefault the browser's own horizontal page scroll.
-  useEffect(() => {
-    const el = gridRef.current;
-    if (!el) return;
-    let buffer = 0;
-    let lastStepAt = 0;
-    const STEP_PX = 90;
-    const MIN_INTERVAL_MS = 150;
-    const onWheel = (event: WheelEvent) => {
-      const api = calendarRef.current?.getApi();
-      if (!api) return;
-      const type = api.view.type;
-      if (type !== "timeGridWeek" && type !== "timeGridDay") return;
-      // Let clearly-vertical scrolls fall through to the grid's own scroller.
-      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 1.2) return;
-      event.preventDefault();
-      // A direction reversal discards the leftover so it can't overshoot back.
-      if (buffer !== 0 && Math.sign(event.deltaX) !== Math.sign(buffer)) buffer = 0;
-      buffer += event.deltaX;
-      const now = Date.now();
-      if (Math.abs(buffer) >= STEP_PX && now - lastStepAt >= MIN_INTERVAL_MS) {
-        slide(buffer > 0 ? 1 : -1);
-        buffer = 0;
-        lastStepAt = now;
+  // Live scroll → header title / mini-month band / Today state (throttled), plus
+  // a settle hook that re-anchors the strip when it nears an edge (endless feel).
+  const onGridScroll = useCallback(() => {
+    if (scrollRafRef.current == null) {
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        syncVisible();
+      });
+    }
+    if (scrollSettleRef.current != null) window.clearTimeout(scrollSettleRef.current);
+    scrollSettleRef.current = window.setTimeout(() => {
+      const start = stripStartRef.current;
+      // Don't re-anchor until the first paint has positioned the strip on today,
+      // otherwise the initial scroll-at-the-edge triggers a re-anchor loop.
+      if (!start || !didInitialScrollRef.current) return;
+      const firstKey = firstVisibleDay();
+      const idx = daySpan(start, firstKey);
+      const lastStart = STRIP_DAYS - targetDaysRef.current;
+      if (idx < REANCHOR_MARGIN || idx > lastStart - REANCHOR_MARGIN) {
+        keepDayRef.current = firstKey;
+        setStripStart(addDays(firstKey, -Math.floor((STRIP_DAYS - targetDaysRef.current) / 2)));
+        return;
       }
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [slide]);
+      // Settle-snap: once the scroll stops, gently align the nearest day to the
+      // left edge so a day is never left half cut off (the deadzone in
+      // scrollDayToLeft stops this from looping when it's already aligned).
+      scrollDayToLeft(firstKey, "smooth");
+    }, 140);
+  }, [firstVisibleDay, scrollDayToLeft, syncVisible]);
 
-  // Keyboard shortcuts: t today, d/w/m views, arrows navigate.
+  // Re-align the strip so `day` ends up exactly at the left edge, resilient to
+  // FullCalendar finishing its layout a beat after the scroll (it nudges the
+  // columns when the all-day row / events settle, which would otherwise leave a
+  // day half cut off). We align across a couple of frames and a short timeout.
+  const realignTo = useCallback(
+    (day: DateKey) => {
+      const run = () => {
+        if (!stripStartRef.current) return;
+        scrollDayToLeft(day, "auto");
+        lastFirstDayRef.current = null;
+        syncVisible();
+      };
+      // A couple of animation frames, then a few timed passes — the delta-based
+      // scroll converges as FullCalendar finishes laying the grid out (the
+      // all-day row / events settle a beat after the first paint).
+      requestAnimationFrame(() => {
+        run();
+        requestAnimationFrame(run);
+      });
+      window.setTimeout(run, 120);
+      window.setTimeout(run, 320);
+    },
+    [scrollDayToLeft, syncVisible]
+  );
+
+  // Recompute the day width on viewport resize, keeping the leftmost day put
+  // (only once the first paint has landed on today).
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const ro = new ResizeObserver(() => {
+      if (didInitialScrollRef.current) keepDayRef.current = firstVisibleDay();
+      recomputeDayWidth();
+    });
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [firstVisibleDay, recomputeDayWidth]);
+
+  // Recompute the day width when the zoom (target days) changes.
+  useEffect(() => {
+    recomputeDayWidth();
+  }, [targetDays, recomputeDayWidth]);
+
+  // After any width change (zoom / resize / first paint), re-align the scroll so
+  // the intended day sits at the left edge. First paint always lands on today.
+  useEffect(() => {
+    if (!dayWidth || !stripStartRef.current) return;
+    let day = keepDayRef.current;
+    keepDayRef.current = null;
+    if (!didInitialScrollRef.current) {
+      didInitialScrollRef.current = true;
+      day = todayKey();
+    }
+    if (day) realignTo(day);
+  }, [dayWidth, realignTo]);
+
+  // When the strip re-anchors (or we re-enter it from Month), move FullCalendar's
+  // rendered window and re-align the scroll so the view doesn't visibly jump.
+  useEffect(() => {
+    if (!stripStart) return;
+    // The initial mount already renders + positions the strip (see the day-width
+    // effect, which lands on today); skip this effect's first run so it doesn't
+    // fight that by re-aligning to the scroll-0 day.
+    if (stripFirstRunRef.current) {
+      stripFirstRunRef.current = false;
+      return;
+    }
+    const api = calendarRef.current?.getApi();
+    if (!api || api.view.type !== "timeGridStrip") return;
+    const day = keepDayRef.current ?? firstVisibleDay();
+    keepDayRef.current = null;
+    // Defer the gotoDate out of React's commit phase: FullCalendar re-renders the
+    // strip (height:auto → internal flushSync) and doing that mid-commit triggers
+    // React's "flushSync inside a lifecycle" churn. A macrotask detaches it; the
+    // realign then keeps the same day in view so there's no visible jump.
+    const id = window.setTimeout(() => {
+      api.gotoDate(fromDateKey(stripStart));
+      realignTo(day);
+    }, 0);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stripStart]);
+
+  // Feed the live time into the Notion-style now-indicator pill: a --now-time CSS
+  // var on the grid that .fc-timegrid-now-indicator-line::after renders. Set on
+  // mount and every minute so the pill stays current (the indicator only paints
+  // when now is within the visible window, so an off-hours pill never shows).
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const update = () => {
+      const now = new Date();
+      let h = now.getHours();
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      const label = h + ":" + String(now.getMinutes()).padStart(2, "0") + " " + ampm;
+      grid.style.setProperty("--now-time", JSON.stringify(label));
+    };
+    update();
+    const id = window.setInterval(update, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // FC only draws its now-line in today's column; mirror it with a full-width
+  // overlay (.cal-nowline) inside .fc-timegrid-cols so the current-time line is
+  // persistent across every day in Week view too. Inside the cols it's exactly the
+  // content width (never widens the horizontal scroll) and scrolls with the grid;
+  // we just keep its y synced to FC's own line on layout changes / scroll / a slow
+  // tick for minute drift. Re-runs per view (Month has no timegrid → it self-clears).
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    let frame = 0;
+    const sync = () => {
+      const fcLine = grid.querySelector<HTMLElement>(".fc-timegrid-now-indicator-line");
+      const cols = grid.querySelector<HTMLElement>(".fc-timegrid-cols");
+      let overlay = grid.querySelector<HTMLElement>(".cal-nowline");
+      if (!fcLine || !cols) {
+        overlay?.remove();
+        return;
+      }
+      if (!overlay || overlay.parentElement !== cols) {
+        overlay?.remove();
+        overlay = document.createElement("div");
+        overlay.className = "cal-nowline";
+        overlay.setAttribute("aria-hidden", "true");
+        cols.appendChild(overlay);
+      }
+      const colsRect = cols.getBoundingClientRect();
+      // Centre the thin overlay on the thick line's MIDPOINT (not its top edge), so
+      // the cross-day line connects through the centre of today's bold segment.
+      const fcRect = fcLine.getBoundingClientRect();
+      const overlayH = overlay.getBoundingClientRect().height || 1;
+      overlay.style.top = fcRect.top + fcRect.height / 2 - overlayH / 2 - colsRect.top + "px";
+      // Anchor the line's distance fade (see .cal-nowline) on today's column:
+      // brightest at its centre, easing out over ~5 columns each side to a faint
+      // floor. Both depend on the live column widths (the strip re-zooms per
+      // view), so we measure here and feed the gradient via CSS vars.
+      const todayCol = grid.querySelector<HTMLElement>(".fc-timegrid-col.fc-day-today");
+      if (todayCol) {
+        const todayRect = todayCol.getBoundingClientRect();
+        const centerPx = todayRect.left + todayRect.width / 2 - colsRect.left;
+        grid.style.setProperty("--now-c", centerPx.toFixed(1) + "px");
+        grid.style.setProperty("--now-spread", (todayRect.width * 5).toFixed(1) + "px");
+      }
+      // Notion-style: when the now-time pill (FC's gutter arrow) overlaps an hour
+      // label, hide that label entirely — the pill already shows the time, so a
+      // half-covered "12 PM" peeking out reads as a glitch. Measure overlap live
+      // (handles any zoom) and toggle visibility (keeps the cell's box so the
+      // gutter width doesn't jump); no pill (today off-screen) → all labels show.
+      const pill = grid.querySelector<HTMLElement>(".fc-timegrid-now-indicator-arrow");
+      const pillRect = pill?.getBoundingClientRect();
+      grid.querySelectorAll<HTMLElement>(".fc-timegrid-slot-label-cushion").forEach((label) => {
+        const lr = label.getBoundingClientRect();
+        const overlaps = !!pillRect && lr.bottom > pillRect.top - 1 && lr.top < pillRect.bottom + 1;
+        label.style.visibility = overlaps ? "hidden" : "";
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(sync);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(grid);
+    grid.addEventListener("scroll", schedule, true);
+    const id = window.setInterval(schedule, 30_000);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+      grid.removeEventListener("scroll", schedule, true);
+      window.clearInterval(id);
+      grid.querySelector(".cal-nowline")?.remove();
+      // un-hide any hour label the now-pill had covered (see sync)
+      grid
+        .querySelectorAll<HTMLElement>(".fc-timegrid-slot-label-cushion")
+        .forEach((label) => (label.style.visibility = ""));
+    };
+  }, [activeView]);
+
+  // Keyboard shortcuts, matching Notion Calendar: t today; d/1 Day, w/0 Week,
+  // m Month, 2–9 an N-day window; j/→ next, k/← previous (slide-and-snap).
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
-      if (sheet || popover) return;
+      if (sheet || popover || settingsOpen || hoursOpen) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -968,19 +1301,33 @@ export function CalendarShell({
           goToday();
           break;
         case "d":
+        case "1":
           changeView("timeGridDay");
           break;
         case "w":
+        case "0":
           changeView("timeGridWeek");
           break;
         case "m":
           changeView("dayGridMonth");
           break;
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+        case "6":
+        case "7":
+        case "8":
+        case "9":
+          changeView({ type: "ndays", n: Number(event.key) });
+          break;
         case "ArrowLeft":
-          pageView(-1);
+        case "k":
+          nudge(-1);
           break;
         case "ArrowRight":
-          pageView(1);
+        case "j":
+          nudge(1);
           break;
         default:
           return;
@@ -989,9 +1336,110 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, pageView, sheet, popover]);
+  }, [changeView, goToday, nudge, sheet, popover, settingsOpen, hoursOpen]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
+
+  const isMonthView = activeView === "dayGridMonth";
+
+  // Memoize the FullCalendar element so the heavy grid only re-renders when a
+  // prop that genuinely affects it changes (events, grid hours, weekends, Month
+  // vs strip). Crucially it does NOT re-render on the scroll-driven title /
+  // visible-window state, nor on a Day↔Week↔N zoom (that's pure CSS day width) —
+  // which is what keeps the continuous scroll smooth and avoids FullCalendar's
+  // height:auto flushSync churn on every frame.
+  const calendarEl = useMemo(
+    () =>
+      resolvedView ? (
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView={fcType(resolvedView)}
+          initialDate={
+            fcType(resolvedView) === "timeGridStrip" && stripStartRef.current
+              ? fromDateKey(stripStartRef.current)
+              : undefined
+          }
+          views={CALENDAR_VIEWS}
+          // Weekends always show: the strip is a continuous run of days, and
+          // Month reads better whole than with Sat/Sun clipped out.
+          weekends={true}
+          headerToolbar={false}
+          // Only Month's columns honour the week-start pref; the strip is
+          // day-aligned (firstDay inert) and is kept on a fixed value so a
+          // weekStart change never disturbs its scroll position.
+          firstDay={isMonthView ? weekStart : STRIP_FIRST_DAY}
+          // Strip renders at natural height inside the single native 2-axis
+          // scroller (.calshell__grid--strip); Month fills its own box.
+          height={isMonthView ? "100%" : "auto"}
+          nowIndicator
+          editable={canEdit}
+          selectable={canEdit}
+          selectMinDistance={8}
+          unselectAuto={false}
+          droppable={canEdit}
+          dayMaxEvents={3}
+          slotEventOverlap={false}
+          eventMaxStack={4}
+          eventShortHeight={46}
+          eventMinHeight={22}
+          snapDuration="00:15:00"
+          slotDuration="00:15:00"
+          slotLabelInterval="01:00:00"
+          slotMinTime={minutesToTimeString(gridStart)}
+          slotMaxTime={minutesToTimeString(gridEnd)}
+          eventTimeFormat={{ hour: "numeric", minute: "2-digit", omitZeroMinute: true, meridiem: "narrow" }}
+          scrollTime={scrollTime}
+          scrollTimeReset={false}
+          longPressDelay={400}
+          eventLongPressDelay={400}
+          selectLongPressDelay={500}
+          allDayText="all day"
+          datesSet={onDatesSet}
+          select={onSelect}
+          dateClick={onDateClick}
+          eventClick={onEventClick}
+          eventDragStart={startMoveAffordance}
+          eventDragStop={stopDragAffordance}
+          eventResizeStart={startResizeAffordance}
+          eventResizeStop={stopDragAffordance}
+          eventDrop={onEventDrop}
+          eventResize={onEventResize}
+          eventReceive={onEventReceive}
+          eventDidMount={onEventDidMount}
+          eventContent={renderEventContent}
+          dayHeaderContent={renderDayHeader}
+          events={fcEvents}
+        />
+      ) : null,
+    // stripStart is intentionally omitted: initialDate only applies at mount, and
+    // re-anchors move the view via the imperative gotoDate in the stripStart
+    // effect — a stripStart dep would force a redundant FullCalendar re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      resolvedView,
+      isMonthView,
+      weekStart,
+      canEdit,
+      gridStart,
+      gridEnd,
+      scrollTime,
+      fcEvents,
+      onDatesSet,
+      onSelect,
+      onDateClick,
+      onEventClick,
+      startMoveAffordance,
+      stopDragAffordance,
+      startResizeAffordance,
+      onEventResize,
+      onEventDrop,
+      onEventReceive,
+      onEventDidMount,
+      renderEventContent,
+      renderDayHeader,
+    ]
+  );
 
   return (
     <div className="calshell">
@@ -1001,84 +1449,21 @@ export function CalendarShell({
         todayInView={todayInView}
         onView={changeView}
         onToday={goToday}
-        onPrev={() => pageView(-1)}
-        onNext={() => pageView(1)}
-        actions={
-          <>
-            <button
-              type="button"
-              className="btn btn--quiet calhead__hours"
-              onClick={() => setHoursOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={hoursOpen}
-              aria-label="Camp hours"
-              title="Set the camp hours the calendar shows"
-            >
-              <CampIcon.Clock />
-              <span className="calhead__hours-label">Hours</span>
-            </button>
-            {headerActions}
-          </>
-        }
+        onOpenSettings={() => setSettingsOpen(true)}
+        onAdd={openAddSheet}
       />
       <div className="calshell__body">
         <div
           ref={gridRef}
-          className={"calshell__grid" + (swipeDir ? " is-swipe-" + swipeDir : "")}
-          onTouchStart={onGridTouchStart}
-          onTouchEnd={onGridTouchEnd}
+          className={
+            "calshell__grid" +
+            (isMonthView ? "" : " calshell__grid--strip") +
+            (shadeWeekends ? " is-shade-weekends" : "")
+          }
+          onScroll={isMonthView ? undefined : onGridScroll}
           onContextMenu={onGridContextMenu}
         >
-          {resolvedView && (
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView={resolvedView}
-            initialDate={resolvedView === "timeGridWeek" ? startOfWeek(new Date(), FIRST_DAY) : undefined}
-            views={CALENDAR_VIEWS}
-            headerToolbar={false}
-            firstDay={FIRST_DAY}
-            height="100%"
-            nowIndicator
-            editable={canEdit}
-            selectable={canEdit}
-            selectMinDistance={8}
-            unselectAuto={false}
-            droppable={canEdit}
-            dayMaxEvents={3}
-            slotEventOverlap={false}
-            eventMaxStack={4}
-            eventShortHeight={46}
-            eventMinHeight={22}
-            snapDuration="00:15:00"
-            slotDuration="00:15:00"
-            slotLabelInterval="01:00:00"
-            slotMinTime={minutesToTimeString(gridStart)}
-            slotMaxTime={minutesToTimeString(gridEnd)}
-            eventTimeFormat={{ hour: "numeric", minute: "2-digit", omitZeroMinute: true, meridiem: "narrow" }}
-            scrollTime={scrollTime}
-            scrollTimeReset={false}
-            longPressDelay={400}
-            eventLongPressDelay={400}
-            selectLongPressDelay={500}
-            allDayText="all day"
-            datesSet={onDatesSet}
-            select={onSelect}
-            dateClick={onDateClick}
-            eventClick={onEventClick}
-            eventDragStart={startMoveAffordance}
-            eventDragStop={stopDragAffordance}
-            eventResizeStart={startResizeAffordance}
-            eventResizeStop={stopDragAffordance}
-            eventDrop={onEventDrop}
-            eventResize={onEventResize}
-            eventReceive={onEventReceive}
-            eventDidMount={onEventDidMount}
-            eventContent={renderEventContent}
-            dayHeaderContent={renderDayHeader}
-            events={fcEvents}
-          />
-          )}
+          {calendarEl}
           {/* The free-following "card in hand" during a drag: a full-opacity
               clone of the event that tracks the raw cursor (the snapped dotted
               box is FullCalendar's own mirror). Positioned in JS by
@@ -1086,29 +1471,46 @@ export function CalendarShell({
           <div ref={followRef} className="cal-dragfollow fc-event" aria-hidden="true" />
         </div>
         {/* The sidebar (a slot CampApp owns) carries the calendar's left rail:
-            the mini-month overview on top, the activity library below it. Both
-            stay children of CalendarShell so the calendar API, view range, and
-            place/pick/drag wiring are all in reach. Null slot (mobile) → the FAB
-            + sheet below take over. */}
+            the mini-month overview on top, the collapsible View settings below.
+            Both stay children of CalendarShell so the calendar API and view range
+            are in reach. Null slot (mobile) → the header Add / FAB take over;
+            events are composed through QuickAdd (its Library tab picks an
+            activity), so the rail no longer needs a drag source. */}
         {railSlot &&
           createPortal(
             <>
               <MiniMonth
-                anchorDate={visibleRange ? fromDateKey(visibleRange.start) : new Date()}
+                anchorDate={miniAnchor}
                 viewStart={visibleRange?.start ?? null}
                 viewEnd={visibleRange?.end ?? null}
                 today={todayKey()}
+                todayInView={todayInView}
                 eventDays={eventDays}
-                firstDay={MINI_FIRST_DAY}
+                firstDay={weekStart}
                 onPick={gotoMiniDate}
+                onToday={goToday}
               />
-              <LibraryPanel
-                activities={activities}
-                onPlace={placeActivity}
-                onPick={pickActivity}
-                themes={themes}
-                themeAssignments={themeAssignments}
-              />
+              {/* The view settings sit under the mini-month as a persistently
+                  visible switch ledger (the Library filter vocabulary) — no
+                  disclosure, matching the Library's always-open filter rail.
+                  Fixed height; nothing here scrolls. */}
+              <div className="sidesection sidesection--fixed cal-view">
+                <div className="sidesection__head">
+                  <span className="sidesection__title">View</span>
+                </div>
+                <div className="sidesection__body cal-view__body">
+                  <CalendarViewSettings
+                    view={activeView}
+                    shadeWeekendsOn={shadeWeekends}
+                    onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
+                    weekStart={weekStart}
+                    onWeekStart={setWeekStart}
+                    onChangeView={changeView}
+                    onOpenHours={() => setHoursOpen(true)}
+                    onOpenCamps={onOpenCamps}
+                  />
+                </div>
+              </div>
             </>,
             railSlot
           )}
@@ -1147,6 +1549,39 @@ export function CalendarShell({
 
       {hoursOpen && (
         <HoursPanel hours={campHours} onChange={setCampHours} onClose={() => setHoursOpen(false)} />
+      )}
+
+      {/* Mobile's home for the view settings (desktop puts them in the sidebar).
+          One CalendarViewSettings, shared state — opening Camp hours / Manage
+          camps dismisses this sheet first so the next modal isn't stacked behind. */}
+      {settingsOpen && (
+        <Modal
+          label="View settings"
+          onClose={() => setSettingsOpen(false)}
+          overlayProps={{ className: "overlay--card" }}
+        >
+          <div className="overlay__bar">
+            <h2 className="filtersheet__title">View</h2>
+          </div>
+          <div className="overlay__body filtersheet">
+            <CalendarViewSettings
+              view={activeView}
+              shadeWeekendsOn={shadeWeekends}
+              onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
+              weekStart={weekStart}
+              onWeekStart={setWeekStart}
+              onChangeView={changeView}
+              onOpenHours={() => {
+                setSettingsOpen(false);
+                setHoursOpen(true);
+              }}
+              onOpenCamps={() => {
+                setSettingsOpen(false);
+                onOpenCamps();
+              }}
+            />
+          </div>
+        </Modal>
       )}
 
       {popover && (

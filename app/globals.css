@@ -903,184 +903,6 @@ body {
   color: var(--ink-soft);
 }
 
-/* Camp control — the one piece of camp chrome, in the calendar header. Sized to
-   the Today / view-segment controls (--control-md height, --r-md radius) so it
-   reads as a peer, not a bolt-on. Opens the Camps manager (a modal). */
-.campswitch {
-  display: inline-flex;
-}
-.campswitch__trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  max-width: 240px;
-  height: var(--control-md);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  padding: 0 var(--s-4);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.campswitch__trigger:hover,
-.campswitch__trigger.is-open {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-}
-.campswitch__trigger.is-empty {
-  color: var(--ink-soft);
-}
-.campswitch__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.campswitch__trigger > svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  color: var(--ink-faint);
-}
-/* The trailing chevron flips while the switcher is open, like the custom
-   <select>, so the pill reads as a live dropdown rather than a static label. */
-.campswitch__trigger > svg:last-child {
-  transition: transform var(--t-fast) var(--ease);
-}
-.campswitch__trigger.is-open > svg:last-child {
-  transform: rotate(180deg);
-}
-@media (max-width: 640px) {
-  .campswitch__name {
-    max-width: 110px;
-  }
-}
-
-/* ---- Camp switcher dropdown (CampSwitcher.tsx) ----------------------------
-   A quick workspace-style switcher in the same card/border/shadow family as the
-   context menu. One click on a row switches the camp you're viewing; an inline
-   field adds one; "Manage camps…" hands off to the full editor. Portaled by
-   FloatingLayer, so it bottom-docks on phones like the other floating menus. */
-.campmenu {
-  position: fixed;
-  min-width: 232px;
-  max-width: 300px;
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--e3);
-  padding: var(--s-2);
-  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
-}
-.campmenu__eyebrow {
-  margin: 0;
-  padding: var(--s-2) var(--s-3) var(--s-1);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.campmenu__list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px; /* token-exempt: hairline between rows, matches .cmenu__list */
-  max-height: 48vh;
-  overflow-y: auto;
-  outline: none;
-}
-.campmenu__camp {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  border: 0;
-  background: transparent;
-  border-radius: var(--r-sm);
-  padding: var(--s-3);
-  cursor: pointer;
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  text-align: left;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.campmenu__camp:hover,
-.campmenu__camp:focus-visible {
-  background: var(--chrome-well);
-  outline: none;
-}
-.campmenu__camp.is-on {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-}
-.campmenu__camp > svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  color: var(--ink-faint);
-}
-.campmenu__camp.is-on > svg {
-  color: var(--accent-ink);
-}
-.campmenu__name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.campmenu__sep {
-  height: 0;
-  margin: var(--s-2);
-  border-top: 1.5px solid var(--line-soft);
-}
-.campmenu__new {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: 0 var(--s-1);
-}
-.campmenu__newinput {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.campmenu__newbtn {
-  flex: none;
-}
-.campmenu__manage {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  border: 0;
-  background: transparent;
-  border-radius: var(--r-sm);
-  padding: var(--s-3);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  text-align: left;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.campmenu__manage:hover,
-.campmenu__manage:focus-visible {
-  background: var(--chrome-well);
-  color: var(--ink);
-  outline: none;
-}
-.campmenu__manage > svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  color: var(--ink-faint);
-}
-
 /* ---- List manager modal (Camps, Themes) — a clear create/manage screen ---- */
 .overlay--manager {
   width: min(440px, 92vw);
@@ -5051,6 +4873,17 @@ body {
   .sidesection__body::-webkit-scrollbar {
     display: none;
   }
+  /* A fixed-height sidebar section: it sizes to its content and never becomes the
+     scroll zone. The calendar rail stacks two (View + Activities); the View
+     ledger is --fixed so ONLY the Activities list scrolls (like the mini-month
+     above it). */
+  .sidesection--fixed {
+    flex: none;
+  }
+  .sidesection--fixed > .sidesection__body {
+    flex: none;
+    overflow: visible;
+  }
 
   /* ---- filter rail body (Library tab) ----
      Selected chips show state in place (no separate active-chips row up top);
@@ -5854,7 +5687,6 @@ body {
   .tabbar,
   .toolbar,
   .filtertrigger,
-  .calhead__actions,
   .modal-root {
     display: none !important;
   }
@@ -8248,8 +8080,7 @@ button.rl-node {
 @media (max-width: 767px) {
   .cmenu,
   .cselect__menu,
-  .cdate__pop,
-  .campmenu {
+  .cdate__pop {
     left: 0 !important;
     right: 0;
     top: auto !important;
@@ -8266,9 +8097,6 @@ button.rl-node {
   }
   .cselect__list {
     max-height: calc(60vh - var(--s-6));
-  }
-  .campmenu__list {
-    max-height: 52vh;
   }
   /* On phones the scrim dims like every other sheet, and is tappable to close. */
   .floating__scrim {

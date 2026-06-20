@@ -130,6 +130,7 @@ export const CampIcon = {
   Bookmark: svg(<path d="M6 4.5h12v15l-6-4-6 4z" />, "bookmark"),
   // Plus; on hover it spins a quarter-turn and grows — "add".
   Plus: svg(<path d="M12 5v14M5 12h14" />, "plus"),
+  Minus: svg(<path d="M5 12h14" />, "minus"),
   Filter: svg(<path d="M4 6h16l-6 7v5l-4 2v-7L4 6z" />, "filter"),
   More: svg(
     <>
