@@ -6218,6 +6218,310 @@
       "property": "font-size",
       "value": "17px",
       "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtertrigger|gap|8px|screen",
+      "kind": "declaration",
+      "selector": ".filtertrigger",
+      "property": "gap",
+      "value": "8px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtertrigger__btn|gap|6px|screen",
+      "kind": "declaration",
+      "selector": ".filtertrigger__btn",
+      "property": "gap",
+      "value": "6px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtertrigger__btn|font-size|11px|screen",
+      "kind": "declaration",
+      "selector": ".filtertrigger__btn",
+      "property": "font-size",
+      "value": "11px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtertrigger__count|padding|0 5px|screen",
+      "kind": "declaration",
+      "selector": ".filtertrigger__count",
+      "property": "padding",
+      "value": "0 5px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtertrigger__count|font-size|10px|screen",
+      "kind": "declaration",
+      "selector": ".filtertrigger__count",
+      "property": "font-size",
+      "value": "10px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.activefilters|gap|6px|screen",
+      "kind": "declaration",
+      "selector": ".activefilters",
+      "property": "gap",
+      "value": "6px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtergroup|gap|8px|screen",
+      "kind": "declaration",
+      "selector": ".filtergroup",
+      "property": "gap",
+      "value": "8px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtergroup__label|font-size|9.5px|screen",
+      "kind": "declaration",
+      "selector": ".filtergroup__label",
+      "property": "font-size",
+      "value": "9.5px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtergroup__chips|gap|6px|screen",
+      "kind": "declaration",
+      "selector": ".filtergroup__chips",
+      "property": "gap",
+      "value": "6px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.overlay--manager .overlay__bar|padding|16px var(--s-7) 8px|screen",
+      "kind": "declaration",
+      "selector": ".overlay--manager .overlay__bar",
+      "property": "padding",
+      "value": "16px var(--s-7) 8px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.seg-slide::before|border-radius|var(--seg-radius)|screen",
+      "kind": "declaration",
+      "selector": ".seg-slide::before",
+      "property": "border-radius",
+      "value": "var(--seg-radius)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.miniseg|gap|1px|screen",
+      "kind": "declaration",
+      "selector": ".miniseg",
+      "property": "gap",
+      "value": "1px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.miniseg button|font-size|9.5px|screen",
+      "kind": "declaration",
+      "selector": ".miniseg button",
+      "property": "font-size",
+      "value": "9.5px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.miniseg button|padding|3px var(--s-4)|screen",
+      "kind": "declaration",
+      "selector": ".miniseg button",
+      "property": "padding",
+      "value": "3px var(--s-4)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.filtersheet|padding|4px var(--page-x) 14px|screen",
+      "kind": "declaration",
+      "selector": ".filtersheet",
+      "property": "padding",
+      "value": "4px var(--page-x) 14px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.sidesection__action|font-size|10px|screen",
+      "kind": "declaration",
+      "selector": ".sidesection__action",
+      "property": "font-size",
+      "value": "10px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.sidesection__action|padding|2px 0|screen",
+      "kind": "declaration",
+      "selector": ".sidesection__action",
+      "property": "padding",
+      "value": "2px 0",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cat-row|padding|13px 0 13px var(--s-5)|screen",
+      "kind": "declaration",
+      "selector": ".cat-row",
+      "property": "padding",
+      "value": "13px 0 13px var(--s-5)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.auth-route__kicker, .auth-form__section, .auth-form__subsection, .auth-form__divider, .auth-route__status|font-size|11px|screen",
+      "kind": "declaration",
+      "selector": ".auth-route__kicker, .auth-form__section, .auth-form__subsection, .auth-form__divider, .auth-route__status",
+      "property": "font-size",
+      "value": "11px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.auth-form__account-email|font-size|13px|screen",
+      "kind": "declaration",
+      "selector": ".auth-form__account-email",
+      "property": "font-size",
+      "value": "13px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.admin-tab__head|gap|12px|screen",
+      "kind": "declaration",
+      "selector": ".admin-tab__head",
+      "property": "gap",
+      "value": "12px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.admin-tab__title|font-size|28px|screen",
+      "kind": "declaration",
+      "selector": ".admin-tab__title",
+      "property": "font-size",
+      "value": "28px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.staff-tab__title|font-size|28px|screen",
+      "kind": "declaration",
+      "selector": ".staff-tab__title",
+      "property": "font-size",
+      "value": "28px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.staff-tab__body|gap|14px|screen",
+      "kind": "declaration",
+      "selector": ".staff-tab__body",
+      "property": "gap",
+      "value": "14px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|@media|media|(hover: hover)|screen",
+      "kind": "media",
+      "selector": "@media",
+      "property": "media",
+      "value": "(hover: hover)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.seg button|padding|4px|screen",
+      "kind": "declaration",
+      "selector": ".seg button",
+      "property": "padding",
+      "value": "4px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.form__section|font-size|23px|screen",
+      "kind": "declaration",
+      "selector": ".form__section",
+      "property": "font-size",
+      "value": "23px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.form__grid|gap|12px 20px|screen",
+      "kind": "declaration",
+      "selector": ".form__grid",
+      "property": "gap",
+      "value": "12px 20px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.sidesection__title|font-size|11px|screen",
+      "kind": "declaration",
+      "selector": ".sidesection__title",
+      "property": "font-size",
+      "value": "11px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.sidefilters|gap|16px|screen",
+      "kind": "declaration",
+      "selector": ".sidefilters",
+      "property": "gap",
+      "value": "16px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.chip|padding-top|9px|screen",
+      "kind": "declaration",
+      "selector": ".chip",
+      "property": "padding-top",
+      "value": "9px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.chip|padding-bottom|9px|screen",
+      "kind": "declaration",
+      "selector": ".chip",
+      "property": "padding-bottom",
+      "value": "9px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.rl.is-readonly .rl-row|padding-right|14px|screen",
+      "kind": "declaration",
+      "selector": ".rl.is-readonly .rl-row",
+      "property": "padding-right",
+      "value": "14px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.rl-block--step.has-children:not(.is-collapsed) > .rl-block__main > .rl-row|box-shadow|inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent)|screen",
+      "kind": "declaration",
+      "selector": ".rl-block--step.has-children:not(.is-collapsed) > .rl-block__main > .rl-row",
+      "property": "box-shadow",
+      "value": "inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cmenu__list|gap|1px|screen",
+      "kind": "declaration",
+      "selector": ".cmenu__list",
+      "property": "gap",
+      "value": "1px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cselect__list|gap|1px|screen",
+      "kind": "declaration",
+      "selector": ".cselect__list",
+      "property": "gap",
+      "value": "1px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cdate__weekdays, .cdate__grid|gap|2px|screen",
+      "kind": "declaration",
+      "selector": ".cdate__weekdays, .cdate__grid",
+      "property": "gap",
+      "value": "2px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cmenu, .cselect__menu, .cdate__pop|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
+      "kind": "declaration",
+      "selector": ".cmenu, .cselect__menu, .cdate__pop",
+      "property": "border-radius",
+      "value": "var(--r-xl) var(--r-xl) 0 0",
+      "context": "screen"
     }
   ]
 }
