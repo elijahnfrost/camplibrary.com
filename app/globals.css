@@ -2352,6 +2352,19 @@ body {
   color: var(--ink-soft);
   box-shadow: none;
 }
+/* The Print header's two actions (ghost Print + primary Export PDF) disable
+   together when the range is empty — keep their "unavailable" look identical.
+   The ghost gets the SAME muted, full-opacity fill as the primary's disabled
+   state above, instead of falling through to the washed-out 0.4 ghost fade, so
+   the pair greys out consistently. */
+.printhead__btn:disabled,
+.printhead__btn:disabled:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
+  border-color: var(--line);
+  color: var(--ink-soft);
+  box-shadow: none;
+}
 
 /* ---------- auth controls ---------- */
 .auth-required {
@@ -8407,164 +8420,323 @@ button.rl-node {
  * ============================================================ */
 
 /* ---- Tab shell: console beside a scrolling preview ---- */
+/* The Print tab is a header (.printhead) over the paged preview; the schedule
+   controls live in the PRIMARY sidebar (.prail), not a second console. */
 .print-tab {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-.print-tab__console {
+
+/* ---- Header bar: mirrors the calendar header (.calhead) — the title block on
+   the left, the actions (Export PDF / Print) pushed to the right edge. ---- */
+.printhead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding: var(--s-5) var(--page-x);
+}
+.printhead__heading {
   display: flex;
   flex-direction: column;
-  flex: none;
-  width: 340px;
-  overflow-y: auto;
-  background: var(--chrome);
-  border-right: 1.5px solid var(--line);
+  gap: var(--s-1);
+  min-width: 0;
 }
-/* Sticky so Export/Print stay reachable while the console scrolls. The console
-   is the scroll container, so the head pins to its top edge. */
-.print-tab__head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--s-4);
-  padding: var(--s-6);
-  border-bottom: 1.5px solid var(--line);
-  background: var(--chrome);
-}
-.print-tab__heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-4);
-}
-.print-tab__title {
+.printhead__title {
   margin: 0;
-  font-family: var(--script);
-  font-size: var(--fs-title);
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
   line-height: 1;
   color: var(--ink);
 }
-.print-tab__sub {
+.printhead__scope {
   margin: 0;
-  font-size: var(--fs-meta);
   font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.print-tab__actions {
+.printhead__actions {
   display: flex;
+  align-items: center;
   gap: var(--s-3);
+  margin-left: auto;
 }
-.print-tab__action {
-  flex: 1;
+.printhead__btn {
+  height: var(--control-md);
+  border-radius: var(--r-md);
 }
-/* The two headline actions lift slightly on hover so the buttons feel alive,
-   their icons (Export arrow / Print sheet) already animate via the cicon hooks. */
-.print-tab__action:hover:not(:disabled) {
+/* The two headline actions lift slightly on hover so the buttons feel alive;
+   their icons (Export arrow / Print sheet) animate via the cicon hooks. (The
+   buttons were renamed .print-tab__action -> .printhead__btn in the rail rework.) */
+.printhead__btn:hover:not(:disabled) {
   transform: translateY(-1.5px);
 }
 @media (prefers-reduced-motion: reduce) {
-  .print-tab__action:hover:not(:disabled) {
+  .printhead__btn:hover:not(:disabled) {
     transform: none;
   }
 }
+/* Mobile-only entry to the schedule controls (desktop puts them in the sidebar
+   rail). Hidden from the sidebar breakpoint up — the calendar's pattern. */
+.printhead__options {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-md);
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.printhead__options:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.printhead__options svg {
+  width: 18px;
+  height: 18px;
+}
+@media (min-width: 768px) {
+  .printhead__options {
+    display: none;
+  }
+}
+
+/* The preview canvas the letter pages sit on. Uses the app canvas (--paper), the
+   SAME surface the Calendar grid and Library sit on — so the Print header and its
+   body read as one unified background (like the calendar header → grid), not a
+   --paper top bar seamed against a darker --stage-bg desk. (--stage-bg is the
+   desktop stage BEHIND the app only; the cream pages still pop via their border +
+   lift, exactly as --card grid cards do on --paper.) */
 .print-tab__preview {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  background: var(--stage-bg);
+  background: var(--paper);
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---- Console controls ---- */
-.print-console {
+/* The desktop sidebar slot the controls portal into (the same primary sidebar
+   the Library filters / Calendar settings share — no second sidebar). It is the
+   rail's scroll container: the options can run past the viewport, and only this
+   zone scrolls (brand + nav stay pinned). The edge-bleed seats a scrollbar at
+   the rail edge, matching the Library/Calendar rails. Desktop-only — the sidebar
+   is display:none below 768px, where the controls open in the options sheet. */
+.sidenav__printrail {
+  flex: 1;
+  min-height: 0;
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  margin-inline: -18px;
+  padding-inline: 18px;
+}
+.sidenav__printrail::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- The sidebar print rail (.prail) ----
+   Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
+   is built from the SAME pieces as the calendar rail so all three rails read as
+   one: a headerless range widget on top (the mini-month's role), then
+   always-visible, TITLED setting groups (the "View" section's role), each a flat
+   switch ledger. No bespoke disclosures — every group reads as a Library /
+   Calendar sidebar section, and every control is one inline label-left row. */
+.prail {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Range — the headerless lead widget (parallels the mini-month leading the
+   calendar rail): quick-range pills, the inline range calendar, then a readout. */
+.prail__range {
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
-  padding: var(--s-6);
 }
-/* SidebarSection is tuned for the single-scroll filter rail (each body is
-   flex:1 + its own overflow). In this multi-section console the WHOLE console
-   scrolls instead, so sections size to their content and nothing clips. */
-.print-console .sidesection {
-  flex: none;
-  margin-top: 0;
-}
-.print-console .sidesection__body {
-  flex: none;
-  overflow: visible;
-  margin-inline: 0;
-  padding-inline: 0;
-}
-.pc-presets {
+/* Quick ranges — ONE full-width segmented control (the app's .seg-slide thumb):
+   the active range glides under a green pill; a custom (calendar-picked) range
+   hides the thumb (.is-custom). Replaces the old 2×2 button grid with one tidy,
+   connected row, the same family as the Layout / Color / Paper segments. The
+   actual `gap` must equal --seg-gap so the thumb geometry lands on each segment. */
+.prail__quickrange {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-bottom: var(--s-4);
-}
-.pc-preset {
-  padding: var(--s-2) var(--s-4);
+  width: 100%;
+  background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--r-pill);
-  background: var(--card);
-  color: var(--ink);
-  font-family: var(--text);
-  font-size: var(--fs-label);
+  padding: var(--s-1);
+  gap: var(--s-1);
+  --seg-pad: var(--s-1);
+  --seg-gap: var(--s-1);
+  --seg-radius: var(--r-pill);
+}
+.prail__quickrange > button {
+  /* flex:1 / min-width:0 / z-index come from .seg-slide > button */
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: var(--s-3) var(--s-1);
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease);
 }
-.pc-preset:hover {
-  background: var(--chrome-well);
+.prail__quickrange > button:hover {
+  color: var(--ink);
 }
-.pc-preset.is-on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+.prail__quickrange > button.is-on {
+  /* The green lives on the sliding thumb; the active label just recolours. */
+  color: var(--on-accent);
 }
-.pc-row {
+.prail__quickrange.is-custom::before {
+  opacity: 0;
+}
+/* The range calendar sits flush in the block (it otherwise carries the sidebar
+   mini-month's own 26px top margin). */
+.prail .cal-mini {
+  margin-top: 0;
+}
+/* The selected-range readout — a quiet confirmation line under the calendar. */
+.prail__readout {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: var(--s-4);
-  padding: var(--s-2) 0;
+  gap: var(--s-3);
 }
-.pc-row__text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.pc-row__label {
+.prail__readout-range {
+  font-family: var(--hand);
   font-size: var(--fs-ui);
   color: var(--ink);
 }
-.pc-row__hint {
-  font-size: var(--fs-micro);
+.prail__readout-count {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--ink-faint);
 }
-.pc-row__control {
-  flex: none;
+
+/* Setting groups — the shared section vocabulary (a small-caps title over a
+   switch ledger), always visible. A generous top margin (the .sidesection /
+   mini-month 26px rhythm) gives each group its breathing room and a clear break,
+   replacing the old fold-away disclosures. */
+.prail__group {
+  margin-top: 26px;
+}
+.prail__grouphead {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  min-height: 18px;
+  margin-bottom: var(--s-6);
 }
-/* The date pickers and camp select want the full row width, stacked under the label. */
-.pc-row:has(.cdate),
-.pc-row:has(.cselect) {
-  flex-direction: column;
-  align-items: stretch;
+.prail__grouptitle {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
-.pc-row:has(.cdate) .pc-row__control,
-.pc-row:has(.cselect) .pc-row__control {
+/* Drop the trailing dashed rule on each group's last ledger control. */
+.prail .ledger > :last-child {
+  border-bottom: 0;
+}
+/* Inline 2-way segmented rows (Layout, Color, Paper): a DEFINITE width so the
+   equal-flex halves are truly equal — an inline-flex .miniseg hugs content, so
+   the wider label outgrows the 50% sliding thumb and reads as clipped. A uniform
+   width also right-aligns the controls into one clean column. */
+.prail .ledger__row .miniseg {
+  width: 160px;
+}
+
+/* Cover title — an INLINE ledger row like every other setting: the label left, a
+   compact text input filling the right (the .input look, but rail-sized — short,
+   so it sits in the row instead of a stacked full-width field). flex:1 overrides
+   .input's width:100%; the inherited 16px font keeps iOS from zooming on focus. */
+.prail .ledger__row .prail__titleinput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-sm);
+  padding: 0 var(--s-4);
+}
+
+/* "More options" — the set-once / niche settings folded behind ONE ledger row,
+   the Library "Available kit" pattern: a <summary> that IS a ledger row (label
+   left, chevron right) expanding a sub-ledger. Keeps the resting rail short. */
+.prail__more {
+  width: 100%;
+}
+.prail__moresum {
+  cursor: pointer;
+  list-style: none;
+  /* It's the last row of the Format ledger; the Materials row above is the
+     divider, and an open panel reads as one unit with the summary. */
+  border-bottom: 0;
+}
+.prail__moresum::-webkit-details-marker {
+  display: none;
+}
+.prail__morestate {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-faint);
+  transition: color var(--t-fast) var(--ease);
+}
+.prail__moresum:hover .ledger__label,
+.prail__moresum:hover .prail__morestate {
+  color: var(--ink);
+}
+.prail__morestate svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--t-fast) var(--ease);
+}
+.prail__more[open] > .prail__moresum .prail__morestate svg {
+  transform: rotate(180deg);
+}
+/* The folded sub-ledger sits flush under the summary (the kit panel's rhythm). */
+.prail__morepanel {
   margin-top: var(--s-2);
-  display: block;
+  animation: prail-reveal var(--t-fast) var(--ease);
 }
-.pc-title {
-  margin-top: var(--s-2);
+@media (prefers-reduced-motion: reduce) {
+  .prail__morepanel {
+    animation: none;
+  }
+}
+@keyframes prail-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---- Paged preview (screen only): real letter pages on the well ----
@@ -8598,8 +8770,9 @@ button.rl-node {
 }
 .paged-preview .pagedjs_page {
   background: var(--card);
-  border: 1px solid var(--line);
-  box-shadow: var(--e4);
+  border: 1px solid var(--line-soft);
+  /* token-exempt: --e4 is a deep modal-scrim shadow whose dark wood halo bleeds against the warm canvas and reads as a black page edge (the "overlap" artifact); a soft lift that hugs the page instead. */
+  box-shadow: 0 1px 3px rgba(56, 44, 28, 0.07), 0 8px 22px -14px rgba(56, 44, 28, 0.22);
 }
 /* Each freshly-built page-set fades in — the "native swap" beat that also masks
    the non-animatable font swap (designed↔plain). Debounced, so it only plays
@@ -8607,10 +8780,13 @@ button.rl-node {
 .paged-preview__holder {
   animation: pd-restyle var(--t-med) var(--ease);
 }
-/* Continuous fallback (also the first-load placeholder): the same source shown
-   as one page until Paged.js takes over, or if it ever fails. Parked off-screen
-   once paginated. */
-.paged-preview[data-status="paged"] .paged-preview__source {
+/* Continuous fallback: the same source shown as one page only if Paged.js ever
+   fails (data-status="fallback"). On first load we park it off-screen behind the
+   loading veil — the unpaginated long page used to flash here before snapping to
+   pages — and once paginated it stays parked. Paged.js still reads it in the DOM
+   either way; this only hides it from view. */
+.paged-preview[data-status="paged"] .paged-preview__source,
+.paged-preview[data-status="loading"] .paged-preview__source {
   position: absolute;
   left: -99999px;
   top: 0;
@@ -8620,8 +8796,9 @@ button.rl-node {
   min-height: 11in;
   padding: 0.5in;
   background: var(--card);
-  border: 1px solid var(--line);
-  box-shadow: var(--e4);
+  border: 1px solid var(--line-soft);
+  /* token-exempt: matches the soft page lift on .pagedjs_page (see note there). */
+  box-shadow: 0 1px 3px rgba(56, 44, 28, 0.07), 0 8px 22px -14px rgba(56, 44, 28, 0.22);
   zoom: var(--pv-zoom, 1);
 }
 @keyframes pd-restyle {
@@ -9129,22 +9306,312 @@ button.rl-node {
 
 /* ---- Phones: stack console over preview ---- */
 @media (max-width: 767px) {
-  .print-tab {
-    flex-direction: column;
+  /* Tighter header padding; the actions wrap under the title if the phone is
+     narrow. The preview fills the rest of the screen (min-height floors it so
+     the flex column can never collapse it to nothing). */
+  .printhead {
+    padding: var(--s-4) var(--s-5);
   }
-  .print-tab__console {
-    width: auto;
-    flex: none;
-    border-right: 0;
-    border-bottom: 1.5px solid var(--line);
-  }
-  /* The pane needs a real height once stacked, or it collapses; zoom-to-fit
-     shrinks the 816px page into it. */
   .print-tab__preview {
-    flex: none;
-    height: 68vh;
+    min-height: 60vh;
   }
-  .print-tab__heading {
-    align-items: center;
+}
+
+/* ============================================================
+ * Loading veil — one calm, branded loading screen (no spinners; the app
+ * speaks in pops and fades). Three earthy bars rise in a gentle wave. Used by
+ * the tab transition (app__veil) and the print preview (paged-preview__veil).
+ * ============================================================ */
+.loadveil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-8) var(--s-6);
+  text-align: center;
+  color: var(--ink-soft);
+}
+.loadveil__mark {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  height: 34px;
+}
+.loadveil__bar {
+  width: 9px;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transform-origin: bottom center;
+  animation: loadveil-rise 1s var(--ease) infinite;
+}
+.loadveil__bar:nth-child(2) {
+  background: var(--wood-soft);
+  animation-delay: 0.14s;
+}
+.loadveil__bar:nth-child(3) {
+  background: var(--amber);
+  animation-delay: 0.28s;
+}
+.loadveil__title {
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink-soft);
+}
+.loadveil__sub {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+@keyframes loadveil-rise {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Tab-switch veil: a full-bleed paper cover over the main pane that fades out as
+   the new (often heavy) surface paints behind it, so the mount never flashes. */
+.loadveil.app__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  justify-content: center;
+  background: var(--paper);
+  pointer-events: none;
+  animation: app-veil-out var(--t-slow) var(--ease) forwards;
+}
+@keyframes app-veil-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Print-preview veil: covers the canvas while Paged.js lays the first pages out,
+   replacing the old unpaginated-then-snap flash with a clean loading screen. Uses
+   the app canvas (--paper) so it matches .print-tab__preview behind it. */
+.loadveil.paged-preview__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  justify-content: center;
+  background: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadveil__bar {
+    animation: none;
+  }
+  .loadveil.app__veil {
+    animation: none;
+  }
+}
+
+/* ============================================================
+ * Print tab: the mini range calendar's tap hint (the rest of the date picker —
+ * presets, readout — is styled with the .prail block above).
+ * ============================================================ */
+.cal-mini__hint {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  text-align: center;
+}
+.cal-mini__hint kbd {
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xs);
+  background: var(--chrome-well);
+  font-family: var(--text);
+  font-size: var(--fs-micro);
+}
+
+/* ============================================================
+ * Print tab: blocked-out "timeline" layout (a Google-Calendar day view).
+ * Authored in physical units (in / pt) like the rest of the print doc, so the
+ * preview is WYSIWYG. Geometry (top/height/left/width %) is set inline from
+ * lib/print/timeline; the grid's pixel height comes from the density row size.
+ * ============================================================ */
+.pd-timeline {
+  display: grid;
+  gap: 0.22in;
+  margin-top: 0.14in;
+}
+.pd-tlday .pd-day__head {
+  margin-bottom: 0.07in;
+}
+.pd-tl__allday {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-bottom: 0.06in;
+}
+.pd-tl__alldaytag {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-tl__alldaylist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.pd-tl__alldaychip {
+  padding: 0 0.06in;
+  border: 0.75pt solid var(--line);
+  border-left: 3pt solid var(--pd-tint, var(--line));
+  border-radius: calc(2pt);
+  font-size: calc(9pt);
+}
+.pd-tl__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.62in minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+.pd-tl__axis {
+  position: relative;
+  min-height: 0;
+}
+.pd-tl__hour {
+  position: absolute;
+  right: 0.08in;
+  transform: translateY(-50%);
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.pd-tl__lanes {
+  position: relative;
+  min-height: 0;
+  border-left: 0.75pt solid var(--line);
+}
+.pd-tl__rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 0.5pt solid var(--line-soft);
+}
+.pd-tl__block {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.03in 0.07in;
+  border: 0.75pt solid var(--line);
+  border-left: 3pt solid var(--pd-tint, var(--line));
+  /* A transparent right edge leaves a clean gutter between side-by-side lanes;
+     padding-box clipping lets the grid show through it. */
+  border-right: 0.05in solid transparent;
+  border-radius: calc(2pt);
+  background: var(--card);
+  background-clip: padding-box;
+}
+.pd-tl__time {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+.pd-tl__name {
+  display: block;
+  font-weight: 700;
+  font-size: calc(9.5pt);
+  line-height: 1.05;
+}
+.pd-tl__type {
+  display: inline-block;
+  margin-top: 0.02in;
+  font-family: var(--hand-sc);
+  font-size: calc(6.8pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* Short blocks shed their time/type lines so the title always survives — the
+   drop is decided from geometry in CalendarTimeline (not an @container query, so
+   it works inside the Paged.js-cloned preview). */
+.pd-tl__empty {
+  position: absolute;
+  top: 0.08in;
+  left: 0.1in;
+  margin: 0;
+  font-size: calc(9pt);
+  font-style: italic;
+  color: var(--ink-faint);
+}
+/* Color: tint the spine + (screen only) a whisper of wash, like the calendar. */
+.print-doc--color .pd-tl__block,
+.print-doc--color .pd-tl__alldaychip {
+  border-left-color: var(--pd-tint, var(--line));
+}
+.paged-preview .print-doc--color .pd-tl__block,
+.paged-preview .print-doc--color .pd-tl__alldaychip {
+  background: color-mix(in srgb, var(--pd-tint, transparent) 8%, var(--card));
+}
+/* Mono: hard black so toner stays clean even if a tint leaks in. */
+.print-doc--mono .pd-tl__block,
+.print-doc--mono .pd-tl__alldaychip {
+  border-color: #000;
+}
+.print-doc--mono .pd-tl__rule {
+  border-top-color: var(--line);
+}
+/* Plain: drop the small-caps decoration to a text-first grid. */
+.print-doc--plain .pd-tl__time,
+.print-doc--plain .pd-tl__type,
+.print-doc--plain .pd-tl__hour,
+.print-doc--plain .pd-tl__alldaytag {
+  font-family: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Overflow notice (preview only): a day's grid is taller than one page here. */
+.pd-warn {
+  margin: 0.16in 0;
+  padding: 0.1in 0.14in;
+  border: 1pt solid var(--clay);
+  border-left: 3pt solid var(--clay);
+  border-radius: calc(4pt);
+  background: color-mix(in srgb, var(--clay) 10%, var(--card));
+  font-size: calc(10pt);
+  color: var(--ink-soft);
+}
+.pd-warn strong {
+  color: var(--clay);
+}
+
+@media print {
+  .pd-tlday {
+    break-inside: avoid;
+  }
+  .print-doc--paged .pd-tlday {
+    break-before: page;
+  }
+  .print-doc--paged .pd-tlday:first-of-type {
+    break-before: auto;
+  }
+  /* Belt-and-braces: the overflow notice + loading veils are screen-only (a
+     React guard already keeps .pd-warn out of the printed artifact) — make sure
+     they can never reach paper even if that guard is bypassed. */
+  .pd-warn,
+  .loadveil {
+    display: none !important;
   }
 }

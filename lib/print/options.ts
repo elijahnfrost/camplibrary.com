@@ -25,10 +25,26 @@ export type PrintStyle = "styled" | "plain";
 //   tldr    — + a short run-sheet summary (steps, safety, materials)
 export type ScheduleDetail = "times" | "summary" | "tldr";
 
+// How the day is laid out.
+//   agenda   — a reading-order list of events (the classic schedule)
+//   timeline — a blocked-out day grid where each event's height tracks its
+//              duration, like a Google-Calendar day view
+export type PrintLayout = "agenda" | "timeline";
+
+// Vertical spacing of the timeline grid — trades pages for breathing room.
+//   compact — tight rows; fits the most onto one page
+//   cozy    — the balanced default
+//   roomy   — tall rows with air around each block (may spill to a second page)
+export type TimelineDensity = "compact" | "cozy" | "roomy";
+
 // The format half — persisted as a local preference.
 export interface PrintFormat {
   color: PrintColor;
   style: PrintStyle;
+  // List of events vs. a blocked-out time grid.
+  layout: PrintLayout;
+  // Spacing of the timeline grid (only meaningful when layout === "timeline").
+  timelineDensity: TimelineDensity;
   scheduleDetail: ScheduleDetail;
   // Append a full run sheet (the activity-book level of detail) for every
   // distinct activity scheduled in the range, after the schedule.
@@ -55,6 +71,8 @@ export interface PrintOptions extends PrintFormat {
 export const DEFAULT_PRINT_FORMAT: PrintFormat = {
   color: "color",
   style: "styled",
+  layout: "agenda",
+  timelineDensity: "cozy",
   scheduleDetail: "summary",
   appendRunSheets: false,
   includeAllDay: true,
@@ -66,6 +84,8 @@ export const DEFAULT_PRINT_FORMAT: PrintFormat = {
 
 const COLORS: PrintColor[] = ["color", "mono"];
 const STYLES: PrintStyle[] = ["styled", "plain"];
+const LAYOUTS: PrintLayout[] = ["agenda", "timeline"];
+const DENSITIES: TimelineDensity[] = ["compact", "cozy", "roomy"];
 const DETAILS: ScheduleDetail[] = ["times", "summary", "tldr"];
 
 function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T): T {
@@ -84,6 +104,8 @@ export const printFormatStorage: StorageValidator<PrintFormat> = (value, fallbac
   return {
     color: oneOf(v.color, COLORS, fallback.color),
     style: oneOf(v.style, STYLES, fallback.style),
+    layout: oneOf(v.layout, LAYOUTS, fallback.layout),
+    timelineDensity: oneOf(v.timelineDensity, DENSITIES, fallback.timelineDensity),
     scheduleDetail: oneOf(v.scheduleDetail, DETAILS, fallback.scheduleDetail),
     appendRunSheets: bool(v.appendRunSheets, fallback.appendRunSheets),
     includeAllDay: bool(v.includeAllDay, fallback.includeAllDay),

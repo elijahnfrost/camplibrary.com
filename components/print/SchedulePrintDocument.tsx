@@ -22,8 +22,10 @@ import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
 import { buildScheduleDays, selectEvents, type ScheduleDay } from "@/lib/print/schedule";
 import { hasSummaryContent, summarizeRunDoc, type RunSummary } from "@/lib/print/runSummary";
+import { buildTimelineDays, timelineFit, timelineWindow } from "@/lib/print/timeline";
 import type { PrintOptions } from "@/lib/print/options";
 import { PrintRunSheet } from "./PrintRunSheet";
+import { CalendarTimeline } from "./CalendarTimeline";
 
 export interface SchedulePrintData {
   events: Record<string, CalendarEvent>;
@@ -212,6 +214,29 @@ export function SchedulePrintDocument({
     };
   }, [byId, themeOf]);
 
+  // Timeline (blocked-out) layout: a shared hour window across the whole range
+  // (so every day's axis lines up), the positioned blocks, and the does-it-fit
+  // check that drives the "won't fit one page" notice.
+  const isTimeline = options.layout === "timeline";
+  const timelineWin = useMemo(() => timelineWindow(days.flatMap((day) => day.events)), [days]);
+  const timelineDays = useMemo(() => buildTimelineDays(days, timelineWin), [days, timelineWin]);
+  const timelineTint = useMemo(() => {
+    return (event: CalendarEvent) => {
+      const r = resolve(event);
+      // Prefer the live activity title (matches the agenda's fallback chain) so a
+      // renamed activity isn't shown under a stale denormalized title.
+      return {
+        tint: r.tint,
+        type: r.activity?.type ?? null,
+        title: r.activity?.title || event.title || "Untitled",
+      };
+    };
+  }, [resolve]);
+  const tlFit = useMemo(
+    () => timelineFit(timelineDays, timelineWin, options.timelineDensity),
+    [timelineDays, timelineWin, options.timelineDensity]
+  );
+
   // Distinct activities scheduled in range, in first-seen order — drives the
   // materials roll-up and the appended run sheets (one per activity, not per
   // booking, so an activity scheduled twice prints a single sheet).
@@ -261,6 +286,8 @@ export function SchedulePrintDocument({
     options.color +
     " print-doc--" +
     options.style +
+    " print-doc--" +
+    options.layout +
     (options.pageBreakPerDay ? " print-doc--paged" : "");
 
   const body = (
@@ -293,8 +320,26 @@ export function SchedulePrintDocument({
         </p>
       )}
 
+      {/* When a day's blocked-out grid is taller than a page at this spacing it
+          can't print on one sheet — say so and point at the fix (preview only,
+          so the notice never lands in the actual printout). */}
+      {isTimeline && !tlFit.fits && wrap === "preview" && (
+        <p className="pd-warn" role="status">
+          <strong>This won’t fit on one page.</strong> A day’s timeline is about{" "}
+          {tlFit.tallestIn.toFixed(1)}in tall at this spacing (a page holds ~{tlFit.budgetIn.toFixed(1)}in).
+          Switch Spacing to Compact, or narrow the date range, to fit each day on its own page.
+        </p>
+      )}
+
       {eventCount === 0 && days.length === 0 ? (
         <p className="pd-empty pd-empty--doc">Nothing scheduled in this range.</p>
+      ) : isTimeline ? (
+        <CalendarTimeline
+          timelineDays={timelineDays}
+          win={timelineWin}
+          options={options}
+          resolve={timelineTint}
+        />
       ) : (
         <div className="pd-schedule">
           {days.map((day) => (

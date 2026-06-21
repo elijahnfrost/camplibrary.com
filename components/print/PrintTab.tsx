@@ -1,8 +1,11 @@
 "use client";
 
-// The Print tab: a console of options on the left, a live letter-page preview on
-// the right. Format preferences persist (local view preference); the date range
-// and camp are session state.
+// The Print tab: the schedule controls live in the app's PRIMARY sidebar (a
+// portal into the same rail slot the Library filters and Calendar settings use —
+// no second sidebar), and the main pane is a header + a live letter-page preview.
+// Export PDF / Print sit at the top-right of the header, the way the Calendar
+// keeps its actions. Format preferences persist (a local view preference); the
+// date range and camp are session state.
 //
 // Two print actions share one pipeline: "Export PDF" (the headline feature) sets
 // a sensible document.title and fires the dialog so the browser's "Save as PDF"
@@ -23,6 +26,7 @@ import { DEFAULT_PRINT_FORMAT, printFormatStorage, type PrintFormat, type PrintO
 import { selectEvents } from "@/lib/print/schedule";
 import { exportFilename } from "@/lib/print/filename";
 import { CampIcon } from "../icons";
+import { Modal } from "../Modal";
 import { PrintControls } from "./PrintControls";
 import { PagedPreview } from "./PagedPreview";
 import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDocument";
@@ -31,6 +35,8 @@ type Patch = Partial<PrintOptions>;
 const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "color",
   "style",
+  "layout",
+  "timelineDensity",
   "scheduleDetail",
   "appendRunSheets",
   "includeAllDay",
@@ -43,16 +49,21 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
 // Letter-page width in CSS px (8.5in × 96dpi) — drives zoom-to-fit so the page
 // always fits the preview pane instead of overflowing on a laptop / phone.
 const PAGE_W = 8.5 * 96;
-const PANE_PAD = 32; // matches the --s-6 inline padding on .print-preview, both sides
+const PANE_PAD = 32; // matches the --s-6 inline padding on .print-tab__preview, both sides
 
 export function PrintTab({
   data,
   activeCampId,
+  railSlot,
   printHost,
   announce,
 }: {
   data: SchedulePrintData;
   activeCampId: string | null;
+  // The primary-sidebar slot the schedule controls portal into (the same rail
+  // the Library filters / Calendar settings use). Null on mobile, where the
+  // controls open in a sheet instead — see `optionsOpen`.
+  railSlot: HTMLElement | null;
   // A DOM node (a direct child of `.app`, sibling of <main>) the hidden print
   // sheet portals into, so it sits where the print CSS expects it.
   printHost: HTMLElement | null;
@@ -63,6 +74,9 @@ export function PrintTab({
   const [end, setEnd] = useState(() => addDays(todayKey(), 6));
   const [campId, setCampId] = useState<string | null>(activeCampId);
   const [title, setTitle] = useState("");
+  // Mobile only: the controls open in a sheet (the sidebar rail is desktop-only,
+  // mirroring the Calendar's view-settings sheet).
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const options: PrintOptions = useMemo(
     () => ({ ...format, start, end, campId, title }),
@@ -151,47 +165,79 @@ export function PrintTab({
   }, []);
 
   const dayCount = Math.round(Math.abs(fromDateKey(end).getTime() - fromDateKey(start).getTime()) / 86_400_000) + 1;
+  const scope =
+    `${eventCount} ${eventCount === 1 ? "activity" : "activities"} · ${dayCount} ${dayCount === 1 ? "day" : "days"}` +
+    (campName ? " · " + campName : "");
+
+  const controls = <PrintControls options={options} onChange={onChange} camps={data.camps} />;
 
   return (
     <div className="print-tab">
-      <div className="print-tab__console">
-        <header className="print-tab__head">
-          <div className="print-tab__heading">
-            <h1 className="print-tab__title">Print</h1>
-            <p className="print-tab__sub">
-              {eventCount} {eventCount === 1 ? "activity" : "activities"} across {dayCount}{" "}
-              {dayCount === 1 ? "day" : "days"}
-            </p>
-          </div>
-          <div className="print-tab__actions">
-            <button
-              type="button"
-              className="btn btn--primary print-tab__action"
-              onClick={handleExportPdf}
-              disabled={empty}
-              title={empty ? "Nothing scheduled in this range" : "Save this schedule as a PDF"}
-            >
-              <CampIcon.Export />
-              Export PDF
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost print-tab__action"
-              onClick={handlePrint}
-              disabled={empty}
-              title={empty ? "Nothing scheduled in this range" : "Open the print dialog"}
-            >
-              <CampIcon.Print />
-              Print
-            </button>
-          </div>
-        </header>
-        <PrintControls options={options} onChange={onChange} camps={data.camps} />
-      </div>
+      <header className="printhead">
+        <div className="printhead__heading">
+          <h1 className="printhead__title">Print</h1>
+          <p className="printhead__scope">{scope}</p>
+        </div>
+        <div className="printhead__actions">
+          {/* Mobile-only entry to the schedule controls (desktop surfaces them in
+              the sidebar rail). Hidden from the sidebar breakpoint up. */}
+          <button
+            type="button"
+            className="printhead__options"
+            onClick={() => setOptionsOpen(true)}
+            aria-label="Print options"
+            title="Print options"
+          >
+            <CampIcon.More />
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost printhead__btn"
+            onClick={handlePrint}
+            disabled={empty}
+            title={empty ? "Nothing scheduled in this range" : "Open the print dialog"}
+          >
+            <CampIcon.Print />
+            <span>Print</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary printhead__btn"
+            onClick={handleExportPdf}
+            disabled={empty}
+            title={empty ? "Nothing scheduled in this range" : "Save this schedule as a PDF"}
+          >
+            <CampIcon.Export />
+            <span>Export PDF</span>
+          </button>
+        </div>
+      </header>
 
       <div className="print-tab__preview" aria-label="Print preview" ref={previewRef}>
         <PagedPreview options={options} data={data} zoom={zoom} />
       </div>
+
+      {/* Desktop: the schedule controls render into the primary sidebar's print
+          rail (the same slot the Library filters / Calendar settings use). */}
+      {railSlot && createPortal(controls, railSlot)}
+
+      {/* Mobile: the same controls in a sheet, opened from the header. The
+          .filtersheet wrapper gives the shared touch-tuned ledger metrics. */}
+      {optionsOpen && (
+        <Modal label="Print options" onClose={() => setOptionsOpen(false)} overlayProps={{ className: "overlay--card" }}>
+          <div className="overlay__bar">
+            <h2 className="filtersheet__title">Print options</h2>
+          </div>
+          <div className="overlay__body filtersheet">{controls}</div>
+          <button
+            type="button"
+            className="btn btn--primary filtersheet__done"
+            onClick={() => setOptionsOpen(false)}
+          >
+            Done
+          </button>
+        </Modal>
+      )}
 
       {/* The actual print artifact: hidden on screen, the only thing that prints
           (and what Export-PDF saves). Renders the committed snapshot. */}

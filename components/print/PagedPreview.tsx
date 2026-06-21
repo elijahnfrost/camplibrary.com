@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PrintOptions } from "@/lib/print/options";
+import { LoadingVeil } from "../primitives";
 import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDocument";
 
 // Page geometry + the same break rules the printed sheet uses, handed to Paged.js
@@ -27,6 +28,9 @@ const PAGED_CSS = `
 .pd-day, .pd-event, .pd-step, .pd-child, .pd-rollup, .pd-runsheet__head { break-inside: avoid; }
 .print-doc--paged .pd-day { break-before: page; }
 .print-doc--paged .pd-day:first-of-type { break-before: auto; }
+.pd-tlday { break-inside: avoid; }
+.print-doc--paged .pd-tlday { break-before: page; }
+.print-doc--paged .pd-tlday:first-of-type { break-before: auto; }
 .pd-runsheets { break-before: page; }
 .pd-runsheet + .pd-runsheet { break-before: page; }
 .pd-runsheet:has(.pd-playbook) { break-inside: auto; }
@@ -164,6 +168,13 @@ export function PagedPreview({
 
   return (
     <div className="paged-preview" data-status={status} style={{ "--pv-zoom": zoom } as CSSProperties}>
+      {status === "loading" && (
+        <LoadingVeil
+          className="paged-preview__veil"
+          label="Setting the pages…"
+          sub="Laying out your schedule"
+        />
+      )}
       <div
         className={pagesClass}
         ref={targetRef}
