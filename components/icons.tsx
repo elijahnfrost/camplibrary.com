@@ -201,22 +201,26 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
+  // Printer; on hover a fresh sheet rolls out of the output tray.
   Print: svg(
     <>
-      <path d="M7 8V4h10v4" />
+      <path className="cicon-print__feed" d="M7 8V4h10v4" />
       <path d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
-      <path d="M7 14h10v6H7z" />
+      <path className="cicon-print__sheet" d="M7 14h10v6H7z" />
       <path d="M17.5 11.5h.01" />
-    </>
+    </>,
+    "print"
   ),
   // A page with a down-arrow dropping out of it — "export / download this doc".
+  // On hover the arrow drops with a little bounce — the "download" gesture.
   Export: svg(
     <>
       <path d="M14 3H7a2 2 0 0 0-2 2v6.5" />
       <path d="M14 3l5 5v11a2 2 0 0 1-2 2H8" />
       <path d="M14 3v5h5" />
-      <path d="M5 15v6M5 21l-2.5-2.5M5 21l2.5-2.5" />
-    </>
+      <path className="cicon-export__arrow" d="M5 15v6M5 21l-2.5-2.5M5 21l2.5-2.5" />
+    </>,
+    "export"
   ),
   // Refresh arrow; on hover it spins a full turn — "reset".
   Reset: svg(
