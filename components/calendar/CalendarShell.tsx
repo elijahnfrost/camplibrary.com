@@ -95,6 +95,19 @@ const REANCHOR_SHIFT = 14;
 // and simply overflows / scrolls instead of crushing the columns).
 const MIN_DAY_WIDTH = 84;
 
+// Pinch-to-zoom for the timed grid's HOUR HEIGHT (the vertical analogue of the
+// Day/Week/N horizontal day-width zoom). A trackpad/touch pinch — or ctrl+wheel —
+// scales the base 15-min slot height via the --cal-slot-zoom CSS var (see
+// calendar.css). 1 = default; above 1 stretches each hour taller for fine detail.
+// SLOT_ZOOM_MAX caps the zoom-IN; the zoom-OUT minimum is DYNAMIC (computeMinZoom)
+// — you can never shrink the day past the point where it fills the viewport, so the
+// grid is always hard-blocked top-and-bottom with no blank space below the last
+// hour. SLOT_ZOOM_FLOOR is only an absolute sanity bound for the stored value.
+const SLOT_ZOOM_MAX = 3;
+const SLOT_ZOOM_FLOOR = 0.2;
+const clampSlotZoom = (zoom: number) =>
+  Math.min(SLOT_ZOOM_MAX, Math.max(SLOT_ZOOM_FLOOR, zoom));
+
 const CALENDAR_VIEWS = {
   timeGridStrip: {
     type: "timeGrid",
@@ -129,6 +142,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 const boolStorage = (value: unknown, fallback: boolean) =>
   typeof value === "boolean" ? value : fallback;
+
+const slotZoomStorage = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? clampSlotZoom(value) : fallback;
 
 export function CalendarShell({
   events,
@@ -201,6 +217,26 @@ export function CalendarShell({
     DEFAULT_WEEK_START,
     parseWeekStart
   );
+  // The vertical hour-height zoom for the timed strip, driven by a trackpad/touch
+  // pinch (and ctrl+wheel). Another local view pref, never gated on staff. The
+  // LIVE value lives in slotZoomRef so a pinch can update the grid imperatively on
+  // every frame (smooth, no React churn); state only carries it for persistence +
+  // hydration. A short debounce flushes the settled value to storage.
+  const [slotZoom, setSlotZoom] = useLocalStorage<number>(
+    "calendarSlotZoom",
+    1,
+    slotZoomStorage
+  );
+  const slotZoomRef = useRef(slotZoom);
+  const slotZoomPersistRef = useRef<number | null>(null);
+  // The canonical strip width (px) last set by recomputeDayWidth, plus a 0/1 px
+  // parity toggle. A vertical pinch needs FullCalendar to re-measure its slat
+  // coordinates so events follow the new hour height — but FC only re-measures
+  // when its clientWidth changes (a CSS row-height change is invisible to it). So
+  // each pinch frame flips this one imperceptible pixel on --cal-strip-w, which is
+  // exactly the (proven) path the Day/Week width zoom already uses.
+  const stripWidthRef = useRef(0);
+  const widthNudgeRef = useRef(0);
   // The initial view resolves client-side (coarse pointer → Day); the grid
   // mounts only after resolution so phones never flash Week first.
   const [resolvedView, setResolvedView] = useState<ViewKey | null>(null);
@@ -1064,7 +1100,10 @@ export function CalendarShell({
     const gutter = axis ? axis.getBoundingClientRect().width : 52;
     const avail = grid.clientWidth - padX - gutter;
     const w = Math.max(MIN_DAY_WIDTH, avail / targetDaysRef.current);
-    grid.style.setProperty("--cal-strip-w", Math.round(gutter + w * STRIP_DAYS) + "px");
+    // Remember the canonical width so a vertical-zoom nudge can toggle off it
+    // without drifting (it always re-bases here on resize / horizontal zoom).
+    stripWidthRef.current = Math.round(gutter + w * STRIP_DAYS);
+    grid.style.setProperty("--cal-strip-w", stripWidthRef.current + widthNudgeRef.current + "px");
     // scroll-snap aligns a day's start to the scrollport's border edge; offsetting
     // snap by the padding + gutter lands days at the gutter's RIGHT edge (where
     // they're visible), matching our programmatic scroll so the two never fight.
@@ -1080,6 +1119,99 @@ export function CalendarShell({
     calendarRef.current?.getApi().updateSize();
     setDayWidth(w);
   }, []);
+
+  // Debounce flushing the settled pinch zoom to localStorage so a live gesture
+  // (which mutates slotZoomRef + the CSS var every frame) doesn't thrash storage.
+  const persistSlotZoom = useCallback(
+    (zoom: number) => {
+      if (slotZoomPersistRef.current != null) window.clearTimeout(slotZoomPersistRef.current);
+      slotZoomPersistRef.current = window.setTimeout(() => setSlotZoom(zoom), 200);
+    },
+    [setSlotZoom]
+  );
+
+  // The dynamic minimum zoom: the smallest zoom at which the day still fills the
+  // scroll viewport (header + all-day + slots ≥ the visible height), so the user can
+  // never shrink it into blank space — the grid stays hard-blocked top and bottom.
+  // We size the slot body analytically — slotCount × 1.3em (the un-floored base
+  // height from calendar.css) — rather than from the live body measurement: at the
+  // densest zooms the empty rows hit their line-box floor and read TALLER than the
+  // linear base, so extrapolating from a measured body would under-shoot the fit and
+  // re-introduce a sliver of blank space. The analytic base errs the safe way (the
+  // real grid is always ≥ this, so the fit is exact normally and a touch
+  // conservative at the extreme).
+  const computeMinZoom = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return SLOT_ZOOM_FLOOR;
+    const fc = grid.querySelector<HTMLElement>(".fc");
+    const tg = grid.querySelector<HTMLElement>(".fc-timegrid-body");
+    if (!fc || !tg) return SLOT_ZOOM_FLOOR;
+    const viewH = grid.clientHeight;
+    if (viewH <= 0) return SLOT_ZOOM_FLOOR;
+    const nonBody = Math.max(0, fc.getBoundingClientRect().height - tg.getBoundingClientRect().height);
+    const slotCount = Math.max(1, Math.round((gridEnd - gridStart) / 15)); // 15-min slots
+    const emPx = parseFloat(getComputedStyle(fc).fontSize) || 15;
+    const bodyAtZoom1 = slotCount * 1.3 * emPx; // matches calc(1.3em) in calendar.css
+    const fit = (viewH - nonBody) / bodyAtZoom1;
+    // Never below the sanity floor, never above the zoom-in cap (so an absurdly tall
+    // viewport just locks the zoom rather than inverting the clamp).
+    return Math.min(SLOT_ZOOM_MAX, Math.max(SLOT_ZOOM_FLOOR, fit));
+  }, [gridStart, gridEnd]);
+
+  // Apply a new vertical zoom to the timed strip, keeping the time at the anchor
+  // (viewport centre for a trackpad pinch; the finger midpoint for touch) fixed —
+  // Google/Notion-style anchored zoom. We scale the base slot height via the
+  // --cal-slot-zoom var, let FullCalendar re-measure event coordinates
+  // (updateSize), then nudge scrollTop so the anchor point lands back in place. The
+  // grid (.calshell__grid--strip) is itself the scroller, so scrollTop math is
+  // against it directly. The new zoom is clamped to [fit-to-viewport, max].
+  const applySlotZoom = useCallback(
+    (next: number, anchorClientY?: number) => {
+      const grid = gridRef.current;
+      if (!grid || !grid.classList.contains("calshell__grid--strip")) return;
+      const zoom = Math.min(SLOT_ZOOM_MAX, Math.max(computeMinZoom(), next));
+      if (Math.abs(zoom - slotZoomRef.current) < 0.0005) return;
+      const body = grid.querySelector<HTMLElement>(".fc-timegrid-body");
+      // Fraction of the day-body the anchor sits over, measured BEFORE the resize.
+      let frac: number | null = null;
+      if (body && anchorClientY != null) {
+        const r = body.getBoundingClientRect();
+        if (r.height > 0 && anchorClientY > r.top) {
+          frac = Math.min(1, (anchorClientY - r.top) / r.height);
+        }
+      }
+      slotZoomRef.current = zoom;
+      grid.style.setProperty("--cal-slot-zoom", String(zoom));
+      // Flip the 1px width nudge so FC's next updateSize() re-measures clientWidth
+      // and recomputes slat coordinates — otherwise the event cards keep the pixel
+      // positions from the previous zoom and detach from the grid. Re-base off the
+      // canonical width (falling back to the current var on first run).
+      widthNudgeRef.current = widthNudgeRef.current ? 0 : 1;
+      const baseW =
+        stripWidthRef.current || parseFloat(grid.style.getPropertyValue("--cal-strip-w")) || 0;
+      if (baseW) grid.style.setProperty("--cal-strip-w", baseW + widthNudgeRef.current + "px");
+      calendarRef.current?.getApi().updateSize();
+      // Re-anchor: getBoundingClientRect forces the layout with the new height, so
+      // r2 reflects the scaled body — shift scrollTop so the same fraction lands
+      // back under the anchor.
+      if (frac != null && body && anchorClientY != null) {
+        const r2 = body.getBoundingClientRect();
+        grid.scrollTop += r2.top - (anchorClientY - frac * r2.height);
+      }
+      persistSlotZoom(zoom);
+    },
+    [computeMinZoom, persistSlotZoom]
+  );
+
+  // Pull the zoom back up to the fit-to-viewport minimum if it's currently below it
+  // (e.g. the window grew, or a stored value predates a taller layout) — keeping the
+  // grid hard-blocked with no blank space. No-op when already at/above the floor.
+  const enforceZoomFloor = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid || !grid.classList.contains("calshell__grid--strip")) return;
+    const min = computeMinZoom();
+    if (slotZoomRef.current < min - 0.0005) applySlotZoom(min);
+  }, [computeMinZoom, applySlotZoom]);
 
   // Live scroll → header title / mini-month band / Today state (throttled), plus
   // a settle hook that re-anchors the strip when it nears an edge (endless feel).
@@ -1144,15 +1276,120 @@ export function CalendarShell({
     const ro = new ResizeObserver(() => {
       if (didInitialScrollRef.current) keepDayRef.current = firstVisibleDay();
       recomputeDayWidth();
+      // A taller viewport raises the fit-to-viewport floor — pull the zoom up so a
+      // resize never reveals blank space below the last hour.
+      enforceZoomFloor();
     });
     ro.observe(grid);
     return () => ro.disconnect();
-  }, [firstVisibleDay, recomputeDayWidth]);
+  }, [firstVisibleDay, recomputeDayWidth, enforceZoomFloor]);
 
   // Recompute the day width when the zoom (target days) changes.
   useEffect(() => {
     recomputeDayWidth();
   }, [targetDays, recomputeDayWidth]);
+
+  // Apply the persisted / hydrated vertical zoom to the grid var. The var-set is
+  // skipped when a live pinch already set it (so the debounced persist that follows
+  // a gesture doesn't trigger a redundant re-measure), but the floor is always
+  // enforced. Runs on mount (var → 1) and once the stored value hydrates in.
+  useEffect(() => {
+    slotZoomRef.current = slotZoom;
+    const grid = gridRef.current;
+    if (!grid) return;
+    if (grid.style.getPropertyValue("--cal-slot-zoom") !== String(slotZoom)) {
+      grid.style.setProperty("--cal-slot-zoom", String(slotZoom));
+      // Same width nudge as the live pinch so the hydrated/programmatic zoom also
+      // re-measures FC's slat coords → events land at their correct height on load,
+      // independent of whether recomputeDayWidth has run yet.
+      widthNudgeRef.current = widthNudgeRef.current ? 0 : 1;
+      const baseW =
+        stripWidthRef.current || parseFloat(grid.style.getPropertyValue("--cal-strip-w")) || 0;
+      if (baseW) grid.style.setProperty("--cal-strip-w", baseW + widthNudgeRef.current + "px");
+      calendarRef.current?.getApi().updateSize();
+    }
+    // A stored value can be below this layout's fit-to-viewport floor (e.g. saved on
+    // a shorter window) — pull it up so load never shows blank space.
+    enforceZoomFloor();
+  }, [slotZoom, enforceZoomFloor]);
+
+  // Once the strip has measured (dayWidth is set only after FullCalendar lays out)
+  // — and on every horizontal zoom / resize that re-measures it — re-assert the
+  // fit-to-viewport floor. This is the reliable "FC is ready" hook for the initial
+  // load, where the hydration effect can run a beat before the grid is laid out.
+  useEffect(() => {
+    if (dayWidth > 0) enforceZoomFloor();
+  }, [dayWidth, enforceZoomFloor]);
+
+  // Pinch-to-zoom the hour height. A trackpad pinch arrives as a ctrl-modified
+  // wheel event (also catches ctrl+wheel on a mouse); two-finger touch is handled
+  // directly. Native, non-passive listeners so we can preventDefault the browser's
+  // page-zoom / pan. Attached to the grid div (stable across Month↔strip); the
+  // handlers no-op unless the timed strip is mounted.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return; // plain scroll / two-finger pan → leave alone
+      if (!grid.classList.contains("calshell__grid--strip")) return;
+      event.preventDefault();
+      // Clamp so a chunky mouse-wheel notch doesn't jump octaves; a trackpad
+      // pinch sends small pixel deltas and stays smooth.
+      const dy = Math.max(-40, Math.min(40, event.deltaY));
+      // Anchor a trackpad/wheel zoom at the viewport's vertical centre rather than
+      // the cursor: the cursor position is incidental to a pinch and made the grid
+      // lurch toward an off-centre point, which felt off. Centre expansion reads as
+      // calm and symmetric. (Touch keeps the finger midpoint — see onTouchMove.)
+      const rect = grid.getBoundingClientRect();
+      applySlotZoom(slotZoomRef.current * Math.exp(-dy * 0.01), rect.top + rect.height / 2);
+    };
+
+    let pinching = false;
+    let baseDist = 0;
+    let baseZoom = 1;
+    const twoDist = (t: TouchList) =>
+      Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const twoMidY = (t: TouchList) => (t[0].clientY + t[1].clientY) / 2;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      if (!grid.classList.contains("calshell__grid--strip")) return;
+      pinching = true;
+      baseDist = twoDist(event.touches);
+      baseZoom = slotZoomRef.current;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!pinching || event.touches.length !== 2) return;
+      event.preventDefault(); // own the two-finger gesture; one-finger pan untouched
+      const dist = twoDist(event.touches);
+      if (baseDist > 0) applySlotZoom(baseZoom * (dist / baseDist), twoMidY(event.touches));
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinching = false;
+    };
+
+    grid.addEventListener("wheel", onWheel, { passive: false });
+    grid.addEventListener("touchstart", onTouchStart, { passive: true });
+    grid.addEventListener("touchmove", onTouchMove, { passive: false });
+    grid.addEventListener("touchend", onTouchEnd, { passive: true });
+    grid.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      grid.removeEventListener("wheel", onWheel);
+      grid.removeEventListener("touchstart", onTouchStart);
+      grid.removeEventListener("touchmove", onTouchMove);
+      grid.removeEventListener("touchend", onTouchEnd);
+      grid.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [applySlotZoom]);
+
+  // Flush any pending zoom-persist timer on unmount.
+  useEffect(
+    () => () => {
+      if (slotZoomPersistRef.current != null) window.clearTimeout(slotZoomPersistRef.current);
+    },
+    []
+  );
 
   // After any width change (zoom / resize / first paint), re-align the scroll so
   // the intended day sits at the left edge. First paint always lands on today.
