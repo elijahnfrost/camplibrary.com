@@ -5842,48 +5842,50 @@ body {
   }
 }
 
-/* --- Print: a fresh sheet rolls out of the tray; the top feed dips in -------- */
+/* --- Print: a sheet feeds out of the slot and HOLDS, text written on it ------
+   A two-state hover, mirroring the book (cover opens → lines write in) and the
+   calendar (page flips → dates settle). REST: a clean printer, no sheet out.
+   HOVER: the printed page slides down out of the slot and HOLDS, then the two
+   text lines are written onto it top→down and stay. LEAVE: the page draws back
+   into the printer and the text clears. The top document dips as it feeds. */
+.cicon--print {
+  overflow: visible;
+}
 .cicon--print .cicon-print__sheet {
-  transform-origin: 50% 58%; /* the tray mouth (y≈14 in the 24-unit box) */
+  transform-origin: 50% 0%; /* the slot — the page grows down from its top edge */
+  transform: scaleY(0); /* tucked inside the printer at rest */
+  opacity: 0; /* fully hidden at rest so no paper edge peeks below the slot */
+  transition: transform 0.4s var(--ease), opacity 0.18s var(--ease); /* base = drawing back in */
+}
+.cicon--print .cicon-print__text {
+  transform-origin: 0% 50%; /* each line is written from the left margin */
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform 0.26s var(--ease), opacity 0.26s var(--ease);
 }
 .cicon--print .cicon-print__feed {
-  transform-origin: 50% 33%;
+  transform-origin: 50% 0%;
+  transition: transform 0.4s var(--ease);
 }
 :where(button, a, summary, label, [role="button"], .viewswitch button):hover
   .cicon--print
   .cicon-print__sheet {
-  animation: cicon-print-roll 0.55s var(--ease) both;
+  transform: scaleY(1); /* feeds out and holds */
+  opacity: 1;
+  transition: transform 0.44s var(--ease), opacity 0.16s var(--ease);
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover
+  .cicon--print
+  .cicon-print__text {
+  transform: scaleX(1);
+  opacity: 1;
+  /* written line by line, once the page is most of the way out */
+  transition-delay: calc(0.22s + var(--i) * 0.12s);
 }
 :where(button, a, summary, label, [role="button"], .viewswitch button):hover
   .cicon--print
   .cicon-print__feed {
-  animation: cicon-print-feed 0.55s var(--ease) both;
-}
-@keyframes cicon-print-roll {
-  0% {
-    transform: scaleY(0.06);
-    opacity: 0;
-  }
-  45% {
-    transform: scaleY(1.08);
-    opacity: 1;
-  }
-  72% {
-    transform: scaleY(0.96);
-  }
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-@keyframes cicon-print-feed {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(1.2px) scaleY(0.92);
-  }
+  transform: translateY(0.8px); /* the document feeds in a touch */
 }
 
 /* --- Export: the arrow drops out with a small bounce — "download" ----------- */
@@ -5933,6 +5935,18 @@ body {
   .cicon--cal .cicon-cal__dots circle {
     transform: scale(0) !important;
     opacity: 0 !important;
+  }
+  /* Printer holds its rest pose: no sheet out, no text written. */
+  .cicon--print .cicon-print__sheet {
+    transform: scaleY(0) !important;
+    opacity: 0 !important;
+  }
+  .cicon--print .cicon-print__text {
+    transform: scaleX(0) !important;
+    opacity: 0 !important;
+  }
+  .cicon--print .cicon-print__feed {
+    transform: none !important;
   }
 }
 
@@ -8503,20 +8517,10 @@ button.rl-node {
   font-family: var(--text);
   font-size: var(--fs-label);
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
-    transform var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .pc-preset:hover {
   background: var(--chrome-well);
-  transform: translateY(-1px);
-}
-.pc-preset:active {
-  transform: translateY(0);
-}
-@media (prefers-reduced-motion: reduce) {
-  .pc-preset:hover {
-    transform: none;
-  }
 }
 .pc-preset.is-on {
   background: var(--accent);

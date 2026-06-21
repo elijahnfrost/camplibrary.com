@@ -201,13 +201,25 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer; on hover a fresh sheet rolls out of the output tray.
+  // Printer; on hover a fresh sheet feeds out of the slot and HOLDS while two
+  // lines of text are written onto it — the same content-draw idea as the book
+  // (cover opens, lines write in) and calendar (page flips, dates settle). Parts:
+  // __feed (document on top), __sheet (the printed page), __text (lines written
+  // on it, --i staggers them top→down). See globals.css §Print.
   Print: svg(
     <>
+      {/* the document feeding in on top — dips a touch as it prints */}
       <path className="cicon-print__feed" d="M7 8V4h10v4" />
+      {/* printer body */}
       <path d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
-      <path className="cicon-print__sheet" d="M7 14h10v6H7z" />
+      {/* output-slot lips that frame the paper, + the status light */}
+      <path d="M7 17h1.2M15.8 17H17" />
       <path d="M17.5 11.5h.01" />
+      {/* the printed sheet — tucked away at rest, slides down out of the slot on hover */}
+      <rect className="cicon-print__sheet" x="8.5" y="16.5" width="7" height="5" rx="0.6" />
+      {/* text written onto the sheet once it's out, line by line */}
+      <path className="cicon-print__text" style={{ "--i": 0 } as React.CSSProperties} d="M10 18.4h4" />
+      <path className="cicon-print__text" style={{ "--i": 1 } as React.CSSProperties} d="M10 20h3" />
     </>,
     "print"
   ),
