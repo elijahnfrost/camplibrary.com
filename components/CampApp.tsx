@@ -24,7 +24,6 @@ import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
 import { CalendarShell } from "./calendar/CalendarShell";
-import { CampSwitcher } from "./calendar/CampSwitcher";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
@@ -198,6 +197,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // shared library and every other surface are camp-agnostic.
   const campKit = useCamps({ cloud, announce: setLiveMsg });
   const calendarEvents = useMemo(() => campKit.filterEvents(cloud.events), [campKit, cloud.events]);
+  // The camp manager (add / switch / rename / delete) — reached from the calendar
+  // view dropdown's "Manage camps…" entry. Camps are a rarely-used option, so
+  // they no longer occupy a permanent header pill. Opening is ungated (switching
+  // is a local view pref); create/rename/delete stay staff-gated below.
+  const [campsManagerOpen, setCampsManagerOpen] = useState(false);
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
@@ -522,34 +526,14 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onOpenActivity={openDetailFromEvent}
                 announce={setLiveMsg}
                 railSlot={calRail}
-                themes={lib.themes}
-                themeAssignments={lib.themeAssignments}
                 themeOf={lib.themeOf}
+                onOpenCamps={() => setCampsManagerOpen(true)}
                 headerActions={
-                  <>
                   <SubscribeFeedButton
                     activeCampId={campKit.activeCampId}
                     activeCampName={campKit.activeCamp?.name ?? null}
                     canEdit={isSignedIn}
                   />
-                  <CampSwitcher
-                    camps={campKit.camps}
-                    activeCampId={campKit.activeCampId}
-                    onSwitch={campKit.switchCamp}
-                    onCreate={(name) => {
-                      if (requireStaff("manage camps")) campKit.createCamp(name);
-                    }}
-                    onRename={(id, name) => {
-                      if (requireStaff("manage camps")) campKit.renameCamp(id, name);
-                    }}
-                    onDelete={(id, name) => {
-                      if (!requireStaff("manage camps")) return;
-                      if (window.confirm("Delete the “" + name + "” camp? Its events stay on the calendar but are no longer grouped.")) {
-                        campKit.deleteCamp(id);
-                      }
-                    }}
-                  />
-                  </>
                 }
               />
             </div>
@@ -642,6 +626,34 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               }
             }}
             onClose={() => setThemesManagerOpen(false)}
+          />
+        )}
+        {campsManagerOpen && (
+          <ListManagerModal
+            title="Camps"
+            intro="Each camp keeps its own schedule. Your activity library is shared across all of them."
+            items={campKit.camps.map((c) => ({ id: c.id, label: c.name }))}
+            activeId={campKit.activeCampId}
+            createPlaceholder="e.g. Summer Day Camp"
+            createLabel="Add camp"
+            emptyHint="No camps yet. Add one to keep its schedule separate from the rest."
+            onSelect={(id) => {
+              campKit.switchCamp(id);
+              setCampsManagerOpen(false);
+            }}
+            onCreate={(name) => {
+              if (requireStaff("manage camps")) campKit.createCamp(name);
+            }}
+            onRename={(id, name) => {
+              if (requireStaff("manage camps")) campKit.renameCamp(id, name);
+            }}
+            onDelete={(item) => {
+              if (!requireStaff("manage camps")) return;
+              if (window.confirm("Delete the “" + item.label + "” camp? Its events stay on the calendar but are no longer grouped.")) {
+                campKit.deleteCamp(item.id);
+              }
+            }}
+            onClose={() => setCampsManagerOpen(false)}
           />
         )}
         {editorSheet && (

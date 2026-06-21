@@ -50,22 +50,17 @@
 }
 
 /* ---------- header chrome ---------- */
+/* Notion-style: the date title on the left, then a right cluster of the view
+   switch + Add. There's no prev/next pager (navigation is the sidebar mini-month
+   + horizontal scroll) and Today moved into the mini-month on desktop; the
+   header keeps Today + a settings button only on mobile, where the rail isn't
+   rendered. (Camps live in the view settings, so there's no header actions area.) */
 .calhead {
   display: flex;
   align-items: center;
-  gap: var(--s-5);
+  gap: var(--s-4);
   flex-wrap: wrap;
   padding: var(--s-5) var(--page-x);
-}
-.calhead__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-width: 0;
-}
-.calhead__today {
-  height: var(--control-md);
-  border-radius: var(--r-md);
 }
 .calhead__title {
   margin: 0;
@@ -76,84 +71,106 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.calhead__views {
-  display: flex;
-  gap: var(--s-1);
-  margin-left: auto;
-  height: var(--control-md);
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--s-1);
-}
-.calhead__view {
-  display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-  padding: 0 var(--s-5);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.calhead__view:hover {
-  background: var(--paper-2);
-  color: var(--ink);
-}
-.calhead__view:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-.calhead__view:focus-visible {
-  outline-offset: -2px;
-}
-/* Sliding variant — the green is the shared thumb (.seg-slide in globals.css);
-   the active button just recolours its label. Match the control's frame. */
-.calhead__views.seg-slide {
-  --seg-pad: var(--s-1);
-  --seg-gap: var(--s-1);
-  --seg-radius: var(--r-sm);
-}
-.calhead__view.is-active {
-  background: transparent;
-  color: var(--on-accent);
-}
-.calhead__view.is-active:hover {
-  background: transparent;
-  color: var(--on-accent);
-}
-.calhead__view.is-active:active {
-  background: transparent;
-}
-.calhead__view.is-active:focus-visible {
-  outline-color: var(--on-accent);
-  outline-offset: -3px;
-}
-.calhead__actions {
+/* The control cluster — pushed to the right edge, with the actions following. */
+.calhead__controls {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  flex: none;
+  margin-left: auto;
 }
-/* "Hours" opens the camp-hours sheet — sits with the view switcher, sized to
-   match the Today pill / view segment so the header reads as one control row. */
-.calhead__hours {
+/* Today is mobile-only in the header now (desktop's lives in the sidebar
+   mini-month, hidden from the 768px sidebar breakpoint up — see below). It still
+   shares the Library toolbar's quiet bordered-card look (height control-md,
+   --line border, --r-md, the small-caps --hand-sc face, --ink-soft → --ink on
+   hover) so it reads as one family with the view switch beside it. */
+.calhead__today {
   height: var(--control-md);
-  padding: 0 var(--s-5);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  /* Was the lone control still in the script --hand face at 15px — pull it into
+     the dropdown's small-caps treatment so the two pills match. */
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.calhead__today:hover:not(:disabled) {
+  color: var(--ink);
+}
+/* The view dropdown trigger — sized to match the Today pill / pager so the
+   cluster reads as one control row (it carries the old .calhead__hours sizing). */
+.calhead__viewtrigger {
+  height: var(--control-md);
+  padding: 0 var(--s-4);
   border-radius: var(--r-md);
   gap: var(--s-2);
   font-family: var(--hand-sc);
   font-size: var(--fs-ui);
   color: var(--ink-soft);
 }
-.calhead__hours:hover {
+.calhead__viewtrigger:hover {
   color: var(--ink);
 }
-.calhead__hours svg {
-  width: 16px;
-  height: 16px;
+.calhead__viewtrigger.is-open {
+  color: var(--ink);
+  background: var(--paper-2);
+}
+.calhead__viewtrigger svg {
+  width: 15px;
+  height: 15px;
+}
+.calhead__viewtrigger-label {
+  font-variant-numeric: tabular-nums;
+}
+/* The prev/next pager is gone — navigation is the sidebar mini-month (click a
+   day) plus the strip's own horizontal scroll, so the header has no arrows. */
+/* The header view switch reuses the Library's .viewswitch seg-slide verbatim so
+   the two views' top bars match; only the toolbar side-margins need dropping to
+   sit in the control cluster. */
+.calhead .viewswitch {
+  margin: 0;
+}
+/* Mobile-only entry to the view settings (they live in the sidebar on desktop,
+   but the rail isn't rendered on phones). Hidden from the sidebar breakpoint up. */
+.calhead__settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-md);
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.calhead__settings:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.calhead__settings svg {
+  width: 18px;
+  height: 18px;
+}
+@media (min-width: 768px) {
+  /* Both are mobile-only: the sidebar (≥768px) carries the view settings and the
+     mini-month, and the mini-month is where Today lives on desktop. */
+  .calhead__settings,
+  .calhead__today {
+    display: none;
+  }
+}
+/* The green Add — the calendar's twin of the Library's Add button (same .btn
+   .btn--primary), sized to the header's control family. Desktop only; phones
+   keep the FAB (the header is tight there). */
+.calhead__add {
+  height: var(--control-md);
+  border-radius: var(--r-md);
+}
+@media (max-width: 767px) {
+  .calhead__add {
+    display: none;
+  }
 }
 
 /* ---------- FullCalendar theme ---------- */
@@ -197,29 +214,52 @@
 .calshell .fc .fc-timegrid-slot {
   height: 1.3em;
 }
-/* The visible grid is intentionally coarse AND quiet: it's a ruler the events
-   sit ON, so it stays lighter than an event's tint wash. The :15/:45 quarter
-   marks are NOT drawn — snapDuration stays 15 min, so blocks still snap to the
-   quarter, but it's the block's own top edge (not a grid line) that shows where
-   it landed. Modern calendars (Google, Apple, Notion) draw at most an hour +
-   half-hour line, faint, and let the snap grid stay invisible.
-     · HOUR (:00) — the clock tick, matched to the day-divider weight so the grid
-       reads as one calm, uniform mesh; the hour LABELS carry the emphasis, not a
-       heavier line. Well below event weight.
-     · HALF (:30) — a barely-there whisper, just enough to hint the halfway point
-       for short blocks without adding to the grid's weight.
-     · :15/:45 — transparent (border width kept, so no layout shift). */
+/* The grid is a quiet ruler the events sit ON. The HOUR line is the persistent
+   tick (gutter + columns). The finer 15-minute lines are drawn in the day
+   COLUMNS only (the lanes) — so events read against a fine snap grid — while the
+   time gutter (the axis labels: ALL DAY, 8AM, 9AM…) stays clean with just the
+   hour line.
+     · HOUR (:00)        — persistent, gutter + columns.
+     · HALF (:30)        — columns only, a touch lighter.
+     · QUARTER (:15/:45) — columns only, the faintest. */
 .calshell .fc .fc-timegrid-slot:not(.fc-timegrid-slot-minor) {
-  border-top-color: color-mix(in srgb, var(--line-soft) 55%, transparent);
+  border-top-color: color-mix(in srgb, var(--line-soft) 60%, transparent);
 }
-.calshell .fc .fc-timegrid-slot.fc-timegrid-slot-minor {
-  border-top-color: transparent;
+.calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor {
+  border-top-color: color-mix(in srgb, var(--line-soft) 34%, transparent);
 }
-.calshell .fc .fc-timegrid-slot.fc-timegrid-slot-minor[data-time$=":30:00"] {
-  border-top-color: color-mix(in srgb, var(--line-soft) 26%, transparent);
+.calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor[data-time$=":30:00"] {
+  border-top-color: color-mix(in srgb, var(--line-soft) 48%, transparent);
+}
+/* The sticky time gutter floats over the column lanes, whose dotted 15-min lines
+   span the full scroll width — including the slice that runs behind the gutter.
+   The grid is a border-collapse table, so a matching card-colored border on the
+   gutter cell does NOT win the collapse conflict (the lane's dotted border paints
+   straight through). Occlude with a positioned pseudo-element instead: an
+   absolutely-placed card bar over the gutter cell's top edge paints by z-index —
+   above the collapsed grid lines — so the gutter shows only the hour line, never
+   the dotted sub-hour ones (which stay visible in the day columns). */
+.calshell .fc .fc-timegrid-slot-label.fc-timegrid-slot-minor {
+  border-top-style: solid;
+  border-top-color: var(--card);
+}
+.calshell__grid--strip .fc-timegrid-slot-label.fc-timegrid-slot-minor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--card);
+  z-index: 2;
 }
 .calshell .fc .fc-timegrid-slot-label-cushion {
   font-size: var(--fs-label);
+  /* Widen the time gutter a touch and give the hour labels room to breathe —
+     the gutter auto-sizes to the widest cushion (FC shrink column), so this
+     padding IS the gutter width; recomputeDayWidth measures it live so day
+     widths/snap adapt. The all-day axis cushion below matches so they left-align. */
+  padding: 0 var(--s-5) 0 var(--s-4);
 }
 .calshell .fc .fc-daygrid-day-number {
   font-family: var(--hand);
@@ -267,6 +307,9 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   max-width: 64px;
+  /* Match the hour-label cushion padding so ALL DAY left-aligns with the times
+     and shares the widened gutter (it's usually the widest, so it sets the width). */
+  padding: 0 var(--s-5) 0 var(--s-4);
 }
 /* Let the browser pan vertically but never claim horizontal swipes — they
  * navigate between days (see CalendarShell touch handlers). */
@@ -279,13 +322,105 @@
 .calshell .fc .fc-daygrid-body-natural .fc-daygrid-day-events {
   margin-bottom: 0;
 }
+/* Current-time indicator, Notion-style: a thin clay line across the grid plus a
+   rounded clay time pill in the LEFT TIME GUTTER (the earthy clay stands in for
+   Notion's red while staying on-palette). FC only draws its line in TODAY's
+   column; .cal-nowline (below) carries it across the other days with a distance
+   fade. --now-time is fed in every minute by CalendarShell. */
 .calshell .fc .fc-timegrid-now-indicator-line {
-  border-width: 2px 0 0;
+  /* TODAY's column reads as a thicker, fully-opaque clay line (Notion's bold
+     current-day segment); the other days get the thin faded .cal-nowline below. */
+  border-width: 2.5px 0 0;
+  position: relative;
+  overflow: visible;
+  z-index: 4; /* keep the line above the .cal-nowline overlay */
+  /* FC draws the border BELOW the now-position (top edge = now); nudge up half the
+     width so the border's MIDPOINT sits on the now-position. The pill (centred on
+     the same y) and the thin .cal-nowline (centred on this line in JS) then all
+     share one centre line. */
+  transform: translateY(-1.25px);
 }
+.calshell .fc .fc-timegrid-now-indicator-container {
+  overflow: visible;
+}
+/* The time pill IS FC's own axis-side now-indicator "arrow", restyled. FC already
+   renders this element in the sticky axis column at the line's y and keeps it
+   pinned to the gutter through horizontal scroll — so instead of hiding it (the
+   old approach drew a separate pill inside today's column), we turn the triangle
+   into the pill and feed it the time via --now-time. It must paint OVER the hour
+   labels so an overlapped label (e.g. 12 PM when it's 11:55) is cleanly hidden,
+   never doubled — that's the axis-col z-index lift in the strip block below. */
 .calshell .fc .fc-timegrid-now-indicator-arrow {
-  border-width: 6px 0 6px 7px;
-  border-top-color: transparent;
-  border-bottom-color: transparent;
+  display: block;
+  /* Right-align in the gutter so the pill's right edge meets the gutter/column
+     boundary where the now-line starts — the pill reads as connected to the line
+     (Notion). The pill is narrower than the widened gutter, so it stays inside it. */
+  left: auto;
+  right: 0;
+  margin-top: 0;
+  width: max-content;
+  height: auto;
+  border: 0;
+  transform: translateY(-50%);
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--clay);
+  color: var(--on-accent);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.calshell .fc .fc-timegrid-now-indicator-arrow::after {
+  content: var(--now-time, "");
+}
+/* The cross-day now-line: a custom overlay spanning the day columns (FC only
+   draws its own line in today's column). Positioned in JS (CalendarShell) to
+   mirror FC's now-indicator y. It lives inside .fc-timegrid-cols, so it's exactly
+   the content width — it never widens the horizontal scroll — and it scrolls with
+   the grid. In today's column it sits under FC's own line + pill (same y, same
+   clay), so the line reads as one continuous mark.
+     Notion-style: today's column is the bold segment (FC's own thicker line
+   above); this overlay is the ULTRA-THIN, very faint line carried across the
+   OTHER days — quiet near today and fading subtly with distance, but it never
+   disappears (it settles to a low opacity floor, not zero). --now-c (today's
+   centre) and --now-spread (the falloff radius, ~5 columns) depend on the live
+   column geometry, so CalendarShell measures and feeds them in. */
+.calshell .fc .cal-nowline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--clay) 11%, transparent) calc(var(--now-c, 50%) - var(--now-spread, 40%)),
+    color-mix(in srgb, var(--clay) 32%, transparent) var(--now-c, 50%),
+    color-mix(in srgb, var(--clay) 11%, transparent) calc(var(--now-c, 50%) + var(--now-spread, 40%))
+  );
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ---------- weekend shading (Notion's "Shade weekends") ----------
+   A subtle warm wash over the Saturday/Sunday columns so the work-week reads at
+   a glance. FullCalendar tags every day cell / column / header with .fc-day-sat
+   / .fc-day-sun, so this is pure CSS gated by .is-shade-weekends on the grid.
+   The wash is translucent (paper-2 over the card grid), so the hour gridlines
+   and the today circle still read through it; it's quieter than the
+   other-month / disabled neutral fill so events stay the foreground.
+     · .fc-timegrid-col   — the day columns in the scrollable timed strip
+     · .fc-daygrid-day     — Month cells AND the strip's all-day lane cells
+     · .fc-col-header-cell — the day-name header, so the whole column shades */
+.calshell__grid.is-shade-weekends .fc .fc-timegrid-col.fc-day-sat,
+.calshell__grid.is-shade-weekends .fc .fc-timegrid-col.fc-day-sun,
+.calshell__grid.is-shade-weekends .fc .fc-daygrid-day.fc-day-sat,
+.calshell__grid.is-shade-weekends .fc .fc-daygrid-day.fc-day-sun,
+.calshell__grid.is-shade-weekends .fc .fc-col-header-cell.fc-day-sat,
+.calshell__grid.is-shade-weekends .fc .fc-col-header-cell.fc-day-sun {
+  background-color: color-mix(in srgb, var(--paper-2) 32%, transparent);
 }
 
 /* day headers: "MON" over a date numeral, today circled (Google-style) */
@@ -411,55 +546,6 @@ body.is-cal-dragging {
 .calshell .fc .fc-event:focus::after {
   display: none;
 }
-/* External-drag clone: FullCalendar copies the library row straight onto
-   <body>. It becomes a compact, tilted TAG in the hand — title only, the
-   row's --cal-tint spine and wash (the same recipe as the event card), but
-   smaller and lighter than the in-grid mirror. Three distinct drag roles:
-   dimmed row at the origin, small tag in hand, full-size preview in the slot
-   it would land in. */
-body > .cal-lib__item {
-  width: max-content;
-  max-width: 220px;
-  background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
-  border: 0;
-  border-left: 3px solid var(--cal-tint, var(--accent));
-  border-radius: var(--r-sm);
-  box-shadow: var(--e4);
-  opacity: 0.92;
-  rotate: -2deg;
-  scale: 0.96;
-  cursor: grabbing;
-  padding: var(--s-2) var(--s-4);
-  /* "Picked up" pop: the tag lifts into the hand instead of just appearing. */
-  animation: cal-lift 160ms var(--ease-overlay) both;
-}
-@keyframes cal-lift {
-  from {
-    opacity: 0;
-    scale: 0.8;
-    rotate: 0deg;
-  }
-  to {
-    opacity: 0.92;
-    scale: 0.96;
-    rotate: -2deg;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  body > .cal-lib__item {
-    animation: none;
-  }
-}
-body > .cal-lib__item .cal-lib__grip,
-body > .cal-lib__item .cal-lib__meta,
-body > .cal-lib__item .cal-lib__add {
-  display: none;
-}
-body > .cal-lib__item .cal-lib__name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .cal-card {
   display: flex;
   flex-direction: column;
@@ -549,57 +635,113 @@ body > .cal-lib__item .cal-lib__name {
   white-space: nowrap;
 }
 
-/* ---------- library panel (rail + sheet) ---------- */
-.cal-lib {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-lg);
-}
-.cal-lib--rail {
-  display: none;
-  width: 264px;
-  flex: none;
-  margin: 0 var(--s-5) var(--s-5) 0;
-}
-/* The portal slot CampApp owns. On desktop the activity library lives in the
-   LEFT sidebar; LibraryPanel renders a .sidesection rail into this slot, so the
-   slot just needs to fill the column and the shared .sidesection rules
-   (globals.css) own the header, separator, and rhythm. The sidenav is
-   display:none on phones — there the FAB + sheet cover mobile. */
+/* ---------- calendar rail (portal slot CampApp owns) ----------
+   On desktop the mini-month + View settings render into this slot; the shared
+   .sidesection rules (globals.css) own the header treatment and rhythm. The
+   sidenav is display:none on phones — there the FAB + header Add cover mobile. */
 .sidenav__calrail {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
-/* On desktop the rail rides the shared .sidesection skeleton: re-enable it
-   (the base .cal-lib--rail is display:none) and drop the card chrome. This
-   rule outweighs .sidesection, so the section's top margin must be RE-STATED
-   here with the same value, or the zone header jumps when switching tabs.
-   (No top separator — matches the Library rail, see .sidesection.) */
-.sidenav__calrail .cal-lib--rail {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  width: auto;
-  margin: 26px 0 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-}
-.sidenav__calrail .cal-lib__search {
+/* The View ledger sits flush like the mini-month above it (the shared
+   .sidesection__body bleeds its edges by -18px to seat a scrollbar; the View
+   section never scrolls, so undo that). */
+.sidenav__calrail .cal-view__body {
   margin-inline: 0;
-  margin-top: 0;
-}
-.sidenav__calrail .cal-lib__cats {
   padding-inline: 0;
 }
-.sidenav__calrail .cal-lib__list {
-  padding-inline: 0;
+
+/* ---------- view settings ledger (sidebar "View" + mobile sheet) ----------
+   The view settings as a switch ledger — the Library filter vocabulary, so
+   calendar and library sidebars read as one. Persistently visible (no
+   disclosure), like the Library's always-open filter rail. Rows are the shared
+   .ledger__row; the last control drops its trailing dashed rule. */
+.calset > :last-child {
+  border-bottom: 0;
+}
+/* Camp hours / Manage camps are full-row buttons that still read as ledger rows
+   (label left, a quiet glyph right). */
+.calset__rowbtn {
+  width: 100%;
+  border: 0;
+  border-bottom: 1.5px dashed var(--line-soft);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.calset__rowval {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-soft);
+  transition: color var(--t-fast) var(--ease);
+}
+.calset__rowbtn:hover .ledger__label,
+.calset__rowbtn:hover .calset__rowval {
+  color: var(--ink);
+}
+.calset__rowval svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The "Number of days" stepper: − n + in a bordered pill, the same control
+   family as the search box and the header pager. */
+.daysstepper {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-sm);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  padding: var(--s-1);
+  gap: var(--s-1);
+}
+.daysstepper__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.daysstepper__btn:hover:not(:disabled) {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.daysstepper__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.daysstepper__btn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.daysstepper__val {
+  min-width: 14px;
+  text-align: center;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- sidebar mini-month ---------- */
@@ -631,7 +773,32 @@ body > .cal-lib__item .cal-lib__name {
 }
 .cal-mini__nav {
   display: flex;
+  align-items: center;
   gap: var(--s-1);
+}
+/* Today's new home (moved off the header): a quiet small-caps text pill that
+   sits with the mini-month's month chevrons. Disabled — faded, no hover — while
+   today is already in the main view, like the header button it replaced. */
+.cal-mini__today {
+  height: 26px;
+  padding: 0 var(--s-3);
+  margin-right: var(--s-1);
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cal-mini__today:hover:not(:disabled) {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cal-mini__today:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .cal-mini__navbtn {
   display: flex;
@@ -753,166 +920,6 @@ body > .cal-lib__item .cal-lib__name {
 .cal-mini__day.is-today .cal-mini__dot {
   background: var(--on-accent);
 }
-/* The rail body fills the section. Unlike the Library filter rail (where the
-   whole body scrolls), here the search + type chips stay fixed and only the
-   activity list scrolls — so the body itself does NOT scroll; .cal-lib__list
-   owns the scroll. Reset the generic body's edge-bleed margins too. */
-.cal-lib__body {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  overflow: visible;
-  margin-inline: 0;
-  padding-inline: 0;
-}
-.cal-lib__search {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin: var(--s-4) var(--s-5) 0;
-  padding: 0 var(--s-4);
-  height: var(--control-sm);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  color: var(--ink-soft);
-}
-.cal-lib__search svg {
-  width: 15px;
-  height: 15px;
-  flex: none;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-}
-.cal-lib__search:focus-within {
-  border-color: var(--accent);
-}
-.cal-lib__search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  outline: none;
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-}
-.cal-lib__cats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  padding: var(--s-4) var(--s-5) var(--s-3);
-}
-.cal-lib__list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 var(--s-3) var(--s-4);
-}
-/* Rail rows are grip-led (Elijah's call after trying spines here): the tinted
-   six-dot grip carries both the category color and the drag affordance, the
-   row itself stays unframed. The row still carries --cal-tint inline — the
-   drag CLONE and the in-grid mirror read it, so the block that leaves this
-   row keeps its category color mid-flight. */
-.cal-lib__item {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  border-radius: var(--r-md);
-  padding: var(--s-2);
-}
-/* Drag is a rail-only affordance (the sheet overlays the grid). */
-.cal-lib--rail .cal-lib__item {
-  cursor: grab;
-}
-.cal-lib--rail .cal-lib__item:active {
-  cursor: grabbing;
-}
-.cal-lib__item:hover {
-  background: var(--paper-2);
-}
-.cal-lib__grip {
-  flex: none;
-  display: flex;
-  color: var(--cal-tint, var(--ink-faint));
-}
-.cal-lib__grip svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-}
-.cal-lib__open {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-1);
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  padding: var(--s-1) 0;
-  border-radius: var(--r-sm);
-}
-.cal-lib__open:active .cal-lib__name {
-  color: var(--accent-ink);
-}
-.cal-lib__name {
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  color: var(--ink);
-  line-height: 1.1;
-}
-.cal-lib__meta {
-  /* The small-caps "stamp" treatment used for activity meta everywhere else
-     (.cat-row__meta / .deck-card__meta) — the rail was the lone exception. */
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-/* The quick-place "+" is a quiet ghost glyph until the pointer commits to it —
-   a bordered button on every row made the lengthy list read as a control
-   panel. (Same footprint either way, so nothing shifts.) */
-.cal-lib__add {
-  flex: none;
-  width: var(--control-sm);
-  height: var(--control-sm);
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--r-round);
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.cal-lib__add:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.cal-lib__add:active {
-  background: var(--accent-ink);
-  color: var(--on-accent);
-}
-.cal-lib__add svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.9;
-}
-.cal-lib__empty {
-  padding: var(--s-5);
-  color: var(--ink-faint);
-  font-size: var(--fs-ui);
-}
-
 /* ---------- the event window (every create + edit) ---------- */
 /* The tall bottom sheet is a phone affordance; from tablet up the centered
    card keeps the editors' compact 640px cap from globals.css. */
@@ -1337,38 +1344,132 @@ body > .cal-lib__item .cal-lib__name {
   outline-color: var(--paper); /* accent vanishes on the ink toast */
 }
 
-/* Swipe-between-days feedback: the grid nudges in from the swipe direction. */
-@keyframes cal-swipe-left {
-  from {
-    transform: translateX(24px);
-    opacity: 0.6;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* ============================================================
+ * CONTINUOUS DAY-STRIP SCROLL (the Notion feel, free — no premium ScrollGrid)
+ * ------------------------------------------------------------
+ * The timed views are ONE horizontally-scrolling strip of fixed-width days. We
+ * render the grid at natural height (height:auto → FullCalendar drops its own
+ * internal scrollers), make the .fc wider than the viewport via --cal-strip-w,
+ * and let .calshell__grid be the single native 2-axis scroller. CSS scroll-snap
+ * loosely aligns the nearest day to the left so a day is never half cut off, and
+ * position:sticky pins the time gutter (left) + the day-header row (top) so only
+ * the day columns move. (CalendarShell measures the real column width back out
+ * of the DOM for all the scroll math.)
+ * ============================================================ */
+.calshell__grid--strip {
+  overflow: auto;
+  /* The timed strip sits in the SAME rounded, bordered card as the Month grid
+     (whose box is its .fc-scrollgrid, inset by the parent grid's padding). The
+     strip can't inset with padding — that band would sit INSIDE the scroll
+     viewport, a day scrolled under the gutter would bleed events into it, and a
+     left-padding band can't be masked by the sticky gutter. So the strip insets
+     with MARGIN and becomes the rounded card itself: border + radius ride the
+     scroller, overflow:auto clips the day columns to the rounded corners, and the
+     content stays flush to the box's inner edge (no padding — the sticky gutter
+     still masks any column scrolled under it). */
+  padding: 0;
+  margin: 0 var(--s-5) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  scroll-snap-type: x proximity; /* loose: aligns when you settle, never forces */
+  /* Offset snapping by the time-gutter width so a day snaps to the gutter's RIGHT
+     edge (where it's actually visible), not under the sticky gutter. */
+  scroll-padding-left: var(--cal-gutter, 48px);
+  /* `none` (not `contain`): kill the elastic rubber-band bounce, not just scroll
+     chaining. A hard pull past the top/bottom otherwise drags the whole grid and
+     reveals a band above the sticky header (the frame + the grid's top line show
+     through) — the "top line appears/disappears on scroll" glitch. */
+  overscroll-behavior: none;
+  /* The card surface — also the backing the rounded corners reveal at the edges. */
+  background: var(--card);
 }
-@keyframes cal-swipe-right {
-  from {
-    transform: translateX(-24px);
-    opacity: 0.6;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* Force the grid wider than the viewport so the day columns overflow and scroll;
+   --cal-strip-w = time gutter + (day width × STRIP_DAYS), set by the shell. */
+.calshell__grid--strip .fc {
+  min-width: var(--cal-strip-w, 100%);
 }
-.calshell__grid.is-swipe-left .fc {
-  animation: cal-swipe-left 200ms ease-out;
+/* Release every FullCalendar overflow:hidden harness so position:sticky resolves
+   against .calshell__grid (and the natural-height grid is one scroll surface). */
+.calshell__grid--strip .fc-scrollgrid,
+.calshell__grid--strip .fc-view-harness,
+.calshell__grid--strip .fc-scroller-harness,
+.calshell__grid--strip .fc-scroller {
+  overflow: visible !important;
+  height: auto !important;
 }
-.calshell__grid.is-swipe-right .fc {
-  animation: cal-swipe-right 200ms ease-out;
+/* The strip's card frame now lives on the scroller (border + radius above), so
+   strip the inner FullCalendar scrollgrid's OWN outer frame — otherwise it draws
+   a second, full-width (mostly off-screen) rounded border that doubles the card
+   edge. The internal day-divider / hour / header cell borders are separate (on
+   the rows/cells) and stay untouched. */
+.calshell__grid--strip .fc-scrollgrid {
+  border: 0 !important;
+  border-radius: 0 !important;
 }
-@media (prefers-reduced-motion: reduce) {
-  .calshell__grid.is-swipe-left .fc,
-  .calshell__grid.is-swipe-right .fc {
-    animation: none;
-  }
+/* Drop the slot layer's stacking context. FullCalendar normally gives it z-index:1
+   so its labels render in their own bubble — but that traps the sticky gutter
+   BELOW the event cards, so a day scrolled under the gutter bleeds its events into
+   it. With the context gone, the sticky gutter labels (z-index below) promote into
+   the grid's stacking context ABOVE the events and mask them, while the
+   non-positioned hour lines stay BENEATH the events (the ruler still recedes). */
+.calshell__grid--strip .fc-timegrid-slots {
+  z-index: auto !important;
+}
+/* Snap each day column (and its header) to the strip's left edge. */
+.calshell__grid--strip .fc-col-header-cell,
+.calshell__grid--strip .fc-timegrid-col {
+  scroll-snap-align: start;
+}
+/* Pin the time gutter to the left through horizontal scroll. Every pinned piece
+   (gutter, header, all-day) is backed with the GRID's own surface (--card) so it
+   reads as part of the calendar — not a lighter "bar" laid over it — while the
+   opaque backing masks any column scrolled under the gutter. A hairline keeps the
+   gutter delineated from the day columns. */
+.calshell__grid--strip .fc-timegrid-axis,
+.calshell__grid--strip .fc-timegrid-slot-label {
+  position: sticky;
+  left: 0;
+  /* Above the event cards (which stack up to eventMaxStack) now that the slot
+     layer no longer boxes this in — so the gutter masks columns scrolled under it. */
+  z-index: 6;
+  background: var(--card);
+}
+.calshell__grid--strip .fc-timegrid-slot-label {
+  box-shadow: 1px 0 0 var(--fc-border-color);
+}
+/* The day-column overlay's gutter spacer is transparent, but it's lifted ABOVE
+   the hour labels (z6) so the now-time pill it carries (FC's axis-side arrow,
+   restyled above) paints over any label it overlaps. It stays BELOW the sticky
+   all-day/header rows (z8+) so the pill tucks cleanly under them when the line is
+   scrolled to the top. The col itself is transparent, so only the pill shows —
+   the labels still read everywhere the pill isn't. */
+.calshell__grid--strip .fc-timegrid-col.fc-timegrid-axis {
+  background: transparent !important;
+  z-index: 7 !important;
+}
+/* Pin the ALL-DAY row to the top, just BELOW the day-name header (offset by the
+   measured header height) so all-day events stay put while you scroll the hours. */
+.calshell__grid--strip .fc-scrollgrid-section-body:has(.fc-daygrid-body) > * {
+  position: sticky;
+  top: var(--cal-headh, 57px);
+  z-index: 8;
+  background: var(--card);
+}
+.calshell__grid--strip .fc-scrollgrid-section-body:has(.fc-daygrid-body) .fc-timegrid-axis {
+  z-index: 9;
+  box-shadow: 1px 0 0 var(--fc-border-color);
+}
+/* Pin the day-name header row to the very top, above the all-day row; the corners
+   (axis) sit above both the sticky rows and the sticky gutter. */
+.calshell__grid--strip .fc-scrollgrid-section-header > * {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card);
+}
+.calshell__grid--strip .fc-scrollgrid-section-header .fc-timegrid-axis {
+  z-index: 11;
+  box-shadow: 1px 0 0 var(--fc-border-color);
 }
 
 /* ---------- camp hours sheet ---------- */
@@ -1480,13 +1581,6 @@ body > .cal-lib__item .cal-lib__name {
   .calhead {
     gap: var(--s-3);
   }
-  /* Tight header: the clock icon alone carries "Hours". */
-  .calhead__hours-label {
-    display: none;
-  }
-  .calhead__hours {
-    padding: 0 var(--s-3);
-  }
   /* The sheet is pinned to the screen bottom — keep the commit buttons clear
      of the home indicator. */
   .quickadd__schedule {
@@ -1495,9 +1589,14 @@ body > .cal-lib__item .cal-lib__name {
   .quickadd__custom {
     padding-bottom: calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
   }
+  /* The controls ride the top row; the date title wraps below them. */
+  .calhead__controls {
+    order: 1;
+    margin-left: 0;
+  }
   .calhead__title {
     width: 100%;
-    order: 3;
+    order: 2;
     font-size: var(--fs-body-lg);
   }
   .cal-popover {

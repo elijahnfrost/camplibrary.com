@@ -1,42 +1,52 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { type ReactNode } from "react";
 import { CampIcon } from "../icons";
-
-export type CalendarViewId = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
-
-const VIEW_LABELS: { id: CalendarViewId; label: string }[] = [
-  { id: "timeGridDay", label: "Day" },
-  { id: "timeGridWeek", label: "Week" },
-  { id: "dayGridMonth", label: "Month" },
-];
+import { ViewSwitch } from "./ViewSwitch";
+import type { ViewKey } from "@/lib/calendar/views";
 
 // Our own chrome instead of FullCalendar's headerToolbar, so the calendar's
-// frame is the app's design system. Keyboard: t / d / w / m / arrows (wired
-// in CalendarShell).
+// frame is the app's design system — laid out like Notion Calendar: the date
+// title on the left, then a right cluster of the view switch and the Add button.
+// The [Day | Week | Month] switch is the same seg-slide the Library uses for
+// Shelf/Deck/Catalog, so the two views' top bars match. There's no prev/next
+// pager — navigation is the sidebar mini-month (and horizontal scroll), which
+// also hosts the Today jump on desktop; the header keeps a Today button only on
+// mobile, where the mini-month isn't rendered (CSS hides it from 768px up). View
+// SETTINGS (weekends, week-start, days, camp hours) live in the sidebar on
+// desktop and behind the settings button → a sheet on mobile. Keyboard (wired in
+// CalendarShell): 1/0/2–9 + d/w/m views, t today, j/k + arrows navigate.
 export function CalendarHeader({
   title,
   view,
   todayInView,
   onView,
   onToday,
-  onPrev,
-  onNext,
+  onOpenSettings,
+  onAdd,
   actions,
 }: {
   title: string;
-  view: CalendarViewId;
+  view: ViewKey;
   todayInView: boolean;
-  onView: (view: CalendarViewId) => void;
+  onView: (view: ViewKey) => void;
   onToday: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  /** Rendered at the right edge (e.g. the auth pill). */
+  /** Opens the view-settings sheet on mobile (desktop surfaces them in the rail). */
+  onOpenSettings: () => void;
+  /** Opens the event composer (QuickAdd) — the green Add button, like the Library. */
+  onAdd: () => void;
+  /** Camp-scoped actions composed by CampApp (the Subscribe / .ics feed pill);
+   *  sits at the head of the controls cluster as a peer to the view switch. */
   actions?: ReactNode;
 }) {
   return (
     <div className="calhead">
-      <div className="calhead__nav">
+      <h2 className="calhead__title">{title}</h2>
+      <div className="calhead__controls">
+        {actions}
+        <ViewSwitch view={view} onView={onView} />
+        {/* Today is mobile-only here — desktop's lives in the sidebar mini-month
+            (CSS hides this from the 768px sidebar breakpoint up). */}
         <button
           type="button"
           className="btn btn--quiet calhead__today"
@@ -46,39 +56,27 @@ export function CalendarHeader({
         >
           Today
         </button>
-        <button type="button" className="icon-btn" onClick={onPrev} aria-label="Previous" title="Previous (←)">
-          <CampIcon.ChevronLeft />
+        <button
+          type="button"
+          className="calhead__settings"
+          onClick={onOpenSettings}
+          aria-label="View settings"
+          title="View settings"
+        >
+          <CampIcon.More />
         </button>
-        <button type="button" className="icon-btn" onClick={onNext} aria-label="Next" title="Next (→)">
-          <CampIcon.ChevronRight />
+        {/* The green Add — the calendar's twin of the Library's Add button.
+            Desktop-only; phones keep the FAB (the header is tight there). */}
+        <button
+          type="button"
+          className="btn btn--primary calhead__add"
+          onClick={onAdd}
+          title="Add to calendar"
+        >
+          <CampIcon.Plus />
+          <span>Add</span>
         </button>
-        <h2 className="calhead__title">{title}</h2>
       </div>
-      <div
-        className="calhead__views seg-slide"
-        role="group"
-        aria-label="Calendar view"
-        style={
-          {
-            "--seg-n": VIEW_LABELS.length,
-            "--seg-i": VIEW_LABELS.findIndex((item) => item.id === view),
-          } as CSSProperties
-        }
-      >
-        {VIEW_LABELS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={"calhead__view" + (view === item.id ? " is-active" : "")}
-            aria-pressed={view === item.id}
-            onClick={() => onView(item.id)}
-            title={item.label + " view (" + item.label[0].toLowerCase() + ")"}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      {actions && <div className="calhead__actions">{actions}</div>}
     </div>
   );
 }

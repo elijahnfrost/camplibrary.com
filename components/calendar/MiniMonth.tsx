@@ -20,9 +20,11 @@ export function MiniMonth({
   viewStart,
   viewEnd,
   today,
+  todayInView,
   eventDays,
   firstDay = 1,
   onPick,
+  onToday,
 }: {
   /** Reference date of the main view (its first visible day) — sets which month shows. */
   anchorDate: Date;
@@ -30,11 +32,15 @@ export function MiniMonth({
   viewStart: DateKey | null;
   viewEnd: DateKey | null;
   today: DateKey;
+  /** True when today already sits in the main view's window — disables the Today jump. */
+  todayInView: boolean;
   /** Days with at least one event in the active camp — drawn with a dot. */
   eventDays: Set<DateKey>;
   /** First weekday of the week (0 = Sunday, 1 = Monday). Matches the grid. */
   firstDay?: number;
   onPick: (date: Date) => void;
+  /** Jump the main calendar back to today (the header pager's old home). */
+  onToday: () => void;
 }) {
   const anchorKey = anchorDate.getFullYear() + "-" + anchorDate.getMonth();
   const [monthCursor, setMonthCursor] = useState(
@@ -85,6 +91,17 @@ export function MiniMonth({
       <div className="cal-mini__head">
         <span className="cal-mini__label">{monthLabel}</span>
         <div className="cal-mini__nav">
+          {/* Today lives here now (moved off the header) — the minimap is the
+              calendar's navigator, so its "jump back to today" sits with it. */}
+          <button
+            type="button"
+            className="cal-mini__today"
+            onClick={onToday}
+            disabled={todayInView}
+            title={todayInView ? "You're looking at today" : "Jump to today (t)"}
+          >
+            Today
+          </button>
           <button
             type="button"
             className="cal-mini__navbtn"
