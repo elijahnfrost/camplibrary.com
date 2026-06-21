@@ -1,0 +1,12 @@
+{
+  "name": "camp-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless MCP server + CLI for creating Camp Library schedules, custom events, run lists, and field diagrams by talking to an agent. Writes straight to the production Neon DB through the app's own server-side validators.",
+  "scripts": {
+    "mcp": "tsx src/server.ts",
+    "cli": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
