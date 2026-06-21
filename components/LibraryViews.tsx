@@ -56,7 +56,7 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
             </span>
           </div>
           <div className="rail">
-            {g.list.map((a) => {
+            {g.list.map((a, idx) => {
               const saved = isFav(a.id);
               // saved spines get one of six hand-drawn motifs (data-mark), all in
               // the single honey-gold; reserve head & foot room so it clears the title
@@ -72,6 +72,9 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
                       paddingTop: saved ? Math.max(spinePadTop(a), 30) : spinePadTop(a),
                       paddingBottom: saved ? 28 : undefined,
                       background: ratingColor(a.rating),
+                      // hovering the shelf sends a left→right wave through the row:
+                      // each book hops up then drops back into place, staggered by --i
+                      "--i": idx,
                     } as CSSProperties
                   }
                   title={a.title}
