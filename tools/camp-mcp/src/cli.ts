@@ -14,6 +14,7 @@
 //
 // Needs DATABASE_URL + CAMP_ADMIN_CLERK_USER_ID (env or repo-root .env.local).
 
+import "./quiet";
 import { readFileSync } from "node:fs";
 import { loadEnv } from "./config";
 import * as store from "./store";
@@ -37,7 +38,9 @@ function jsonArg(): unknown {
 }
 
 function print(data: unknown): void {
-  console.log(JSON.stringify(data, null, 2));
+  // Write results straight to stdout (console.log is redirected to stderr by
+  // ./quiet to keep driver NOTICE chatter off the real output stream).
+  process.stdout.write(JSON.stringify(data, null, 2) + "\n");
 }
 
 async function run(): Promise<void> {
