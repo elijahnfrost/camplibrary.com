@@ -31,6 +31,7 @@ import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
 import { ListManagerModal } from "./ListManagerModal";
 import { Modal } from "./Modal";
+import { LoadingVeil } from "./primitives";
 import { PrintTab } from "./print/PrintTab";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { StaffSignIn } from "./StaffSignIn";
@@ -114,7 +115,23 @@ function StaffPromptModal({
 }
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
-  const [tab, setTab] = useState<TabId>(initialTab);
+  const [tab, setTabRaw] = useState<TabId>(initialTab);
+  // A brief, branded veil over the main pane while a new tab mounts — heavy
+  // surfaces (FullCalendar, the Paged.js preview) jank on first paint, so we
+  // fade them in behind a clean loading screen instead of flashing. The veil is
+  // started in the SAME render as the tab change (so it paints over the mount),
+  // then cleared on a short timer. Wrapping setTab means every nav path — the
+  // sidebar, the phone tabbar, and programmatic jumps — gets the transition.
+  const [tabLoading, setTabLoading] = useState(false);
+  const setTab = useCallback((value: TabId | ((prev: TabId) => TabId)) => {
+    setTabLoading(true);
+    setTabRaw(value);
+  }, []);
+  useEffect(() => {
+    if (!tabLoading) return;
+    const id = window.setTimeout(() => setTabLoading(false), 300);
+    return () => window.clearTimeout(id);
+  }, [tabLoading, tab]);
   const auth = usePreviewAuth();
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
   const isSignedIn = signedInUserId != null;
@@ -309,6 +326,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // activity library into this slot (the same place the Library filters live).
   const [calRail, setCalRail] = useState<HTMLDivElement | null>(null);
   const calRailRef = useCallback((node: HTMLDivElement | null) => setCalRail(node), []);
+  // The Print tab shares the same sidebar: PrintTab portals its schedule controls
+  // into this slot (no second sidebar) — the same node-state pattern as the
+  // calendar rail above.
+  const [printRail, setPrintRail] = useState<HTMLDivElement | null>(null);
+  const printRailRef = useCallback((node: HTMLDivElement | null) => setPrintRail(node), []);
 
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
@@ -453,9 +475,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             />
           )}
           {tab === "calendar" && <div className="sidenav__calrail" ref={calRailRef} />}
+          {tab === "print" && <div className="sidenav__printrail" ref={printRailRef} />}
         </nav>
 
         <main className="app__main" id="main">
+          {tabLoading && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
           {tab === "library" && <h1 className="sr-only">Library</h1>}
 
@@ -543,6 +567,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             <PrintTab
               data={printData}
               activeCampId={campKit.activeCampId}
+              railSlot={printRail}
               printHost={printHost}
               announce={setLiveMsg}
             />

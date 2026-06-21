@@ -233,6 +233,35 @@ export function ThemePicker({
   );
 }
 
+/** A label-only inline menu picker — the Ages-filter shape generalized, for any
+ *  single choice whose options are too long to sit as segments in the narrow rail
+ *  (e.g. the Print tab's per-activity detail, timeline spacing, camp). Same
+ *  trigger + floating menu as Type/Theme/Ages, so every rail picker reads as one
+ *  family. Wraps itself in a ledger row when given a `label`. */
+export function MenuPicker<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  ariaLabel,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { id: T; label: string }[];
+  label?: string;
+  ariaLabel: string;
+}) {
+  return (
+    <SwatchPicker
+      value={value}
+      onChange={(v) => onChange(v as T)}
+      options={options}
+      label={label}
+      ariaLabel={ariaLabel}
+    />
+  );
+}
+
 /** A theme tag — swatch + label, so it never relies on color alone. Renders
  *  nothing when the activity has no (resolvable) theme. */
 export function ThemeBadge({ theme, className }: { theme: Theme | null; className?: string }) {
@@ -521,6 +550,39 @@ export function EmptyResults() {
       <div className="empty__sub">
         No activities match these filters. Loosen a tag or clear the search.
       </div>
+    </div>
+  );
+}
+
+// A calm, branded loading screen — three earthy bars that rise in a gentle wave
+// (no spinners; the app speaks in pops and fades). Used both while the print
+// preview paginates and while a heavier tab mounts. The wave is decorative and
+// stilled under prefers-reduced-motion; the label carries the meaning for AT.
+export function LoadingVeil({
+  label = "Loading",
+  sub,
+  className,
+  decorative = false,
+}: {
+  label?: string;
+  sub?: string;
+  className?: string;
+  // Decorative veils (e.g. a 300ms tab transition) skip the live region so screen
+  // readers aren't told "One moment…" on every navigation; the text stays visible.
+  decorative?: boolean;
+}) {
+  const live = decorative
+    ? ({ "aria-hidden": true } as const)
+    : ({ role: "status", "aria-live": "polite" } as const);
+  return (
+    <div className={"loadveil" + (className ? " " + className : "")} {...live}>
+      <div className="loadveil__mark" aria-hidden="true">
+        <span className="loadveil__bar" />
+        <span className="loadveil__bar" />
+        <span className="loadveil__bar" />
+      </div>
+      <div className="loadveil__title">{label}</div>
+      {sub && <div className="loadveil__sub">{sub}</div>}
     </div>
   );
 }
