@@ -212,7 +212,28 @@
   color: var(--ink-soft);
 }
 .calshell .fc .fc-timegrid-slot {
-  height: 1.3em;
+  /* Base 15-min slot height, scaled by the pinch-to-zoom factor (--cal-slot-zoom,
+     default 1; set on .calshell__grid by CalendarShell). Pinch out → taller hours
+     for fine detail; pinch in → denser hours for a whole-day overview. The
+     vertical analogue of the Day/Week/N horizontal zoom. */
+  height: calc(1.3em * var(--cal-slot-zoom, 1));
+}
+/* Let the slot rows compress all the way down when pinched OUT. An empty table
+   cell otherwise keeps a full line-box (~the inherited font's line height), which
+   floors the row height — so without this, pinch-OUT does nothing. We zero the
+   line box on the (text-less) lane + empty axis cells so the calc() height above
+   wins down to its minimum; the hour-label cushion re-asserts a normal line-box
+   so the time text stays readable (giving the hour rows a gentle floor — they
+   simply read as the slightly roomier hour ticks at the densest zoom). */
+.calshell__grid--strip .fc-timegrid-slot-lane {
+  line-height: 0;
+  font-size: 0;
+}
+.calshell__grid--strip .fc-timegrid-slot-label {
+  line-height: 0;
+}
+.calshell__grid--strip .fc-timegrid-slot-label-cushion {
+  line-height: normal;
 }
 /* The grid is a quiet ruler the events sit ON. The HOUR line is the persistent
    tick (gutter + columns). The finer 15-minute lines are drawn in the day
