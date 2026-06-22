@@ -37,9 +37,13 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (!q) return true;
 
   // Steps and notes are searchable on purpose: counselors remember activities
-  // by play details ("the one with the sponge line"), not just titles.
+  // by play details ("the one with the sponge line"), not just titles. Alt-names
+  // are in the haystack too: many games are searched by a local/alternate name
+  // ("Octopus", "Goggaball") that never appears in the title.
   const hay = (
     a.title +
+    " " +
+    searchableArray(a.altNames).join(" ") +
     " " +
     a.type +
     " " +

@@ -180,6 +180,9 @@ export function DetailSheet({
 
             <h2 className="rlv-title">{a.title}</h2>
             {a.blurb ? <p className="rlv-blurb">{a.blurb}</p> : null}
+            {a.altNames && a.altNames.length ? (
+              <p className="rlv-aka">Also called {a.altNames.join(" · ")}</p>
+            ) : null}
             {theme && <ThemeBadge theme={theme} className="rlv-theme" />}
           </header>
 

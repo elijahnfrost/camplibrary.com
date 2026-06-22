@@ -148,6 +148,14 @@ export function normalizeActivity(value: unknown): Activity | null {
     rating: clampedWholeNumber(value.rating, 0, 0, 5),
   };
 
+  // Alternate names ride alongside the rebuilt object; without this re-attach the
+  // clean rebuild would silently drop them on every save (same rule as
+  // materialTags/color/playbook). De-duped, trimmed, empties removed.
+  if (Array.isArray(value.altNames)) {
+    const altNames = [...new Set(stringArray(value.altNames))];
+    if (altNames.length) activity.altNames = altNames;
+  }
+
   if (Array.isArray(value.materialTags)) {
     activity.materialTags = stringArray(value.materialTags);
   }

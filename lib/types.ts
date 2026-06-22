@@ -26,6 +26,12 @@ export interface AgeGroup {
 export interface Activity {
   id: string;
   title: string;
+  // Alternate names the activity is known by — camp games travel under many
+  // names (Gaga Ball ⇄ "Goggaball" / "Octoball"; Sharks & Minnows ⇄ "Octopus").
+  // Display-only as an "also known as" line, and folded into the library search
+  // haystack so a counselor who only knows the local name still finds the book.
+  // Optional + absent by default, so existing literals/seeds need no backfill.
+  altNames?: string[];
   type: CategoryId;
   place: Place;
   ageMin: number;

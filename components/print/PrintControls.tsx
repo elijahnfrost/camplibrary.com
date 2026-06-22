@@ -185,7 +185,13 @@ function RunSheetPicker({
   const picked = activities.filter((a) => selectedSet.has(a.id));
   const q = query.trim().toLowerCase();
   const matches = q
-    ? activities.filter((a) => !selectedSet.has(a.id) && a.title.toLowerCase().includes(q)).slice(0, 6)
+    ? activities
+        .filter(
+          (a) =>
+            !selectedSet.has(a.id) &&
+            (a.title + " " + (a.altNames ?? []).join(" ")).toLowerCase().includes(q)
+        )
+        .slice(0, 6)
     : [];
 
   return (

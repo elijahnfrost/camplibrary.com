@@ -174,7 +174,7 @@ type SeedActivity = Omit<Activity, "ages" | "rating"> & {
 
 const SEED: SeedActivity[] = [
   {
-    id: "capture-flag", title: "Capture the Flag", type: "Game", place: "Outside",
+    id: "capture-flag", title: "Capture the Flag", altNames: ["CTF"], type: "Game", place: "Outside",
     ageMin: 8, ageMax: 12, durationMin: 30, groupMin: 10, groupMax: 30, energy: 3, prep: "Low",
     blurb: "Two teams, two flags, one no-man's-land. The camp classic.",
     materials: ["2 flags or pinnies", "8-12 cones for boundaries", "Team identifiers, such as pinnies or bandanas"],
@@ -189,22 +189,26 @@ const SEED: SeedActivity[] = [
     safety: "Set hard boundary lines away from trees and slopes. No grabbing or tackling — tags are two-finger touches only.",
   },
   {
-    id: "gaga-ball", title: "Gaga Ball", type: "Game", place: "Outside",
+    id: "gaga-ball", title: "Gaga Ball", altNames: ["Gaga", "Ga-ga ball", "Octoball", "Goggaball"], type: "Game", place: "Outside",
     ageMin: 7, ageMax: 14, durationMin: 20, groupMin: 6, groupMax: 20, energy: 3, prep: "None",
     blurb: "Dodgeball's faster, friendlier cousin — played in a pit.",
     materials: ["1 soft foam gaga ball or playground ball", "Gaga pit or floor tape for an octagon boundary"],
     materialTags: ["Soft foam playground ball", "Gaga pit or floor tape"],
     steps: [
-      "Everyone starts with a hand on the wall of the pit.",
-      "Ball is tossed in; on the third bounce, play begins.",
-      "Hit opponents below the knee to eliminate them.",
-      "Last camper standing wins; reset and play again.",
+      "Everyone spreads around the inside of the pit with one hand on the wall.",
+      "The counselor drops the ball in the center. The group calls a word on each bounce — 'Ga'… 'Ga'… 'Go!' — and only after 'Go' may anyone touch it.",
+      "Slap the ball with an open hand to hit other players at or below the knee. A clean low hit puts that player out.",
+      "You can't hit the ball twice in a row: it has to touch another player or the wall before you may hit it again.",
+      "Out players step outside the wall and become wall-judges — they call hits and toss escaped balls back to the center.",
+      "Last camper in wins the round. Rounds are short (1–3 min), so everyone re-enters for the next one.",
     ],
-    notes: "No pit? Tape an octagon on a gym floor or use pool noodles as a low wall.",
-    safety: "Underhand hits only, below the knee. Watch for collisions when the pit gets crowded.",
+    notes:
+      "The calls everyone asks about: a hit ABOVE the knee doesn't count and nobody is out; a ball off the wall is live; if a player catches the ball straight off someone's hand before it bounces, the hitter is out instead. No scooping, holding, or lifting the ball — open-hand slaps along the ground only. Out of bounds: a wall-judge tosses it back to center, no penalty. Stalls: if the last two won't swing, call 'sudden death' — first clean low hit wins; if two go out on the same play, replay just those two. Youngest groups: drop the catch-out and double-hit rules, keep it to 'below the knee = out, above the knee = play on', and referee every call. No pit? Tape an octagon on a gym floor or use pool noodles as a low wall.",
+    safety:
+      "Open-hand slaps along the ground only — no overhand throwing or scooping the ball up to launch it (a lifted ball is the main face-hit risk). Stay on your feet: no diving or kneeling slides, and don't sit, climb, or hang on the wall. Tie back long hair and secure glasses. Watch for collisions when the pit gets crowded.",
   },
   {
-    id: "sharks-minnows", title: "Sharks & Minnows", type: "Game", place: "Both",
+    id: "sharks-minnows", title: "Sharks & Minnows", altNames: ["Octopus", "Fishes and Sharks", "Sharks and Fishes"], type: "Game", place: "Both",
     ageMin: 6, ageMax: 12, durationMin: 15, groupMin: 8, groupMax: 30, energy: 2, prep: "None",
     blurb: "A dash across open ground while the sharks try to tag you.",
     materials: ["8-12 cones, sidewalk chalk, or floor tape for two boundary lines"],
@@ -366,7 +370,7 @@ const SEED: SeedActivity[] = [
     safety: "Run on grass, not pavement — wet feet slip. Keep the path clear.",
   },
   {
-    id: "drip-drip-drop", title: "Drip Drip Drop", type: "Water", place: "Outside",
+    id: "drip-drip-drop", title: "Drip Drip Drop", altNames: ["Duck Duck Splash", "Drip Drip Splash"], type: "Water", place: "Outside",
     ageMin: 6, ageMax: 12, durationMin: 15, groupMin: 8, groupMax: 20, energy: 2, prep: "Low",
     blurb: "Duck-Duck-Goose with a cup of water and a gleeful splash.",
     materials: ["1 small cup", "Water source"],

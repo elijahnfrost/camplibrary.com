@@ -29,6 +29,20 @@ describe("activity validation", () => {
     expect(normalized?.ages).toEqual(["g13", "g46"]);
   });
 
+  it("re-attaches alternate names, trimmed and de-duped, and omits them when empty", () => {
+    const withAltNames = normalizeActivity({
+      ...legacyActivity,
+      altNames: ["  Octopus  ", "Octopus", "Fishes and Sharks", "", 42],
+    });
+    // Trimmed, de-duped, non-strings dropped — and the field survives the rebuild.
+    expect(withAltNames?.altNames).toEqual(["Octopus", "Fishes and Sharks"]);
+
+    // No altNames (or an all-empty list) leaves the field absent, not an empty array.
+    expect(normalizeActivity(legacyActivity)?.altNames).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, altNames: ["", "   "] })?.altNames).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, altNames: "not an array" })?.altNames).toBeUndefined();
+  });
+
   it("sanitizes persisted arrays and numeric fields before material helpers use them", () => {
     const normalized = normalizeActivities(
       [

@@ -286,6 +286,10 @@ server.registerTool(
       "Add a fully custom activity to the library so events can reference it. type is one of the 5 fixed categories (default Game); place Inside/Outside/Both; ages from the 5 fixed bands (pre/g13/g46/g79/g1012). Returns the saved activity (or null if it failed validation).",
     inputSchema: {
       title: z.string().min(1),
+      altNames: z
+        .array(z.string())
+        .optional()
+        .describe("Alternate names this game is known by (searchable); e.g. ['Octopus','Fishes and Sharks']"),
       type: z.enum(["Game", "Craft", "Song", "Water", "Quiet"]).optional(),
       place: z.enum(["Inside", "Outside", "Both"]).optional(),
       durationMin: z.number().int().positive().optional(),
