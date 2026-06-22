@@ -15,7 +15,6 @@ export function DetailSheet({
   onToggleFav,
   onClose,
   onSetRating,
-  isCustom,
   onEdit,
   onDuplicate,
   onDelete,
@@ -34,7 +33,6 @@ export function DetailSheet({
   onToggleFav: (id: string) => void;
   onClose: () => void;
   onSetRating?: (id: string, val: number) => void;
-  isCustom: boolean;
   onEdit: (a: Activity) => void;
   onDuplicate: (a: Activity) => void;
   onDelete: (a: Activity) => void;
@@ -59,7 +57,7 @@ export function DetailSheet({
   const [editing, setEditing] = useState(false);
   const canEdit = Boolean(onSaveRunDoc);
   const editable = editing && canEdit;
-  const showOwner = showOwnerActions && isCustom;
+  const showOwner = showOwnerActions;
 
   // On phones, a downward swipe that STARTS on the header closes the viewer —
   // scoping it to the header keeps iOS rubber-band overscroll in the step list

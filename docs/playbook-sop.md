@@ -38,11 +38,13 @@ shape can never crash the render.
 ## Where Diagrams Live (persistence)
 
 - **Custom books** carry their diagram on `Activity.playbook` (persisted with the book in `extra`).
-- **Built-in books** (e.g. Capture the Flag) start from `PLAYBOOKS_BY_ACTIVITY_ID`; edits are
-  saved with the full edited activity in the `camp:overrides` localStorage map — the seed data is
-  never mutated, and diagram edits stay together with title/material/step edits.
-- Resolution order in `CampApp`: edited activity override → seed/custom activity with
-  `Activity.playbook` → built-in `PLAYBOOKS_BY_ACTIVITY_ID` registry → none.
+- **Built-in books** (e.g. Capture the Flag) start from `PLAYBOOKS_BY_ACTIVITY_ID`; edits promote
+  the built-in into a synced user-owned activity record with the same id. The seed data is never
+  mutated, and diagram edits stay together with title/material/step edits.
+- Deleted built-ins are hidden by the synced `deletedActivityIds` document, so they do not reappear
+  on reload.
+- Resolution order in `CampApp`: synced/custom activity with `Activity.playbook` →
+  built-in `PLAYBOOKS_BY_ACTIVITY_ID` registry → none.
 - Legacy `camp:playbooks` entries from the standalone diagram editor are still read as a compatibility fallback and cleared when that diagram is saved or reset through the unified editor.
 
 ## Editing flow
@@ -76,6 +78,8 @@ shape can never crash the render.
 - AI must reconcile generated materials with `Activity.materials`.
 - AI must state assumptions for group size, space, age range, and win condition.
 - AI-generated coordinates must stay in the 0–100 coordinate space.
+- AI doing bulk authoring must follow `docs/ai-authoring-guide.md`, including the full run-sheet
+  block/child checklist and MCP verification sequence.
 
 ## Review Checklist
 

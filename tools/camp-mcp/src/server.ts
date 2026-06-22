@@ -148,16 +148,19 @@ server.registerTool(
   {
     title: "Create or edit an event",
     description:
-      "Create OR edit one NON-repeating calendar event. Times are minutes from local midnight, snapped to a 15-minute grid. Provide startMin+endMin for a timed event, or allDay:true. activityId (a real id from list_context) links a library activity and forces kind='activity'; omit it for a free-form custom event. Pass an existing id to edit in place; omit id to create. For a REPEATING event use create_series; to edit/delete one that already repeats, use edit_series / delete_series (editing a series occurrence here would only touch that one row).",
+      "Create OR edit one NON-repeating calendar event or one materialized occurrence. Times are minutes from local midnight, snapped to a 15-minute grid. For edits, pass an existing id and only the fields you want to change; omitted title/activity/time/location fields are preserved. activityId or activityTitle links a library activity and forces kind='activity'; exact title matches like 'Gaga Ball' also auto-link. Use kind:'custom' or activityId:null for a plain custom event. For a REPEATING event use create_series; to edit/delete a repeating set, use edit_series / delete_series.",
     inputSchema: {
-      date: DATE,
+      date: DATE.optional().describe("required for new events; optional when editing an existing id"),
       startMin: z.number().int().min(0).max(1440).optional().describe("e.g. 540 = 9:00am"),
       endMin: z.number().int().min(0).max(1440).optional(),
       allDay: z.boolean().optional(),
+      kind: z.enum(["activity", "custom"]).optional(),
       title: z.string().max(200).optional(),
-      activityId: z.string().max(120).optional(),
-      campId: z.string().optional(),
-      color: HEX.optional(),
+      activityId: z.string().max(120).nullable().optional(),
+      activityTitle: z.string().max(200).nullable().optional(),
+      campId: z.string().nullable().optional(),
+      color: HEX.nullable().optional().describe("hex color like #3f6b45; null clears"),
+      location: z.string().max(80).nullable().optional(),
       id: z.string().uuid().optional().describe("reuse to edit an existing event"),
     },
   },
@@ -396,8 +399,9 @@ server.registerTool(
   {
     title: "Add a custom library activity",
     description:
-      "Add a fully custom activity to the library so events can reference it. type is one of the 5 fixed categories (default Game); place Inside/Outside/Both; ages from the 5 fixed bands (pre/g13/g46/g79/g1012). Returns the saved activity (or null if it failed validation).",
+      "Add or update a custom library activity so events can reference it. Provide a stable id to upsert in place; omit id to create one. type is one of the 5 fixed categories (default Game); place Inside/Outside/Both; ages from the 5 fixed bands (pre/g13/g46/g79/g1012). Returns the saved activity (or null if it failed validation).",
     inputSchema: {
+      id: z.string().min(1).max(120).optional(),
       title: z.string().min(1),
       altNames: z
         .array(z.string())

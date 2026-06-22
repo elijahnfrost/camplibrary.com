@@ -53,7 +53,9 @@ opens a bottom-sheet library where one tap places an activity at the next free s
 
 **Library** — Shelf · Deck · Catalog views over the activity catalog, with search
 (titles, steps, materials), filters (type / place / ages / available kit / starred),
-and an in-place add/edit sheet for custom activities.
+and an in-place add/edit sheet for custom and built-in activities. Built-ins such as
+Gaga Ball and Capture the Flag can be promoted into synced user-owned records and
+deleted from the visible catalog.
 
 **The Run List** — opening any activity (from either surface) shows its instruction
 document: collapsible steps with attached notes, safety calls, variations, videos,
@@ -86,7 +88,7 @@ Postgres holds three kinds of data (schema ensured in code,
 | Table | Contents |
 | --- | --- |
 | `invite_codes` (+ reservations) | usage-limited staff invite keys |
-| `user_documents` | per-user jsonb docs: favs, custom activities, ratings, run-list overrides, playbook overrides, view, available kit |
+| `user_documents` | per-user jsonb docs: favs, custom/built-in activity edits, deleted activity ids, ratings, run-list overrides, playbook overrides, view, available kit |
 | `calendar_events` | row-per-event with a `(user, date)` index; payload jsonb keeps unknown client fields round-tripping |
 
 API surface: `GET /api/user-data` (bootstrap), `PUT /api/user-data/docs/[key]`,
@@ -104,6 +106,15 @@ npm run invite:create -- --label "Staff name" --email staff@example.com --max-us
 Once signed in as the admin, the app shows an Admin tab where invite codes can be
 generated, reviewed, and removed without the CLI. `/admin` remains an admin-protected
 deep link into the same app shell.
+
+## AI bulk authoring
+
+CloudCode, Claude Code, and other AI tools should use the bundled MCP server in
+`tools/camp-mcp` for bulk activity, run-sheet, diagram, and calendar edits. The
+definitive operating instructions live in [`docs/ai-authoring-guide.md`](docs/ai-authoring-guide.md).
+The short rule: call `list_context` first, write activities with stable ids, replace
+complete run sheets with `set_run_list`, write diagrams with `set_diagram`, schedule
+with `upsert_event` or `create_day_schedule`, then verify with `list_events`.
 
 ## Project layout
 

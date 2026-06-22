@@ -6,6 +6,12 @@
 
 import { useCallback, useMemo } from "react";
 import type { CloudUserData } from "@/lib/cloudStore";
+import {
+  mergeActivityCatalog,
+  removeActivityRecord,
+  seedActivityIds,
+  upsertActivityRecord,
+} from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
 import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
@@ -28,7 +34,7 @@ export function useActivityLibrary({
   announce: (message: string) => void;
 }) {
   const { docs, setDoc, events, commitEvents } = cloud;
-  const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view } = docs;
+  const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view, deletedActivityIds } = docs;
   const availableMaterials = docs.availableMaterials;
   const { themes, themeAssignments } = docs;
 
@@ -36,9 +42,11 @@ export function useActivityLibrary({
 
   // The catalog: seed + custom activities, with the user's ratings applied.
   const all = useMemo(() => {
-    const base = [...extra, ...ACTIVITIES];
+    const base = mergeActivityCatalog(ACTIVITIES, extra, deletedActivityIds);
     return base.map((a) => (ratings[a.id] != null ? { ...a, rating: ratings[a.id] } : a));
-  }, [extra, ratings]);
+  }, [deletedActivityIds, extra, ratings]);
+
+  const seedIds = useMemo(() => seedActivityIds(ACTIVITIES), []);
 
   const byId = useMemo(() => {
     const m: Record<string, Activity> = {};
@@ -163,8 +171,6 @@ export function useActivityLibrary({
     [setDoc]
   );
 
-  const isCustomActivity = useCallback((id: string) => extra.some((e) => e.id === id), [extra]);
-
   // A custom book carries its own diagram; built-in books fall back to an
   // editable override, then the seed registry. (Logic lives in lib/runListResolve
   // so the server-rendered public run-sheet page resolves identically.)
@@ -192,7 +198,8 @@ export function useActivityLibrary({
   const addActivity = useCallback(
     (activity: Activity, runDoc?: RunDoc) => {
       if (!requireStaff("add activities")) return false;
-      setDoc("extra", (p) => [activity, ...p]);
+      setDoc("extra", (p) => upsertActivityRecord(p, activity));
+      setDoc("deletedActivityIds", (p) => p.filter((id) => id !== activity.id));
       if (runDoc) setDoc("runLists", (p) => ({ ...p, [activity.id]: runDoc }));
       announce("Added " + activity.title + " to the library");
       return true;
@@ -203,7 +210,10 @@ export function useActivityLibrary({
   const updateActivity = useCallback(
     (activity: Activity, runDoc?: RunDoc) => {
       if (!requireStaff("edit activities")) return false;
-      setDoc("extra", (p) => p.map((x) => (x.id === activity.id ? activity : x)));
+      // Built-ins are promoted into the synced `extra` list with the same id.
+      // The merged catalog then lets that user-owned record shadow the seed.
+      setDoc("extra", (p) => upsertActivityRecord(p, activity));
+      setDoc("deletedActivityIds", (p) => p.filter((id) => id !== activity.id));
       if (runDoc) setDoc("runLists", (p) => ({ ...p, [activity.id]: runDoc }));
       setDoc("ratings", (p) => {
         if (activity.rating > 0) return { ...p, [activity.id]: activity.rating };
@@ -268,7 +278,12 @@ export function useActivityLibrary({
           []
         );
       }
-      setDoc("extra", (p) => p.filter((x) => x.id !== activity.id));
+      setDoc("extra", (p) => removeActivityRecord(p, activity.id));
+      if (seedIds.has(activity.id)) {
+        setDoc("deletedActivityIds", (p) => (p.includes(activity.id) ? p : [activity.id, ...p]));
+      } else {
+        setDoc("deletedActivityIds", (p) => p.filter((id) => id !== activity.id));
+      }
       setDoc("favs", (p) => p.filter((id) => id !== activity.id));
       setDoc("ratings", (p) => {
         if (p[activity.id] == null) return p;
@@ -297,7 +312,7 @@ export function useActivityLibrary({
       announce("Deleted " + activity.title);
       return true;
     },
-    [announce, commitEvents, events, requireStaff, setDoc]
+    [announce, commitEvents, events, requireStaff, seedIds, setDoc]
   );
 
   return {
@@ -314,7 +329,6 @@ export function useActivityLibrary({
     activeAvailableMaterials,
     toggleAvailableMaterial,
     clearAvailableMaterials,
-    isCustomActivity,
     resolvePlaybook,
     resolveRunDoc,
     saveRunDoc,

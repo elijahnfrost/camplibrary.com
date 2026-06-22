@@ -785,7 +785,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               setDetailEventContext(null);
               setPrintActivityId(null); // a stale book never outlives its viewer
             }}
-            isCustom={lib.isCustomActivity(detailActivity.id)}
             onEdit={editActivity}
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
@@ -825,7 +824,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                   label: "Delete",
                   icon: <CampIcon.Trash />,
                   danger: true,
-                  disabled: !lib.isCustomActivity(target.id),
                   onSelect: () => deleteActivity(target),
                 },
               ]}
