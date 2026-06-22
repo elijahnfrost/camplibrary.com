@@ -33,7 +33,7 @@ import {
 } from "@/lib/playbooks";
 import { normalizeRunDoc, type RunDoc } from "@/lib/runList";
 import { type Camp } from "@/lib/camps";
-import { createCampId } from "@/lib/camps";
+import { createCampId, DEFAULT_OPEN_MIN, DEFAULT_CLOSE_MIN } from "@/lib/camps";
 import { createThemeId, nextPaletteTint, type Theme } from "@/lib/themes";
 import {
   isUserDocKey,
@@ -303,7 +303,13 @@ export async function setUserDoc<K extends UserDocKey>(key: K, value: DocValueMa
 export async function addCamp(name: string): Promise<Camp> {
   const docs = await getUserDocs(uid());
   const camps = (docs.camps as Camp[] | undefined) ?? [];
-  const camp: Camp = { id: createCampId(), name: name.slice(0, 60), createdAt: Date.now() };
+  const camp: Camp = {
+    id: createCampId(),
+    name: name.slice(0, 60),
+    createdAt: Date.now(),
+    openMin: DEFAULT_OPEN_MIN,
+    closeMin: DEFAULT_CLOSE_MIN,
+  };
   await putUserDoc(uid(), "camps", [...camps, camp]);
   return camp;
 }
@@ -334,6 +340,7 @@ export async function addCustomActivity(partial: Partial<Activity> & { title: st
   const activity: Activity = {
     id: partial.id ?? "x-" + crypto.randomUUID(),
     title: partial.title,
+    ...(partial.altNames?.length ? { altNames: partial.altNames } : {}),
     type: partial.type ?? "Game",
     place: partial.place ?? "Both",
     ageMin: partial.ageMin ?? 6,

@@ -461,6 +461,113 @@ const CAPTURE_FLAG_PLAYBOOK: ActivityPlaybookData = {
   ],
 };
 
+/* ----------------------------------------------------------------------------
+ * Built-in playbook: Sharks & Minnows.
+ *
+ * Authored with the generic marker vocabulary (no legacy blue/red team pieces),
+ * so the CTF team legend stays suppressed and the diagram reads on its own. Role
+ * is carried two ways a child can follow: the three zone labels name the bands
+ * ("Minnows start" / "Sharks' ocean" / "Safe shore"), and the only captioned
+ * markers are the sharks — minnows are an unlabeled blue school, the tagged
+ * minnow is the one dusk diamond that says where it's headed ("Tagged → shark").
+ * The three shared zones repeat across stages so the field never jumps; only the
+ * tokens move, telling the story setup → dash → everyone's a shark.
+ * ------------------------------------------------------------------------- */
+
+// Safe zones are wide enough that their centered uppercase labels fit inside the
+// dashed box instead of spilling into the ocean (a narrow zone clips its label).
+const SM_ZONES: PlaybookZone[] = [
+  { id: "sm-start", kind: "safe", x: 5, y: 14, w: 22, h: 72, label: "Minnows" },
+  { id: "sm-ocean", kind: "area", x: 29, y: 14, w: 42, h: 72, label: "Sharks' ocean" },
+  { id: "sm-shore", kind: "safe", x: 73, y: 14, w: 22, h: 72, label: "Safe shore" },
+];
+
+const SHARKS_MINNOWS_PLAYBOOK: ActivityPlaybookData = {
+  id: "sharks-minnows-playbook",
+  activityId: "sharks-minnows",
+  title: "Sharks & Minnows playbook",
+  eyebrow: "Coach view",
+  summary:
+    "Set two shores with the ocean between them, then dash across — every minnow a shark tags becomes a shark too.",
+  surface: { split: false },
+  frames: [
+    {
+      id: "sm-setup",
+      name: "1. Set the ocean",
+      caption:
+        "Mark two shores with the ocean between. Minnows gather on their shore; the sharks wait in the water. Sharks can only tag in the ocean — both shores are safe, and a tag is just a touch.",
+      alt:
+        "A wide field in three bands. On the left, a green 'Minnows' zone holds a school of blue dots, one labelled 'Minnow'. The middle is a large 'Sharks ocean' band with two red shark triangles, each labelled 'Shark', facing the minnows. On the right is an empty green 'Safe shore' zone. Nobody is moving yet.",
+      zones: SM_ZONES,
+      flags: [],
+      players: [],
+      arrows: [],
+      markers: [
+        { id: "sm1-shark1", x: 44, y: 40, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm1-shark2", x: 56, y: 60, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm1-m1", x: 10, y: 24, color: "teal", shape: "circle", label: "Minnow" },
+        { id: "sm1-m2", x: 19, y: 35, color: "teal", shape: "circle" },
+        { id: "sm1-m3", x: 10, y: 47, color: "teal", shape: "circle" },
+        { id: "sm1-m4", x: 19, y: 58, color: "teal", shape: "circle" },
+        { id: "sm1-m5", x: 10, y: 69, color: "teal", shape: "circle" },
+        { id: "sm1-m6", x: 17, y: 80, color: "teal", shape: "circle" },
+      ],
+    },
+    {
+      id: "sm-dash",
+      name: "2. Dash across",
+      caption:
+        "On 'Go!' every minnow sprints for the far shore. Sharks tag who they can — a tagged minnow stops where it's caught and turns into a shark.",
+      alt:
+        "The same field. Blue minnow dots run rightward across the ocean, each driven by an arrow toward the safe shore, and two have already reached the right green zone. A red shark triangle lunges (red arrow) at a dusk diamond labelled 'Tagged → shark' near the bottom of the ocean. A second shark cuts in from the right.",
+      zones: SM_ZONES,
+      flags: [],
+      players: [],
+      arrows: [
+        { id: "sm2-a1", from: [32, 28], to: [76, 26], team: "neutral" },
+        { id: "sm2-a2", from: [28, 52], to: [76, 50], team: "neutral" },
+        { id: "sm2-a3", from: [50, 74], to: [78, 72], team: "neutral" },
+        { id: "sm2-a4", from: [55, 58], to: [43, 63], team: "red" },
+      ],
+      markers: [
+        { id: "sm2-shark1", x: 45, y: 38, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm2-shark2", x: 60, y: 56, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm2-tagged", x: 40, y: 64, color: "dusk", shape: "diamond", label: "Tagged → shark" },
+        { id: "sm2-m1", x: 34, y: 28, color: "teal", shape: "circle" },
+        { id: "sm2-m2", x: 30, y: 52, color: "teal", shape: "circle" },
+        { id: "sm2-m3", x: 52, y: 74, color: "teal", shape: "circle" },
+        { id: "sm2-m4", x: 64, y: 34, color: "teal", shape: "circle" },
+        { id: "sm2-safe1", x: 83, y: 36, color: "teal", shape: "circle" },
+        { id: "sm2-safe2", x: 88, y: 58, color: "teal", shape: "circle" },
+      ],
+    },
+    {
+      id: "sm-grow",
+      name: "3. Tagged become sharks",
+      caption:
+        "Everyone tagged is now a shark, so the ocean fills up each round. The minnows who reached the shore line up to run back. The last minnow left starts as the shark next game.",
+      alt:
+        "The same field. The right green 'Safe shore' zone now holds four blue minnow dots that made it across. The ocean is crowded with red shark triangles — one, near where the tagged minnow was, is labelled 'Just tagged' to show it just turned. One lone blue dot labelled 'Minnow' is still mid-ocean with an arrow toward the safe shore, about to be chased.",
+      zones: SM_ZONES,
+      flags: [],
+      players: [],
+      arrows: [{ id: "sm3-a1", from: [33, 48], to: [74, 46], team: "neutral" }],
+      markers: [
+        { id: "sm3-shark1", x: 40, y: 34, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm3-shark2", x: 54, y: 30, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm3-shark3", x: 42, y: 64, color: "clay", shape: "triangle", label: "Just tagged" },
+        { id: "sm3-shark4", x: 62, y: 56, color: "clay", shape: "triangle", label: "Shark" },
+        { id: "sm3-run", x: 30, y: 48, color: "teal", shape: "circle", label: "Minnow" },
+        { id: "sm3-safe1", x: 82, y: 28, color: "teal", shape: "circle" },
+        { id: "sm3-safe2", x: 88, y: 42, color: "teal", shape: "circle" },
+        { id: "sm3-safe3", x: 82, y: 56, color: "teal", shape: "circle" },
+        { id: "sm3-safe4", x: 88, y: 70, color: "teal", shape: "circle" },
+      ],
+    },
+  ],
+};
+
 export const PLAYBOOKS_BY_ACTIVITY_ID: Record<string, ActivityPlaybookData> = {
   [CAPTURE_FLAG_PLAYBOOK.activityId]: CAPTURE_FLAG_PLAYBOOK,
+  [SHARKS_MINNOWS_PLAYBOOK.activityId]: SHARKS_MINNOWS_PLAYBOOK,
 };

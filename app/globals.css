@@ -6467,6 +6467,15 @@ body {
   line-height: 1.45;
   color: var(--ink-soft);
 }
+/* "Also called …" — the activity's alternate names, a quiet line under the
+   blurb. Smaller and fainter than the blurb so it reads as metadata, not copy. */
+.rlv-aka {
+  margin: 6px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
 .rlv-meta {
   display: flex;
   align-items: center;
@@ -9199,6 +9208,12 @@ button.rl-node {
 .pd-runsheet__blurb {
   margin: 0.06in 0 0;
   font-size: calc(10.5pt);
+}
+/* "Also called …" alias line on the printed run sheet — quiet, under the title. */
+.pd-runsheet__aka {
+  margin: 0.05in 0 0;
+  font-size: calc(8.5pt);
+  color: var(--ink-faint);
 }
 .pd-facts--grid {
   display: grid;

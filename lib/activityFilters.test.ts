@@ -100,6 +100,19 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ query: "missing" }))).toBe(false);
   });
 
+  it("searches alternate names so a local/aka name finds the game", () => {
+    const base = activity({
+      title: "Sharks & Minnows",
+      altNames: ["Octopus", "Fishes and Sharks"],
+    });
+
+    // The alias appears nowhere in the title/blurb/steps, only in altNames.
+    expect(matchesActivityFilters(base, filters({ query: "octopus" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "fishes and sharks" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "sharks" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "kickball" }))).toBe(false);
+  });
+
   it("searches material tags shown in material filters and checklists", () => {
     const base = activity({
       title: "Nature journaling",

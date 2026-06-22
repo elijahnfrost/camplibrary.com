@@ -114,7 +114,11 @@ export function QuickAdd({
   const filtered = useMemo(
     () =>
       q
-        ? sorted.filter((a) => (a.title + " " + a.type + " " + a.blurb).toLowerCase().includes(q))
+        ? sorted.filter((a) =>
+            (a.title + " " + (a.altNames ?? []).join(" ") + " " + a.type + " " + a.blurb)
+              .toLowerCase()
+              .includes(q)
+          )
         : sorted,
     [sorted, q]
   );

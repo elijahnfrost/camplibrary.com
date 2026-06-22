@@ -6,6 +6,7 @@
 //   tsx src/cli.ts event --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Morning circle"}'
 //   tsx src/cli.ts day --file day.json
 //   tsx src/cli.ts delete <uuid>
+//   tsx src/cli.ts activity --file activity.json   (custom library activity; CAN set a stable id)
 //   tsx src/cli.ts diagram --file diagram.json
 //   tsx src/cli.ts runlist --file runlist.json
 //   tsx src/cli.ts doc --key themes --json '[…]'
@@ -61,6 +62,14 @@ async function run(): Promise<void> {
       await store.deleteEvent(id);
       return print({ ok: true, id });
     }
+    case "activity":
+      // Add a custom library activity. Unlike the MCP add_custom_activity tool,
+      // the CLI passes the raw JSON straight to the store, so it CAN set a stable
+      // `id` (and energy / group sizes / age range) — handy for scripting a
+      // schedule that references the activity by a known id right after creating it.
+      return print(
+        await store.addCustomActivity(jsonArg() as Parameters<typeof store.addCustomActivity>[0]),
+      );
     case "diagram":
       return print(await store.setDiagram(jsonArg() as store.DiagramInput));
     case "runlist":
@@ -83,7 +92,7 @@ async function run(): Promise<void> {
     }
     default:
       console.error(
-        "Commands: whoami | context | events | event | day | delete | diagram | runlist | doc | camp | theme",
+        "Commands: whoami | context | events | event | day | delete | activity | diagram | runlist | doc | camp | theme",
       );
       process.exit(2);
   }

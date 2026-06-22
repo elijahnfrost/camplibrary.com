@@ -37,6 +37,7 @@ type EnergyWord = "Calm" | "Lively" | "Rowdy";
 
 interface FormState {
   title: string;
+  altNames: string; // comma-separated, like materials
   type: CategoryId;
   place: Place;
   ages: AgeGroupId[];
@@ -74,6 +75,7 @@ const DEFAULT_DURATION = 20;
 
 const BLANK_FORM: FormState = {
   title: "",
+  altNames: "",
   type: "Game",
   place: "Outside",
   ages: ["g46"],
@@ -92,6 +94,7 @@ const BLANK_FORM: FormState = {
 function formFromActivity(a: Activity, themeId: string): FormState {
   return {
     title: a.title,
+    altNames: (a.altNames ?? []).join(", "),
     type: a.type,
     place: a.place,
     ages: a.ages.length ? a.ages : ["g46"],
@@ -128,10 +131,12 @@ function activityFromForm(f: FormState, id: string, extracted?: ExtractedRunText
   const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
   const duration = Math.min(parsePositiveInt(f.durationMin) || DEFAULT_DURATION, TOTAL_MIN);
   const materials = lines(f.materials);
+  const altNames = lines(f.altNames);
 
   return {
     id,
     title: f.title.trim() || "Untitled activity",
+    altNames: altNames.length ? altNames : undefined,
     type: f.type,
     place: f.place,
     ages,
@@ -256,7 +261,7 @@ export function AddView({
     (v: FormState[K]) =>
       setF((p) => ({ ...p, [k]: v }));
   const onIn =
-    (k: "title" | "durationMin" | "groupMin" | "groupMax" | "blurb" | "materials") =>
+    (k: "title" | "altNames" | "durationMin" | "groupMin" | "groupMax" | "blurb" | "materials") =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setF((p) => ({ ...p, [k]: e.target.value }));
   const toggleAge = (id: AgeGroupId) =>
@@ -328,6 +333,18 @@ export function AddView({
           placeholder="The hook, in a sentence."
           value={f.blurb}
           onChange={onIn("blurb")}
+        />
+      </div>
+      <div className="field">
+        <label className="field__label" htmlFor="activity-altnames">
+          Also known as <span className="field__hint">comma-separated · searchable</span>
+        </label>
+        <input
+          id="activity-altnames"
+          className="input"
+          placeholder="Octopus, Fishes and Sharks"
+          value={f.altNames}
+          onChange={onIn("altNames")}
         />
       </div>
 

@@ -69,6 +69,13 @@
   color: var(--ink-soft);
 }
 
+/* "Also called …" — the activity's alternate names, between title and blurb. */
+.runsheet__aka {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+
 .runsheet__facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));

@@ -34,6 +34,7 @@ const VARIANTS = {
     title: "pd-runsheet__title",
     titleTag: "h2" as ElementType,
     blurb: "pd-runsheet__blurb",
+    aka: "pd-runsheet__aka",
     facts: "pd-facts pd-facts--grid",
     fact: "pd-fact",
     list: "pd-run-list",
@@ -56,6 +57,7 @@ const VARIANTS = {
     title: "runsheet__title",
     titleTag: "h1" as ElementType,
     blurb: "runsheet__blurb",
+    aka: "runsheet__aka",
     facts: "runsheet__facts",
     fact: "runsheet__fact",
     list: "runsheet__list",
@@ -199,6 +201,9 @@ export function RunSheetBody({
           {code(activity)} · {activity.type}
         </span>
         <Title className={c.title}>{activity.title}</Title>
+        {activity.altNames && activity.altNames.length ? (
+          <p className={c.aka}>Also called {activity.altNames.join(" · ")}</p>
+        ) : null}
         {activity.blurb ? <p className={c.blurb}>{activity.blurb}</p> : null}
       </header>
 
