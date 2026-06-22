@@ -20,8 +20,8 @@ import {
 } from "@/lib/server/userData";
 import { mergeActivityCatalog, upsertActivityRecord } from "@/lib/activityCatalog";
 import { normalizeHexColor } from "@/lib/color";
-import { ACTIVITIES, AGE_GROUPS, CATEGORIES } from "@/lib/data";
-import type { Activity } from "@/lib/types";
+import { ACTIVITIES, AGE_GROUPS, CATEGORIES, effectiveActivityColor } from "@/lib/data";
+import type { Activity, AgeGroupId, CategoryId, Place } from "@/lib/types";
 import {
   normalizePlaybook,
   playbookId,
@@ -35,8 +35,8 @@ import {
 } from "@/lib/playbooks";
 import { normalizeRunDoc, type RunDoc } from "@/lib/runList";
 import { type Camp } from "@/lib/camps";
-import { createCampId, DEFAULT_OPEN_MIN, DEFAULT_CLOSE_MIN } from "@/lib/camps";
-import { createThemeId, nextPaletteTint, type Theme } from "@/lib/themes";
+import { clampOpenClose, createCampId, DEFAULT_OPEN_MIN, DEFAULT_CLOSE_MIN, MAX_CAMP_NAME } from "@/lib/camps";
+import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
 import {
   isUserDocKey,
   USER_DOC_KEYS,
@@ -114,6 +114,115 @@ export async function listContext(): Promise<ContextSummary> {
     themes: (docs.themes as Theme[] | undefined) ?? [],
     themeAssignments: (docs.themeAssignments as Record<string, string> | undefined) ?? {},
   };
+}
+
+/* ------------------------------------------------------------- library search */
+
+export type ActivitySearchInput = {
+  query?: string;
+  type?: CategoryId;
+  place?: Place;
+  age?: AgeGroupId;
+  hasColorOverride?: boolean;
+  limit?: number;
+};
+
+export type ActivitySearchHit = {
+  id: string;
+  title: string;
+  type: CategoryId;
+  source: "library" | "custom";
+  color: string;
+  hasColorOverride: boolean;
+  ages: AgeGroupId[];
+  durationMin: number;
+  place: Place;
+  altNames?: string[];
+  blurb: string;
+  themeId?: string;
+  score: number;
+};
+
+function searchTokens(query: string): string[] {
+  return query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+// Score one activity against the query tokens. Each token must appear SOMEWHERE
+// (AND semantics); the per-token weight rewards where it landed so a title hit
+// outranks a buried materials hit. Returns 0 when any token is missing.
+function scoreActivity(activity: Activity, tokens: string[]): number {
+  const title = activity.title.toLowerCase();
+  const titleNorm = normalizedName(activity.title);
+  const altNorm = (activity.altNames ?? []).map(normalizedName);
+  const blurb = (activity.blurb ?? "").toLowerCase();
+  const materials = (activity.materials ?? []).join(" ").toLowerCase();
+  const type = activity.type.toLowerCase();
+
+  let total = 0;
+  for (const token of tokens) {
+    let best = 0;
+    if (titleNorm === token) best = 100;
+    else if (title.startsWith(token)) best = 70;
+    else if (title.includes(token)) best = 45;
+    if (best < 40 && altNorm.some((n) => n.includes(token))) best = Math.max(best, 38);
+    if (best < 30 && type === token) best = Math.max(best, 30);
+    if (best < 12 && blurb.includes(token)) best = Math.max(best, 12);
+    if (best < 8 && materials.includes(token)) best = Math.max(best, 8);
+    if (best === 0) return 0; // every token must match somewhere
+    total += best;
+  }
+  return total;
+}
+
+// Fuzzy search across the WHOLE merged catalog (library + custom) so the agent
+// can resolve "that octopus tag game" to a real activity id before placing it.
+// Searches title, alt-names, type, blurb, and materials; optional facet filters
+// (type/place/age/hasColorOverride) narrow the field. With no query it just
+// lists the (filtered) catalog by title. Returns ids ready for upsert_event /
+// set_activity_color / set_run_list.
+export async function searchActivities(input: ActivitySearchInput): Promise<ActivitySearchHit[]> {
+  const docs = await getUserDocs(uid());
+  const extraIds = new Set(((docs.extra as Activity[] | undefined) ?? []).map((a) => a.id));
+  const themeAssignments = (docs.themeAssignments as Record<string, string> | undefined) ?? {};
+  const catalog = mergeActivityCatalog(
+    ACTIVITIES,
+    (docs.extra as Activity[] | undefined) ?? [],
+    (docs.deletedActivityIds as string[] | undefined) ?? [],
+  );
+
+  const tokens = input.query ? searchTokens(input.query) : [];
+  const limit = Math.max(1, Math.min(100, input.limit ?? 20));
+
+  const hits: ActivitySearchHit[] = [];
+  for (const activity of catalog) {
+    if (input.type && activity.type !== input.type) continue;
+    if (input.place && activity.place !== input.place) continue;
+    if (input.age && !activity.ages.includes(input.age)) continue;
+    const hasColorOverride = Boolean(normalizeHexColor(activity.color));
+    if (input.hasColorOverride != null && hasColorOverride !== input.hasColorOverride) continue;
+
+    const score = tokens.length ? scoreActivity(activity, tokens) : 1;
+    if (score <= 0) continue;
+
+    hits.push({
+      id: activity.id,
+      title: activity.title,
+      type: activity.type,
+      source: extraIds.has(activity.id) ? "custom" : "library",
+      color: effectiveActivityColor(activity),
+      hasColorOverride,
+      ages: activity.ages,
+      durationMin: activity.durationMin,
+      place: activity.place,
+      ...(activity.altNames?.length ? { altNames: activity.altNames } : {}),
+      blurb: (activity.blurb ?? "").slice(0, 160),
+      ...(themeAssignments[activity.id] ? { themeId: themeAssignments[activity.id] } : {}),
+      score,
+    });
+  }
+
+  hits.sort((a, b) => (b.score - a.score) || a.title.localeCompare(b.title));
+  return hits.slice(0, limit);
 }
 
 /* ------------------------------------------------------------------- events */
@@ -264,6 +373,80 @@ export async function listEvents(range?: { from?: string; to?: string }): Promis
 
 export async function deleteEvent(id: string): Promise<boolean> {
   return deleteCalendarEvent(uid(), id);
+}
+
+// Set or clear the per-event color OVERRIDE on a batch of events (the calendar's
+// "recolor" action, fanned out). Pick the targets by explicit `ids`, or by
+// `activityId` (every placement of that activity), optionally narrowed to a
+// date range. `color: null` clears the override so the event falls back to the
+// activity/category tint. Other fields are untouched.
+export async function recolorEvents(input: {
+  ids?: string[];
+  activityId?: string;
+  from?: string;
+  to?: string;
+  color: string | null;
+}): Promise<{ ok: true; recolored: number; ids: string[] }> {
+  const color = input.color === null ? null : normalizeHexColor(input.color);
+  if (input.color !== null && !color) {
+    throw new Error(`color must be a hex like #2f6f4e or #abc (got "${input.color}"), or null to clear.`);
+  }
+
+  const idSet = input.ids?.length ? new Set(input.ids.map((id) => id.toLowerCase())) : null;
+  const range = idSet ? undefined : { from: input.from, to: input.to };
+  const rows = await listCalendarEvents(uid(), range);
+
+  let targets = rows;
+  if (idSet) targets = rows.filter((row) => idSet.has(row.id.toLowerCase()));
+  else if (input.activityId) targets = rows.filter((row) => row.activityId === input.activityId);
+  else throw new Error("Provide ids[] or an activityId to choose which events to recolor.");
+
+  const changed: string[] = [];
+  for (const row of targets) {
+    const payload: Record<string, unknown> = { ...row, updatedAt: Date.now() };
+    if (color) payload.color = color;
+    else delete payload.color;
+    const result = await upsertCalendarEvent(uid(), payload);
+    if (result.ok) changed.push(row.id);
+  }
+  return { ok: true, recolored: changed.length, ids: changed };
+}
+
+// Duplicate one event into a standalone copy (the calendar's "Duplicate"
+// action). The copy gets a fresh id and is detached from any series (seriesId +
+// recurrence dropped), mirroring the app. By default it lands on the same
+// date/time; pass `date` and/or `startMin` to drop it elsewhere (endMin follows
+// the original's duration unless given).
+export async function duplicateEvent(input: {
+  id: string;
+  date?: string;
+  startMin?: number;
+  endMin?: number;
+}): Promise<StoredCalendarEvent> {
+  const existing = await findExistingEvent(input.id);
+  if (!existing) throw new Error(`No event with id ${input.id}.`);
+
+  const payload: Record<string, unknown> = { ...existing, id: randomEventId(), updatedAt: Date.now() };
+  delete payload.seriesId;
+  delete payload.recurrence;
+  if (input.date) payload.date = input.date;
+
+  const allDay = existing.allDay === true || existing.startMin == null || existing.endMin == null;
+  if (!allDay && (input.startMin != null || input.endMin != null)) {
+    const duration =
+      typeof existing.startMin === "number" && typeof existing.endMin === "number"
+        ? Math.max(15, existing.endMin - existing.startMin)
+        : DEFAULT_DURATION_MIN;
+    const startMin = snapMinutes(input.startMin ?? (existing.startMin as number));
+    let endMin = snapMinutes(input.endMin ?? startMin + duration);
+    if (endMin <= startMin) endMin = startMin + 15;
+    payload.startMin = startMin;
+    payload.endMin = endMin;
+  }
+
+  const result = await upsertCalendarEvent(uid(), payload);
+  if (!result.ok) throw new Error("Duplicate rejected as invalid. Check date and times.");
+  return result.event;
 }
 
 export type DayBlockInput = { title?: string; durationMin: number; activityId?: string };
@@ -645,7 +828,7 @@ export async function addCamp(name: string): Promise<Camp> {
   const camps = (docs.camps as Camp[] | undefined) ?? [];
   const camp: Camp = {
     id: createCampId(),
-    name: name.slice(0, 60),
+    name: name.slice(0, MAX_CAMP_NAME),
     createdAt: Date.now(),
     openMin: DEFAULT_OPEN_MIN,
     closeMin: DEFAULT_CLOSE_MIN,
@@ -654,18 +837,96 @@ export async function addCamp(name: string): Promise<Camp> {
   return camp;
 }
 
+// Rename a camp and/or move its viewing hours (drop-off → pickup), mirroring the
+// calendar's "Manage camps…" editor. Hours are clamped onto the 15-minute grid
+// inside the selectable range, open kept strictly before close. Returns the
+// updated camp.
+export async function editCamp(input: {
+  id: string;
+  name?: string;
+  openMin?: number;
+  closeMin?: number;
+}): Promise<Camp> {
+  const docs = await getUserDocs(uid());
+  const camps = (docs.camps as Camp[] | undefined) ?? [];
+  const current = camps.find((c) => c.id === input.id);
+  if (!current) throw new Error(`Unknown campId "${input.id}". Call list_context first.`);
+
+  const name = input.name != null ? input.name.trim().slice(0, MAX_CAMP_NAME) : current.name;
+  if (!name) throw new Error("Camp name cannot be empty.");
+  const { openMin, closeMin } = clampOpenClose(input.openMin ?? current.openMin, input.closeMin ?? current.closeMin);
+  const updated: Camp = { ...current, name, openMin, closeMin };
+
+  await putUserDoc(uid(), "camps", camps.map((c) => (c.id === input.id ? updated : c)));
+  return updated;
+}
+
+// Delete a camp, mirroring the app: the camp just drops off the list. Its events
+// keep their (now dangling) campId and fall back to "unscoped", so they stay on
+// the calendar — no per-event rewrite storm. Idempotent.
+export async function deleteCamp(id: string): Promise<{ ok: true; id: string; existed: boolean }> {
+  const docs = await getUserDocs(uid());
+  const camps = (docs.camps as Camp[] | undefined) ?? [];
+  const existed = camps.some((c) => c.id === id);
+  if (existed) await putUserDoc(uid(), "camps", camps.filter((c) => c.id !== id));
+  return { ok: true, id, existed };
+}
+
 export async function addTheme(label: string): Promise<Theme> {
   const docs = await getUserDocs(uid());
   const themes = (docs.themes as Theme[] | undefined) ?? [];
-  const theme: Theme = { id: createThemeId(), label: label.slice(0, 40), tint: nextPaletteTint(themes.length) };
+  const theme: Theme = { id: createThemeId(), label: label.slice(0, MAX_THEME_LABEL), tint: nextPaletteTint(themes.length) };
   await putUserDoc(uid(), "themes", [...themes, theme]);
   return theme;
+}
+
+// Rename a theme tag. Tint is fixed (palette-assigned at creation). Returns the
+// updated theme.
+export async function editTheme(id: string, label: string): Promise<Theme> {
+  const docs = await getUserDocs(uid());
+  const themes = (docs.themes as Theme[] | undefined) ?? [];
+  const current = themes.find((t) => t.id === id);
+  if (!current) throw new Error(`Unknown themeId "${id}". Call list_context first.`);
+  const trimmed = label.trim().slice(0, MAX_THEME_LABEL);
+  if (!trimmed) throw new Error("Theme label cannot be empty.");
+  const updated: Theme = { ...current, label: trimmed };
+  await putUserDoc(uid(), "themes", themes.map((t) => (t.id === id ? updated : t)));
+  return updated;
+}
+
+// Delete a theme AND purge every assignment that referenced it (so no activity
+// is left pointing at a dead id), mirroring the app. Idempotent.
+export async function deleteTheme(id: string): Promise<{ ok: true; id: string; existed: boolean; unassigned: number }> {
+  const docs = await getUserDocs(uid());
+  const themes = (docs.themes as Theme[] | undefined) ?? [];
+  const existed = themes.some((t) => t.id === id);
+  if (existed) await putUserDoc(uid(), "themes", themes.filter((t) => t.id !== id));
+
+  const map = (docs.themeAssignments as Record<string, string> | undefined) ?? {};
+  const next: Record<string, string> = {};
+  let unassigned = 0;
+  for (const [activityId, themeId] of Object.entries(map)) {
+    if (themeId === id) unassigned += 1;
+    else next[activityId] = themeId;
+  }
+  if (unassigned) await putUserDoc(uid(), "themeAssignments", next);
+  return { ok: true, id, existed, unassigned };
 }
 
 export async function assignTheme(activityId: string, themeId: string): Promise<void> {
   const docs = await getUserDocs(uid());
   const map = (docs.themeAssignments as Record<string, string> | undefined) ?? {};
   await putUserDoc(uid(), "themeAssignments", { ...map, [activityId]: themeId });
+}
+
+// Remove an activity's theme tag (leaves the theme itself intact). Idempotent.
+export async function unassignTheme(activityId: string): Promise<void> {
+  const docs = await getUserDocs(uid());
+  const map = (docs.themeAssignments as Record<string, string> | undefined) ?? {};
+  if (map[activityId] == null) return;
+  const next = { ...map };
+  delete next[activityId];
+  await putUserDoc(uid(), "themeAssignments", next);
 }
 
 export async function setRating(activityId: string, rating: number): Promise<void> {
@@ -698,6 +959,7 @@ export async function addCustomActivity(partial: Partial<Activity> & { title: st
     safety: partial.safety ?? "",
     ages: partial.ages ?? ["g13", "g46"],
     rating: partial.rating ?? 0,
+    ...(normalizeHexColor(partial.color) ? { color: normalizeHexColor(partial.color) } : {}),
   };
   await putUserDoc(uid(), "extra", upsertActivityRecord(extra, activity));
   if (deletedActivityIds.includes(activity.id)) {
@@ -707,6 +969,40 @@ export async function addCustomActivity(partial: Partial<Activity> & { title: st
   const after = await getUserDocs(uid());
   const saved = ((after.extra as Activity[] | undefined) ?? []).find((a) => a.id === activity.id);
   return saved ?? null;
+}
+
+// Set or clear a library activity's DEFAULT color (the tint it shows in the
+// catalog, and the seed when placed on the calendar). Works on built-in books
+// too: like the app's own editor, the full record is promoted into the synced
+// `extra` list with the same id so it shadows the seed (no backfill, reversible
+// by clearing). `color: null` removes the override so it falls back to its
+// category tint. Returns the saved activity.
+export async function setActivityColor(activityId: string, color: string | null): Promise<Activity> {
+  const normalized = color === null ? null : normalizeHexColor(color);
+  if (color !== null && !normalized) {
+    throw new Error(`color must be a hex like #2f6f4e or #abc (got "${color}"), or null to reset to the category tint.`);
+  }
+
+  const catalog = await getActivityCatalog();
+  const current = catalog.find((a) => a.id === activityId);
+  if (!current) throw new Error(`Unknown activityId "${activityId}". Call search_activities or list_context first.`);
+
+  const next: Activity = { ...current };
+  if (normalized) next.color = normalized;
+  else delete next.color;
+
+  const docs = await getUserDocs(uid());
+  const extra = (docs.extra as Activity[] | undefined) ?? [];
+  const deletedActivityIds = (docs.deletedActivityIds as string[] | undefined) ?? [];
+  await putUserDoc(uid(), "extra", upsertActivityRecord(extra, next));
+  if (deletedActivityIds.includes(activityId)) {
+    await putUserDoc(uid(), "deletedActivityIds", deletedActivityIds.filter((id) => id !== activityId));
+  }
+
+  const after = await getUserDocs(uid());
+  const saved = ((after.extra as Activity[] | undefined) ?? []).find((a) => a.id === activityId);
+  if (!saved) throw new Error("Activity color edit failed validation.");
+  return saved;
 }
 
 /* ------------------------------------------------------------- introspection */

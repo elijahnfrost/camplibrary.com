@@ -2,8 +2,11 @@
 //
 //   tsx src/cli.ts whoami
 //   tsx src/cli.ts context
+//   tsx src/cli.ts search --json '{"query":"octopus tag","type":"Game"}'
 //   tsx src/cli.ts events --from 2026-07-06 --to 2026-07-10
 //   tsx src/cli.ts event --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Morning circle"}'
+//   tsx src/cli.ts recolor --json '{"activityId":"gaga-ball","color":"#3f6b45"}'
+//   tsx src/cli.ts duplicate --json '{"id":"<uuid>","date":"2026-07-07"}'
 //   tsx src/cli.ts day --file day.json
 //   tsx src/cli.ts series --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Flag","recurrence":{"freq":"weekly","weekdays":[1,3,5],"until":"2026-07-31"}}'
 //   tsx src/cli.ts editseries --json '{"id":"<uuid>","scope":"all","startMin":600}'
@@ -11,11 +14,17 @@
 //   tsx src/cli.ts delete <uuid>
 //   tsx src/cli.ts deletemany --json '["<uuid>","<uuid>"]'
 //   tsx src/cli.ts activity --file activity.json   (custom library activity; CAN set a stable id)
+//   tsx src/cli.ts activitycolor --json '{"activityId":"gaga-ball","color":"#3f6b45"}'   (null clears)
 //   tsx src/cli.ts diagram --file diagram.json
 //   tsx src/cli.ts runlist --file runlist.json
 //   tsx src/cli.ts doc --key themes --json '[…]'
 //   tsx src/cli.ts camp --name "Summer Day Camp 2026"
+//   tsx src/cli.ts editcamp --json '{"id":"camp-…","openMin":450,"closeMin":1080}'
+//   tsx src/cli.ts deletecamp camp-…
 //   tsx src/cli.ts theme --label "Ocean Week"
+//   tsx src/cli.ts edittheme --json '{"id":"theme-…","label":"Ocean Week"}'
+//   tsx src/cli.ts deletetheme theme-…
+//   tsx src/cli.ts unassigntheme gaga-ball
 //
 // Needs DATABASE_URL + CAMP_ADMIN_CLERK_USER_ID (env or repo-root .env.local).
 
@@ -54,10 +63,16 @@ async function run(): Promise<void> {
       return print(await store.whoami());
     case "context":
       return print(await store.listContext());
+    case "search":
+      return print(await store.searchActivities(jsonArg() as store.ActivitySearchInput));
     case "events":
       return print(await store.listEvents({ from: flag("from"), to: flag("to") }));
     case "event":
       return print(await store.upsertEvent(jsonArg() as store.EventInput));
+    case "recolor":
+      return print(await store.recolorEvents(jsonArg() as Parameters<typeof store.recolorEvents>[0]));
+    case "duplicate":
+      return print(await store.duplicateEvent(jsonArg() as Parameters<typeof store.duplicateEvent>[0]));
     case "day":
       return print(await store.createDaySchedule(jsonArg() as Parameters<typeof store.createDaySchedule>[0]));
     case "series":
@@ -82,6 +97,10 @@ async function run(): Promise<void> {
       return print(
         await store.addCustomActivity(jsonArg() as Parameters<typeof store.addCustomActivity>[0]),
       );
+    case "activitycolor": {
+      const input = jsonArg() as { activityId: string; color: string | null };
+      return print(await store.setActivityColor(input.activityId, input.color ?? null));
+    }
     case "diagram":
       return print(await store.setDiagram(jsonArg() as store.DiagramInput));
     case "runlist":
@@ -97,14 +116,36 @@ async function run(): Promise<void> {
       if (!name) throw new Error("Usage: camp --name <name>");
       return print(await store.addCamp(name));
     }
+    case "editcamp":
+      return print(await store.editCamp(jsonArg() as Parameters<typeof store.editCamp>[0]));
+    case "deletecamp": {
+      const id = argv[1];
+      if (!id) throw new Error("Usage: deletecamp <campId>");
+      return print(await store.deleteCamp(id));
+    }
     case "theme": {
       const label = flag("label");
       if (!label) throw new Error("Usage: theme --label <label>");
       return print(await store.addTheme(label));
     }
+    case "edittheme": {
+      const input = jsonArg() as { id: string; label: string };
+      return print(await store.editTheme(input.id, input.label));
+    }
+    case "deletetheme": {
+      const id = argv[1];
+      if (!id) throw new Error("Usage: deletetheme <themeId>");
+      return print(await store.deleteTheme(id));
+    }
+    case "unassigntheme": {
+      const activityId = argv[1];
+      if (!activityId) throw new Error("Usage: unassigntheme <activityId>");
+      await store.unassignTheme(activityId);
+      return print({ ok: true, activityId });
+    }
     default:
       console.error(
-        "Commands: whoami | context | events | event | day | series | editseries | deleteseries | delete | deletemany | activity | diagram | runlist | doc | camp | theme",
+        "Commands: whoami | context | search | events | event | recolor | duplicate | day | series | editseries | deleteseries | delete | deletemany | activity | activitycolor | diagram | runlist | doc | camp | editcamp | deletecamp | theme | edittheme | deletetheme | unassigntheme",
       );
       process.exit(2);
   }

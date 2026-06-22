@@ -10,9 +10,10 @@ passes the same validators the app uses.
 
 ## Required Operating Sequence
 
-1. Run `list_context`.
+1. Run `list_context` (or `search_activities` to resolve one activity by name).
    Read the real activity ids, custom activity ids, camps, themes, age bands, and
-   fixed categories before writing anything.
+   fixed categories before writing anything. When you only need a specific book —
+   "that octopus tag game" — `search_activities` returns the matching id directly.
 2. Decide whether the work is an activity, a calendar event, or both.
    `Gaga Ball`, `Capture the Flag`, and the built-in library entries are activities.
    A scheduled block on a date is an event.
@@ -38,16 +39,27 @@ Use every relevant tool instead of overloading one write path:
 | Tool | Use |
 | --- | --- |
 | `list_context` | Discover real ids for activities, camps, themes, categories, and age bands. |
+| `search_activities` | Find a specific activity id by name/alt-name/type/blurb/materials. Prefer this over `list_context` when you know roughly what you want — `list_context` dumps all 200+. |
 | `list_events` | Inspect scheduled events and get UUIDs for edit/delete. |
-| `upsert_event` | Create or edit one event. Existing ids support partial edits. |
+| `upsert_event` | Create or edit one event. Existing ids support partial edits. Carries per-event `color` and `location`. |
 | `create_day_schedule` | Bulk-create one sequenced day from ordered blocks. |
+| `recolor_events` | Set/clear the per-event color override on a batch (by `ids`, or every placement of an `activityId`, optionally a date range). `color:null` clears. |
+| `duplicate_event` | Clone one event into a standalone copy (detached from any series); optional new `date`/`startMin`. |
 | `delete_event` | Delete a scheduled event by UUID. |
-| `add_custom_activity` | Add or update a library activity with a stable id. |
+| `delete_events` | Hard-delete several events at once by UUID. |
+| `create_series` / `edit_series` / `delete_series` | Create/scope-edit/scope-delete a repeating event (this / following / all). |
+| `add_custom_activity` | Add or update a library activity with a stable id (accepts a default `color`). |
+| `set_activity_color` | Set/clear a library activity's DEFAULT color (works on built-ins via promotion; `color:null` resets to the category tint). |
 | `set_run_list` | Replace an activity's run sheet. |
 | `set_diagram` | Replace an activity-level field diagram. |
 | `add_camp` | Create a scheduling container and get its `campId`. |
+| `edit_camp` | Rename a camp and/or move its viewing hours (drop-off → pickup). |
+| `delete_camp` | Remove a camp (its events fall back to unscoped, not deleted). |
 | `add_theme` | Create a theme tag. |
+| `edit_theme` | Rename a theme. |
+| `delete_theme` | Delete a theme and purge its assignments. |
 | `assign_theme` | Attach a theme to an activity. |
+| `unassign_theme` | Remove an activity's theme tag. |
 | `set_rating` | Set an activity rating from `0` to `5`. |
 
 ## Run-Sheet Capability Checklist
@@ -109,6 +121,10 @@ Allowed marker shapes: `circle`, `square`, `triangle`, `diamond`, `flag`, `pin`,
   `activityId: null` for plain events such as lunch, assembly, or pickup.
 - Use `campId` from `list_context` or `add_camp` when scheduling inside a camp.
 - Use `location` for gym, field, playground, room, or water area.
+- Color resolves `event.color → activity.color → category tint`. To recolor one
+  placement, set `color` on `upsert_event` (or batch with `recolor_events`); to
+  recolor an activity everywhere, use `set_activity_color`. `null` clears, falling
+  back down that chain. Colors are hex (`#3f6b45` or `#abc`).
 
 ## Activity Authoring Rules
 
