@@ -27,6 +27,7 @@ export const USER_DOC_KEYS = [
   "themes",
   "themeAssignments",
   "camps",
+  "deletedActivityIds",
 ] as const;
 
 export type UserDocKey = (typeof USER_DOC_KEYS)[number];
@@ -42,6 +43,7 @@ export type DocValueMap = {
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
+  deletedActivityIds: string[];
 };
 
 // localStorage names predate the doc keys: "runLists.v2" (doc-model bump) and
@@ -57,6 +59,7 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
+  deletedActivityIds: "deletedActivityIds",
 };
 
 const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
@@ -70,6 +73,7 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
+  deletedActivityIds: () => [],
 };
 
 export function docDefault<K extends UserDocKey>(key: K): DocValueMap[K] {
@@ -156,6 +160,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,
+  deletedActivityIds: stringArrayDoc,
 };
 
 export function normalizeDoc<K extends UserDocKey>(key: K, raw: unknown): DocValueMap[K] {

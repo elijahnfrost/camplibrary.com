@@ -18,6 +18,8 @@ import {
   upsertCalendarEvent,
   type StoredCalendarEvent,
 } from "@/lib/server/userData";
+import { mergeActivityCatalog, upsertActivityRecord } from "@/lib/activityCatalog";
+import { normalizeHexColor } from "@/lib/color";
 import { ACTIVITIES, AGE_GROUPS, CATEGORIES } from "@/lib/data";
 import type { Activity } from "@/lib/types";
 import {
@@ -41,7 +43,7 @@ import {
   type DocValueMap,
   type UserDocKey,
 } from "@/lib/userDataDocs";
-import { snapDurationMin, snapMinutes, MINUTES_PER_DAY } from "@/lib/calendar/time";
+import { DEFAULT_DURATION_MIN, snapDurationMin, snapMinutes, MINUTES_PER_DAY } from "@/lib/calendar/time";
 import {
   buildSeriesEvents,
   eventsInSeries,
@@ -55,7 +57,6 @@ import {
   type SeriesTemplate,
 } from "@/lib/calendar/recurrence";
 import { normalizeCalendarEvent, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
-import { normalizeHexColor } from "@/lib/color";
 import { getAdminUserId } from "./config";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,19 +81,29 @@ export type ContextSummary = {
   themeAssignments: Record<string, string>;
 };
 
+async function getActivityCatalog(): Promise<Activity[]> {
+  const docs = await getUserDocs(uid());
+  return mergeActivityCatalog(
+    ACTIVITIES,
+    (docs.extra as Activity[] | undefined) ?? [],
+    (docs.deletedActivityIds as string[] | undefined) ?? [],
+  );
+}
+
 export async function listContext(): Promise<ContextSummary> {
   const docs = await getUserDocs(uid());
-  const extra = (docs.extra as Activity[] | undefined) ?? [];
-  const activities = [
-    ...ACTIVITIES.map((a) => ({ ...a, source: "library" as const })),
-    ...extra.map((a) => ({ ...a, source: "custom" as const })),
-  ].map((a) => ({
+  const extraIds = new Set(((docs.extra as Activity[] | undefined) ?? []).map((activity) => activity.id));
+  const activities = mergeActivityCatalog(
+    ACTIVITIES,
+    (docs.extra as Activity[] | undefined) ?? [],
+    (docs.deletedActivityIds as string[] | undefined) ?? [],
+  ).map((a) => ({
     id: a.id,
     title: a.title,
     type: a.type,
     ages: a.ages,
     durationMin: a.durationMin,
-    source: a.source,
+    source: extraIds.has(a.id) ? "custom" as const : "library" as const,
   }));
   return {
     ownerUserId: uid(),
@@ -109,44 +120,129 @@ export async function listContext(): Promise<ContextSummary> {
 
 export type EventInput = {
   id?: string;
-  date: string;
+  date?: string;
   startMin?: number;
   endMin?: number;
   allDay?: boolean;
+  kind?: "activity" | "custom";
   title?: string;
-  activityId?: string;
-  campId?: string;
-  color?: string;
+  activityId?: string | null;
+  activityTitle?: string | null;
+  campId?: string | null;
+  color?: string | null;
+  location?: string | null;
 };
+
+function normalizedName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function activityByName(activities: Activity[], value: string | undefined | null): Activity | null {
+  const name = typeof value === "string" ? normalizedName(value) : "";
+  if (!name) return null;
+  return (
+    activities.find((activity) => {
+      if (normalizedName(activity.title) === name) return true;
+      return (activity.altNames ?? []).some((altName) => normalizedName(altName) === name);
+    }) ?? null
+  );
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+async function findExistingEvent(id: string): Promise<StoredCalendarEvent | null> {
+  const lower = id.toLowerCase();
+  return (await listCalendarEvents(uid())).find((event) => event.id.toLowerCase() === lower) ?? null;
+}
+
+function resolveActivity(input: EventInput, existing: StoredCalendarEvent | null, activities: Activity[]): Activity | null {
+  const byId = new Map(activities.map((activity) => [activity.id, activity]));
+
+  if (input.kind === "custom" || input.activityId === null || input.activityTitle === null) return null;
+
+  if (typeof input.activityId === "string" && input.activityId.trim()) {
+    const activity = byId.get(input.activityId.trim());
+    if (!activity) throw new Error(`Unknown activityId "${input.activityId}". Call list_context first.`);
+    return activity;
+  }
+
+  if (typeof input.activityTitle === "string") {
+    const activity = activityByName(activities, input.activityTitle);
+    if (!activity) throw new Error(`Unknown activityTitle "${input.activityTitle}". Call list_context first.`);
+    return activity;
+  }
+
+  const titleMatch = activityByName(activities, input.title);
+  if (titleMatch) return titleMatch;
+
+  const existingActivityId = typeof existing?.activityId === "string" ? existing.activityId : "";
+  return existingActivityId ? byId.get(existingActivityId) ?? null : null;
+}
 
 export async function upsertEvent(input: EventInput): Promise<StoredCalendarEvent> {
   const id = (input.id ?? randomEventId()).toLowerCase();
   if (!UUID_RE.test(id)) {
     throw new Error(`Event id must be a UUID (got "${id}"). Omit it to mint a new one.`);
   }
+  const existing = input.id ? await findExistingEvent(id) : null;
+  const activities = await getActivityCatalog();
+  const activity = resolveActivity(input, existing, activities);
+  const date = input.date ?? existing?.date;
+  if (!date) throw new Error("Event date is required for new events.");
 
   const base: Record<string, unknown> = {
     id,
-    date: input.date,
-    title: (input.title ?? "").slice(0, 200),
-    kind: input.activityId ? "activity" : "custom",
+    date,
+    title: (activity?.title ?? input.title ?? existing?.title ?? "").slice(0, 200),
+    kind: activity ? "activity" : "custom",
     updatedAt: Date.now(),
   };
-  if (input.activityId) base.activityId = input.activityId;
-  if (input.campId) base.campId = input.campId;
-  if (input.color) {
-    const color = normalizeHexColor(input.color);
-    if (color) base.color = color;
+  if (activity) base.activityId = activity.id;
+  const campId = input.campId === null ? undefined : stringField(input.campId) ?? stringField(existing?.campId);
+  if (campId) base.campId = campId;
+  const color = input.color === null ? undefined : normalizeHexColor(input.color) ?? normalizeHexColor(existing?.color);
+  if (color) base.color = color;
+  const location = input.location === null ? undefined : stringField(input.location) ?? stringField(existing?.location);
+  if (location) base.location = location.slice(0, 80);
+  if (typeof existing?.seriesId === "string" && existing.seriesId) base.seriesId = existing.seriesId;
+  if (
+    typeof existing?.recurrence === "object" &&
+    existing.recurrence !== null &&
+    !Array.isArray(existing.recurrence)
+  ) {
+    base.recurrence = existing.recurrence;
   }
 
-  if (input.allDay) {
+  const existingAllDay =
+    existing?.allDay === true || existing?.startMin == null || existing?.endMin == null;
+  const hasTimeInput = input.startMin != null || input.endMin != null;
+  const allDay = input.allDay === true || (!hasTimeInput && input.allDay !== false && existingAllDay);
+  if (allDay) {
     base.allDay = true;
   } else {
-    if (typeof input.startMin !== "number" || typeof input.endMin !== "number") {
+    const existingStart = existingAllDay ? undefined : numberField(existing?.startMin);
+    const existingEnd = existingAllDay ? undefined : numberField(existing?.endMin);
+    const existingDuration =
+      existingStart != null && existingEnd != null ? Math.max(15, existingEnd - existingStart) : DEFAULT_DURATION_MIN;
+    const rawStart = input.startMin ?? existingStart;
+    const rawEnd =
+      input.endMin ??
+      (rawStart != null && input.startMin != null ? rawStart + existingDuration : existingEnd);
+    if (typeof rawStart !== "number" || typeof rawEnd !== "number") {
       throw new Error("Timed events need startMin and endMin (minutes from midnight), or set allDay:true.");
     }
-    const startMin = snapMinutes(input.startMin);
-    let endMin = snapMinutes(input.endMin);
+    const startMin = snapMinutes(rawStart);
+    let endMin = snapMinutes(rawEnd);
     if (endMin <= startMin) endMin = startMin + 15;
     if (startMin < 0 || endMin > MINUTES_PER_DAY) {
       throw new Error("Event times must fall within 0–1440 minutes (one day).");
@@ -581,6 +677,7 @@ export async function setRating(activityId: string, rating: number): Promise<voi
 export async function addCustomActivity(partial: Partial<Activity> & { title: string }): Promise<Activity | null> {
   const docs = await getUserDocs(uid());
   const extra = (docs.extra as Activity[] | undefined) ?? [];
+  const deletedActivityIds = (docs.deletedActivityIds as string[] | undefined) ?? [];
   const activity: Activity = {
     id: partial.id ?? "x-" + crypto.randomUUID(),
     title: partial.title,
@@ -602,7 +699,10 @@ export async function addCustomActivity(partial: Partial<Activity> & { title: st
     ages: partial.ages ?? ["g13", "g46"],
     rating: partial.rating ?? 0,
   };
-  await putUserDoc(uid(), "extra", [...extra, activity]);
+  await putUserDoc(uid(), "extra", upsertActivityRecord(extra, activity));
+  if (deletedActivityIds.includes(activity.id)) {
+    await putUserDoc(uid(), "deletedActivityIds", deletedActivityIds.filter((id) => id !== activity.id));
+  }
   // putUserDoc normalizes via normalizeActivities; confirm it survived.
   const after = await getUserDocs(uid());
   const saved = ((after.extra as Activity[] | undefined) ?? []).find((a) => a.id === activity.id);

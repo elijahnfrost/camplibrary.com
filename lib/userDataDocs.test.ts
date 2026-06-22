@@ -32,6 +32,14 @@ describe("user data docs", () => {
     expect(normalizeDoc("favs", { not: "an array" })).toEqual([]);
   });
 
+  it("normalizes deleted activity ids like other string lists", () => {
+    expect(normalizeDoc("deletedActivityIds", ["gaga-ball", "", "gaga-ball", 7, "capture-flag"])).toEqual([
+      "gaga-ball",
+      "capture-flag",
+    ]);
+    expect(normalizeDoc("deletedActivityIds", "nope")).toEqual([]);
+  });
+
   it("normalizes ratings: clamps to 0-5 integers and drops junk", () => {
     expect(normalizeDoc("ratings", { ctf: 4.6, gaga: -2, bad: "x", inf: Infinity })).toEqual({
       ctf: 5,
