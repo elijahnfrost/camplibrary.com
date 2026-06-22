@@ -4,15 +4,15 @@
 //   tsx src/cli.ts context
 //   tsx src/cli.ts search --json '{"query":"octopus tag","type":"Game"}'
 //   tsx src/cli.ts events --from 2026-07-06 --to 2026-07-10
-//   tsx src/cli.ts event --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Morning circle"}'
+//   tsx src/cli.ts event --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Morning circle"}'  # non-repeating
 //   tsx src/cli.ts recolor --json '{"activityId":"gaga-ball","color":"#3f6b45"}'
 //   tsx src/cli.ts duplicate --json '{"id":"<uuid>","date":"2026-07-07"}'
 //   tsx src/cli.ts day --file day.json
 //   tsx src/cli.ts series --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Flag","recurrence":{"freq":"weekly","weekdays":[1,3,5],"until":"2026-07-31"}}'
 //   tsx src/cli.ts editseries --json '{"id":"<uuid>","scope":"all","startMin":600}'
 //   tsx src/cli.ts deleteseries --json '{"id":"<uuid>","scope":"following"}'
-//   tsx src/cli.ts delete <uuid>
-//   tsx src/cli.ts deletemany --json '["<uuid>","<uuid>"]'
+//   tsx src/cli.ts delete <uuid>                         # non-repeating only
+//   tsx src/cli.ts deletemany --json '["<uuid>","<uuid>"]' # non-repeating only
 //   tsx src/cli.ts activity --file activity.json   (custom library activity; CAN set a stable id)
 //   tsx src/cli.ts activitycolor --json '{"activityId":"gaga-ball","color":"#3f6b45"}'   (null clears)
 //   tsx src/cli.ts diagram --file diagram.json

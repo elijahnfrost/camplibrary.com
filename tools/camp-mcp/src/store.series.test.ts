@@ -96,9 +96,31 @@ describe("recurring-series store wrappers", () => {
     evs = await store.listEvents();
     expect(evs.map((e) => e.date).sort()).toEqual(["2026-07-06", "2026-07-10"]);
 
-    // Bulk hard-delete the rest by id.
-    const bulk = await store.deleteEvents(evs.map((e) => String(e.id)));
-    expect(bulk.deleted).toBe(2);
+    // Delete the remaining series with the scoped series verb.
+    const delRest = await store.deleteSeries({ id: String(evs[0].id), scope: "all" });
+    expect(delRest.removed).toBe(2);
+    expect((await store.listEvents()).length).toBe(0);
+  });
+
+  test("one-off edit/delete verbs refuse series occurrences", async () => {
+    const created = await store.createSeries({
+      date: "2026-07-06",
+      startMin: 720,
+      endMin: 750,
+      title: "Lunch",
+      recurrence: { freq: "daily", until: "2026-07-10" },
+    });
+    expect(created.count).toBe(5);
+    const evs = await store.listEvents();
+    const target = evs[0];
+
+    await expect(store.upsertEvent({ id: String(target.id), title: "Late lunch" })).rejects.toThrow(
+      /edit_series/i,
+    );
+    await expect(store.deleteEvent(String(target.id))).rejects.toThrow(/delete_series/i);
+    await expect(store.deleteEvents([String(target.id)])).rejects.toThrow(/delete_series/i);
+
+    await store.deleteSeries({ id: String(target.id), scope: "all" });
     expect((await store.listEvents()).length).toBe(0);
   });
 
@@ -116,7 +138,7 @@ describe("recurring-series store wrappers", () => {
     expect(evs.every((e) => (e as Record<string, unknown>).allDay === true)).toBe(true);
     expect(evs.every((e) => e.startMin === null)).toBe(true); // all-day → no canonical start
     expect(evs.every((e) => (e as Record<string, unknown>).color === "#2f6f4e")).toBe(true); // normalized lowercase
-    await store.deleteEvents(evs.map((e) => String(e.id)));
+    await store.deleteSeries({ id: String(evs[0].id), scope: "all" });
   });
 
   test("stopRepeating collapses a scope to a single event", async () => {

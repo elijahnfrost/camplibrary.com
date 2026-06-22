@@ -25,12 +25,16 @@ passes the same validators the app uses.
    complete desired run list, not a fragment.
 5. Write diagrams with `set_diagram`, or embed a diagram child inside a run-list step.
    Coordinates are always `0..100`, never pixels.
-6. Put activities on the calendar with `upsert_event` or `create_day_schedule`.
-   Prefer `activityId`; `activityTitle` and exact title matches are accepted for
-   common cases like `Gaga Ball`.
+6. Put one-off activities on the calendar with `upsert_event` or `create_day_schedule`.
+   Use `create_series` for anything described as every, each, repeating, daily,
+   weekday, weekly, monthly, yearly, or continuing into future dates. Prefer
+   `activityId`; `activityTitle` and exact title matches are accepted for common
+   one-off cases like `Gaga Ball`.
 7. Verify with `list_events`.
    For edits/deletes, get ids from `list_events`, then reuse those UUIDs. Partial
-   `upsert_event` edits preserve omitted fields.
+   `upsert_event` edits preserve omitted fields for non-repeating events. If a
+   listed event has `seriesId`/`recurrence`, use `edit_series` or `delete_series`
+   and choose an explicit scope: `this`, `following`, or `all`.
 
 ## MCP Tool Inventory
 
@@ -41,12 +45,12 @@ Use every relevant tool instead of overloading one write path:
 | `list_context` | Discover real ids for activities, camps, themes, categories, and age bands. |
 | `search_activities` | Find a specific activity id by name/alt-name/type/blurb/materials. Prefer this over `list_context` when you know roughly what you want — `list_context` dumps all 200+. |
 | `list_events` | Inspect scheduled events and get UUIDs for edit/delete. |
-| `upsert_event` | Create or edit one event. Existing ids support partial edits. Carries per-event `color` and `location`. |
-| `create_day_schedule` | Bulk-create one sequenced day from ordered blocks. |
+| `upsert_event` | Create or edit one non-repeating event. Existing ids support partial edits. Carries per-event `color` and `location`. Refuses series occurrences; use `edit_series` for those. |
+| `create_day_schedule` | Bulk-create one non-repeating sequenced day from ordered blocks. |
 | `recolor_events` | Set/clear the per-event color override on a batch (by `ids`, or every placement of an `activityId`, optionally a date range). `color:null` clears. |
 | `duplicate_event` | Clone one event into a standalone copy (detached from any series); optional new `date`/`startMin`. |
-| `delete_event` | Delete a scheduled event by UUID. |
-| `delete_events` | Hard-delete several events at once by UUID. |
+| `delete_event` | Delete a non-repeating scheduled event by UUID. Refuses series occurrences. |
+| `delete_events` | Hard-delete several non-repeating events at once by UUID. Refuses series occurrences. |
 | `create_series` / `edit_series` / `delete_series` | Create/scope-edit/scope-delete a repeating event (this / following / all). |
 | `add_custom_activity` | Add or update a library activity with a stable id (accepts a default `color`). |
 | `set_activity_color` | Set/clear a library activity's DEFAULT color (works on built-ins via promotion; `color:null` resets to the category tint). |
@@ -125,6 +129,13 @@ Allowed marker shapes: `circle`, `square`, `triangle`, `diamond`, `flag`, `pin`,
   placement, set `color` on `upsert_event` (or batch with `recolor_events`); to
   recolor an activity everywhere, use `set_activity_color`. `null` clears, falling
   back down that chain. Colors are hex (`#3f6b45` or `#abc`).
+- Do not create repeats by calling `upsert_event` once per date. Use
+  `create_series` with a recurrence rule and an inclusive `until` date so future
+  occurrences share `seriesId` and can later be edited or deleted with
+  `this`/`following`/`all` scope.
+- When editing or deleting an event returned by `list_events`, check for
+  `seriesId`. If it is present, use `edit_series` or `delete_series`, never
+  `upsert_event`, `delete_event`, or `delete_events`.
 
 ## Activity Authoring Rules
 
