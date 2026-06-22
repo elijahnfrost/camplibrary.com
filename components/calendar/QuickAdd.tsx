@@ -16,10 +16,11 @@ import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
-import { Seg } from "../primitives";
+import { Seg, ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
 import { ColorField } from "../floating/ColorField";
+import { LocationField } from "../floating/LocationField";
 import { RepeatField } from "./RepeatField";
 
 export type EditorDraft = {
@@ -39,6 +40,8 @@ export type EditorDraft = {
   /** Per-placement color override (validated hex); absent = inherit the
    *  activity's / category's color. */
   color?: string;
+  /** Where this placement happens (gym, field…); absent = unstated. */
+  location?: string;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -53,6 +56,7 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     explicitDuration: true,
     recurrence: event.recurrence,
     color: event.color,
+    location: event.location,
   };
 }
 
@@ -70,6 +74,7 @@ export function QuickAdd({
   draft,
   pickTime,
   activities,
+  knownLocations = [],
   window: dayWindow,
   onPickActivity,
   onCustom,
@@ -81,6 +86,8 @@ export function QuickAdd({
   /** Show the when-row + commit button (library pick, FAB, and edit). */
   pickTime: boolean;
   activities: Activity[];
+  /** Locations already used on the calendar — offered as quick picks. */
+  knownLocations?: string[];
   window: DayWindow;
   onPickActivity: (activity: Activity) => void;
   onCustom: (title: string) => void;
@@ -101,6 +108,7 @@ export function QuickAdd({
   const [allDay, setAllDay] = useState(draft.allDay);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
+  const [location, setLocation] = useState<string | undefined>(draft.location);
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
@@ -235,6 +243,7 @@ export function QuickAdd({
       // clamp it so the saved rule always covers the start.
       recurrence: clampedRule(),
       color,
+      location,
     });
   }
 
@@ -263,7 +272,9 @@ export function QuickAdd({
             (Pick-a-time posture has its own RepeatField in the schedule block.) */}
         {!pickTime && (
           <div className="quickadd__slotrepeat">
-            <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+            <div className="ledger">
+              <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+            </div>
           </div>
         )}
         {tab === "Library" ? (
@@ -379,7 +390,7 @@ export function QuickAdd({
           )
         ) : (
           <form
-            className="quickadd__custom"
+            className={"quickadd__custom" + (pickTime ? " quickadd__custom--inline" : "")}
             onSubmit={(e) => {
               e.preventDefault();
               if (!customTrimmed) return;
@@ -416,9 +427,13 @@ export function QuickAdd({
 
         {pickTime && (
           <div className="quickadd__schedule">
-            <div className="quickadd__whenrow">
-              <div className="field">
-                <label className="field__label" htmlFor="quickadd-date">Date</label>
+            {/* The schedule is a switch ledger — the same label-left/control-right
+                rows as the calendar sidebar's View settings, so the editor and the
+                sidebar read as one compact vocabulary instead of a tall stack of
+                boxed fields. */}
+            <div className="ledger quickadd__settings">
+              <div className="ledger__row">
+                <span className="ledger__label">Date</span>
                 <DatePopover
                   id="quickadd-date"
                   value={date}
@@ -426,10 +441,14 @@ export function QuickAdd({
                   ariaLabel="Event date"
                 />
               </div>
+              <div className="ledger__row">
+                <span className="ledger__label">All day</span>
+                <ToggleSwitch on={allDay} onChange={setAllDay} ariaLabel="All day" />
+              </div>
               {!allDay && (
                 <>
-                  <div className="field">
-                    <label className="field__label" htmlFor="quickadd-start">Starts</label>
+                  <div className="ledger__row">
+                    <span className="ledger__label">Starts</span>
                     <Select
                       id="quickadd-start"
                       value={startMin}
@@ -438,8 +457,8 @@ export function QuickAdd({
                       ariaLabel="Event start time"
                     />
                   </div>
-                  <div className="field">
-                    <label className="field__label" htmlFor="quickadd-length">Length</label>
+                  <div className="ledger__row">
+                    <span className="ledger__label">Length</span>
                     <Select
                       id="quickadd-length"
                       value={durationMin}
@@ -450,27 +469,34 @@ export function QuickAdd({
                   </div>
                 </>
               )}
-              <label className="quickadd__allday">
-                <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-                All day
-              </label>
-            </div>
-            <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
-            <div className="field quickadd__color">
-              <label className="field__label" htmlFor="quickadd-color">
-                Color
-              </label>
-              <ColorField
-                id="quickadd-color"
-                value={color}
-                fallback={
-                  tab === "Library" && selectedActivity
-                    ? effectiveActivityColor(selectedActivity)
-                    : categoryTint(undefined)
-                }
-                onChange={setColor}
-                ariaLabel="Event color"
-              />
+              <div className="ledger__row">
+                <span className="ledger__label">Color</span>
+                <ColorField
+                  id="quickadd-color"
+                  value={color}
+                  fallback={
+                    tab === "Library" && selectedActivity
+                      ? effectiveActivityColor(selectedActivity)
+                      : categoryTint(undefined)
+                  }
+                  onChange={setColor}
+                  ariaLabel="Event color"
+                />
+              </div>
+              <div className="ledger__row">
+                <span className="ledger__label">Location</span>
+                <LocationField
+                  id="quickadd-location"
+                  value={location}
+                  suggestions={knownLocations}
+                  onChange={setLocation}
+                  ariaLabel="Event location"
+                />
+              </div>
+              {/* Repeat rides last: its detail rows (weekday toggles, end date)
+                  and the plain-language summary expand below without pushing the
+                  core when-controls down. */}
+              <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
             </div>
             <div className="quickadd__foot">
               {isEdit && onDelete && (

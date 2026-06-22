@@ -43,6 +43,7 @@ export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: T
       categoryLabel: activity?.type,
       themeTint: theme?.tint,
       themeLabel: theme?.label,
+      location: event.location,
       repeats: Boolean(event.recurrence),
     },
   };

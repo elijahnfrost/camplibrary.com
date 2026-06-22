@@ -338,6 +338,18 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
+  // Distinct locations already used on the calendar, offered as quick picks in
+  // the editor so "Gym" / "Field" come back with a tap instead of a retype.
+  // Case-insensitive de-dupe keeping the first-seen casing; alphabetised.
+  const knownLocations = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const event of Object.values(events)) {
+      const place = typeof event.location === "string" ? event.location.trim() : "";
+      if (place && !seen.has(place.toLowerCase())) seen.set(place.toLowerCase(), place);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [events]);
+
   // Which days carry at least one event in the active camp — the mini-month
   // dots each of these so the sidebar previews where the schedule is busy.
   const eventDays = useMemo(() => {
@@ -603,6 +615,7 @@ export function CalendarShell({
       };
       if (activity) template.activityId = activity.id;
       if (draft.color) template.color = draft.color;
+      if (draft.location) template.location = draft.location;
       return template;
     },
     [byId]
@@ -669,6 +682,7 @@ export function CalendarShell({
       if (activity) event.activityId = activity.id;
       if (draft.allDay) event.allDay = true;
       if (draft.color) event.color = draft.color;
+      if (draft.location) event.location = draft.location;
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + event.title);
@@ -1040,6 +1054,12 @@ export function CalendarShell({
     if (follow.innerHTML !== mirror.innerHTML) follow.innerHTML = mirror.innerHTML;
     const tint = mirror.style.getPropertyValue("--cal-tint");
     if (tint) follow.style.setProperty("--cal-tint", tint);
+    // Carry the activity/custom spine over too: a custom event's hatched spine
+    // must ride along on the carried card, not flatten to the solid spine the
+    // bare .cal-dragfollow ships. The mirror carries the same .cal-event--custom
+    // class the event cards do; sync it each frame so a mirror rebuild can't drop
+    // it. (CSS gives the matching follower the hatch — calendar.css.)
+    follow.classList.toggle("cal-event--custom", mirror.classList.contains("cal-event--custom"));
     follow.style.width = r.width + "px";
     follow.style.height = r.height + "px";
     // Free follow: top-left tracks the cursor minus where it was grabbed.
@@ -1089,6 +1109,9 @@ export function CalendarShell({
     if (followRef.current) {
       followRef.current.style.opacity = "0";
       followRef.current.innerHTML = "";
+      // Reset the spine style so the next drag (which may grab an activity) never
+      // briefly inherits the previous custom card's hatch.
+      followRef.current.classList.remove("cal-event--custom");
     }
     sourceHarnessRef.current?.classList.remove("is-drag-source");
     sourceHarnessRef.current = null;
@@ -1159,6 +1182,16 @@ export function CalendarShell({
         });
         return;
       }
+      // A repeating occurrence: ask the scope (this / following / all) — the same
+      // choice the editor offers — instead of silently rewriting only this one
+      // day. Route the new geometry through the existing scoped-edit flow as a
+      // draft. Revert FC's optimistic move first: the scoped commit re-renders the
+      // series, and a cancelled prompt then leaves the occurrence where it was.
+      if (existing.seriesId) {
+        info.revert();
+        setScopePrompt({ mode: "edit", event: existing, draft: draftFromEvent(next) });
+        return;
+      }
       upsertEvent(next);
       announce("Moved " + (existing.title || "event") + " to " + formatClock(next.startMin));
     },
@@ -1173,6 +1206,13 @@ export function CalendarShell({
         return;
       }
       const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
+      // Resizing a repeating occurrence asks the scope too, mirroring the drag
+      // and the editor — so "all events" can adopt the new length in one step.
+      if (existing.seriesId) {
+        info.revert();
+        setScopePrompt({ mode: "edit", event: existing, draft: draftFromEvent(next) });
+        return;
+      }
       upsertEvent(next);
       announce((existing.title || "Event") + " now ends at " + formatClock(next.endMin));
     },
@@ -1263,6 +1303,10 @@ export function CalendarShell({
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
+    // Where the block happens (gym, field…), shown under the time on taller
+    // cards. The card is a size container, so a short block simply clips it.
+    const locationText = arg.event.extendedProps.location;
+    const location = typeof locationText === "string" && locationText ? locationText : null;
 
     // Repaint + distinction, written from HERE rather than eventDidMount: this
     // content renderer re-runs on every data change (a recolor, or an activity→
@@ -1304,6 +1348,12 @@ export function CalendarShell({
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
         </span>
         {!arg.event.allDay && <span className="cal-card__time">{arg.timeText}</span>}
+        {location && (
+          <span className="cal-card__loc">
+            <CampIcon.Pin className="cal-card__locpin" />
+            <span className="cal-card__loctext">{location}</span>
+          </span>
+        )}
       </div>
     );
   }, []);
@@ -2040,6 +2090,7 @@ export function CalendarShell({
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
+          knownLocations={knownLocations}
           window={window_}
           onPickActivity={quickAddActivity}
           onCustom={quickAddCustom}

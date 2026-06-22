@@ -100,6 +100,12 @@ export function EventPopover({
             <p className="cal-popover__when">
               {formatEventDateLabel(event.date)} · {timeLabel}
             </p>
+            {event.location && (
+              <p className="cal-popover__loc">
+                <CampIcon.Pin />
+                {event.location}
+              </p>
+            )}
             {activity && <p className="cal-popover__meta">{activity.type}</p>}
             {event.recurrence && (
               <p className="cal-popover__repeat">

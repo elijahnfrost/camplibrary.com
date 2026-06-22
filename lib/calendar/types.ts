@@ -32,8 +32,14 @@ export interface CalendarEvent {
   // lazily by effectiveEventColor (lib/data), so untouched events "start" at
   // their tag color with no backfill. Clearing it falls back to the tag color.
   color?: string;
+  // Where this placement happens — free text the staff pick or type per event
+  // (gym, playground, field…). Absent = unstated. Trimmed/length-clamped here so
+  // an untrusted payload can't carry an unbounded string.
+  location?: string;
   updatedAt: number; // epoch ms, last-write-wins
 }
+
+export const EVENT_LOCATION_MAX_LENGTH = 80;
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MINUTES_PER_DAY = 1440;
@@ -87,6 +93,11 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   // rebuild must re-attach it or it's stripped on every read / optimistic write.
   const color = normalizeHexColor(value.color);
   if (color) event.color = color;
+  // Per-placement location rides in the payload too; same clean-rebuild rule —
+  // re-attach it or it's stripped on every read / optimistic write. Trim + clamp
+  // at this boundary so an untrusted cache/API value stays bounded.
+  const location = typeof value.location === "string" ? value.location.trim().slice(0, EVENT_LOCATION_MAX_LENGTH) : "";
+  if (location) event.location = location;
   // Recurrence rides in the payload; this normalizer rebuilds a clean object, so
   // the series fields must be re-attached or they'd be stripped on every read /
   // optimistic write. A seriesId only means something with a parseable rule.

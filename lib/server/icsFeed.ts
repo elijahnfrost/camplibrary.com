@@ -65,10 +65,15 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
     source: input.feedUrl,
   });
 
-  const location = input.campName?.trim() || undefined;
+  const campLocation = input.campName?.trim() || undefined;
 
   for (const event of input.events) {
     if (!DATE_KEY_PATTERN.test(event.date)) continue; // defensive: skip malformed rows.
+
+    // A per-event location (gym, field…) wins over the camp-wide fallback so
+    // subscribers see where each block actually happens.
+    const eventLocation =
+      (typeof event.location === "string" && event.location.trim()) || campLocation;
 
     const timed =
       typeof event.startMin === "number" &&
@@ -92,7 +97,7 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
           }
         : { start: dayAt(event.date), allDay: true }),
       ...(link ? { url: link, description: `Run sheet: ${link}` } : {}),
-      ...(location ? { location } : {}),
+      ...(eventLocation ? { location: eventLocation } : {}),
     });
   }
 
