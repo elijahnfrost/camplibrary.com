@@ -132,7 +132,7 @@ describe("run list model", () => {
     const doc = buildRunDoc(
       activity({
         steps: ["Set boundaries", "Play"],
-        media: [{ title: "Demo", url: "https://youtube.com/results?search_query=x" }],
+        media: [{ title: "Demo", url: "https://vimeo.com/76979871" }],
         links: [{ label: "Source", url: "https://example.com" }],
         variations: ["Bigger groups", "Older kids"],
         subsets: [["Mark the lines", "Pick teams"], ["Keep score"]],
@@ -142,7 +142,7 @@ describe("run list model", () => {
     const steps = doc.blocks.filter((block) => block.type === "step");
     // First step carries media + link as video details, then its sub-steps.
     expect(steps[0].children).toEqual([
-      { id: "act-1-media0", type: "video", title: "Demo", url: "https://youtube.com/results?search_query=x" },
+      { id: "act-1-media0", type: "video", title: "Demo", url: "https://vimeo.com/76979871" },
       { id: "act-1-link0", type: "video", title: "Source", url: "https://example.com" },
       { id: "act-1-s0-sub0", type: "substep", text: "Mark the lines" },
       { id: "act-1-s0-sub1", type: "substep", text: "Pick teams" },

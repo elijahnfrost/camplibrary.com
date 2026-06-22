@@ -79,7 +79,7 @@ Step/detail/material/playbook child types:
 | `variation` | Attach a modification to a specific step. |
 | `materials` | Attach a material checklist where it is used. |
 | `diagram` | Embed a field diagram directly in the run sheet flow. |
-| `video` | Add a known external demo URL. Do not invent video links. |
+| `video` | Add a *specific, verified* external demo URL. Never invent a video id, and never use a search URL — a `youtube.com/results?search_query=...` "search for this game" link is **not** a demo. If you don't have a real, specific video, omit it. |
 
 Diagram tools inside `set_diagram` or a `diagram` child:
 
@@ -117,6 +117,16 @@ Allowed marker shapes: `circle`, `square`, `triangle`, `diamond`, `flag`, `pin`,
 - Use the five fixed age bands only: `pre`, `g13`, `g46`, `g79`, `g1012`.
 - Include `altNames` for local names and search aliases.
 - Keep `materials`, `steps`, `notes`, and `safety` aligned with the run sheet.
+- **`media` and `links` must be specific, verified URLs — or omitted.** Never ship
+  a search URL as a substitute for a real reference:
+  - No `google.com/search?q=...` and no `youtube.com/results?search_query=...`.
+    "Search YouTube/Google for *sharks and minnows*" is not a resource — a
+    counselor can do that themselves. Ship a real link or none.
+  - No fabricated `youtube.com/watch?v=...` ids. If you cannot point to a real,
+    specific video or article, leave `media`/`links` empty (the field is optional
+    and the activity renders fine without it).
+  - The build pipeline enforces this: `scripts/build-seed.mjs` drops any search or
+    unverifiable URL, and `lib/seed/seed.test.ts` fails the build if one slips in.
 - If a built-in activity should be edited, write the same id with
   `add_custom_activity`; the app will treat it as the editable user-owned version.
 

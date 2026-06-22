@@ -56,13 +56,16 @@ for (const a of A) {
   if (a.variations?.length) withVar++;
   if (a.subsets?.length) withSub++;
   for (const m of a.media || []) {
-    if (/^https:\/\/www\.youtube\.com\/results\?/.test(m.url)) youtubeOk++;
-    else if (/youtube\.com\/watch|youtu\.be\//.test(m.url)) youtubeBad++;
+    // Search pages and unverifiable YouTube ids must never ship as media.
+    if (/youtube\.com\/results|google\.com\/search/.test(m.url)) { youtubeBad++; issues.push(`SEARCH media url: ${a.id}`); }
+    else if (/youtube\.com\/(watch|shorts|embed)|youtu\.be\//.test(m.url)) { youtubeBad++; issues.push(`fabricated watch url: ${a.id}`); }
+    else youtubeOk++;
   }
   for (const l of a.links || []) {
-    if (SOURCE_HOSTS.some((h) => l.url.includes(h))) { linkOk++; sourceCited++; }
-    else if (/google\.com\/search|youtube\.com\/results/.test(l.url)) linkOk++;
-    else linkBad++;
+    if (/google\.com\/search|youtube\.com\/results/.test(l.url)) { linkBad++; issues.push(`SEARCH link url: ${a.id}`); }
+    else if (SOURCE_HOSTS.some((h) => l.url.includes(h))) { linkOk++; sourceCited++; }
+    else if (/^https?:\/\//.test(l.url)) linkOk++;
+    else { linkBad++; issues.push(`non-http link url: ${a.id}`); }
   }
 }
 
@@ -75,8 +78,8 @@ for (const c of CATS) console.log([c.padEnd(7), ...BANDS.map((b) => String(catBa
 console.log("\nFIELD COVERAGE:");
 console.log(`  altNames: ${withAlt}/${A.length}  media: ${withMedia}  links: ${withLinks}  variations: ${withVar}  subsets: ${withSub}`);
 console.log(`  director-source citations: ${sourceCited}`);
-console.log(`  youtube search urls ok: ${youtubeOk}  fabricated watch urls: ${youtubeBad}`);
-console.log(`  link urls ok: ${linkOk}  bad/deep links: ${linkBad}`);
+console.log(`  specific media urls: ${youtubeOk}  search/fabricated media urls (BAD): ${youtubeBad}`);
+console.log(`  specific link urls: ${linkOk}  search/bad links (BAD): ${linkBad}`);
 console.log(`\nDISTINCT materialTags: ${tagCounts.size}`);
 const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
 console.log("  top tags:", topTags.map(([t, n]) => `${t}(${n})`).join(", "));

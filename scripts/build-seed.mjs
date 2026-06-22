@@ -51,31 +51,37 @@ function agesFromRange(lo, hi) {
   return ids.length ? ids : ["g46"];
 }
 
-// Honest media policy: a YouTube link must be a *search* URL (never a fabricated
-// watch id). Anything that looks like a specific video is converted to a search.
-function honestVideoUrl(url, query) {
-  const u = trim(url);
-  const q = encodeURIComponent(query);
-  const search = "https://www.youtube.com/results?search_query=" + q;
-  if (!/^https?:\/\//i.test(u)) return search;
-  try {
-    const parsed = new URL(u);
-    const host = parsed.hostname.replace(/^www\./, "");
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
-      // Only a results/search page is honest; watch/shorts/embed → search.
-      if (parsed.pathname.startsWith("/results")) return u;
-      return search;
-    }
-    if (host === "youtu.be") return search;
-    return u; // some other real http(s) url the agent supplied for a tutorial
-  } catch {
-    return search;
-  }
+// A search-result page is never a resource — "search YouTube/Google for this
+// game" is not a demo. We drop every search URL no matter what; the curated,
+// author-verified links in lib/seed/links.json are how specific videos/articles
+// get in (each one is fetched + relevance-checked at authoring time before it is
+// added there — see docs/ai-authoring-guide.md). Unverifiable URLs from the bulk
+// generation (which only ever produced searches) therefore fall away on their own.
+function isSearchUrl(parsed) {
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === "google.com" || host.endsWith(".google.com")) return parsed.pathname.startsWith("/search");
+  if (host === "youtube.com" || host === "m.youtube.com") return parsed.pathname.startsWith("/results");
+  return false;
 }
 
-// Honest link policy: allow the five director sources, google/youtube search
-// pages, and bare publisher roots; rewrite any other deep path to a Google
-// search so we never ship a fabricated/broken article URL.
+// Media policy: a specific, real video/tutorial URL (a YouTube watch link plays
+// inline; anything else is a link card). Search pages are dropped.
+function specificVideoUrl(url) {
+  const u = trim(url);
+  if (!/^https?:\/\//i.test(u)) return null;
+  let parsed;
+  try {
+    parsed = new URL(u);
+  } catch {
+    return null;
+  }
+  if (isSearchUrl(parsed)) return null;
+  return u;
+}
+
+// Link policy: a specific, real reference URL (a how-to article, the source
+// page). Search pages are dropped. The five director-source articles are the
+// pre-blessed bulk sources; lib/seed/links.json adds verified per-activity links.
 const SOURCE_URLS = new Set([
   "https://ourdaysoutside.com/15-classic-summer-camp-crafts-for-kids/",
   "https://www.ssww.com/blog/top-10-summer-camp-themes-creative-engaging-activity-ideas/",
@@ -83,32 +89,32 @@ const SOURCE_URLS = new Set([
   "https://rusticpathways.com/blog/summer-camp-activities",
   "https://campminder.com/resources/27-summer-camp-activities-to-spice-up-the-summer-camp-atmosphere/",
 ]);
-function honestLinkUrl(url, query) {
+function specificLinkUrl(url) {
   const u = trim(url);
-  const fallback = "https://www.google.com/search?q=" + encodeURIComponent(query);
+  if (!/^https?:\/\//i.test(u)) return null;
   if (SOURCE_URLS.has(u)) return u;
-  if (!/^https?:\/\//i.test(u)) return fallback;
+  let parsed;
   try {
-    const parsed = new URL(u);
-    const host = parsed.hostname.replace(/^www\./, "");
-    if (host === "google.com" && parsed.pathname.startsWith("/search")) return u;
-    if (host === "youtube.com" && parsed.pathname.startsWith("/results")) return u;
-    // A bare root of a known publisher is fine; deep unknown paths are not.
-    const knownRoots = ["ourdaysoutside.com", "ssww.com", "littlebinsforlittlehands.com", "rusticpathways.com", "campminder.com"];
-    if (knownRoots.includes(host) && (parsed.pathname === "/" || parsed.pathname === "")) return u;
-    return fallback;
+    parsed = new URL(u);
   } catch {
-    return fallback;
+    return null;
   }
+  if (isSearchUrl(parsed)) return null;
+  return u;
 }
 
-function cleanEvent(raw, prefix, seenIds) {
+function cleanEvent(raw, prefix, seenIds, curated) {
   const title = trim(raw.title) || "Untitled activity";
   let id = kebab(raw.id) || kebab(prefix + "-" + title);
   if (!id.startsWith(prefix + "-")) id = prefix + "-" + id;
   if (RESERVED_IDS.has(id)) id = prefix + "-" + id;
   while (seenIds.has(id)) id = id + "-x";
   seenIds.add(id);
+
+  // Curated, author-verified per-activity resources (lib/seed/links.json), keyed
+  // by this final id. Prepended so the specific tutorial sorts ahead of the
+  // generic director-source link.
+  const patch = (curated && curated[id]) || {};
 
   const type = CATEGORIES.includes(raw.type) ? raw.type : "Craft";
   const place = PLACES.includes(raw.place) ? raw.place : "Both";
@@ -134,17 +140,24 @@ function cleanEvent(raw, prefix, seenIds) {
 
   const altNames = uniq(strArr(raw.altNames));
 
-  const mediaIn = Array.isArray(raw.media) ? raw.media : [];
+  // Media/links keep only specific, verified URLs. Searches resolve to null and
+  // are filtered out — there is no search fallback, so an activity with no real
+  // video/source simply ships without that field. Curated links.json entries are
+  // merged first, then the bulk-generated ones.
+  const mediaIn = [...(Array.isArray(patch.media) ? patch.media : []), ...(Array.isArray(raw.media) ? raw.media : [])];
   let media = mediaIn
-    .filter((m) => m && trim(m.url))
-    .map((m) => ({ title: trim(m.title) || ("Video demos: " + title), url: honestVideoUrl(m.url, m.title || title) }));
-  if (!media.length) media = [{ title: "Video demos: " + title, url: honestVideoUrl("", title) }];
+    .map((m) => ({ m, url: specificVideoUrl(m && m.url) }))
+    .filter((x) => x.url)
+    .map((x) => ({ title: trim(x.m.title) || ("Video demos: " + title), url: x.url }));
+  // De-dup media by url.
+  const seenMedia = new Set();
+  media = media.filter((m) => (seenMedia.has(m.url) ? false : (seenMedia.add(m.url), true)));
 
-  const linksIn = Array.isArray(raw.links) ? raw.links : [];
+  const linksIn = [...(Array.isArray(patch.links) ? patch.links : []), ...(Array.isArray(raw.links) ? raw.links : [])];
   let links = linksIn
-    .filter((l) => l && trim(l.url))
-    .map((l) => ({ label: trim(l.label) || ("More ideas: " + title), url: honestLinkUrl(l.url, l.label || title) }));
-  if (!links.length) links = [{ label: "More ideas: " + title, url: honestLinkUrl("", title) }];
+    .map((l) => ({ l, url: specificLinkUrl(l && l.url) }))
+    .filter((x) => x.url)
+    .map((x) => ({ label: trim(x.l.label) || ("More ideas: " + title), url: x.url }));
   // De-dup links by url.
   const seenLink = new Set();
   links = links.filter((l) => (seenLink.has(l.url) ? false : (seenLink.add(l.url), true)));
@@ -194,9 +207,20 @@ function emitLane(prefix, events) {
   return varName;
 }
 
+function loadCurated() {
+  // lib/seed/links.json: { "<final-id>": { media?: [{title,url}], links?: [{label,url}] } }
+  // Curated, author-verified per-activity tutorial links (committed, reviewable).
+  try {
+    return JSON.parse(readFileSync(join(ROOT, "lib", "seed", "links.json"), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 function main() {
   const data = JSON.parse(readFileSync(INPUT, "utf8"));
   const lanes = data.lanes || [];
+  const curated = loadCurated();
   mkdirSync(LANES_DIR, { recursive: true });
 
   const seenIds = new Set([...RESERVED_IDS]);
@@ -211,7 +235,7 @@ function main() {
     for (const raw of lane.events || []) {
       const tkey = trim(raw.title).toLowerCase();
       if (tkey && seenTitles.has(tkey)) continue; // drop exact-title duplicates
-      const ev = cleanEvent(raw, prefix, seenIds);
+      const ev = cleanEvent(raw, prefix, seenIds, curated);
       if (tkey) seenTitles.add(tkey);
       events.push(ev);
     }
