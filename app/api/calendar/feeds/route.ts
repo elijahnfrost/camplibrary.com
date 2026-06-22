@@ -25,10 +25,14 @@ function backendUnavailable() {
 function feedUrlsFor(request: NextRequest, token: string) {
   const appBaseUrl = (getPublicEnv("NEXT_PUBLIC_APP_URL") ?? new URL(request.url).origin).replace(/\/+$/, "");
   const url = `${appBaseUrl}/api/ics/${token}.ics`;
+  const webcalUrl = url.replace(/^https?:/, "webcal:");
   return {
     url,
-    webcalUrl: url.replace(/^https?:/, "webcal:"),
-    googleAddUrl: `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(url)}`,
+    webcalUrl,
+    // Google's "Add by URL" subscribes most reliably when the cid is the webcal://
+    // form — the https form often imports a one-time copy instead of a live
+    // subscription. (Apple/Outlook use webcalUrl directly.)
+    googleAddUrl: `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`,
   };
 }
 

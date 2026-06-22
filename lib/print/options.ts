@@ -66,6 +66,9 @@ export interface PrintOptions extends PrintFormat {
   end: DateKey;
   campId: string | null; // null = every camp
   title: string; // optional custom cover title; "" falls back to the range label
+  // Individually-picked activities to append a full run sheet for (additive to
+  // `appendRunSheets`). Ephemeral, per-print — not persisted with the format.
+  runSheetIds: string[];
 }
 
 export const DEFAULT_PRINT_FORMAT: PrintFormat = {

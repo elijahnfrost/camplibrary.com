@@ -1,6 +1,7 @@
 "use client";
 
 import type { Activity } from "@/lib/types";
+import type { AgeUnit } from "@/lib/data";
 import type { RunDoc } from "@/lib/runList";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
@@ -16,12 +17,16 @@ export function ActivityEditorSheet({
   onClose,
   onSubmit,
   themeKit,
+  ageUnit,
+  onAgeUnit,
 }: {
   editing: Activity | null;
   initialRunDoc: RunDoc | null;
   onClose: () => void;
   onSubmit: (a: Activity, runDoc?: RunDoc, themeId?: string | null) => void;
   themeKit?: ThemeKit;
+  ageUnit?: AgeUnit;
+  onAgeUnit?: (v: AgeUnit) => void;
 }) {
   return (
     <Modal
@@ -46,9 +51,10 @@ export function ActivityEditorSheet({
         <AddView
           initial={editing}
           initialRunDoc={initialRunDoc}
-          onCancelEdit={onClose}
           onSubmit={onSubmit}
           themeKit={themeKit}
+          ageUnit={ageUnit}
+          onAgeUnit={onAgeUnit}
         />
       </div>
     </Modal>

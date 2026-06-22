@@ -10,7 +10,9 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "@/lib/types";
-import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
+import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
+import { normalizeHexColor } from "@/lib/color";
+import { ColorField } from "./floating/ColorField";
 import { materialTagsFromMaterials } from "@/lib/materials";
 import {
   buildRunDoc,
@@ -27,7 +29,7 @@ import {
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "@/lib/calendar/time";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
-import { Seg } from "./primitives";
+import { MiniSeg, Seg } from "./primitives";
 import { ThemeField } from "./ThemeField";
 import { ActivityRunList } from "./ActivityRunList";
 
@@ -47,6 +49,7 @@ interface FormState {
   blurb: string;
   materials: string;
   themeId: string;
+  color: string; // "" = inherit the category tint
 }
 
 /** The theme vocabulary + quick-create, supplied by the library hook. Optional
@@ -83,6 +86,7 @@ const BLANK_FORM: FormState = {
   blurb: "",
   materials: "",
   themeId: "",
+  color: "",
 };
 
 function formFromActivity(a: Activity, themeId: string): FormState {
@@ -100,6 +104,7 @@ function formFromActivity(a: Activity, themeId: string): FormState {
     blurb: a.blurb,
     materials: a.materials.join(", "),
     themeId,
+    color: a.color ?? "",
   };
 }
 
@@ -138,6 +143,7 @@ function activityFromForm(f: FormState, id: string, extracted?: ExtractedRunText
     energy: ENERGY_MAP[f.energy],
     prep: f.prep,
     rating: f.rating,
+    color: normalizeHexColor(f.color),
     blurb: f.blurb.trim() || "A new entry in the library.",
     materials,
     materialTags: materialTagsFromMaterials(materials),
@@ -220,14 +226,17 @@ export function AddView({
   onSubmit,
   initial,
   initialRunDoc,
-  onCancelEdit,
   themeKit,
+  ageUnit = "grades",
+  onAgeUnit,
 }: {
   onSubmit: (a: Activity, runDoc?: RunDoc, themeId?: string | null) => void;
   initial?: Activity | null;
   initialRunDoc?: RunDoc | null;
-  onCancelEdit?: () => void;
   themeKit?: ThemeKit;
+  /** Grades⇄Ages caption unit + its toggle — relabels the age-group chips. */
+  ageUnit?: AgeUnit;
+  onAgeUnit?: (v: AgeUnit) => void;
 }) {
   const isEdit = Boolean(initial);
   const initialForm = useMemo(
@@ -296,15 +305,9 @@ export function AddView({
 
   return (
     <div className="form form--activity fadein">
-      {isEdit && (
-        <div className="form__editbar">
-          <span>Editing “{initial?.title}”</span>
-          <button type="button" className="btn btn--ghost" onClick={onCancelEdit}>
-            Cancel
-          </button>
-        </div>
-      )}
-
+      {/* No edit bar here: the editor is always hosted in ActivityEditorSheet,
+          whose sheet-head already owns the title + Back/cancel. A second header
+          only ever appeared on edit (the double-header bug). */}
       <div className="form__section">Activity card</div>
       <div className="field">
         <label className="field__label" htmlFor="activity-title">Name</label>
@@ -376,6 +379,18 @@ export function AddView({
           />
         </div>
         <div className="field">
+          <label className="field__label" htmlFor="activity-color">
+            Color <span className="field__hint">optional</span>
+          </label>
+          <ColorField
+            id="activity-color"
+            value={f.color || undefined}
+            fallback={categoryTint(f.type)}
+            onChange={(color) => set("color")(color ?? "")}
+            ariaLabel="Activity color"
+          />
+        </div>
+        <div className="field">
           <label className="field__label" htmlFor="activity-duration">Minutes</label>
           <input
             id="activity-duration"
@@ -399,9 +414,22 @@ export function AddView({
           <Seg options={["Calm", "Lively", "Rowdy"] as const} value={f.energy} onChange={set("energy")} ariaLabel="Energy" />
         </div>
         <div className="field form__wide">
-          <span className="field__label" id="activity-ages-label">
-            Age groups <span className="field__hint">tap all that fit</span>
-          </span>
+          <div className="form__agehead">
+            <span className="field__label" id="activity-ages-label">
+              Age groups <span className="field__hint">tap all that fit</span>
+            </span>
+            {onAgeUnit && (
+              <MiniSeg
+                ariaLabel="Show ages as"
+                value={ageUnit}
+                onChange={(v) => onAgeUnit(v as AgeUnit)}
+                options={[
+                  { id: "grades", label: "Grades" },
+                  { id: "ages", label: "Ages" },
+                ]}
+              />
+            )}
+          </div>
           <div className="chiprow" role="group" aria-labelledby="activity-ages-label">
             {AGE_GROUPS.map((g) => (
               <button
@@ -411,7 +439,7 @@ export function AddView({
                 aria-pressed={f.ages.indexOf(g.id) >= 0}
                 onClick={() => toggleAge(g.id)}
               >
-                {g.short}
+                {bandShort(g, ageUnit)}
               </button>
             ))}
           </div>

@@ -6,15 +6,20 @@
 // lib/cloudStore (localStorage for anon, cloud-synced once signed in).
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
+import type { AgeUnit } from "@/lib/data";
+import { useLocalStorage } from "@/lib/store";
+import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
-import { formatRangeLabel } from "@/lib/calendar/time";
+import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
+import { campDayWindow, hourOptionMinutes } from "@/lib/camps";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
-import { migrateLegacyStorageKeys } from "@/lib/storageScope";
+import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
 import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
@@ -23,7 +28,6 @@ import { ActivityBookPrint } from "./ActivityBookPrint";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
-import { CalendarShell } from "./calendar/CalendarShell";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
@@ -32,12 +36,19 @@ import { LibraryTab } from "./LibraryTab";
 import { ListManagerModal } from "./ListManagerModal";
 import { Modal } from "./Modal";
 import { LoadingVeil } from "./primitives";
-import { PrintTab } from "./print/PrintTab";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
+
+// Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
+// the first hydration bundle — they load on first visit to their tab, behind the
+// loading veil. Client-only (both are "use client" components).
+const CalendarShell = dynamic(() => import("./calendar/CalendarShell").then((m) => m.CalendarShell), {
+  ssr: false,
+});
+const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab), { ssr: false });
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
@@ -124,7 +135,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // sidebar, the phone tabbar, and programmatic jumps — gets the transition.
   const [tabLoading, setTabLoading] = useState(false);
   const setTab = useCallback((value: TabId | ((prev: TabId) => TabId)) => {
-    setTabLoading(true);
+    // Only the heavy surfaces (FullCalendar, the Paged.js preview) jank on first
+    // paint and need the veil; instant surfaces (Library/Home/Staff) switch with
+    // no veil. Functional updaters are programmatic jumps (the phone redirect) and
+    // skip it. The veil now also code-loads the dynamic chunk on first visit.
+    if (typeof value !== "function") setTabLoading(value === "calendar" || value === "print");
     setTabRaw(value);
   }, []);
   useEffect(() => {
@@ -140,10 +155,28 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   useLayoutEffect(() => {
     try {
       migrateLegacyStorageKeys(window.localStorage, storageScope);
+      // First sign-in: carry anything created while signed-out into the account
+      // scope, so the calendar/library aren't empty after signing in. No-op for
+      // the anon scope and for a returning user whose scope already has data.
+      migrateAnonScopeKeys(window.localStorage, storageScope);
     } catch {
       /* private mode / quota — scoped storage starts fresh */
     }
   }, [storageScope]);
+
+  // The desktop sidebar holds the calendar / print rail portals. On phones the
+  // sidebar is display:none but its nodes still exist, so an ungated portal would
+  // ALSO mount into the hidden rail (two PrintControls fighting over one title).
+  // Gate the rail nodes to desktop so the ref is null on phones. useLayoutEffect
+  // resolves the match before paint, so there's no flash.
+  const [isDesktop, setIsDesktop] = useState(true);
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
@@ -209,11 +242,30 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // Synced user data: localStorage-backed for anon visitors, cloud-synced
   // (optimistic writes + offline outbox) once signed in.
   const cloud = useCloudUserData(signedInUserId);
+  // Surface a failed save to the user instead of letting it drop silently.
+  useEffect(() => {
+    if (cloud.syncError) setLiveMsg(cloud.syncError);
+  }, [cloud.syncError]);
   const lib = useActivityLibrary({ cloud, requireStaff, announce: setLiveMsg });
   // Multiple camps: filters the calendar's event set + stamps new events. The
   // shared library and every other surface are camp-agnostic.
   const campKit = useCamps({ cloud, announce: setLiveMsg });
-  const calendarEvents = useMemo(() => campKit.filterEvents(cloud.events), [campKit, cloud.events]);
+  // Depend on the stable filterEvents callback, not the whole campKit object
+  // (rebuilt every render), so the calendar event set memo doesn't recompute on
+  // every render.
+  const calendarEvents = useMemo(
+    () => campKit.filterEvents(cloud.events),
+    [campKit.filterEvents, cloud.events]
+  );
+  // The calendar's visible window follows the ACTIVE camp's hours (drop-off →
+  // pickup, now stored on the synced camp object), or the classic 8:00–18:00 band
+  // when no camp is active. The 15-min clock options feed the camp manager's
+  // per-camp Open–Close editor.
+  const calendarDayWindow = useMemo(() => campDayWindow(campKit.activeCamp), [campKit.activeCamp]);
+  const campHourOptions = useMemo(
+    () => hourOptionMinutes().map((m) => ({ value: m, label: formatClock(m) })),
+    []
+  );
   // The camp manager (add / switch / rename / delete) — reached from the calendar
   // view dropdown's "Manage camps…" entry. Camps are a rarely-used option, so
   // they no longer occupy a permanent header pill. Opening is ungated (switching
@@ -228,6 +280,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // Grades⇄Ages caption unit — a library-wide display preference (per device).
+  // Read by the cells/home via context; toggled from the filter and the editor.
+  const [ageUnit, setAgeUnit] = useLocalStorage<AgeUnit>(
+    "ageUnit",
+    "grades",
+    (v, fallback) => (v === "grades" || v === "ages" ? v : fallback)
+  );
   // The Themes manager (create/rename/delete the vocabulary), reached from the
   // library filter's "Manage themes…" footer.
   const [themesManagerOpen, setThemesManagerOpen] = useState(false);
@@ -419,6 +478,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const mobileNavTabs = useMemo(() => [...TABS, STAFF_TAB], []);
 
   return (
+    <AgeUnitProvider value={ageUnit}>
     <div className="stage">
       <a href="#main" className="skip-link">
         Skip to content
@@ -459,6 +519,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               cat={cat}
               place={place}
               age={age}
+              ageUnit={ageUnit}
+              onAgeUnit={setAgeUnit}
               theme={theme}
               themes={lib.themes}
               starredOnly={starredOnly}
@@ -474,8 +536,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onClearMaterials={lib.clearAvailableMaterials}
             />
           )}
-          {tab === "calendar" && <div className="sidenav__calrail" ref={calRailRef} />}
-          {tab === "print" && <div className="sidenav__printrail" ref={printRailRef} />}
+          {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
+          {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
         </nav>
 
         <main className="app__main" id="main">
@@ -515,6 +577,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               cat={cat}
               place={place}
               age={age}
+              ageUnit={ageUnit}
+              onAgeUnit={setAgeUnit}
               theme={theme}
               themes={lib.themes}
               themeOf={lib.themeOf}
@@ -545,6 +609,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 removeEvent={cloud.removeEvent}
                 upsertEvents={campKit.upsertEvents}
                 removeEvents={cloud.removeEvents}
+                commitEvents={campKit.commitEvents}
+                undo={cloud.undo}
+                redo={cloud.redo}
                 activities={lib.all}
                 byId={lib.byId}
                 canEdit={isSignedIn}
@@ -554,6 +621,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 railSlot={calRail}
                 themeOf={lib.themeOf}
                 onOpenCamps={() => setCampsManagerOpen(true)}
+                dayWindow={calendarDayWindow}
                 headerActions={
                   <SubscribeFeedButton
                     activeCampId={campKit.activeCampId}
@@ -658,12 +726,21 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         {campsManagerOpen && (
           <ListManagerModal
             title="Camps"
-            intro="Each camp keeps its own schedule. Your activity library is shared across all of them."
-            items={campKit.camps.map((c) => ({ id: c.id, label: c.name }))}
+            intro="Each camp keeps its own schedule and its own viewing hours (drop-off → pickup). Your activity library is shared across all of them."
+            items={campKit.camps.map((c) => ({
+              id: c.id,
+              label: c.name,
+              openMin: c.openMin,
+              closeMin: c.closeMin,
+            }))}
             activeId={campKit.activeCampId}
             createPlaceholder="e.g. Summer Day Camp"
             createLabel="Add camp"
             emptyHint="No camps yet. Add one to keep its schedule separate from the rest."
+            hourOptions={campHourOptions}
+            onChangeHours={(id, field, value) => {
+              if (requireStaff("manage camps")) campKit.adjustCampHours(id, field, value);
+            }}
             onSelect={(id) => {
               campKit.switchCamp(id);
               setCampsManagerOpen(false);
@@ -689,6 +766,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             initialRunDoc={editorSheet.activity ? lib.resolveRunDoc(editorSheet.activity) : null}
             onClose={() => setEditorSheet(null)}
             onSubmit={submitEditorSheet}
+            ageUnit={ageUnit}
+            onAgeUnit={setAgeUnit}
             themeKit={{
               themes: lib.themes,
               initialThemeId: editorSheet.activity ? lib.themeAssignments[editorSheet.activity.id] ?? "" : "",
@@ -770,5 +849,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         )}
       </div>
     </div>
+    </AgeUnitProvider>
   );
 }

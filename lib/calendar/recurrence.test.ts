@@ -7,6 +7,7 @@ import {
   normalizeRecurrence,
   planSeriesDelete,
   planSeriesEdit,
+  planSeriesSkip,
   recurrenceDates,
   rulesEqual,
   summarizeRecurrence,
@@ -119,6 +120,72 @@ describe("recurrenceDates", () => {
     const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2099-01-01" };
     expect(recurrenceDates("2026-06-21", rule).length).toBe(MAX_SERIES_OCCURRENCES);
   });
+
+  it("monthly day-of-month lands on the same day each month", () => {
+    const rule: RecurrenceRule = { freq: "monthly", interval: 1, monthDay: 15, until: "2026-09-15" };
+    expect(recurrenceDates("2026-06-15", rule)).toEqual([
+      "2026-06-15",
+      "2026-07-15",
+      "2026-08-15",
+      "2026-09-15",
+    ]);
+  });
+
+  it("monthly day-of-month skips months without that day (the 31st)", () => {
+    const rule: RecurrenceRule = { freq: "monthly", interval: 1, monthDay: 31, until: "2026-05-31" };
+    // Jan/Mar/May have a 31st; Feb/Apr do not.
+    expect(recurrenceDates("2026-01-31", rule)).toEqual(["2026-01-31", "2026-03-31", "2026-05-31"]);
+  });
+
+  it("monthly nth-weekday lands on e.g. the 3rd Tuesday", () => {
+    // 2026-06-16 is the 3rd Tuesday of June 2026.
+    const rule: RecurrenceRule = {
+      freq: "monthly",
+      interval: 1,
+      nthWeekday: { week: 3, weekday: 2 },
+      until: "2026-08-31",
+    };
+    expect(recurrenceDates("2026-06-16", rule)).toEqual([
+      "2026-06-16",
+      "2026-07-21", // 3rd Tue of July
+      "2026-08-18", // 3rd Tue of Aug
+    ]);
+  });
+
+  it("monthly last-weekday uses week -1", () => {
+    // last Friday of each month
+    const rule: RecurrenceRule = {
+      freq: "monthly",
+      interval: 1,
+      nthWeekday: { week: -1, weekday: 5 },
+      until: "2026-08-31",
+    };
+    expect(recurrenceDates("2026-06-26", rule)).toEqual([
+      "2026-06-26", // last Fri June
+      "2026-07-31", // last Fri July
+      "2026-08-28", // last Fri Aug
+    ]);
+  });
+
+  it("yearly repeats on the anniversary", () => {
+    const rule: RecurrenceRule = { freq: "yearly", interval: 1, until: "2029-07-04" };
+    expect(recurrenceDates("2026-07-04", rule)).toEqual([
+      "2026-07-04",
+      "2027-07-04",
+      "2028-07-04",
+      "2029-07-04",
+    ]);
+  });
+
+  it("subtracts exdates from the placed occurrences", () => {
+    const rule: RecurrenceRule = {
+      freq: "daily",
+      interval: 1,
+      until: "2026-06-24",
+      exdates: ["2026-06-22"],
+    };
+    expect(recurrenceDates("2026-06-21", rule)).toEqual(["2026-06-21", "2026-06-23", "2026-06-24"]);
+  });
 });
 
 describe("normalizeRecurrence", () => {
@@ -147,8 +214,52 @@ describe("normalizeRecurrence", () => {
 
   it("rejects malformed input", () => {
     expect(normalizeRecurrence(null)).toBeNull();
-    expect(normalizeRecurrence({ freq: "yearly", until: "2026-07-01" })).toBeNull();
+    expect(normalizeRecurrence({ freq: "hourly", until: "2026-07-01" })).toBeNull();
     expect(normalizeRecurrence({ freq: "daily", until: "not-a-date" })).toBeNull();
+  });
+
+  it("accepts monthly with a day-of-month anchor", () => {
+    expect(normalizeRecurrence({ freq: "monthly", interval: 1, monthDay: 15, until: "2026-12-31" })).toEqual({
+      freq: "monthly",
+      interval: 1,
+      monthDay: 15,
+      until: "2026-12-31",
+    });
+  });
+
+  it("accepts monthly with an nth-weekday anchor, and it wins over monthDay", () => {
+    const rule = normalizeRecurrence({
+      freq: "monthly",
+      interval: 1,
+      monthDay: 15,
+      nthWeekday: { week: 3, weekday: 2 },
+      until: "2026-12-31",
+    });
+    expect(rule?.nthWeekday).toEqual({ week: 3, weekday: 2 });
+    expect(rule?.monthDay).toBeUndefined();
+  });
+
+  it("accepts yearly and cleans/sorts/de-dupes exdates", () => {
+    const rule = normalizeRecurrence({
+      freq: "yearly",
+      interval: 1,
+      until: "2030-07-01",
+      exdates: ["2027-07-01", "2027-07-01", "bad", "2026-07-01"],
+    });
+    expect(rule?.freq).toBe("yearly");
+    expect(rule?.exdates).toEqual(["2026-07-01", "2027-07-01"]);
+  });
+
+  it("rejects an out-of-range nth-weekday and bad monthDay", () => {
+    const rule = normalizeRecurrence({
+      freq: "monthly",
+      interval: 1,
+      monthDay: 99,
+      nthWeekday: { week: 9, weekday: 2 },
+      until: "2026-12-31",
+    });
+    expect(rule?.nthWeekday).toBeUndefined();
+    expect(rule?.monthDay).toBeUndefined();
   });
 });
 
@@ -285,6 +396,50 @@ describe("planSeriesEdit", () => {
     const plan = planSeriesEdit(series, target, template, target.date, weekly, "following", counter());
     expect(plan.upserts.map((e) => e.date)).toEqual(["2026-06-21", "2026-06-28", "2026-07-05"]);
     expect(plan.upserts.every((e) => e.recurrence === weekly)).toBe(true);
+  });
+
+  it("carries an existing exdate forward so a regenerated 'all' edit doesn't resurrect it", () => {
+    // A daily series with 2026-06-22 already skipped (exdate recorded on the rule).
+    const rule: RecurrenceRule = {
+      freq: "daily",
+      interval: 1,
+      until: "2026-06-24",
+      exdates: ["2026-06-22"],
+    };
+    const series = buildSeriesEvents(
+      template,
+      ["2026-06-21", "2026-06-23", "2026-06-24"],
+      "series-1",
+      rule,
+      counter(),
+      "2026-06-21",
+      "a0"
+    ).map((e, i) => ({ ...e, id: "a" + i }));
+    const target = series[0];
+    const moved: SeriesTemplate = { ...template, startMin: 600, endMin: 660 };
+    // The editor draft rule has NO exdates — the skip must survive regardless.
+    const draftRule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-24" };
+    const plan = planSeriesEdit(series, target, moved, target.date, draftRule, "all", counter());
+    // The skipped day stays skipped after a blind "all" regeneration.
+    expect(plan.upserts.map((e) => e.date)).toEqual(["2026-06-21", "2026-06-23", "2026-06-24"]);
+    expect(plan.upserts.every((e) => e.recurrence?.exdates?.includes("2026-06-22"))).toBe(true);
+  });
+});
+
+describe("planSeriesSkip", () => {
+  it("removes the occurrence and records its date as an exdate on the survivors", () => {
+    const series = makeSeries(); // daily Jun 21–24, ids a0..a3
+    const target = series[1]; // 2026-06-22
+    const plan = planSeriesSkip(series, target);
+    expect(plan.removes).toEqual(["a1"]);
+    expect(plan.upserts.map((e) => e.id)).toEqual(["a0", "a2", "a3"]);
+    expect(plan.upserts.every((e) => e.recurrence?.exdates?.includes("2026-06-22"))).toBe(true);
+  });
+
+  it("falls back to a plain delete for a non-series occurrence", () => {
+    const loose: CalendarEvent = { ...template, id: "loose", date: "2026-06-22", updatedAt: 0 } as CalendarEvent;
+    const plan = planSeriesSkip([loose], loose);
+    expect(plan).toEqual({ upserts: [], removes: ["loose"] });
   });
 });
 

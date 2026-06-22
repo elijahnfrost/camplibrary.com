@@ -6,6 +6,7 @@
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -29,6 +30,8 @@ export function LibraryTab({
   starredOnly,
   materialOptions,
   availableMaterials,
+  ageUnit,
+  onAgeUnit,
   onCat,
   onPlace,
   onAge,
@@ -51,6 +54,8 @@ export function LibraryTab({
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  ageUnit: AgeUnit;
+  onAgeUnit: (v: AgeUnit) => void;
   theme: ThemeFilter;
   themes: Theme[];
   themeOf: (id: string) => Theme | null;
@@ -155,6 +160,8 @@ export function LibraryTab({
         cat={cat}
         place={place}
         age={age}
+        ageUnit={ageUnit}
+        onAgeUnit={onAgeUnit}
         theme={theme}
         themes={themes}
         starredOnly={starredOnly}
@@ -199,6 +206,7 @@ export function LibraryTab({
                   cat={cat}
                   place={place}
                   age={age}
+                  ageUnit={ageUnit}
                   theme={theme}
                   themes={themes}
                   availableMaterials={availableMaterials}

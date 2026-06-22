@@ -38,3 +38,25 @@ export function migrateLegacyStorageKeys(
     if (legacyValue != null) storage.setItem(scopedKey, legacyValue);
   }
 }
+
+// Carry an anon visitor's data into their account scope on first sign-in. Without
+// this, anything created signed-out (events, favorites, custom activities) is
+// stranded in the `anon` scope when the scope flips to `user:<id>` — the calendar
+// looked empty after signing in. Copies each key only when the user scope doesn't
+// already have it, so a returning user's account data is never clobbered. The
+// carried docs upload via the cloud import; carried events adopt on first
+// bootstrap (see lib/cloudStore). Idempotent and safe to re-run.
+export function migrateAnonScopeKeys(
+  storage: StorageLike,
+  userScope: string,
+  keys: readonly string[] = SCOPED_STORAGE_KEYS,
+): void {
+  if (!userScope.startsWith("user:")) return;
+  for (const key of keys) {
+    const anonKey = STORAGE_PREFIX + scopedStorageKey("anon", key);
+    const userKey = STORAGE_PREFIX + scopedStorageKey(userScope, key);
+    if (storage.getItem(userKey) != null) continue;
+    const anonValue = storage.getItem(anonKey);
+    if (anonValue != null) storage.setItem(userKey, anonValue);
+  }
+}

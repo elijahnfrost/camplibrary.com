@@ -483,8 +483,31 @@
   background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
   transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
+/* Event cards had zero hover feedback (--e1 resolves to none in this flat,
+   shadow-free palette). Borrow the library deck-card's lift so the calendar
+   matches its tactility — a small rise (and a press nudge), no shadow. */
 .calshell .fc-timegrid-event:hover {
-  box-shadow: var(--e1);
+  transform: translateY(-2px);
+}
+.calshell .fc-timegrid-event:active {
+  transform: translate(0, -1px);
+}
+/* Activity vs custom: an activity keeps the SOLID category spine; a custom event
+   (lunch, assembly, free play) wears a HATCHED spine — a diagonal weave in the
+   same colour. Deliberately a texture, NOT a dashed/dotted line, which the
+   calendar reserves for the "creating a new event" placeholder + drag snap-box.
+   Painted as a left-edge background band (no ::before, so FC's absolute event
+   positioning is untouched). Applies to timed cards and month chips alike. */
+.calshell .fc-event.cal-event--custom {
+  border-left-color: transparent;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--cal-tint, var(--accent)) 0 2px,
+    color-mix(in srgb, var(--cal-tint, var(--accent)) 34%, var(--card)) 2px 4.2px
+  );
+  background-repeat: no-repeat;
+  background-size: 3px 100%;
+  background-position: left center;
 }
 .calshell .fc-event.fc-event-dragging,
 .calshell .fc-event.fc-event-resizing {
@@ -1076,6 +1099,48 @@ body.is-cal-copy .cal-dragfollow::after {
   overflow-y: auto;
   margin-top: var(--s-3);
   padding: 0 var(--s-3);
+}
+/* Edit mode: a compact "Editing: <activity>" summary stands in for the full
+   searchable list, with a category spine matching the placed event card. */
+.quickadd__editing {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  padding: var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.quickadd__editing-spine {
+  flex: none;
+  align-self: stretch;
+  width: 3px;
+  border-radius: var(--r-round);
+  background: var(--cal-tint, var(--line));
+}
+.quickadd__editing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.quickadd__editing-title {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quickadd__editing-meta {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.quickadd__editing-change {
+  flex: none;
 }
 /* Library rows are activity blocks: the same 3px category spine as the rail
    row and the placed event card (--cal-tint inline per row), not a dot. */
@@ -1774,6 +1839,13 @@ body.is-cal-copy .cal-dragfollow::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* Slot posture surfaces the repeat control between the tabs and the picker — a
+   hairline sets it apart from the activity list without a heavy box. */
+.quickadd__slotrepeat {
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
 }
 
 /* ---------- repeating edit/delete scope chooser ---------- */

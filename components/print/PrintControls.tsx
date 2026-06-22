@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { addDays, fromDateKey, todayKey, toDateKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
 import type { Camp } from "@/lib/camps";
+import type { Activity } from "@/lib/types";
 import type { PrintLayout, PrintOptions, ScheduleDetail, TimelineDensity } from "@/lib/print/options";
 import { MAX_PRINT_DAYS } from "@/lib/print/schedule";
 import { CampIcon } from "../icons";
@@ -166,14 +167,98 @@ function rangeReadout(start: DateKey, end: DateKey): string {
   return start === end ? fmt(start) : fmt(start) + " → " + fmt(end);
 }
 
+// Search-and-add for individual run sheets: pick specific scheduled activities to
+// append a full sheet for, additive to the "Full run sheets" toggle. Modeled on
+// the QuickAdd / kit search — a filtered list to add from, removable chips for the
+// current picks. Searches only what's scheduled in the current range/camp.
+function RunSheetPicker({
+  activities,
+  selected,
+  onChange,
+}: {
+  activities: Activity[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const selectedSet = new Set(selected);
+  const picked = activities.filter((a) => selectedSet.has(a.id));
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? activities.filter((a) => !selectedSet.has(a.id) && a.title.toLowerCase().includes(q)).slice(0, 6)
+    : [];
+
+  return (
+    <div className="prail__runsheets">
+      <span className="ledger__label">Individual run sheets</span>
+      {picked.length > 0 && (
+        <div className="prail__rschips">
+          {picked.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              className="chip is-on prail__rschip"
+              onClick={() => onChange(selected.filter((id) => id !== a.id))}
+              aria-label={"Remove " + a.title}
+            >
+              {a.title}
+              <CampIcon.Close />
+            </button>
+          ))}
+        </div>
+      )}
+      {activities.length > 0 ? (
+        <div className="prail__rssearch">
+          <label className="material-filter__search">
+            <CampIcon.Search />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Add a scheduled activity"
+              aria-label="Search scheduled activities to add a run sheet"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery("")} aria-label="Clear search">
+                <CampIcon.Close />
+              </button>
+            )}
+          </label>
+          {matches.length > 0 && (
+            <div className="prail__rsresults" role="listbox" aria-label="Matching activities">
+              {matches.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="prail__rsresult"
+                  onClick={() => {
+                    onChange([...selected, a.id]);
+                    setQuery("");
+                  }}
+                >
+                  <CampIcon.Plus />
+                  {a.title}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="prail__grouphint">Schedule some activities to add their sheets here.</p>
+      )}
+    </div>
+  );
+}
+
 export function PrintControls({
   options,
   onChange,
   camps,
+  scheduledActivities,
 }: {
   options: PrintOptions;
   onChange: (patch: Patch) => void;
   camps: Camp[];
+  scheduledActivities: Activity[];
 }) {
   const rangeDays = (() => {
     const lo = fromDateKey(options.start).getTime();
@@ -275,20 +360,6 @@ export function PrintControls({
             onChange={(color) => onChange({ color })}
           />
         </Row>
-        <Row label="Full run sheets">
-          <ToggleSwitch
-            on={options.appendRunSheets}
-            ariaLabel="Append full run sheets"
-            onChange={(appendRunSheets) => onChange({ appendRunSheets })}
-          />
-        </Row>
-        <Row label="Materials list">
-          <ToggleSwitch
-            on={options.materialsRollup}
-            ariaLabel="Include a combined materials list"
-            onChange={(materialsRollup) => onChange({ materialsRollup })}
-          />
-        </Row>
 
         {/* The set-once / niche knobs — out of sight until needed. */}
         <MoreOptions>
@@ -344,6 +415,33 @@ export function PrintControls({
             <TitleField value={options.title} onCommit={(title) => onChange({ title })} />
           </Row>
         </MoreOptions>
+      </Group>
+
+      {/* Appendix — what gets stapled on AFTER the schedule. Distinct from the
+          inline "Run TLDR" detail (a per-event summary in the schedule itself). */}
+      <Group title="Appendix">
+        <p className="prail__grouphint">
+          Added after the schedule — separate from the inline &ldquo;Run TLDR&rdquo; detail above.
+        </p>
+        <Row label="Full run sheets">
+          <ToggleSwitch
+            on={options.appendRunSheets}
+            ariaLabel="Append full run sheets for every scheduled activity"
+            onChange={(appendRunSheets) => onChange({ appendRunSheets })}
+          />
+        </Row>
+        <Row label="Shopping list (combined)">
+          <ToggleSwitch
+            on={options.materialsRollup}
+            ariaLabel="Include a combined shopping list"
+            onChange={(materialsRollup) => onChange({ materialsRollup })}
+          />
+        </Row>
+        <RunSheetPicker
+          activities={scheduledActivities}
+          selected={options.runSheetIds}
+          onChange={(runSheetIds) => onChange({ runSheetIds })}
+        />
       </Group>
     </div>
   );

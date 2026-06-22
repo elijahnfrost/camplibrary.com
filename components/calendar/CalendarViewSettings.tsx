@@ -17,7 +17,6 @@ export function CalendarViewSettings({
   weekStart,
   onWeekStart,
   onChangeView,
-  onOpenHours,
   onOpenCamps,
 }: {
   view: ViewKey;
@@ -26,7 +25,6 @@ export function CalendarViewSettings({
   weekStart: WeekStart;
   onWeekStart: (start: WeekStart) => void;
   onChangeView: (v: ViewKey) => void;
-  onOpenHours: () => void;
   onOpenCamps: () => void;
 }) {
   // The Days control belongs to Week: Day/Week/N-days are the same timed strip at
@@ -67,12 +65,9 @@ export function CalendarViewSettings({
           />
         </div>
       )}
-      <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenHours}>
-        <span className="ledger__label">Camp hours</span>
-        <span className="calset__rowval" aria-hidden="true">
-          <CampIcon.Clock />
-        </span>
-      </button>
+      {/* Camp hours moved onto the camp object — they're now edited per camp in
+          the camp manager (Manage camps), so the standalone "Camp hours" row is
+          gone. With no camp, the calendar uses the standard 8:00–18:00 day. */}
       <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenCamps}>
         <span className="ledger__label">Manage camps</span>
         <span className="calset__rowval" aria-hidden="true">

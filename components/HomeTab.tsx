@@ -10,7 +10,8 @@ import { useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "re
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { todayKey } from "@/lib/calendar/dates";
 import { formatClockCompact } from "@/lib/calendar/time";
-import { ageLabel, CATEGORIES, categoryTint, durLabel, ENERGY, monogram, ratingColor } from "@/lib/data";
+import { ageLabel, CATEGORIES, categoryTint, durLabel, effectiveEventColor, ENERGY, monogram, ratingColor } from "@/lib/data";
+import { useAgeUnit } from "./ageUnit";
 import type { Activity, CategoryId } from "@/lib/types";
 import type { CatFilter } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
@@ -45,7 +46,7 @@ function ScheduleRow({
   activity: Activity | null;
   onOpen?: (activity: Activity, event: CalendarEvent) => void;
 }) {
-  const tint = activity ? categoryTint(activity.type) : "var(--line)";
+  const tint = activity ? effectiveEventColor(event, activity) : event.color ?? "var(--line)";
   const time = event.allDay ? "All day" : formatClockCompact(event.startMin);
   const meta = activity
     ? activity.type + " · " + durLabel(activity)
@@ -93,6 +94,7 @@ function FavoriteCard({
   onToggleFav: (id: string) => void;
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
 }) {
+  const ageUnit = useAgeUnit();
   return (
     <div
       className="deck-card home-fav"
@@ -108,7 +110,7 @@ function FavoriteCard({
         <div className="deck-card__meta">
           {durLabel(activity)} · {activity.place}
           <br />
-          {ageLabel(activity)} · {ENERGY[activity.energy]}
+          {ageLabel(activity, ageUnit)} · {ENERGY[activity.energy]}
         </div>
       </div>
       <button

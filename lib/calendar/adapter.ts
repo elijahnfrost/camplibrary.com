@@ -3,7 +3,7 @@
 // this boundary, so neither the backend nor the store ever sees FC types.
 
 import type { EventInput } from "@fullcalendar/core";
-import { categoryTint } from "@/lib/data";
+import { effectiveEventColor } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { fromDateKey, minutesOfDay, toDateKey } from "./dates";
@@ -28,7 +28,7 @@ export function healEvent(event: CalendarEvent, byId: ActivityIndex): CalendarEv
 export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: ThemeResolver): EventInput {
   const activity = event.activityId ? byId[event.activityId] : undefined;
   const title = activity?.title || event.title || "Untitled";
-  const tint = categoryTint(activity?.type);
+  const tint = effectiveEventColor(event, activity);
   const theme = activity && themeOf ? themeOf(activity.id) : null;
   const dayStart = fromDateKey(event.date);
 
@@ -39,6 +39,7 @@ export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: T
       calendarEvent: event,
       activityId: activity ? event.activityId : undefined,
       tint,
+      kind: event.kind,
       categoryLabel: activity?.type,
       themeTint: theme?.tint,
       themeLabel: theme?.label,

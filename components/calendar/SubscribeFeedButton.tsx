@@ -34,6 +34,11 @@ export function SubscribeFeedButton({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  // The feed per camp is stable once minted, so cache it for the session: a
+  // reopen (or a camp round-trip) reuses it instead of re-POSTing and flashing
+  // "Preparing your link…". A reset rotates the secret and replaces the entry.
+  const feedCacheRef = useRef<Map<string, CampFeed>>(new Map());
+  const cacheKey = activeCampId ?? "__none__";
 
   // Get-or-create the single feed for the active camp, then surface its links.
   // `reset: true` rotates the secret instead of returning the existing one.
@@ -50,7 +55,9 @@ export function SubscribeFeedButton({
       });
       if (!response.ok) throw new Error("Could not load the subscription link.");
       const body = (await response.json()) as CampFeed & { ok: true };
-      setFeed({ url: body.url, webcalUrl: body.webcalUrl, googleAddUrl: body.googleAddUrl });
+      const next = { url: body.url, webcalUrl: body.webcalUrl, googleAddUrl: body.googleAddUrl };
+      feedCacheRef.current.set(cacheKey, next);
+      setFeed(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the subscription link.");
     } finally {
@@ -59,12 +66,18 @@ export function SubscribeFeedButton({
     }
   }
 
-  // Ensure the link whenever the menu opens or the active camp changes while
-  // it's open — the dropdown always shows the current camp's one feed.
+  // On open (or active-camp change while open) show this camp's feed: from the
+  // session cache instantly when we have it, otherwise mint it once.
   useEffect(() => {
     if (!menuOpen) return;
+    const cached = feedCacheRef.current.get(cacheKey);
+    if (cached) {
+      setFeed(cached);
+      return;
+    }
     setFeed(null);
     void ensureFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen, activeCampId]);
 
   function copyUrl(url: string) {

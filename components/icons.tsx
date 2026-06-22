@@ -112,16 +112,16 @@ export const CampIcon = {
     <>
       <rect x="4" y="5.5" width="16" height="15" />
       <path d="M4 9.5h16" />
-      {/* New-month date dots — pop in as the page settles. */}
+      {/* Date dots — shown at rest (a calendar always has its dates). The old
+          page-fold + staggered dot cascade was the "wiggle"; the icon now just
+          gives one calm settle on hover (see globals.css §cicon--cal). */}
       <g className="cicon-cal__dots">
-        <circle cx="8" cy="13" r="0.9" style={{ "--i": 0 } as React.CSSProperties} />
-        <circle cx="12" cy="13" r="0.9" style={{ "--i": 1 } as React.CSSProperties} />
-        <circle cx="16" cy="13" r="0.9" style={{ "--i": 2 } as React.CSSProperties} />
-        <circle cx="8" cy="16.5" r="0.9" style={{ "--i": 3 } as React.CSSProperties} />
-        <circle cx="12" cy="16.5" r="0.9" style={{ "--i": 4 } as React.CSSProperties} />
+        <circle cx="8" cy="13" r="0.9" />
+        <circle cx="12" cy="13" r="0.9" />
+        <circle cx="16" cy="13" r="0.9" />
+        <circle cx="8" cy="16.5" r="0.9" />
+        <circle cx="12" cy="16.5" r="0.9" />
       </g>
-      {/* The turning page: a full sheet hinged at the header, flips down on hover. */}
-      <path className="cicon-cal__leaf" d="M4 9.5h16V20H4z" />
       <path className="cicon-cal__rings" d="M8.5 3.5v4M15.5 3.5v4" />
     </>,
     "cal"
@@ -216,20 +216,20 @@ export const CampIcon = {
   // (cover opens, lines write in) and calendar (page flips, dates settle). Parts:
   // __feed (document on top), __sheet (the printed page), __text (lines written
   // on it, --i staggers them top→down). See globals.css §Print.
+  // A plain printer: paper on top, body, slot, status light, and a static output
+  // sheet. Hover gives ONE tiny settle (see globals.css) — no sheet-feed or
+  // line-draw choreography (deliberately basic).
   Print: svg(
     <>
-      {/* the document feeding in on top — dips a touch as it prints */}
-      <path className="cicon-print__feed" d="M7 8V4h10v4" />
+      {/* the document on top */}
+      <path d="M7 8V4h10v4" />
       {/* printer body */}
       <path d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
-      {/* output-slot lips that frame the paper, + the status light */}
+      {/* output-slot lips + status light */}
       <path d="M7 17h1.2M15.8 17H17" />
       <path d="M17.5 11.5h.01" />
-      {/* the printed sheet — tucked away at rest, slides down out of the slot on hover */}
-      <rect className="cicon-print__sheet" x="8.5" y="16.5" width="7" height="5" rx="0.6" />
-      {/* text written onto the sheet once it's out, line by line */}
-      <path className="cicon-print__text" style={{ "--i": 0 } as React.CSSProperties} d="M10 18.4h4" />
-      <path className="cicon-print__text" style={{ "--i": 1 } as React.CSSProperties} d="M10 20h3" />
+      {/* the printed sheet, resting in the output tray */}
+      <path d="M8.5 21.5v-5h7v5" />
     </>,
     "print"
   ),
