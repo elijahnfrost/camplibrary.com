@@ -274,6 +274,10 @@ async function findExistingEvent(id: string): Promise<StoredCalendarEvent | null
   return (await listCalendarEvents(uid())).find((event) => event.id.toLowerCase() === lower) ?? null;
 }
 
+function isSeriesOccurrence(event: StoredCalendarEvent | null | undefined): boolean {
+  return typeof event?.seriesId === "string" && event.seriesId.trim().length > 0;
+}
+
 function resolveActivity(input: EventInput, existing: StoredCalendarEvent | null, activities: Activity[]): Activity | null {
   const byId = new Map(activities.map((activity) => [activity.id, activity]));
 
@@ -304,6 +308,11 @@ export async function upsertEvent(input: EventInput): Promise<StoredCalendarEven
     throw new Error(`Event id must be a UUID (got "${id}"). Omit it to mint a new one.`);
   }
   const existing = input.id ? await findExistingEvent(id) : null;
+  if (isSeriesOccurrence(existing)) {
+    throw new Error(
+      `Event ${id} is part of a repeating series. Use edit_series with an explicit scope: this, following, or all.`,
+    );
+  }
   const activities = await getActivityCatalog();
   const activity = resolveActivity(input, existing, activities);
   const date = input.date ?? existing?.date;
@@ -371,7 +380,17 @@ export async function listEvents(range?: { from?: string; to?: string }): Promis
   return listCalendarEvents(uid(), range);
 }
 
+// Plain delete is intentionally limited to one-off events. Series rows must go
+// through deleteSeries so an agent has to choose the same this/following/all
+// scope the UI prompts for.
 export async function deleteEvent(id: string): Promise<boolean> {
+  const existing = await findExistingEvent(id);
+  if (!existing) return false;
+  if (isSeriesOccurrence(existing)) {
+    throw new Error(
+      `Event ${id} is part of a repeating series. Use delete_series with an explicit scope: this, following, or all.`,
+    );
+  }
   return deleteCalendarEvent(uid(), id);
 }
 
@@ -694,9 +713,19 @@ export async function deleteSeries(input: { id: string; scope: SeriesScope }): P
   return { ok: true, seriesId: target.seriesId, removed: ids.length };
 }
 
-// Hard-delete an arbitrary set of events by id (idempotent). The general
-// "delete several events at once" verb, independent of any series.
+// Hard-delete arbitrary one-off events by id (idempotent). If any id belongs to
+// a series, refuse the whole batch; otherwise a bulk delete could silently bypass
+// the scoped repeat dialog semantics.
 export async function deleteEvents(ids: string[]): Promise<{ ok: true; deleted: number; ids: string[] }> {
+  const targets = new Set(ids.map((id) => id.toLowerCase()));
+  const seriesTarget = (await listCalendarEvents(uid())).find(
+    (event) => targets.has(event.id.toLowerCase()) && isSeriesOccurrence(event),
+  );
+  if (seriesTarget) {
+    throw new Error(
+      `Event ${seriesTarget.id} is part of a repeating series. Use delete_series with an explicit scope: this, following, or all.`,
+    );
+  }
   const deleted: string[] = [];
   for (const id of ids) {
     if (await deleteCalendarEvent(uid(), id)) deleted.push(id);

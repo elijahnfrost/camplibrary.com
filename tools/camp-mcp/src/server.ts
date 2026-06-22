@@ -158,7 +158,8 @@ server.registerTool(
   "list_events",
   {
     title: "List calendar events",
-    description: "Read existing events in a date range (inclusive) to plan around them or get ids to edit/delete. Omit dates for all events.",
+    description:
+      "Read existing events in a date range (inclusive) to plan around them or get ids to edit/delete. Omit dates for all events. Repeating events appear as materialized rows that share a seriesId; when a row has seriesId/recurrence, edit or delete it with edit_series/delete_series so you choose this/following/all.",
     inputSchema: { from: DATE.optional(), to: DATE.optional() },
   },
   async ({ from, to }) => {
@@ -175,7 +176,7 @@ server.registerTool(
   {
     title: "Create or edit an event",
     description:
-      "Create OR edit one NON-repeating calendar event or one materialized occurrence. Times are minutes from local midnight, snapped to a 15-minute grid. For edits, pass an existing id and only the fields you want to change; omitted title/activity/time/location fields are preserved. activityId or activityTitle links a library activity and forces kind='activity'; exact title matches like 'Gaga Ball' also auto-link. Use kind:'custom' or activityId:null for a plain custom event. For a REPEATING event use create_series; to edit/delete a repeating set, use edit_series / delete_series.",
+      "Create OR edit one NON-repeating calendar event. Times are minutes from local midnight, snapped to a 15-minute grid. For edits, pass an existing id and only the fields you want to change; omitted title/activity/time/location fields are preserved. This tool refuses repeating-series occurrences so scoped changes cannot bypass the app's this/following/all choice. activityId or activityTitle links a library activity and forces kind='activity'; exact title matches like 'Gaga Ball' also auto-link. Use kind:'custom' or activityId:null for a plain custom event. For anything the user describes as every/each/repeating/daily/weekly/monthly/yearly/future, use create_series; to edit/delete a repeating set, use edit_series / delete_series.",
     inputSchema: {
       date: DATE.optional().describe("required for new events; optional when editing an existing id"),
       startMin: z.number().int().min(0).max(1440).optional().describe("e.g. 540 = 9:00am"),
@@ -205,7 +206,7 @@ server.registerTool(
   {
     title: "Lay out a whole day",
     description:
-      "Author a full day from an ordered list of blocks, auto-sequencing start times back-to-back on the 15-minute grid from dayStartMin. Each block becomes one event. The fastest 'build me a day' verb.",
+      "Author one non-repeating day from an ordered list of blocks, auto-sequencing start times back-to-back on the 15-minute grid from dayStartMin. Each block becomes one standalone event. Do not use this for recurring daily/weekday schedules; use create_series for blocks that should propagate into future dates.",
     inputSchema: {
       date: DATE,
       dayStartMin: z.number().int().min(0).max(1440).optional().describe("default 540 = 9:00am"),
@@ -228,7 +229,8 @@ server.registerTool(
   "delete_event",
   {
     title: "Delete an event",
-    description: "Remove a single NON-repeating event by its UUID (idempotent). To remove part of a repeating series use delete_series; to remove several arbitrary events at once use delete_events.",
+    description:
+      "Remove a single NON-repeating event by its UUID (idempotent). This tool refuses repeating-series occurrences so deletion cannot bypass the app's this/following/all choice. To remove part of a repeating series use delete_series; to remove several standalone events at once use delete_events.",
     inputSchema: { id: z.string().uuid() },
   },
   async ({ id }) => {
@@ -245,7 +247,8 @@ server.registerTool(
   "delete_events",
   {
     title: "Delete several events",
-    description: "Hard-delete multiple events at once by their UUIDs (idempotent). Independent of any series — for a repeating event use delete_series instead. Returns how many actually existed.",
+    description:
+      "Hard-delete multiple standalone, NON-repeating events at once by UUID (idempotent). This tool refuses any id that belongs to a repeating series; use delete_series instead so the scope is explicit. Returns how many actually existed.",
     inputSchema: { ids: z.array(z.string().uuid()).min(1) },
   },
   async ({ ids }) => {
@@ -307,7 +310,7 @@ server.registerTool(
   {
     title: "Create a repeating event",
     description:
-      "Materialize a repeating event into one real calendar row per occurrence date (the app's series model — every occurrence shares a seriesId and the same rule, so any one can later describe/edit the whole series). `date` is the FIRST occurrence and is ALWAYS included even if it doesn't satisfy the rule's anchor. Times are minutes from midnight on the 15-minute grid (or allDay:true). Returns the seriesId, a human summary of the rule, and the occurrence dates.",
+      "Create a repeating event. Use this whenever the user says every, each, repeating, daily, weekday, weekly, monthly, yearly, or wants the event to continue into future dates. It materializes one real calendar row per occurrence date (the app's series model — every occurrence shares a seriesId and the same rule, so any one can later describe/edit the whole series). `date` is the FIRST occurrence and is ALWAYS included even if it doesn't satisfy the rule's anchor. Times are minutes from midnight on the 15-minute grid (or allDay:true). Returns the seriesId, a human summary of the rule, and the occurrence dates.",
     inputSchema: {
       date: DATE.describe("first occurrence (always included)"),
       startMin: z.number().int().min(0).max(1440).optional(),

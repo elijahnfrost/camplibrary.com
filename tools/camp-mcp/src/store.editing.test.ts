@@ -134,7 +134,8 @@ describe("event recolor + duplicate", () => {
     expect((copy as Record<string, unknown>).seriesId).toBeUndefined();
     expect((copy as Record<string, unknown>).recurrence).toBeUndefined();
 
-    await store.deleteEvents((await store.listEvents()).map((e) => String(e.id)));
+    await store.deleteSeries({ id: String(occ.id), scope: "all" });
+    await store.deleteEvent(String(copy.id));
   });
 });
 

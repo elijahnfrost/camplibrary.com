@@ -114,7 +114,9 @@ CloudCode, Claude Code, and other AI tools should use the bundled MCP server in
 definitive operating instructions live in [`docs/ai-authoring-guide.md`](docs/ai-authoring-guide.md).
 The short rule: call `list_context` first, write activities with stable ids, replace
 complete run sheets with `set_run_list`, write diagrams with `set_diagram`, schedule
-with `upsert_event` or `create_day_schedule`, then verify with `list_events`.
+one-off events with `upsert_event`/`create_day_schedule`, schedule repeating events
+with `create_series`, edit/delete repeating events with `edit_series`/`delete_series`
+so scope is explicit, then verify with `list_events`.
 
 ## Project layout
 
