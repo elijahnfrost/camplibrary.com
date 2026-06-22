@@ -13,6 +13,23 @@ export interface Category {
   numeral: string;
 }
 
+// A piece of embedded media on an activity — a demo video, a tutorial, or a
+// reference page. `url` is a real http(s) URL (never a fabricated id): a
+// YouTube/Vimeo link plays inline, anything else renders as a link card
+// (lib/embed.ts). `title` is the short caption shown with it.
+export interface ActivityMedia {
+  title?: string;
+  url: string;
+}
+
+// A reference link on an activity — an external website with a friendly label.
+// Renders as a tappable link card on the run sheet. Kept distinct from `media`
+// so "watch a demo" and "read more / source" read as separate ideas.
+export interface ActivityLink {
+  label?: string;
+  url: string;
+}
+
 export interface AgeGroup {
   id: AgeGroupId;
   label: string;
@@ -56,6 +73,19 @@ export interface Activity {
   // Optional hand-drawn field diagrams (stages) shown inside "How to play".
   // Custom books carry their own; built-in books fall back to the registry.
   playbook?: ActivityPlaybookData;
+  // Embedded demo videos / tutorials. Seeded into the derived run doc as "Media"
+  // details (inline players for YouTube/Vimeo, link cards otherwise). Optional +
+  // absent by default, so existing literals/seeds need no backfill.
+  media?: ActivityMedia[];
+  // External reference links (a how-to page, the source article). Seeded into the
+  // run doc as link-card "Media" details alongside `media`.
+  links?: ActivityLink[];
+  // Alternate rules / scalings (by age, space, group size, weather). Surfaced as
+  // "Variation" blocks on the run sheet under a Variations heading.
+  variations?: string[];
+  // Per-step sub-steps, aligned by index to `steps` (`subsets[i]` are the
+  // sub-steps for `steps[i]`). Surfaced as "Sub-step" details under their step.
+  subsets?: string[][];
 }
 
 export type LibraryView = "shelf" | "deck" | "catalog";

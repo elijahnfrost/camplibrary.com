@@ -2,7 +2,15 @@ import { normalizeHexColor } from "./color";
 import { AGE_GROUPS, CATEGORIES } from "./data";
 import { normalizePlaybook } from "./playbooks";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
-import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "./types";
+import type {
+  Activity,
+  ActivityLink,
+  ActivityMedia,
+  AgeGroupId,
+  CategoryId,
+  Place,
+  Prep,
+} from "./types";
 
 const AGE_GROUP_IDS = new Set<string>(AGE_GROUPS.map((group) => group.id));
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((category) => category.id));
@@ -24,6 +32,40 @@ function stringArray(value: unknown): string[] {
   return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter((item) => item.length > 0);
+}
+
+// A list-of-lists of strings (e.g. per-step sub-steps). Inner arrays are
+// trimmed + empties dropped; the outer shape is preserved by index so it stays
+// aligned to `steps`. Non-arrays and fully-empty rows collapse to [].
+function stringMatrix(value: unknown): string[][] {
+  if (!Array.isArray(value)) return [];
+  return value.map((row) => stringArray(row));
+}
+
+function mediaArray(value: unknown): ActivityMedia[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): ActivityMedia | null => {
+      if (!isRecord(item)) return null;
+      const url = trimmedString(item.url);
+      if (!url) return null;
+      const title = trimmedString(item.title);
+      return title ? { title, url } : { url };
+    })
+    .filter((item): item is ActivityMedia => Boolean(item));
+}
+
+function linkArray(value: unknown): ActivityLink[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): ActivityLink | null => {
+      if (!isRecord(item)) return null;
+      const url = trimmedString(item.url);
+      if (!url) return null;
+      const label = trimmedString(item.label);
+      return label ? { label, url } : { url };
+    })
+    .filter((item): item is ActivityLink => Boolean(item));
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -166,6 +208,26 @@ export function normalizeActivity(value: unknown): Activity | null {
 
   const playbook = normalizePlaybook(value.playbook);
   if (playbook) activity.playbook = playbook;
+
+  // Media / links / variations / subsets ride in the payload; re-attach or the
+  // clean rebuild strips them (same rule as altNames/materialTags/color/playbook).
+  const media = mediaArray(value.media);
+  if (media.length) activity.media = media;
+
+  const links = linkArray(value.links);
+  if (links.length) activity.links = links;
+
+  if (Array.isArray(value.variations)) {
+    const variations = stringArray(value.variations);
+    if (variations.length) activity.variations = variations;
+  }
+
+  if (Array.isArray(value.subsets)) {
+    const subsets = stringMatrix(value.subsets);
+    // Keep only when at least one row carries a sub-step, but preserve the full
+    // shape (including empty rows) so index-alignment to `steps` survives.
+    if (subsets.some((row) => row.length)) activity.subsets = subsets;
+  }
 
   return activity;
 }
