@@ -24,7 +24,7 @@ export function useCamps({
   cloud: CloudUserData;
   announce: (message: string) => void;
 }) {
-  const { docs, setDoc, events, upsertEvent } = cloud;
+  const { docs, setDoc, events, upsertEvent, upsertEvents } = cloud;
   const camps = docs.camps;
 
   const campIds = useMemo(() => new Set(camps.map((c) => c.id)), [camps]);
@@ -147,6 +147,24 @@ export function useCamps({
     [activeCampId, events, upsertEvent]
   );
 
+  // The batch counterpart (a recurring series is created/edited as one batch):
+  // same rule, stamping the active camp onto each brand-new, unscoped occurrence
+  // while leaving existing events on their own camp.
+  const stampingUpsertEvents = useCallback(
+    (incoming: CalendarEvent[]) => {
+      if (!activeCampId) {
+        upsertEvents(incoming);
+        return;
+      }
+      upsertEvents(
+        incoming.map((event) =>
+          !event.campId && !events[event.id] ? { ...event, campId: activeCampId } : event
+        )
+      );
+    },
+    [activeCampId, events, upsertEvents]
+  );
+
   return {
     camps,
     activeCampId,
@@ -157,6 +175,7 @@ export function useCamps({
     deleteCamp,
     filterEvents,
     upsertEvent: stampingUpsertEvent,
+    upsertEvents: stampingUpsertEvents,
   };
 }
 

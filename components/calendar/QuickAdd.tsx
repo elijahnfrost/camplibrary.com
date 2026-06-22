@@ -12,12 +12,14 @@ import {
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { categoryTint, durLabel } from "@/lib/data";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
 import { Seg } from "../primitives";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
+import { RepeatField } from "./RepeatField";
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event
@@ -30,6 +32,9 @@ export type EditorDraft = {
   /** The user dragged out a specific span — treat the length as deliberate and
    *  never overwrite it with an activity's recommended duration. */
   explicitDuration?: boolean;
+  /** A repeat rule, when the event recurs. CalendarShell turns it into the
+   *  materialized series on save (and asks the scope on edits). */
+  recurrence?: RecurrenceRule;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -42,6 +47,7 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     activityId: event.activityId,
     title: event.title,
     explicitDuration: true,
+    recurrence: event.recurrence,
   };
 }
 
@@ -88,6 +94,7 @@ export function QuickAdd({
   const [startMin, setStartMin] = useState(draft.startMin);
   const [durationMin, setDurationMin] = useState(draft.durationMin);
   const [allDay, setAllDay] = useState(draft.allDay);
+  const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
 
   const sorted = useMemo(
     () => [...activities].sort((a, b) => a.title.localeCompare(b.title)),
@@ -180,6 +187,11 @@ export function QuickAdd({
       allDay,
       activityId: tab === "Library" ? selectedActivity?.id : undefined,
       title: tab === "Library" ? selectedActivity?.title ?? "" : customTrimmed,
+      // The end date can fall behind once the event's own date is pushed later;
+      // clamp it so the saved rule always covers the start.
+      recurrence: recurrence
+        ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until }
+        : undefined,
     });
   }
 
@@ -369,6 +381,7 @@ export function QuickAdd({
                 All day
               </label>
             </div>
+            <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
             <div className="quickadd__foot">
               {isEdit && onDelete && (
                 <button type="button" className="btn btn--ghost quickadd__delete" onClick={onDelete}>

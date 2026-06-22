@@ -543,6 +543,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 events={calendarEvents}
                 upsertEvent={campKit.upsertEvent}
                 removeEvent={cloud.removeEvent}
+                upsertEvents={campKit.upsertEvents}
+                removeEvents={cloud.removeEvents}
                 activities={lib.all}
                 byId={lib.byId}
                 canEdit={isSignedIn}

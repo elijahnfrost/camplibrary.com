@@ -153,6 +153,16 @@ export const CampIcon = {
       <path d="M12 7.5V12l3 2" />
     </>
   ),
+  // A repeating loop: two arrows chasing each other around the clock. Marks a
+  // recurring event on its card and labels the Repeat affordances.
+  Repeat: svg(
+    <>
+      <path d="M17 3.5 20.5 7 17 10.5" />
+      <path d="M20.5 7H8.5A4.5 4.5 0 0 0 4 11.5v.5" />
+      <path d="M7 20.5 3.5 17 7 13.5" />
+      <path d="M3.5 17h12a4.5 4.5 0 0 0 4.5-4.5v-.5" />
+    </>
+  ),
   // Two people; on hover the front one gives a friendly head-bob and the one
   // behind leans in to join — a little "the team's here" greeting.
   Users: svg(

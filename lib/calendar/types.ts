@@ -4,6 +4,8 @@
 // and maps cleanly onto the Postgres date + integer columns. FullCalendar
 // Date objects are converted at the component boundary (lib/calendar/adapter).
 
+import { normalizeRecurrence, type RecurrenceRule } from "./recurrence";
+
 export type DateKey = string;
 
 export type CalendarEventKind = "activity" | "custom";
@@ -18,6 +20,12 @@ export interface CalendarEvent {
   activityId?: string;
   campId?: string; // which camp this event belongs to; undefined = unscoped
   allDay?: boolean;
+  // Recurring events are stored as materialized occurrences (see
+  // lib/calendar/recurrence): every occurrence in a series shares one seriesId
+  // and carries the same rule, so any one of them can describe and edit the
+  // whole series. Absent on plain one-off events.
+  seriesId?: string;
+  recurrence?: RecurrenceRule;
   updatedAt: number; // epoch ms, last-write-wins
 }
 
@@ -69,6 +77,14 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   if (activityId) event.activityId = activityId;
   if (campId) event.campId = campId;
   if (allDay) event.allDay = true;
+  // Recurrence rides in the payload; this normalizer rebuilds a clean object, so
+  // the series fields must be re-attached or they'd be stripped on every read /
+  // optimistic write. A seriesId only means something with a parseable rule.
+  const recurrence = normalizeRecurrence(value.recurrence);
+  if (recurrence && typeof value.seriesId === "string" && value.seriesId) {
+    event.seriesId = value.seriesId;
+    event.recurrence = recurrence;
+  }
   return event;
 }
 

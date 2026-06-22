@@ -551,6 +551,37 @@ body.is-cal-dragging .calshell .fc-event-mirror * {
 body.is-cal-dragging {
   cursor: grabbing !important;
 }
+/* Option/Alt-drag DUPLICATES instead of moving (macOS option-drag): the original
+   stays put, so keep it at full opacity (not the move dim), badge the carried
+   card with a "+" so it reads as "drop a copy here", and switch to the copy
+   cursor. The snap box still marks where the copy will land. Copy mode only ever
+   toggles on during a move drag, so these can key off body.is-cal-copy alone. */
+body.is-cal-copy {
+  cursor: copy !important;
+}
+body.is-cal-copy .calshell .is-drag-source .fc-timegrid-event,
+body.is-cal-copy .calshell .is-drag-source .fc-daygrid-event {
+  opacity: 1;
+}
+body.is-cal-copy .cal-dragfollow::after {
+  content: "+";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 2;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  /* A paper halo separates the badge from the card's own tint. */
+  box-shadow: 0 0 0 1.5px var(--card);
+}
 /* Selected / keyboard-focused event: FullCalendar ships a grey overlay (killed
    via --fc-event-selected-overlay-color above) plus a drop-shadow ring and two
    positioned pseudo-elements. Replace all of it with the app's quiet accent
@@ -1646,5 +1677,165 @@ body.is-cal-dragging {
   .calshell .fc-timegrid-event,
   .calshell .fc-daygrid-event {
     transition: none;
+  }
+}
+
+/* ---------- recurring events ----------
+   A small loop glyph marks a repeating occurrence on its card / month chip — the
+   traditional calendar affordance. Only rendered for events that actually repeat
+   (see renderEventContent), so non-repeating cards are visually unchanged. */
+.cal-card__repeat,
+.cal-chip__repeat {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+.cal-chip__repeat {
+  width: 11px;
+  height: 11px;
+}
+
+/* The repeat summary line in the event popover (icon + "Repeats daily until…"). */
+.cal-popover__repeat {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.cal-popover__repeat svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+/* ---------- the Repeat control inside QuickAdd ---------- */
+.repeatfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.repeatfield__row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.repeatfield__row .field {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+/* The weekday toggles (S M T W T F S) — small round switches that morph the
+   weekly rule, sharing the Library filter's selected-pill vocabulary. */
+.repeatfield__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.repeatfield__day {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.repeatfield__day:hover {
+  border-color: var(--ink-soft);
+}
+.repeatfield__day:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.repeatfield__day.is-on {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+  color: var(--on-accent);
+}
+.repeatfield__summary {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---------- repeating edit/delete scope chooser ---------- */
+.overlay--scope {
+  --scope-w: min(420px, 92vw);
+}
+.scopedlg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+}
+.scopedlg__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.scopedlg__sub {
+  margin: var(--s-1) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.scopedlg__opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.scopedlg__opt {
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.scopedlg__opt:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+.scopedlg__opt:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.scopedlg__opt.is-danger:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--card));
+  color: var(--danger-ink);
+}
+.scopedlg__foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (min-width: 768px) {
+  .overlay--scope {
+    width: var(--scope-w);
   }
 }

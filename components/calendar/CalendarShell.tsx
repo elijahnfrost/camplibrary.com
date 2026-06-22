@@ -58,6 +58,16 @@ import {
   type CampHoursMap,
 } from "@/lib/calendar/hours";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import {
+  buildSeriesEvents,
+  eventsInSeries,
+  planSeriesDelete,
+  planSeriesEdit,
+  recurrenceDates,
+  type RecurrenceRule,
+  type SeriesScope,
+  type SeriesTemplate,
+} from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
@@ -69,6 +79,7 @@ import { EventPopover } from "./EventPopover";
 import { HoursPanel } from "./HoursPanel";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
+import { SeriesScopeDialog } from "./SeriesScopeDialog";
 
 // The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
 // "day"), so they list consecutive days from wherever you've scrolled and never
@@ -133,6 +144,11 @@ function targetDaysFor(view: ViewKey): number {
 type PopoverState = { event: CalendarEvent; anchor: DOMRect };
 type MenuState = { event: CalendarEvent; point: { x: number; y: number } };
 type ToastState = { message: string; onUndo?: () => void };
+// Editing or deleting one occurrence of a repeating event first asks the scope
+// (this / following / all). The pending action is held here until the user picks.
+type ScopePrompt =
+  | { mode: "edit"; event: CalendarEvent; draft: EditorDraft }
+  | { mode: "delete"; event: CalendarEvent };
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -150,6 +166,8 @@ export function CalendarShell({
   events,
   upsertEvent,
   removeEvent,
+  upsertEvents,
+  removeEvents,
   activities,
   byId,
   canEdit,
@@ -164,6 +182,10 @@ export function CalendarShell({
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
   removeEvent: (id: string) => void;
+  /** Atomic batch writes for recurring-series create/edit/delete (see
+   *  lib/cloudStore) — one render and one undo step for the whole series. */
+  upsertEvents: (events: CalendarEvent[]) => void;
+  removeEvents: (ids: string[]) => void;
   activities: Activity[];
   byId: Record<string, Activity>;
   canEdit: boolean;
@@ -275,6 +297,8 @@ export function CalendarShell({
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  // The pending repeating-event edit/delete awaiting a scope choice.
+  const [scopePrompt, setScopePrompt] = useState<ScopePrompt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
@@ -563,9 +587,73 @@ export function CalendarShell({
     setVisibleRange({ start: toDateKey(start), end: toDateKey(end) });
   }, []);
 
+  // The series fields an occurrence shares — pulled off the editor draft and
+  // stamped onto every date by the recurrence module.
+  const buildTemplate = useCallback(
+    (draft: EditorDraft, campId?: string): SeriesTemplate => {
+      const activity = draft.activityId ? byId[draft.activityId] : undefined;
+      const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + snapDurationMin(draft.durationMin));
+      const template: SeriesTemplate = {
+        startMin: draft.allDay ? 0 : draft.startMin,
+        endMin: draft.allDay ? 0 : endMin,
+        allDay: draft.allDay,
+        kind: activity ? "activity" : "custom",
+        title: activity?.title ?? draft.title ?? "Untitled",
+        campId,
+      };
+      if (activity) template.activityId = activity.id;
+      return template;
+    },
+    [byId]
+  );
+
+  // Materialize a brand-new repeating event into one occurrence per date. The
+  // anchor (the event you were composing) keeps its id; the rest are fresh. The
+  // whole series is one batch write, so a single Undo removes it.
+  const createSeries = useCallback(
+    (draft: EditorDraft, rule: RecurrenceRule, existing?: CalendarEvent) => {
+      const template = buildTemplate(draft, existing?.campId);
+      const seriesId = crypto.randomUUID();
+      const anchorId = draft.id ?? crypto.randomUUID();
+      const dates = recurrenceDates(draft.date, rule);
+      const occurrences = buildSeriesEvents(
+        template,
+        dates,
+        seriesId,
+        rule,
+        () => crypto.randomUUID(),
+        draft.date,
+        anchorId
+      );
+      upsertEvents(occurrences);
+      setSheet(null);
+      announce("Added repeating " + template.title);
+      const ids = occurrences.map((occurrence) => occurrence.id);
+      showToast(
+        {
+          message: "Added " + template.title + " · " + dates.length + " dates",
+          onUndo: () => removeEvents(ids),
+        },
+        8000
+      );
+    },
+    [announce, buildTemplate, removeEvents, showToast, upsertEvents]
+  );
+
   const saveDraft = useCallback(
     (draft: EditorDraft) => {
       if (!requireStaff("plan the calendar")) return;
+      const existing = draft.id ? events[draft.id] : undefined;
+      // Editing an event that already belongs to a series → ask the scope first.
+      if (existing?.seriesId) {
+        setScopePrompt({ mode: "edit", event: existing, draft });
+        return;
+      }
+      // A new (or previously one-off) event gaining a repeat → build the series.
+      if (draft.recurrence) {
+        createSeries(draft, draft.recurrence, existing);
+        return;
+      }
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
       const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + snapDurationMin(draft.durationMin));
       const event: CalendarEvent = {
@@ -589,12 +677,18 @@ export function CalendarShell({
         });
       }
     },
-    [announce, byId, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, byId, createSeries, events, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const deleteEvent = useCallback(
     (event: CalendarEvent) => {
       if (!requireStaff("change the calendar")) return;
+      // A repeating event asks the scope (this / following / all) before deleting.
+      if (event.seriesId) {
+        setPopover(null);
+        setScopePrompt({ mode: "delete", event });
+        return;
+      }
       removeEvent(event.id);
       setPopover(null);
       setSheet(null);
@@ -608,6 +702,68 @@ export function CalendarShell({
       announce("Deleted " + event.title);
     },
     [announce, removeEvent, requireStaff, showToast, upsertEvent]
+  );
+
+  // Commit a scoped edit of a repeating event once the user picks this/following/
+  // all. The whole affected slice is replaced in one batch; Undo snapshots the
+  // pre-edit series and restores it (clearing whatever the edit produced).
+  const commitSeriesEdit = useCallback(
+    (prompt: Extract<ScopePrompt, { mode: "edit" }>, scope: SeriesScope) => {
+      const seriesId = prompt.event.seriesId;
+      if (!seriesId) return;
+      const before = eventsInSeries(events, seriesId);
+      const template = buildTemplate(prompt.draft, prompt.event.campId);
+      const plan = planSeriesEdit(
+        before,
+        prompt.event,
+        template,
+        prompt.draft.date,
+        prompt.draft.recurrence,
+        scope,
+        () => crypto.randomUUID()
+      );
+      if (plan.removes.length) removeEvents(plan.removes);
+      upsertEvents(plan.upserts);
+      setScopePrompt(null);
+      setSheet(null);
+      announce("Updated " + template.title);
+      const touched = [...new Set([...plan.upserts.map((event) => event.id), ...before.map((event) => event.id)])];
+      const scopeNote = scope === "this" ? "" : scope === "all" ? " · all events" : " · this & following";
+      showToast(
+        {
+          message: "Updated " + template.title + scopeNote,
+          onUndo: () => {
+            removeEvents(touched);
+            upsertEvents(before);
+          },
+        },
+        8000
+      );
+    },
+    [announce, buildTemplate, events, removeEvents, upsertEvents]
+  );
+
+  const commitSeriesDelete = useCallback(
+    (event: CalendarEvent, scope: SeriesScope) => {
+      const seriesId = event.seriesId;
+      if (!seriesId) return;
+      const series = eventsInSeries(events, seriesId);
+      const ids = planSeriesDelete(series, event, scope);
+      const before = series.filter((occurrence) => ids.includes(occurrence.id));
+      removeEvents(ids);
+      setScopePrompt(null);
+      setPopover(null);
+      setSheet(null);
+      announce("Deleted " + (event.title || "event"));
+      showToast(
+        {
+          message: "Deleted " + ids.length + (ids.length === 1 ? " event" : " events"),
+          onUndo: () => upsertEvents(before),
+        },
+        8000
+      );
+    },
+    [announce, events, removeEvents, upsertEvents]
   );
 
   // Duplicate an event: clone it onto the next free slot of the same day so the
@@ -630,6 +786,10 @@ export function CalendarShell({
         endMin: event.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + duration),
         updatedAt: Date.now(),
       };
+      // A duplicate is a standalone one-off, never a phantom member of the
+      // original's series — drop the recurrence so it isn't tied to it.
+      delete copy.seriesId;
+      delete copy.recurrence;
       upsertEvent(copy);
       setPopover(null);
       announce("Duplicated " + (event.title || "event"));
@@ -833,6 +993,20 @@ export function CalendarShell({
   // The harness of the event currently being moved — tagged so ONLY it dims,
   // not the whole calendar.
   const sourceHarnessRef = useRef<HTMLElement | null>(null);
+  // Whether Option/Alt is held during the current move — a copy-drag (drop a
+  // duplicate, leave the original in place) rather than a move. Tracked live so
+  // pressing/releasing Option mid-drag flips the affordance; the drop reads the
+  // final state.
+  const altDragRef = useRef(false);
+
+  // Reflect copy-drag mode: the body class drives the visual cue (the carried
+  // card gets a "+" copy badge, the original shows un-dimmed because it stays,
+  // and the cursor becomes the copy cursor), and onEventDrop reads altDragRef.
+  const setCopyMode = useCallback((on: boolean) => {
+    if (altDragRef.current === on) return;
+    altDragRef.current = on;
+    document.body.classList.toggle("is-cal-copy", on);
+  }, []);
 
   const traceFollower = useCallback(() => {
     dragRafRef.current = window.requestAnimationFrame(traceFollower);
@@ -856,27 +1030,39 @@ export function CalendarShell({
   }, []);
 
   const addPointerSafetyNet = useCallback(
-    (onEnd: () => void) => {
+    (onEnd: () => void, trackCopy = false) => {
       const onMove = (e: PointerEvent) => {
         pointerRef.current = { x: e.clientX, y: e.clientY };
+        if (trackCopy) setCopyMode(e.altKey);
       };
+      // Option can be pressed/released without moving the pointer, so watch the
+      // key directly too (the event's altKey reflects the post-change state).
+      const onAltKey = (e: KeyboardEvent) => setCopyMode(e.altKey);
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onEnd);
       window.addEventListener("pointercancel", onEnd);
       window.addEventListener("blur", onEnd);
+      if (trackCopy) {
+        window.addEventListener("keydown", onAltKey);
+        window.addEventListener("keyup", onAltKey);
+      }
       dragCleanupRef.current = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onEnd);
         window.removeEventListener("pointercancel", onEnd);
         window.removeEventListener("blur", onEnd);
+        window.removeEventListener("keydown", onAltKey);
+        window.removeEventListener("keyup", onAltKey);
       };
     },
-    []
+    [setCopyMode]
   );
 
   const stopDragAffordance = useCallback(() => {
     document.body.classList.remove("is-cal-dragging");
     document.body.classList.remove("is-cal-resizing");
+    document.body.classList.remove("is-cal-copy");
+    altDragRef.current = false;
     if (dragRafRef.current != null) {
       window.cancelAnimationFrame(dragRafRef.current);
       dragRafRef.current = null;
@@ -911,9 +1097,11 @@ export function CalendarShell({
       }
       if (followRef.current) followRef.current.style.opacity = "0";
       if (dragRafRef.current == null) traceFollower();
-      addPointerSafetyNet(stopDragAffordance);
+      addPointerSafetyNet(stopDragAffordance, true);
+      // Seed copy mode from the modifier already held when the drag began.
+      setCopyMode(arg.jsEvent.altKey);
     },
-    [addPointerSafetyNet, stopDragAffordance, traceFollower]
+    [addPointerSafetyNet, setCopyMode, stopDragAffordance, traceFollower]
   );
 
   // RESIZE: edits the event in place (just stretches an edge), so NO follower
@@ -937,10 +1125,25 @@ export function CalendarShell({
         return;
       }
       const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
+      // Option/Alt held at drop → drop a COPY at the new slot and leave the
+      // original untouched (macOS option-drag duplicate). Read at drop time so
+      // pressing/releasing Option mid-drag decides copy vs move; altDragRef is the
+      // live-tracked fallback when the drop event carries no modifier state.
+      if (info.jsEvent?.altKey || altDragRef.current) {
+        info.revert();
+        const copy: CalendarEvent = { ...next, id: crypto.randomUUID(), updatedAt: Date.now() };
+        upsertEvent(copy);
+        announce("Copied " + (existing.title || "event"));
+        showToast({
+          message: "Copied " + (existing.title || "event"),
+          onUndo: () => removeEvent(copy.id),
+        });
+        return;
+      }
       upsertEvent(next);
       announce("Moved " + (existing.title || "event") + " to " + formatClock(next.startMin));
     },
-    [announce, events, requireStaff, upsertEvent]
+    [announce, events, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const onEventResize = useCallback(
@@ -1034,6 +1237,10 @@ export function CalendarShell({
       typeof themeLabel === "string" && themeLabel ? (
         <span className="cal-card__theme" title={"Theme: " + themeLabel} aria-label={"Theme: " + themeLabel} />
       ) : null;
+    // A small loop glyph marks a recurring event — the traditional calendar
+    // affordance. Only rendered when the event repeats, so non-repeating cards
+    // (and the visual baselines) are untouched.
+    const repeats = arg.event.extendedProps.repeats === true;
 
     if (arg.view.type === "dayGridMonth") {
       // One left spine carries the category colour (the .fc-daygrid-event
@@ -1042,6 +1249,7 @@ export function CalendarShell({
         <div className="cal-chip">
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
+          {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
         </div>
       );
     }
@@ -1057,6 +1265,7 @@ export function CalendarShell({
         <span className="cal-card__line">
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
+          {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
         </span>
         {!arg.event.allDay && <span className="cal-card__time">{arg.timeText}</span>}
       </div>
@@ -1532,9 +1741,18 @@ export function CalendarShell({
   // m Month, 2–9 an N-day window; j/→ next, k/← previous (slide-and-snap).
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
-      if (sheet || popover || settingsOpen || hoursOpen) return;
+      // Delete / Backspace removes the selected event — the one whose popover is
+      // open (clicking an event selects it). The keyboard twin of the popover's
+      // own Delete button; allowed even though the view shortcuts below are
+      // suppressed while a popover is up.
+      if ((event.key === "Backspace" || event.key === "Delete") && popover && !sheet && !scopePrompt) {
+        event.preventDefault();
+        deleteEvent(popover.event);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (sheet || popover || settingsOpen || hoursOpen || scopePrompt) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -1577,7 +1795,7 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, sheet, popover, settingsOpen, hoursOpen]);
+  }, [changeView, goToday, nudge, deleteEvent, sheet, popover, settingsOpen, hoursOpen, scopePrompt]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -1874,6 +2092,16 @@ export function CalendarShell({
               },
             },
             {
+              // The right-click way into recurrence: opens the editor where the
+              // Repeat control lives (reads "Edit repeat…" once a rule is set).
+              label: menu.event.recurrence ? "Edit repeat…" : "Repeat…",
+              icon: <CampIcon.Repeat />,
+              onSelect: () => {
+                if (!requireStaff("change the calendar")) return;
+                setSheet({ draft: draftFromEvent(menu.event), pickTime: true });
+              },
+            },
+            {
               label: "Duplicate",
               icon: <CampIcon.Copy />,
               onSelect: () => duplicateEvent(menu.event),
@@ -1886,6 +2114,19 @@ export function CalendarShell({
               onSelect: () => deleteEvent(menu.event),
             },
           ]}
+        />
+      )}
+
+      {scopePrompt && (
+        <SeriesScopeDialog
+          action={scopePrompt.mode}
+          title={scopePrompt.event.title}
+          onPick={(scope) =>
+            scopePrompt.mode === "edit"
+              ? commitSeriesEdit(scopePrompt, scope)
+              : commitSeriesDelete(scopePrompt.event, scope)
+          }
+          onClose={() => setScopePrompt(null)}
         />
       )}
 
