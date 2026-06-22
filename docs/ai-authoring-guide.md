@@ -10,10 +10,9 @@ passes the same validators the app uses.
 
 ## Required Operating Sequence
 
-1. Run `list_context` (or `search_activities` to resolve one activity by name).
+1. Run `list_context`.
    Read the real activity ids, custom activity ids, camps, themes, age bands, and
-   fixed categories before writing anything. When you only need a specific book —
-   "that octopus tag game" — `search_activities` returns the matching id directly.
+   fixed categories before writing anything.
 2. Decide whether the work is an activity, a calendar event, or both.
    `Gaga Ball`, `Capture the Flag`, and the built-in library entries are activities.
    A scheduled block on a date is an event.
@@ -39,27 +38,16 @@ Use every relevant tool instead of overloading one write path:
 | Tool | Use |
 | --- | --- |
 | `list_context` | Discover real ids for activities, camps, themes, categories, and age bands. |
-| `search_activities` | Find a specific activity id by name/alt-name/type/blurb/materials. Prefer this over `list_context` when you know roughly what you want — `list_context` dumps all 200+. |
 | `list_events` | Inspect scheduled events and get UUIDs for edit/delete. |
-| `upsert_event` | Create or edit one event. Existing ids support partial edits. Carries per-event `color` and `location`. |
+| `upsert_event` | Create or edit one event. Existing ids support partial edits. |
 | `create_day_schedule` | Bulk-create one sequenced day from ordered blocks. |
-| `recolor_events` | Set/clear the per-event color override on a batch (by `ids`, or every placement of an `activityId`, optionally a date range). `color:null` clears. |
-| `duplicate_event` | Clone one event into a standalone copy (detached from any series); optional new `date`/`startMin`. |
 | `delete_event` | Delete a scheduled event by UUID. |
-| `delete_events` | Hard-delete several events at once by UUID. |
-| `create_series` / `edit_series` / `delete_series` | Create/scope-edit/scope-delete a repeating event (this / following / all). |
-| `add_custom_activity` | Add or update a library activity with a stable id (accepts a default `color`). |
-| `set_activity_color` | Set/clear a library activity's DEFAULT color (works on built-ins via promotion; `color:null` resets to the category tint). |
+| `add_custom_activity` | Add or update a library activity with a stable id. |
 | `set_run_list` | Replace an activity's run sheet. |
 | `set_diagram` | Replace an activity-level field diagram. |
 | `add_camp` | Create a scheduling container and get its `campId`. |
-| `edit_camp` | Rename a camp and/or move its viewing hours (drop-off → pickup). |
-| `delete_camp` | Remove a camp (its events fall back to unscoped, not deleted). |
 | `add_theme` | Create a theme tag. |
-| `edit_theme` | Rename a theme. |
-| `delete_theme` | Delete a theme and purge its assignments. |
 | `assign_theme` | Attach a theme to an activity. |
-| `unassign_theme` | Remove an activity's theme tag. |
 | `set_rating` | Set an activity rating from `0` to `5`. |
 
 ## Run-Sheet Capability Checklist
@@ -91,7 +79,7 @@ Step/detail/material/playbook child types:
 | `variation` | Attach a modification to a specific step. |
 | `materials` | Attach a material checklist where it is used. |
 | `diagram` | Embed a field diagram directly in the run sheet flow. |
-| `video` | Add a known external demo URL. Do not invent video links. |
+| `video` | Add a *specific, verified* external demo URL. Never invent a video id, and never use a search URL — a `youtube.com/results?search_query=...` "search for this game" link is **not** a demo. If you don't have a real, specific video, omit it. |
 
 Diagram tools inside `set_diagram` or a `diagram` child:
 
@@ -121,10 +109,6 @@ Allowed marker shapes: `circle`, `square`, `triangle`, `diamond`, `flag`, `pin`,
   `activityId: null` for plain events such as lunch, assembly, or pickup.
 - Use `campId` from `list_context` or `add_camp` when scheduling inside a camp.
 - Use `location` for gym, field, playground, room, or water area.
-- Color resolves `event.color → activity.color → category tint`. To recolor one
-  placement, set `color` on `upsert_event` (or batch with `recolor_events`); to
-  recolor an activity everywhere, use `set_activity_color`. `null` clears, falling
-  back down that chain. Colors are hex (`#3f6b45` or `#abc`).
 
 ## Activity Authoring Rules
 
@@ -133,6 +117,26 @@ Allowed marker shapes: `circle`, `square`, `triangle`, `diamond`, `flag`, `pin`,
 - Use the five fixed age bands only: `pre`, `g13`, `g46`, `g79`, `g1012`.
 - Include `altNames` for local names and search aliases.
 - Keep `materials`, `steps`, `notes`, and `safety` aligned with the run sheet.
+- **`media` and `links` must be specific, *verified* URLs — or omitted.** A good
+  tutorial helps most where the run-sheet steps leave a technique ambiguous
+  (crafts: folding/weaving/knots; STEM demos). Add one there; skip activities a
+  counselor can already run from the steps.
+  - **Verify before adding.** Find the URL via a real web search, then actually
+    open it (WebFetch) and confirm it (a) resolves to a live page/video — not a
+    404, removed/private video, or error — and (b) genuinely matches *this*
+    activity/technique. Never invent, guess, or autocomplete a URL (no made-up
+    `youtube.com/watch?v=...` ids, no guessed article paths).
+  - **Never a search URL.** No `google.com/search?q=...`, no
+    `youtube.com/results?search_query=...`. "Search YouTube/Google for *sharks and
+    minnows*" is not a resource — ship a real link or none.
+  - **Where verified links live:** curate them in `lib/seed/links.json`, keyed by
+    final activity id (`{ "<id>": { "media": [{title,url}], "links": [{label,url}] } }`).
+    `scripts/build-seed.mjs` merges them onto the catalog (a video → inline player
+    via `media`; an article → link card via `links`), sorted ahead of the generic
+    director-source link.
+  - The build pipeline enforces hygiene: `build-seed.mjs` drops any search URL, and
+    `lib/seed/seed.test.ts` fails the build if a search URL ships or a `links.json`
+    entry points at a non-existent activity.
 - If a built-in activity should be edited, write the same id with
   `add_custom_activity`; the app will treat it as the editable user-owned version.
 
