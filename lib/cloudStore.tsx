@@ -45,6 +45,11 @@ export interface CloudUserData {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
   removeEvent: (id: string) => void;
+  /** Atomic batch variants for recurring-series operations — one state update,
+   *  one cache write, one flush, so materializing/editing a whole series is a
+   *  single render and a single undo step. */
+  upsertEvents: (events: CalendarEvent[]) => void;
+  removeEvents: (ids: string[]) => void;
 }
 
 function defaultDocs(): Docs {
@@ -439,5 +444,48 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     [enqueue, persistEvents]
   );
 
-  return { status, pendingCount, docs, setDoc, events, upsertEvent, removeEvent };
+  // Push many ops onto the outbox with a single persist + flush (vs. enqueue's
+  // one-at-a-time). The event state/cache is updated by the callers below before
+  // this runs, so anon users still get the local mutation; only sync is batched.
+  const enqueueMany = useCallback(
+    (ops: OutboxOp[]) => {
+      if (!userIdRef.current || !ops.length) return;
+      outboxRef.current = coalesce([...outboxRef.current, ...ops]);
+      persistOutbox();
+      scheduleFlush(0);
+    },
+    [persistOutbox, scheduleFlush]
+  );
+
+  const upsertEvents = useCallback(
+    (incoming: CalendarEvent[]) => {
+      const normalized = incoming
+        .map((event) => normalizeCalendarEvent({ ...event, updatedAt: Date.now() }))
+        .filter((event): event is CalendarEvent => event != null);
+      if (!normalized.length) return;
+      const next = { ...eventsRef.current };
+      for (const event of normalized) next[event.id] = event;
+      eventsRef.current = next;
+      setEventsState(next);
+      persistEvents(next);
+      enqueueMany(normalized.map((event) => ({ kind: "eventUpsert", id: event.id })));
+    },
+    [enqueueMany, persistEvents]
+  );
+
+  const removeEvents = useCallback(
+    (ids: string[]) => {
+      const present = ids.filter((id) => eventsRef.current[id]);
+      if (!present.length) return;
+      const next = { ...eventsRef.current };
+      for (const id of present) delete next[id];
+      eventsRef.current = next;
+      setEventsState(next);
+      persistEvents(next);
+      enqueueMany(present.map((id) => ({ kind: "eventDelete", id })));
+    },
+    [enqueueMany, persistEvents]
+  );
+
+  return { status, pendingCount, docs, setDoc, events, upsertEvent, removeEvent, upsertEvents, removeEvents };
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
+import { summarizeRecurrence } from "@/lib/calendar/recurrence";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { categoryTint } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
@@ -96,6 +97,12 @@ export function EventPopover({
               {formatEventDateLabel(event.date)} · {timeLabel}
             </p>
             {activity && <p className="cal-popover__meta">{activity.type}</p>}
+            {event.recurrence && (
+              <p className="cal-popover__repeat">
+                <CampIcon.Repeat />
+                {summarizeRecurrence(event.recurrence)}
+              </p>
+            )}
             {theme && <ThemeBadge theme={theme} className="cal-popover__theme" />}
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
