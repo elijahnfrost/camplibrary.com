@@ -1,3 +1,4 @@
+import { normalizeHexColor } from "./color";
 import { AGE_GROUPS, CATEGORIES } from "./data";
 import { normalizePlaybook } from "./playbooks";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
@@ -60,7 +61,10 @@ function validAges(value: unknown): AgeGroupId[] {
 export function deriveAgesFromRange(ageMin: number, ageMax: number): AgeGroupId[] {
   const lo = Math.min(ageMin, ageMax);
   const hi = Math.max(ageMin, ageMax);
-  const ids = AGE_GROUPS.filter((group) => lo <= group.max && hi >= group.min).map((group) => group.id);
+  // Bands now touch at their boundaries (…9, 12, 15…); a shared boundary belongs
+  // to the LOWER band, so the upper bound is strict (`hi > group.min`). Without
+  // this an elementary 6–12 activity would spill up into Grades 7–9.
+  const ids = AGE_GROUPS.filter((group) => lo <= group.max && hi > group.min).map((group) => group.id);
   return ids.length ? ids : [...DEFAULT_AGES];
 }
 
@@ -147,6 +151,10 @@ export function normalizeActivity(value: unknown): Activity | null {
   if (Array.isArray(value.materialTags)) {
     activity.materialTags = stringArray(value.materialTags);
   }
+
+  // Per-item color rides in the payload; re-attach or the clean rebuild strips it.
+  const color = normalizeHexColor(value.color);
+  if (color) activity.color = color;
 
   const playbook = normalizePlaybook(value.playbook);
   if (playbook) activity.playbook = playbook;

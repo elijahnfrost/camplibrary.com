@@ -13,6 +13,7 @@ import {
 } from "@/lib/data";
 import type { CSSProperties, MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
+import { useAgeUnit } from "./ageUnit";
 import { EmptyResults, SaveButton, ThemeBadge } from "./primitives";
 
 interface ViewProps {
@@ -56,7 +57,7 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
             </span>
           </div>
           <div className="rail">
-            {g.list.map((a, idx) => {
+            {g.list.map((a) => {
               const saved = isFav(a.id);
               // saved spines get one of six hand-drawn motifs (data-mark), all in
               // the single honey-gold; reserve head & foot room so it clears the title
@@ -72,9 +73,6 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
                       paddingTop: saved ? Math.max(spinePadTop(a), 30) : spinePadTop(a),
                       paddingBottom: saved ? 28 : undefined,
                       background: ratingColor(a.rating),
-                      // hovering the shelf sends a left→right wave through the row:
-                      // each book hops up then drops back into place, staggered by --i
-                      "--i": idx,
                     } as CSSProperties
                   }
                   title={a.title}
@@ -97,6 +95,7 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
 
 // ---------- Deck view ----------
 export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
+  const ageUnit = useAgeUnit();
   if (!items.length) return <EmptyResults />;
   return (
     <div className="deck fadein">
@@ -120,7 +119,7 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, the
             <div className="deck-card__meta">
               {durLabel(a)} · {a.place}
               <br />
-              {ageLabel(a)} · {ENERGY[a.energy]}
+              {ageLabel(a, ageUnit)} · {ENERGY[a.energy]}
             </div>
             {theme && <ThemeBadge theme={theme} className="deck-card__theme" />}
           </div>

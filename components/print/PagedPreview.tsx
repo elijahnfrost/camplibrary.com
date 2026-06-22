@@ -25,7 +25,7 @@ import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDo
 // to the rendered page boxes — they live in the same document).
 const PAGED_CSS = `
 @page { size: 8.5in 11in; margin: 0.45in; }
-.pd-day, .pd-event, .pd-step, .pd-child, .pd-rollup, .pd-runsheet__head { break-inside: avoid; }
+.pd-day, .pd-event, .pd-step, .pd-child, .pd-rollup, .pd-facts--grid, .pd-playbook .playbook-frame, .pd-runsheet__head { break-inside: avoid; }
 .print-doc--paged .pd-day { break-before: page; }
 .print-doc--paged .pd-day:first-of-type { break-before: auto; }
 .pd-tlday { break-inside: avoid; }
@@ -52,6 +52,9 @@ export function PagedPreview({
   const sourceRef = useRef<HTMLDivElement | null>(null);
   const targetRef = useRef<HTMLDivElement | null>(null);
   const runIdRef = useRef(0);
+  // First mount paginates immediately (no 300ms stall on opening Print); only
+  // later edits debounce, so rapid option changes don't thrash Paged.js.
+  const firstRunRef = useRef(true);
   const [status, setStatus] = useState<Status>("loading");
   const [pageCount, setPageCount] = useState(0);
 
@@ -68,6 +71,8 @@ export function PagedPreview({
 
     const runId = ++runIdRef.current;
     let cancelled = false;
+    const delay = firstRunRef.current ? 0 : RE_PAGINATE_MS;
+    firstRunRef.current = false;
 
     const timer = window.setTimeout(async () => {
       const doc = source.firstElementChild;
@@ -117,13 +122,28 @@ export function PagedPreview({
         console.warn("[print] Paged.js pagination failed — showing continuous preview.", err);
         setStatus("fallback");
       }
-    }, RE_PAGINATE_MS);
+    }, delay);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [sig]);
+
+  // Defensive print guard: if a print/export fires WHILE pagination is mid-flight
+  // (before the post-pagination scope runs), Paged.js's globally-injected
+  // `@page { margin: 0 }` would still be unscoped and hijack the real print's
+  // 0.45in margins. Re-scope any inserted Paged.js styles to screen on every
+  // beforeprint, so the .print-root artifact always prints with correct margins.
+  useEffect(() => {
+    const onBeforePrint = () => {
+      document
+        .querySelectorAll("style[data-pagedjs-inserted-styles]")
+        .forEach((node) => node.setAttribute("media", "screen"));
+    };
+    window.addEventListener("beforeprint", onBeforePrint);
+    return () => window.removeEventListener("beforeprint", onBeforePrint);
+  }, []);
 
   // Tidy up Paged.js's globally-inserted <style> tags when the tab closes, so
   // they don't accumulate across visits.

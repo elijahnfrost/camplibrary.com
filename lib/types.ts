@@ -43,6 +43,10 @@ export interface Activity {
   safety: string;
   ages: AgeGroupId[];
   rating: number; // 0–5 (0 = not run yet)
+  // The activity's default color (validated hex). Its color everywhere it shows,
+  // and the seed when placed on the calendar. Absent = fall back to the category
+  // tint — resolved lazily by effectiveActivityColor (lib/data), so no backfill.
+  color?: string;
   // Optional hand-drawn field diagrams (stages) shown inside "How to play".
   // Custom books carry their own; built-in books fall back to the registry.
   playbook?: ActivityPlaybookData;

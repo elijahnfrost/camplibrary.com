@@ -14,7 +14,7 @@ import { fromDateKey } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import { ageSpan, categoryTint, durLabel, ENERGY, groupLabel } from "@/lib/data";
+import { ageSpan, durLabel, effectiveEventColor, ENERGY, groupLabel } from "@/lib/data";
 import { materialNeedsForActivity, materialOptionsForActivities } from "@/lib/materials";
 import type { Camp } from "@/lib/camps";
 import type { Theme } from "@/lib/themes";
@@ -210,7 +210,7 @@ export function SchedulePrintDocument({
     return (event: CalendarEvent): ResolvedEvent => {
       const activity = event.activityId ? byId[event.activityId] ?? null : null;
       const theme = activity ? themeOf(activity.id) : null;
-      return { event, activity, theme, tint: categoryTint(activity?.type) };
+      return { event, activity, theme, tint: effectiveEventColor(event, activity ?? undefined) };
     };
   }, [byId, themeOf]);
 
@@ -270,6 +270,22 @@ export function SchedulePrintDocument({
     () => (options.materialsRollup ? materialOptionsForActivities(distinctActivities) : []),
     [options.materialsRollup, distinctActivities]
   );
+
+  // Run sheets to append: every scheduled activity when "Full run sheets" is on,
+  // PLUS any individually-picked ones — deduped, in scheduled order then pick order.
+  const runSheetActivities = useMemo(() => {
+    const seen = new Set<string>();
+    const out: typeof distinctActivities = [];
+    const add = (activity: (typeof distinctActivities)[number] | undefined) => {
+      if (activity && !seen.has(activity.id)) {
+        seen.add(activity.id);
+        out.push(activity);
+      }
+    };
+    if (options.appendRunSheets) distinctActivities.forEach(add);
+    for (const id of options.runSheetIds) add(byId[id]);
+    return out;
+  }, [options.appendRunSheets, options.runSheetIds, distinctActivities, byId]);
 
   const campName = options.campId ? camps.find((c) => c.id === options.campId)?.name ?? null : null;
   const eventCount = days.reduce((sum, day) => sum + day.events.length, 0);
@@ -354,10 +370,10 @@ export function SchedulePrintDocument({
         </div>
       )}
 
-      {options.appendRunSheets && distinctActivities.length > 0 && (
+      {runSheetActivities.length > 0 && (
         <div className="pd-runsheets">
           <h2 className="pd-runsheets__head">Run sheets</h2>
-          {distinctActivities.map((activity) => (
+          {runSheetActivities.map((activity) => (
             <PrintRunSheet key={activity.id} activity={activity} runDoc={resolveRunDoc(activity)} />
           ))}
         </div>

@@ -49,20 +49,16 @@ import {
   nowMinutes,
   snapDurationMin,
   snapMinutes,
+  type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import {
-  DEFAULT_CAMP_HOURS,
-  campHoursStorage,
-  windowFromCampHours,
-  type CampHoursMap,
-} from "@/lib/calendar/hours";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import {
   buildSeriesEvents,
   eventsInSeries,
   planSeriesDelete,
   planSeriesEdit,
+  planSeriesSkip,
   recurrenceDates,
   type RecurrenceRule,
   type SeriesScope,
@@ -76,7 +72,6 @@ import { ContextMenu } from "../floating/ContextMenu";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { EventPopover } from "./EventPopover";
-import { HoursPanel } from "./HoursPanel";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
@@ -168,6 +163,9 @@ export function CalendarShell({
   removeEvent,
   upsertEvents,
   removeEvents,
+  commitEvents,
+  undo,
+  redo,
   activities,
   byId,
   canEdit,
@@ -176,6 +174,7 @@ export function CalendarShell({
   announce,
   railSlot,
   onOpenCamps,
+  dayWindow,
   headerActions,
   themeOf,
 }: {
@@ -186,6 +185,13 @@ export function CalendarShell({
    *  lib/cloudStore) — one render and one undo step for the whole series. */
   upsertEvents: (events: CalendarEvent[]) => void;
   removeEvents: (ids: string[]) => void;
+  /** Atomic upsert+delete — a scoped series edit regenerates some occurrences and
+   *  removes others as ONE undo step (and stamps the active camp like the others). */
+  commitEvents: (upserts: CalendarEvent[], removes: string[]) => void;
+  /** Calendar undo/redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z). Each returns whether
+   *  anything moved, so the shortcut can announce the result. */
+  undo: () => boolean;
+  redo: () => boolean;
   activities: Activity[];
   byId: Record<string, Activity>;
   canEdit: boolean;
@@ -195,9 +201,14 @@ export function CalendarShell({
   /** Desktop: the left-sidebar slot the mini-month + View settings render into
    *  (one sidebar shared with the Library tab's filters). Null on mobile. */
   railSlot?: HTMLElement | null;
-  /** Opens the camp manager (add / switch / rename / delete). Lives in the
-   *  sidebar's View settings, so the header has no camp pill. */
+  /** Opens the camp manager (add / switch / rename / delete + per-camp hours).
+   *  Lives in the sidebar's View settings, so the header has no camp pill. */
   onOpenCamps: () => void;
+  /** The base visible window (drop-off → pickup) of the active camp, or the
+   *  classic 8:00–18:00 band when no camp is active. effectiveWindow only ever
+   *  stretches this outward around events. Computed by CampApp from the active
+   *  camp's hours, which now live on the (synced) camp object. */
+  dayWindow: DayWindow;
   /** Header-cluster slot for camp-scoped actions composed by CampApp (where the
    *  camp data lives) — currently the Subscribe / .ics feed pill. */
   headerActions?: ReactNode;
@@ -212,15 +223,6 @@ export function CalendarShell({
     "auto",
     parseStoredView
   );
-  // Camp hours: the editable per-camp drop-off/pickup that sets how far the day
-  // is viewed. A local view preference (like the stored view), so it lives in
-  // localStorage and never gates on staff.
-  const [campHours, setCampHours] = useLocalStorage<CampHoursMap>(
-    "calendarHours",
-    DEFAULT_CAMP_HOURS,
-    campHoursStorage
-  );
-  const [hoursOpen, setHoursOpen] = useState(false);
   // The view-settings sheet — mobile's home for the settings that live in the
   // sidebar "View" section on desktop (the rail isn't rendered on phones).
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -356,21 +358,19 @@ export function CalendarShell({
     return fromDateKey(addDays(visibleRange.start, mid));
   }, [visibleRange]);
 
-  // The base window comes from the configured camp hours (union of the enabled
-  // camps' drop-off → pickup); auto-extend only ever stretches it outward.
-  const campWindow = useMemo(() => windowFromCampHours(campHours), [campHours]);
-
-  // The day window auto-extends around events in the rendered STRIP (stable while
-  // you scroll, so the grid hours don't jitter), not the live visible sub-range —
-  // a stray 6am event elsewhere shouldn't stretch every day's grid forever.
+  // The base window is the active camp's hours (drop-off → pickup), or the classic
+  // 8:00–18:00 band with no active camp — passed in as `dayWindow`. Auto-extend
+  // only ever stretches it outward around events in the rendered STRIP (stable
+  // while you scroll, so the grid hours don't jitter), not the live visible
+  // sub-range — a stray 6am event elsewhere shouldn't stretch every day forever.
   const window_ = useMemo(() => {
     const stripEnd = stripStart ? addDays(stripStart, STRIP_DAYS) : null;
     const scoped =
       stripStart && stripEnd
         ? healedEvents.filter((event) => event.date >= stripStart && event.date < stripEnd)
         : healedEvents;
-    return effectiveWindow(scoped, campWindow);
-  }, [healedEvents, stripStart, campWindow]);
+    return effectiveWindow(scoped, dayWindow);
+  }, [healedEvents, stripStart, dayWindow]);
 
   const fcEvents = useMemo(
     () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
@@ -602,6 +602,7 @@ export function CalendarShell({
         campId,
       };
       if (activity) template.activityId = activity.id;
+      if (draft.color) template.color = draft.color;
       return template;
     },
     [byId]
@@ -667,6 +668,7 @@ export function CalendarShell({
       };
       if (activity) event.activityId = activity.id;
       if (draft.allDay) event.allDay = true;
+      if (draft.color) event.color = draft.color;
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + event.title);
@@ -722,25 +724,26 @@ export function CalendarShell({
         scope,
         () => crypto.randomUUID()
       );
-      if (plan.removes.length) removeEvents(plan.removes);
-      upsertEvents(plan.upserts);
+      // One atomic commit (regenerated occurrences upserted, old ones removed) so
+      // the whole scoped edit is a single undo step.
+      commitEvents(plan.upserts, plan.removes);
       setScopePrompt(null);
       setSheet(null);
       announce("Updated " + template.title);
-      const touched = [...new Set([...plan.upserts.map((event) => event.id), ...before.map((event) => event.id)])];
+      const beforeIds = new Set(before.map((event) => event.id));
+      const newIds = plan.upserts.map((event) => event.id).filter((id) => !beforeIds.has(id));
       const scopeNote = scope === "this" ? "" : scope === "all" ? " · all events" : " · this & following";
       showToast(
         {
           message: "Updated " + template.title + scopeNote,
-          onUndo: () => {
-            removeEvents(touched);
-            upsertEvents(before);
-          },
+          // Restore the pre-edit series and drop the occurrences the edit added,
+          // in one step (mirrors the single-commit edit above).
+          onUndo: () => commitEvents(before, newIds),
         },
         8000
       );
     },
-    [announce, buildTemplate, events, removeEvents, upsertEvents]
+    [announce, buildTemplate, commitEvents, events]
   );
 
   const commitSeriesDelete = useCallback(
@@ -748,6 +751,22 @@ export function CalendarShell({
       const seriesId = event.seriesId;
       if (!seriesId) return;
       const series = eventsInSeries(events, seriesId);
+      if (scope === "this") {
+        // Skip a single occurrence: remove it AND record its date as an exdate on
+        // the surviving occurrences, so a later "all"/"following" edit doesn't
+        // resurrect it (the EXDATE-survives-edits guarantee). One atomic step.
+        const plan = planSeriesSkip(series, event);
+        commitEvents(plan.upserts, plan.removes);
+        setScopePrompt(null);
+        setPopover(null);
+        setSheet(null);
+        announce("Skipped " + (event.title || "event"));
+        showToast(
+          { message: "Skipped this day", onUndo: () => commitEvents(series, []) },
+          8000
+        );
+        return;
+      }
       const ids = planSeriesDelete(series, event, scope);
       const before = series.filter((occurrence) => ids.includes(occurrence.id));
       removeEvents(ids);
@@ -763,7 +782,7 @@ export function CalendarShell({
         8000
       );
     },
-    [announce, events, removeEvents, upsertEvents]
+    [announce, commitEvents, events, removeEvents, upsertEvents]
   );
 
   // Duplicate an event: clone it onto the next free slot of the same day so the
@@ -1241,12 +1260,29 @@ export function CalendarShell({
     // affordance. Only rendered when the event repeats, so non-repeating cards
     // (and the visual baselines) are untouched.
     const repeats = arg.event.extendedProps.repeats === true;
+    const tint = arg.event.extendedProps.tint;
+    const themeTint = arg.event.extendedProps.themeTint;
+    const isCustom = arg.event.extendedProps.kind === "custom";
+
+    // Repaint + distinction, written from HERE rather than eventDidMount: this
+    // content renderer re-runs on every data change (a recolor, or an activity→
+    // custom heal), whereas eventDidMount fires once — so the color and the
+    // activity/custom spine update immediately instead of waiting for a refresh.
+    const paint = (node: HTMLElement | null) => {
+      const el = node?.closest(".fc-event") as HTMLElement | null;
+      if (!el) return;
+      if (typeof tint === "string") el.style.setProperty("--cal-tint", tint);
+      if (typeof themeTint === "string") el.style.setProperty("--theme-tint", themeTint);
+      // Custom (lunch/assembly/free-play) events wear a hatched spine; activities
+      // keep the solid category spine. (CSS in calendar.css §event distinction.)
+      el.classList.toggle("cal-event--custom", isCustom);
+    };
 
     if (arg.view.type === "dayGridMonth") {
       // One left spine carries the category colour (the .fc-daygrid-event
       // border-left); no inner tick on top of it.
       return (
-        <div className="cal-chip">
+        <div className="cal-chip" ref={paint}>
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
@@ -1261,7 +1297,7 @@ export function CalendarShell({
     // The theme dot rides in .cal-card__line so it stays beside the title in
     // both the stacked and the collapsed layouts.
     return (
-      <div className="cal-card">
+      <div className="cal-card" ref={paint}>
         <span className="cal-card__line">
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
@@ -1751,8 +1787,22 @@ export function CalendarShell({
         deleteEvent(popover.event);
         return;
       }
+      // Undo / redo: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, scoped to the calendar.
+      // Handled BEFORE the modifier early-return below. Suppressed while an
+      // editing surface is open so the sheet's own fields keep native undo (and
+      // a stray Cmd+Z doesn't rewrite the calendar out from under an open editor).
+      if ((event.metaKey || event.ctrlKey) && (event.key === "z" || event.key === "Z")) {
+        if (sheet || popover || settingsOpen || scopePrompt) return;
+        event.preventDefault();
+        if (event.shiftKey) {
+          if (redo()) announce("Redid the last change");
+        } else if (undo()) {
+          announce("Undid the last change");
+        }
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (sheet || popover || settingsOpen || hoursOpen || scopePrompt) return;
+      if (sheet || popover || settingsOpen || scopePrompt) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -1795,7 +1845,7 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, deleteEvent, sheet, popover, settingsOpen, hoursOpen, scopePrompt]);
+  }, [changeView, goToday, nudge, deleteEvent, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -1966,7 +2016,6 @@ export function CalendarShell({
                     weekStart={weekStart}
                     onWeekStart={setWeekStart}
                     onChangeView={changeView}
-                    onOpenHours={() => setHoursOpen(true)}
                     onOpenCamps={onOpenCamps}
                   />
                 </div>
@@ -2007,13 +2056,9 @@ export function CalendarShell({
         />
       )}
 
-      {hoursOpen && (
-        <HoursPanel hours={campHours} onChange={setCampHours} onClose={() => setHoursOpen(false)} />
-      )}
-
       {/* Mobile's home for the view settings (desktop puts them in the sidebar).
-          One CalendarViewSettings, shared state — opening Camp hours / Manage
-          camps dismisses this sheet first so the next modal isn't stacked behind. */}
+          One CalendarViewSettings, shared state — opening Manage camps dismisses
+          this sheet first so the next modal isn't stacked behind. */}
       {settingsOpen && (
         <Modal
           label="View settings"
@@ -2031,10 +2076,6 @@ export function CalendarShell({
               weekStart={weekStart}
               onWeekStart={setWeekStart}
               onChangeView={changeView}
-              onOpenHours={() => {
-                setSettingsOpen(false);
-                setHoursOpen(true);
-              }}
               onOpenCamps={() => {
                 setSettingsOpen(false);
                 onOpenCamps();

@@ -4,6 +4,7 @@
 // and maps cleanly onto the Postgres date + integer columns. FullCalendar
 // Date objects are converted at the component boundary (lib/calendar/adapter).
 
+import { normalizeHexColor } from "../color";
 import { normalizeRecurrence, type RecurrenceRule } from "./recurrence";
 
 export type DateKey = string;
@@ -26,6 +27,11 @@ export interface CalendarEvent {
   // whole series. Absent on plain one-off events.
   seriesId?: string;
   recurrence?: RecurrenceRule;
+  // Per-placement color override (validated hex). Absent = inherit the
+  // activity's color, which itself falls back to the category tint — resolved
+  // lazily by effectiveEventColor (lib/data), so untouched events "start" at
+  // their tag color with no backfill. Clearing it falls back to the tag color.
+  color?: string;
   updatedAt: number; // epoch ms, last-write-wins
 }
 
@@ -77,6 +83,10 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   if (activityId) event.activityId = activityId;
   if (campId) event.campId = campId;
   if (allDay) event.allDay = true;
+  // Per-item color rides in the payload; like the series fields, this clean
+  // rebuild must re-attach it or it's stripped on every read / optimistic write.
+  const color = normalizeHexColor(value.color);
+  if (color) event.color = color;
   // Recurrence rides in the payload; this normalizer rebuilds a clean object, so
   // the series fields must be re-attached or they'd be stripped on every read /
   // optimistic write. A seriesId only means something with a parseable rule.

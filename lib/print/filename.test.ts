@@ -9,6 +9,7 @@ function opts(partial: Partial<PrintOptions>): PrintOptions {
     end: "2026-06-18",
     campId: null,
     title: "",
+    runSheetIds: [],
     ...partial,
   };
 }

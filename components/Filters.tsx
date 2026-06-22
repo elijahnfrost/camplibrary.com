@@ -2,7 +2,7 @@
 
 import { Fragment, useState, type CSSProperties } from "react";
 import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
-import { AGE_GROUPS, CATEGORIES, categoryTint } from "@/lib/data";
+import { AGE_GROUPS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
@@ -25,6 +25,8 @@ interface ActiveFilterProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  /** The age caption unit, so the removed-filter chip reads in the chosen unit. */
+  ageUnit?: AgeUnit;
   /** Omit theme props to hide the theme chip (surfaces without themes). */
   theme?: ThemeFilter;
   themes?: Theme[];
@@ -61,9 +63,10 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
   }
   if (p.place !== "All") chips.push({ key: "place", label: p.place, onRemove: () => p.onPlace("All") });
   if (p.age !== "All") {
+    const band = AGE_GROUPS.find((g) => g.id === p.age);
     chips.push({
       key: "age",
-      label: AGE_GROUPS.find((g) => g.id === p.age)?.short ?? p.age,
+      label: band ? bandShort(band, p.ageUnit ?? "grades") : p.age,
       onRemove: () => p.onAge("All"),
     });
   }
@@ -103,6 +106,9 @@ interface FiltersProps {
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
+  /** Grades⇄Ages caption unit + its toggle — relabels the age band names. */
+  ageUnit: AgeUnit;
+  onAgeUnit: (v: AgeUnit) => void;
   theme: ThemeFilter;
   themes: Theme[];
   /** Omit both starred props to hide the Starred control (surfaces without favorites). */
@@ -235,6 +241,8 @@ function LedgerFilters({
   cat,
   place,
   age,
+  ageUnit,
+  onAgeUnit,
   theme,
   themes,
   starredOnly,
@@ -275,7 +283,19 @@ function LedgerFilters({
           ]}
         />
       </div>
-      <AgePicker value={age} onChange={onAge} label="Ages" ariaLabel="Filter by age group" />
+      <AgePicker value={age} onChange={onAge} unit={ageUnit} label="Ages" ariaLabel="Filter by age group" />
+      <div className="ledger__row">
+        <span className="ledger__label">Show ages as</span>
+        <MiniSeg
+          ariaLabel="Show ages as"
+          value={ageUnit}
+          onChange={(v) => onAgeUnit(v as AgeUnit)}
+          options={[
+            { id: "grades" as AgeUnit, label: "Grades" },
+            { id: "ages" as AgeUnit, label: "Ages" },
+          ]}
+        />
+      </div>
       {onStarredOnly && (
         <div className="ledger__row">
           <span className="ledger__label">Starred only</span>
@@ -301,6 +321,8 @@ export function Filters({
   cat,
   place,
   age,
+  ageUnit,
+  onAgeUnit,
   theme,
   themes,
   starredOnly,
@@ -321,6 +343,7 @@ export function Filters({
     cat,
     place,
     age,
+    ageUnit,
     theme,
     themes,
     starredOnly,
@@ -354,6 +377,8 @@ export function Filters({
       cat={cat}
       place={place}
       age={age}
+      ageUnit={ageUnit}
+      onAgeUnit={onAgeUnit}
       theme={theme}
       themes={themes}
       starredOnly={starredOnly}

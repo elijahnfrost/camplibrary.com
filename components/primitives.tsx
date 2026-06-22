@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { AGE_GROUPS, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD } from "@/lib/data";
+import { AGE_GROUPS, bandLong, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 
@@ -176,15 +176,18 @@ export function AgePicker<T extends string>({
   onChange,
   label,
   ariaLabel,
+  unit = "grades",
 }: {
   value: T;
   onChange: (v: T) => void;
   label?: string;
   ariaLabel: string;
+  /** Caption unit: grade bands ("Grades 4–6") or plain ages ("9–12 yrs"). */
+  unit?: AgeUnit;
 }) {
   const options: SwatchOption[] = [
     { id: "All", label: "All ages" },
-    ...AGE_GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    ...AGE_GROUPS.map((g) => ({ id: g.id, label: bandLong(g, unit) })),
   ];
   return (
     <SwatchPicker
@@ -429,14 +432,22 @@ export function SaveButton({
   stop?: boolean;
   variant?: "chip" | "ribbon";
 }) {
+  // The plant/pop save animation plays via a TRANSIENT class added on the toggle
+  // — not on `.is-on` — so a saved card mounting (e.g. arriving in the library)
+  // doesn't replay it. Removed after the animation so a re-save fires it again.
+  const [justSaved, setJustSaved] = useState(false);
   return (
     <button
       type="button"
-      className={"star star--" + variant + (on ? " is-on" : "")}
+      className={"star star--" + variant + (on ? " is-on" : "") + (justSaved ? " is-justsaved" : "")}
       aria-label={on ? "Remove from saved" : "Save"}
       aria-pressed={on}
       onClick={(e) => {
         if (stop) e.stopPropagation();
+        if (!on) {
+          setJustSaved(true);
+          window.setTimeout(() => setJustSaved(false), 480);
+        }
         onToggle();
       }}
     >

@@ -10,7 +10,7 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
-import { categoryTint, durLabel } from "@/lib/data";
+import { categoryTint, durLabel, effectiveActivityColor } from "@/lib/data";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
@@ -19,6 +19,7 @@ import { Modal } from "../Modal";
 import { Seg } from "../primitives";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
+import { ColorField } from "../floating/ColorField";
 import { RepeatField } from "./RepeatField";
 
 export type EditorDraft = {
@@ -35,6 +36,9 @@ export type EditorDraft = {
   /** A repeat rule, when the event recurs. CalendarShell turns it into the
    *  materialized series on save (and asks the scope on edits). */
   recurrence?: RecurrenceRule;
+  /** Per-placement color override (validated hex); absent = inherit the
+   *  activity's / category's color. */
+  color?: string;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -48,6 +52,7 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     title: event.title,
     explicitDuration: true,
     recurrence: event.recurrence,
+    color: event.color,
   };
 }
 
@@ -95,6 +100,10 @@ export function QuickAdd({
   const [durationMin, setDurationMin] = useState(draft.durationMin);
   const [allDay, setAllDay] = useState(draft.allDay);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
+  const [color, setColor] = useState<string | undefined>(draft.color);
+  // Editing an activity event opens with a compact "Editing: <activity>" summary
+  // instead of the full searchable list; "Change activity" expands it on demand.
+  const [changingActivity, setChangingActivity] = useState(false);
 
   const sorted = useMemo(
     () => [...activities].sort((a, b) => a.title.localeCompare(b.title)),
@@ -166,12 +175,47 @@ export function QuickAdd({
   const customTrimmed = customTitle.trim();
   const valid = tab === "Library" ? Boolean(selectedActivity) : Boolean(customTrimmed);
 
-  function chooseActivity(activity: Activity) {
-    if (!pickTime) {
+  // The repeat rule clamped so its end never falls behind the event's own date.
+  function clampedRule(): RecurrenceRule | undefined {
+    return recurrence ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until } : undefined;
+  }
+
+  // Slot posture commits: a one-off creates instantly (the gesture chose the
+  // when), but once a repeat is set it routes through onSave so CalendarShell
+  // builds the whole series — the fix for "repeat is unreachable from tap/drag".
+  function slotCommitActivity(activity: Activity) {
+    if (!recurrence) {
       onPickActivity(activity);
       return;
     }
+    const dur = draft.explicitDuration ? durationMin : activity.durationMin || durationMin;
+    onSave({
+      date,
+      startMin,
+      durationMin: dur,
+      allDay,
+      activityId: activity.id,
+      title: activity.title,
+      explicitDuration: draft.explicitDuration,
+      recurrence: clampedRule(),
+    });
+  }
+
+  function slotCommitCustom(title: string) {
+    if (!recurrence) {
+      onCustom(title);
+      return;
+    }
+    onSave({ date, startMin, durationMin, allDay, title, recurrence: clampedRule() });
+  }
+
+  function chooseActivity(activity: Activity) {
+    if (!pickTime) {
+      slotCommitActivity(activity);
+      return;
+    }
     setActivityId(activity.id);
+    setChangingActivity(false);
     // Seed the recommended length only when nothing deliberate was chosen —
     // a dragged span or an edited event's length always wins.
     if (!isEdit && !draft.explicitDuration && activity.durationMin) setDurationMin(activity.durationMin);
@@ -189,9 +233,8 @@ export function QuickAdd({
       title: tab === "Library" ? selectedActivity?.title ?? "" : customTrimmed,
       // The end date can fall behind once the event's own date is pushed later;
       // clamp it so the saved rule always covers the start.
-      recurrence: recurrence
-        ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until }
-        : undefined,
+      recurrence: clampedRule(),
+      color,
     });
   }
 
@@ -215,7 +258,37 @@ export function QuickAdd({
         <div className="quickadd__tabs">
           <Seg options={["Library", "Custom"] as const} value={tab} onChange={setTab} ariaLabel="What to add" />
         </div>
+        {/* Slot posture: the when came from the gesture, but a repeat is still
+            reachable here — set it, then the next pick builds the whole series.
+            (Pick-a-time posture has its own RepeatField in the schedule block.) */}
+        {!pickTime && (
+          <div className="quickadd__slotrepeat">
+            <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+          </div>
+        )}
         {tab === "Library" ? (
+          isEdit && selectedActivity && !changingActivity ? (
+            <div className="quickadd__editing">
+              <span
+                className="quickadd__editing-spine"
+                style={{ "--cal-tint": effectiveActivityColor(selectedActivity) } as CSSProperties}
+                aria-hidden="true"
+              />
+              <span className="quickadd__editing-info">
+                <span className="quickadd__editing-title">{selectedActivity.title}</span>
+                <span className="quickadd__editing-meta">
+                  {selectedActivity.type} · {durLabel(selectedActivity)}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn--ghost quickadd__editing-change"
+                onClick={() => setChangingActivity(true)}
+              >
+                Change activity
+              </button>
+            </div>
+          ) : (
           <>
             {/* Enter takes the top match — type, hit return, done. An empty
                 field stays a no-op so a stray Enter never places an event. */}
@@ -231,7 +304,7 @@ export function QuickAdd({
                   setCustomTitle(trimmed);
                   setTab("Custom");
                 } else {
-                  onCustom(trimmed);
+                  slotCommitCustom(trimmed);
                 }
               }}
             >
@@ -262,7 +335,7 @@ export function QuickAdd({
                     className={"quickadd__item" + (on ? " is-on" : "")}
                     aria-pressed={pickTime ? on : undefined}
                     onClick={() => chooseActivity(activity)}
-                    style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}
+                    style={{ "--cal-tint": effectiveActivityColor(activity) } as CSSProperties}
                   >
                     <span className="quickadd__name">{activity.title}</span>
                     <span className="quickadd__meta">
@@ -287,7 +360,7 @@ export function QuickAdd({
                       setCustomTitle(trimmed);
                       setTab("Custom");
                     } else {
-                      onCustom(trimmed);
+                      slotCommitCustom(trimmed);
                     }
                   }}
                 >
@@ -303,6 +376,7 @@ export function QuickAdd({
               )}
             </div>
           </>
+          )
         ) : (
           <form
             className="quickadd__custom"
@@ -310,7 +384,7 @@ export function QuickAdd({
               e.preventDefault();
               if (!customTrimmed) return;
               if (pickTime) save();
-              else onCustom(customTrimmed);
+              else slotCommitCustom(customTrimmed);
             }}
           >
             <div className="field">
@@ -382,6 +456,22 @@ export function QuickAdd({
               </label>
             </div>
             <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+            <div className="field quickadd__color">
+              <label className="field__label" htmlFor="quickadd-color">
+                Color
+              </label>
+              <ColorField
+                id="quickadd-color"
+                value={color}
+                fallback={
+                  tab === "Library" && selectedActivity
+                    ? effectiveActivityColor(selectedActivity)
+                    : categoryTint(undefined)
+                }
+                onChange={setColor}
+                ariaLabel="Event color"
+              />
+            </div>
             <div className="quickadd__foot">
               {isEdit && onDelete && (
                 <button type="button" className="btn btn--ghost quickadd__delete" onClick={onDelete}>

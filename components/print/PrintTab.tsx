@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { addDays, fromDateKey, todayKey } from "@/lib/calendar/dates";
+import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { DEFAULT_PRINT_FORMAT, printFormatStorage, type PrintFormat, type PrintOptions } from "@/lib/print/options";
 import { selectEvents } from "@/lib/print/schedule";
@@ -74,13 +75,15 @@ export function PrintTab({
   const [end, setEnd] = useState(() => addDays(todayKey(), 6));
   const [campId, setCampId] = useState<string | null>(activeCampId);
   const [title, setTitle] = useState("");
+  // Individually-picked run sheets (additive to "Full run sheets"). Ephemeral.
+  const [runSheetIds, setRunSheetIds] = useState<string[]>([]);
   // Mobile only: the controls open in a sheet (the sidebar rail is desktop-only,
   // mirroring the Calendar's view-settings sheet).
   const [optionsOpen, setOptionsOpen] = useState(false);
 
   const options: PrintOptions = useMemo(
-    () => ({ ...format, start, end, campId, title }),
-    [format, start, end, campId, title]
+    () => ({ ...format, start, end, campId, title, runSheetIds }),
+    [format, start, end, campId, title, runSheetIds]
   );
 
   const onChange = useCallback(
@@ -89,6 +92,7 @@ export function PrintTab({
       if (patch.end !== undefined) setEnd(patch.end);
       if (patch.campId !== undefined) setCampId(patch.campId);
       if (patch.title !== undefined) setTitle(patch.title);
+      if (patch.runSheetIds !== undefined) setRunSheetIds(patch.runSheetIds);
       const formatPatch: Partial<PrintFormat> = {};
       for (const key of FORMAT_KEYS) {
         if (patch[key] !== undefined) (formatPatch as Record<string, unknown>)[key] = patch[key];
@@ -122,6 +126,28 @@ export function PrintTab({
     [data.events, start, end, campId, campIds, options.includeAllDay]
   );
   const empty = eventCount === 0;
+
+  // The distinct activities scheduled in the current range/camp — the pool the
+  // individual run-sheet picker searches over.
+  const scheduledActivities = useMemo(() => {
+    const events = selectEvents(data.events, {
+      start,
+      end,
+      campId,
+      campIds,
+      includeAllDay: options.includeAllDay,
+    });
+    const seen = new Set<string>();
+    const out: Activity[] = [];
+    for (const event of events) {
+      const activity = event.activityId ? data.byId[event.activityId] : undefined;
+      if (activity && !seen.has(activity.id)) {
+        seen.add(activity.id);
+        out.push(activity);
+      }
+    }
+    return out;
+  }, [data.events, data.byId, start, end, campId, campIds, options.includeAllDay]);
 
   const campName = campId ? data.camps.find((c) => c.id === campId)?.name ?? null : null;
 
@@ -165,11 +191,22 @@ export function PrintTab({
   }, []);
 
   const dayCount = Math.round(Math.abs(fromDateKey(end).getTime() - fromDateKey(start).getTime()) / 86_400_000) + 1;
-  const scope =
-    `${eventCount} ${eventCount === 1 ? "activity" : "activities"} · ${dayCount} ${dayCount === 1 ? "day" : "days"}` +
-    (campName ? " · " + campName : "");
+  // The scope line doubles as the inline reason: when the range is empty it says
+  // so plainly (rather than the print buttons silently disabling with only a
+  // hover tooltip — invisible on touch). The buttons stay clickable.
+  const scope = empty
+    ? "Nothing scheduled in this range" + (campName ? " · " + campName : "")
+    : `${eventCount} ${eventCount === 1 ? "activity" : "activities"} · ${dayCount} ${dayCount === 1 ? "day" : "days"}` +
+      (campName ? " · " + campName : "");
 
-  const controls = <PrintControls options={options} onChange={onChange} camps={data.camps} />;
+  const controls = (
+    <PrintControls
+      options={options}
+      onChange={onChange}
+      camps={data.camps}
+      scheduledActivities={scheduledActivities}
+    />
+  );
 
   return (
     <div className="print-tab">
@@ -190,11 +227,14 @@ export function PrintTab({
           >
             <CampIcon.More />
           </button>
+          {/* Never silently disabled: the range may simply be empty, or the
+              schedule may still be loading. The header scope shows the reason and
+              the buttons stay clickable (an empty range just prints the cover). */}
           <button
             type="button"
             className="btn btn--ghost printhead__btn"
             onClick={handlePrint}
-            disabled={empty}
+            aria-disabled={empty}
             title={empty ? "Nothing scheduled in this range" : "Open the print dialog"}
           >
             <CampIcon.Print />
@@ -204,7 +244,7 @@ export function PrintTab({
             type="button"
             className="btn btn--primary printhead__btn"
             onClick={handleExportPdf}
-            disabled={empty}
+            aria-disabled={empty}
             title={empty ? "Nothing scheduled in this range" : "Save this schedule as a PDF"}
           >
             <CampIcon.Export />

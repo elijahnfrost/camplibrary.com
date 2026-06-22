@@ -3,13 +3,22 @@
 import { useState } from "react";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
+import { Select } from "./floating/Select";
 
 // A clean management screen for a user-definable list (camps, themes). Create at
-// the top, then a list of rows — switch (camps), rename, delete. One surface so
-// both features get the same clear, discoverable "screen" instead of a cramped
-// inline dropdown.
+// the top, then a list of rows — switch (camps), rename, delete, and (camps
+// only) edit per-camp viewing hours. One surface so both features get the same
+// clear, discoverable "screen" instead of a cramped inline dropdown.
 
-export type ManagedItem = { id: string; label: string; tint?: string };
+export type ManagedItem = {
+  id: string;
+  label: string;
+  tint?: string;
+  /** Camps carry per-camp viewing hours; present both to render the Open–Close
+   *  editor on this row. Themes leave them undefined and get no hours sub-row. */
+  openMin?: number;
+  closeMin?: number;
+};
 
 export function ListManagerModal({
   title,
@@ -23,6 +32,8 @@ export function ListManagerModal({
   onRename,
   onDelete,
   onSelect,
+  hourOptions,
+  onChangeHours,
   onClose,
 }: {
   title: string;
@@ -38,6 +49,10 @@ export function ListManagerModal({
   onDelete: (item: ManagedItem) => void;
   /** Provide to make rows selectable (the camp switcher); omit for themes. */
   onSelect?: (id: string) => void;
+  /** 15-min clock options for the per-camp hours editor. With onChangeHours and
+   *  an item's openMin/closeMin, the row shows an Open–Close editor. */
+  hourOptions?: { value: number; label: string }[];
+  onChangeHours?: (id: string, field: "open" | "close", value: number) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -126,51 +141,78 @@ export function ListManagerModal({
                   key={item.id}
                   className={"manager__row" + (onSelect && item.id === activeId ? " is-active" : "")}
                 >
-                  {onSelect ? (
+                  <div className="manager__rowmain">
+                    {onSelect ? (
+                      <button
+                        type="button"
+                        className="manager__pick"
+                        aria-current={item.id === activeId ? "true" : undefined}
+                        onClick={() => onSelect(item.id)}
+                      >
+                        {item.tint && (
+                          <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
+                        )}
+                        <span className="manager__label">{item.label}</span>
+                        {item.id === activeId && (
+                          <span className="manager__active">
+                            <CampIcon.Check />
+                            Active
+                          </span>
+                        )}
+                      </button>
+                    ) : (
+                      <span className="manager__pick manager__pick--static">
+                        {item.tint && (
+                          <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
+                        )}
+                        <span className="manager__label">{item.label}</span>
+                      </span>
+                    )}
                     <button
                       type="button"
-                      className="manager__pick"
-                      aria-current={item.id === activeId ? "true" : undefined}
-                      onClick={() => onSelect(item.id)}
+                      className="icon-btn manager__rowbtn"
+                      aria-label={"Rename " + item.label}
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setEditDraft(item.label);
+                      }}
                     >
-                      {item.tint && (
-                        <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
-                      )}
-                      <span className="manager__label">{item.label}</span>
-                      {item.id === activeId && (
-                        <span className="manager__active">
-                          <CampIcon.Check />
-                          Active
-                        </span>
-                      )}
+                      <CampIcon.Pencil />
                     </button>
-                  ) : (
-                    <span className="manager__pick manager__pick--static">
-                      {item.tint && (
-                        <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
-                      )}
-                      <span className="manager__label">{item.label}</span>
-                    </span>
+                    <button
+                      type="button"
+                      className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                      aria-label={"Delete " + item.label}
+                      onClick={() => onDelete(item)}
+                    >
+                      <CampIcon.Trash />
+                    </button>
+                  </div>
+                  {hourOptions && onChangeHours && item.openMin != null && item.closeMin != null && (
+                    <div className="manager__rowhours">
+                      <div className="manager__hoursfield">
+                        <span className="manager__hourslabel">Open</span>
+                        <Select
+                          value={item.openMin}
+                          options={hourOptions}
+                          onChange={(value) => onChangeHours(item.id, "open", value)}
+                          ariaLabel={item.label + " opening time"}
+                        />
+                      </div>
+                      <span className="manager__hoursdash" aria-hidden="true">
+                        &ndash;
+                      </span>
+                      <div className="manager__hoursfield">
+                        <span className="manager__hourslabel">Close</span>
+                        <Select
+                          value={item.closeMin}
+                          options={hourOptions}
+                          onChange={(value) => onChangeHours(item.id, "close", value)}
+                          ariaLabel={item.label + " pickup time"}
+                        />
+                      </div>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    className="icon-btn manager__rowbtn"
-                    aria-label={"Rename " + item.label}
-                    onClick={() => {
-                      setEditingId(item.id);
-                      setEditDraft(item.label);
-                    }}
-                  >
-                    <CampIcon.Pencil />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn manager__rowbtn manager__rowbtn--danger"
-                    aria-label={"Delete " + item.label}
-                    onClick={() => onDelete(item)}
-                  >
-                    <CampIcon.Trash />
-                  </button>
                 </li>
               )
             )}

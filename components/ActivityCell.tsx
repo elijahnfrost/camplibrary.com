@@ -3,8 +3,9 @@
 import type { CSSProperties, MouseEvent } from "react";
 import type { Activity } from "@/lib/types";
 import type { Theme } from "@/lib/themes";
-import { ageLabel, categoryTint, durLabel, ENERGY } from "@/lib/data";
+import { ageLabel, durLabel, effectiveActivityColor, ENERGY } from "@/lib/data";
 import { SaveButton, ThemeBadge } from "./primitives";
+import { useAgeUnit } from "./ageUnit";
 
 export function ActivityCell({
   activity,
@@ -21,10 +22,11 @@ export function ActivityCell({
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
   theme?: Theme | null;
 }) {
+  const ageUnit = useAgeUnit();
   return (
     <div
       className="cat-row"
-      style={{ "--cal-tint": categoryTint(activity.type) } as CSSProperties}
+      style={{ "--cal-tint": effectiveActivityColor(activity) } as CSSProperties}
       onContextMenu={onContextMenu ? (e) => onContextMenu(activity, e) : undefined}
     >
       <button
@@ -36,7 +38,7 @@ export function ActivityCell({
         <span className="cat-main">
           <span className="cat-title">{activity.title}</span>
           <span className="cat-row__meta">
-            {activity.type} · {activity.place} · {durLabel(activity)} · {ageLabel(activity)} ·{" "}
+            {activity.type} · {activity.place} · {durLabel(activity)} · {ageLabel(activity, ageUnit)} ·{" "}
             {ENERGY[activity.energy]}
           </span>
           {theme && <ThemeBadge theme={theme} className="cat-row__theme" />}

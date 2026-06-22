@@ -29,6 +29,13 @@ const STORAGE_PREFIX = "camp:";
 const EVENTS_LOCAL_KEY = "calendarEvents.v1";
 const OUTBOX_LOCAL_KEY = "outbox.v1";
 const DOC_FLUSH_DEBOUNCE_MS = 1_500;
+// Calendar undo/redo: a bounded, session-only history of event mutations. Each
+// entry records the affected ids' state BEFORE and AFTER the change, so undo
+// re-applies `before` and redo re-applies `after` — no special-casing per op.
+const UNDO_LIMIT = 50;
+// id -> the event at that id, or null when it was absent (created / deleted).
+type PatchMap = Record<string, CalendarEvent | null>;
+type EventPatch = { before: PatchMap; after: PatchMap };
 
 export type SyncStatus = "local" | "syncing" | "synced" | "offline";
 
@@ -37,6 +44,9 @@ type Docs = { [K in UserDocKey]: DocValueMap[K] };
 export interface CloudUserData {
   status: SyncStatus;
   pendingCount: number;
+  /** Set when the server refused a write (a non-auth 4xx) so the change couldn't
+   *  be saved — null when sync is healthy. Surfaced to the user, not silent. */
+  syncError: string | null;
   docs: Docs;
   setDoc: <K extends UserDocKey>(
     key: K,
@@ -50,6 +60,14 @@ export interface CloudUserData {
    *  single render and a single undo step. */
   upsertEvents: (events: CalendarEvent[]) => void;
   removeEvents: (ids: string[]) => void;
+  /** Atomic upsert+delete in one step — used by scoped series edits so the whole
+   *  edit (regenerated occurrences + removed old ones) is a single undo step. */
+  commitEvents: (upserts: CalendarEvent[], removes: string[]) => void;
+  /** Calendar undo/redo over the event history. Each returns whether anything
+   *  moved, so the caller can announce the result. Session-only (cleared on a
+   *  scope change), scoped to calendar events. */
+  undo: () => boolean;
+  redo: () => boolean;
 }
 
 function defaultDocs(): Docs {
@@ -88,7 +106,7 @@ function readJson(fullKey: string): unknown {
   }
 }
 
-type SendResult = "done" | "retry" | "auth";
+type SendResult = "done" | "retry" | "auth" | "drop";
 
 export function useCloudUserData(userId: string | null): CloudUserData {
   const scope = userId ? "user:" + userId : "anon";
@@ -97,6 +115,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   const [events, setEventsState] = useState<Record<string, CalendarEvent>>({});
   const [status, setStatus] = useState<SyncStatus>(userId ? "syncing" : "local");
   const [pendingCount, setPendingCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const docsRef = useRef(docs);
   const eventsRef = useRef(events);
@@ -109,6 +128,8 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   const attemptRef = useRef(0);
   const bootstrappedRef = useRef(false);
   const authBlockedRef = useRef(false);
+  const undoStackRef = useRef<EventPatch[]>([]);
+  const redoStackRef = useRef<EventPatch[]>([]);
 
   scopeRef.current = scope;
   userIdRef.current = userId;
@@ -158,8 +179,10 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     if (response.ok) return "done";
     if (response.status === 401 || response.status === 403) return "auth";
     if (response.status >= 500 || response.status === 429) return "retry";
-    // Other 4xx: a poison op would block the queue forever — drop it.
-    return "done";
+    // Other 4xx (e.g. a payload the server rejects): a poison op would block the
+    // queue forever, so we still drop it — but as "drop", not "done", so the flush
+    // surfaces a "couldn't save" signal instead of silently pretending it synced.
+    return "drop";
   }, []);
 
   const flushRef = useRef<() => Promise<void>>(async () => {});
@@ -180,7 +203,18 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   }, []);
 
   flushRef.current = useCallback(async () => {
-    if (flushingRef.current || !userIdRef.current || authBlockedRef.current) return;
+    // Gate on bootstrappedRef: flushing before the bootstrap GET resolves can
+    // race it — the op gets dropped from the outbox, then bootstrap (which only
+    // preserves still-pending ids) drops the freshly-created event. Bootstrap
+    // kicks the flush itself once it finishes, so nothing is lost by waiting.
+    if (
+      flushingRef.current ||
+      !userIdRef.current ||
+      authBlockedRef.current ||
+      !bootstrappedRef.current
+    ) {
+      return;
+    }
     flushingRef.current = true;
     try {
       while (true) {
@@ -209,6 +243,12 @@ export function useCloudUserData(userId: string | null): CloudUserData {
           scheduleFlush(nextRetryDelayMs(attemptRef.current));
           return;
         }
+        // "drop" = the server refused this write; surface it instead of silently
+        // dropping. A clean "done" clears any prior error. Either way the op
+        // leaves the queue below so one bad write can't wedge the rest.
+        setSyncError(
+          result === "drop" ? "Some changes couldn’t be saved. Try editing them again." : null
+        );
         attemptRef.current = 0;
         // Drop the sent op — unless its target changed mid-flight, in which
         // case the dirty flag stays and the loop sends the newer value.
@@ -345,6 +385,23 @@ export function useCloudUserData(userId: string | null): CloudUserData {
       const local = eventsRef.current[id];
       if (local) nextEvents[id] = local;
     }
+    // First sign-in only (marker was absent → pendingImport set): adopt local
+    // events the server doesn't have yet — e.g. events created while signed-out
+    // and carried in from the anon scope. Each is kept locally AND queued for
+    // upload. Gated to the one-time migration so it can't resurrect an event
+    // deleted on another device (where "local-only" would be a stale leftover).
+    if (pendingImport != null) {
+      const adopted: OutboxOp[] = [];
+      for (const [id, local] of Object.entries(eventsRef.current)) {
+        if (nextEvents[id] || pendingEventIds.has(id)) continue;
+        nextEvents[id] = local;
+        adopted.push({ kind: "eventUpsert", id });
+      }
+      if (adopted.length) {
+        outboxRef.current = coalesce([...outboxRef.current, ...adopted]);
+        persistOutbox();
+      }
+    }
     eventsRef.current = nextEvents;
     setEventsState(nextEvents);
     persistEvents(nextEvents);
@@ -356,7 +413,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     } else {
       setStatus("synced");
     }
-  }, [persistDoc, persistEvents, scheduleFlush]);
+  }, [persistDoc, persistEvents, persistOutbox, scheduleFlush]);
 
   // Hydrate from the localStorage cache whenever the scope changes, then
   // bootstrap from the server for signed-in users.
@@ -381,6 +438,11 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     bootstrappedRef.current = false;
     authBlockedRef.current = false;
     attemptRef.current = 0;
+    // Undo history is session-scoped: a sign-in/out swaps the whole dataset, so
+    // a stale inverse op would target the wrong scope.
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setSyncError(null);
     setStatus(userId ? "syncing" : "local");
     if (userId) void bootstrapRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,7 +453,17 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onWake = () => {
-      if (!userIdRef.current || authBlockedRef.current) return;
+      if (!userIdRef.current) return;
+      if (authBlockedRef.current) {
+        // A blocked session may have since recovered (cookie/token refreshed).
+        // Give it one more bootstrap attempt on reconnect/refocus instead of
+        // latching "local" for the whole session — the prod "delete doesn't
+        // stick" symptom. If it's still unauthorized, bootstrap re-blocks.
+        authBlockedRef.current = false;
+        bootstrappedRef.current = false;
+        void bootstrapRef.current();
+        return;
+      }
       if (!bootstrappedRef.current) void bootstrapRef.current();
       else if (outboxRef.current.length) scheduleFlush(0);
     };
@@ -419,31 +491,6 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     [enqueue, persistDoc]
   );
 
-  const upsertEvent = useCallback(
-    (event: CalendarEvent) => {
-      const normalized = normalizeCalendarEvent({ ...event, updatedAt: Date.now() });
-      if (!normalized) return;
-      eventsRef.current = { ...eventsRef.current, [normalized.id]: normalized };
-      setEventsState(eventsRef.current);
-      persistEvents(eventsRef.current);
-      enqueue({ kind: "eventUpsert", id: normalized.id }, 0);
-    },
-    [enqueue, persistEvents]
-  );
-
-  const removeEvent = useCallback(
-    (id: string) => {
-      if (!eventsRef.current[id]) return;
-      const next = { ...eventsRef.current };
-      delete next[id];
-      eventsRef.current = next;
-      setEventsState(next);
-      persistEvents(next);
-      enqueue({ kind: "eventDelete", id }, 0);
-    },
-    [enqueue, persistEvents]
-  );
-
   // Push many ops onto the outbox with a single persist + flush (vs. enqueue's
   // one-at-a-time). The event state/cache is updated by the callers below before
   // this runs, so anon users still get the local mutation; only sync is batched.
@@ -457,35 +504,105 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     [persistOutbox, scheduleFlush]
   );
 
-  const upsertEvents = useCallback(
-    (incoming: CalendarEvent[]) => {
-      const normalized = incoming
+  // Apply a patch map to the live state, cache, and outbox WITHOUT recording
+  // undo history — the shared primitive behind every event mutation and behind
+  // undo/redo themselves. A non-null value upserts (with a fresh updatedAt so the
+  // write wins last-write-wins, including when re-applied by undo); null deletes.
+  // Anon users still get the local mutation (enqueueMany no-ops without a user).
+  const applyEventMap = useCallback(
+    (map: PatchMap) => {
+      const next = { ...eventsRef.current };
+      const ops: OutboxOp[] = [];
+      for (const [id, value] of Object.entries(map)) {
+        if (value) {
+          next[id] = { ...value, updatedAt: Date.now() };
+          ops.push({ kind: "eventUpsert", id });
+        } else if (next[id]) {
+          delete next[id];
+          ops.push({ kind: "eventDelete", id });
+        }
+      }
+      eventsRef.current = next;
+      setEventsState(next);
+      persistEvents(next);
+      enqueueMany(ops);
+    },
+    [enqueueMany, persistEvents]
+  );
+
+  const pushUndo = useCallback((before: PatchMap, after: PatchMap) => {
+    undoStackRef.current.push({ before, after });
+    if (undoStackRef.current.length > UNDO_LIMIT) undoStackRef.current.shift();
+    redoStackRef.current = []; // a fresh edit invalidates the redo branch
+  }, []);
+
+  // The single mutation primitive: upsert some events and delete others in one
+  // atomic step (one render, one flush, one undo entry). Normalizes upserts and
+  // ignores deletes of absent ids; an id in both upserts and removes is upserted.
+  const commitEvents = useCallback(
+    (upserts: CalendarEvent[], removes: string[]) => {
+      const normalized = upserts
         .map((event) => normalizeCalendarEvent({ ...event, updatedAt: Date.now() }))
         .filter((event): event is CalendarEvent => event != null);
-      if (!normalized.length) return;
-      const next = { ...eventsRef.current };
-      for (const event of normalized) next[event.id] = event;
-      eventsRef.current = next;
-      setEventsState(next);
-      persistEvents(next);
-      enqueueMany(normalized.map((event) => ({ kind: "eventUpsert", id: event.id })));
+      const upsertIds = new Set(normalized.map((event) => event.id));
+      const presentRemoves = removes.filter((id) => eventsRef.current[id] && !upsertIds.has(id));
+      if (!normalized.length && !presentRemoves.length) return;
+
+      const before: PatchMap = {};
+      const after: PatchMap = {};
+      for (const event of normalized) {
+        before[event.id] = eventsRef.current[event.id] ?? null;
+        after[event.id] = event;
+      }
+      for (const id of presentRemoves) {
+        before[id] = eventsRef.current[id] ?? null;
+        after[id] = null;
+      }
+      applyEventMap(after);
+      pushUndo(before, after);
     },
-    [enqueueMany, persistEvents]
+    [applyEventMap, pushUndo]
   );
 
-  const removeEvents = useCallback(
-    (ids: string[]) => {
-      const present = ids.filter((id) => eventsRef.current[id]);
-      if (!present.length) return;
-      const next = { ...eventsRef.current };
-      for (const id of present) delete next[id];
-      eventsRef.current = next;
-      setEventsState(next);
-      persistEvents(next);
-      enqueueMany(present.map((id) => ({ kind: "eventDelete", id })));
-    },
-    [enqueueMany, persistEvents]
-  );
+  const undo = useCallback(() => {
+    const patch = undoStackRef.current.pop();
+    if (!patch) return false;
+    applyEventMap(patch.before);
+    redoStackRef.current.push(patch);
+    return true;
+  }, [applyEventMap]);
 
-  return { status, pendingCount, docs, setDoc, events, upsertEvent, removeEvent, upsertEvents, removeEvents };
+  const redo = useCallback(() => {
+    const patch = redoStackRef.current.pop();
+    if (!patch) return false;
+    applyEventMap(patch.after);
+    undoStackRef.current.push(patch);
+    return true;
+  }, [applyEventMap]);
+
+  // The public mutations are thin wrappers over commitEvents, so each records one
+  // undo entry and the four share one optimistic/sync path.
+  const upsertEvent = useCallback((event: CalendarEvent) => commitEvents([event], []), [commitEvents]);
+  const removeEvent = useCallback((id: string) => commitEvents([], [id]), [commitEvents]);
+  const upsertEvents = useCallback(
+    (incoming: CalendarEvent[]) => commitEvents(incoming, []),
+    [commitEvents]
+  );
+  const removeEvents = useCallback((ids: string[]) => commitEvents([], ids), [commitEvents]);
+
+  return {
+    status,
+    pendingCount,
+    syncError,
+    docs,
+    setDoc,
+    events,
+    upsertEvent,
+    removeEvent,
+    upsertEvents,
+    removeEvents,
+    commitEvents,
+    undo,
+    redo,
+  };
 }

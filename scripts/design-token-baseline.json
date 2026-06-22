@@ -6522,6 +6522,22 @@
       "property": "border-radius",
       "value": "var(--r-xl) var(--r-xl) 0 0",
       "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.material-filter__search:focus-within|box-shadow|0 0 0 3px var(--accent-tint)|screen",
+      "kind": "declaration",
+      "selector": ".material-filter__search:focus-within",
+      "property": "box-shadow",
+      "value": "0 0 0 3px var(--accent-tint)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.printhead|padding|var(--s-5) 32px|screen",
+      "kind": "declaration",
+      "selector": ".printhead",
+      "property": "padding",
+      "value": "var(--s-5) 32px",
+      "context": "screen"
     }
   ]
 }

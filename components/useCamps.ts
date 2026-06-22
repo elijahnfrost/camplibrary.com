@@ -11,7 +11,15 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { CloudUserData } from "@/lib/cloudStore";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { createCampId, MAX_CAMP_NAME, type Camp } from "@/lib/camps";
+import {
+  createCampId,
+  DEFAULT_CLOSE_MIN,
+  DEFAULT_OPEN_MIN,
+  MAX_CAMP_NAME,
+  withCampClose,
+  withCampOpen,
+  type Camp,
+} from "@/lib/camps";
 import { useLocalStorage } from "@/lib/store";
 
 const activeCampStorage = (value: unknown, fallback: string | null): string | null =>
@@ -24,7 +32,7 @@ export function useCamps({
   cloud: CloudUserData;
   announce: (message: string) => void;
 }) {
-  const { docs, setDoc, events, upsertEvent, upsertEvents } = cloud;
+  const { docs, setDoc, events, upsertEvent, upsertEvents, commitEvents } = cloud;
   const camps = docs.camps;
 
   const campIds = useMemo(() => new Set(camps.map((c) => c.id)), [camps]);
@@ -69,7 +77,13 @@ export function useCamps({
     (name: string): Camp | null => {
       const trimmed = name.trim().slice(0, MAX_CAMP_NAME);
       if (!trimmed) return null;
-      const camp: Camp = { id: createCampId(), name: trimmed, createdAt: Date.now() };
+      const camp: Camp = {
+        id: createCampId(),
+        name: trimmed,
+        createdAt: Date.now(),
+        openMin: DEFAULT_OPEN_MIN,
+        closeMin: DEFAULT_CLOSE_MIN,
+      };
       const isFirst = camps.length === 0;
       setDoc("camps", (prev) => [...prev, camp]);
       setStoredActiveCampId(camp.id);
@@ -104,6 +118,20 @@ export function useCamps({
       const trimmed = name.trim().slice(0, MAX_CAMP_NAME);
       if (!trimmed) return;
       setDoc("camps", (prev) => prev.map((c) => (c.id === id ? { ...c, name: trimmed } : c)));
+    },
+    [setDoc]
+  );
+
+  // Adjust one camp's viewing hours. Open/close cross-clamp (moving open past
+  // close pushes close out, and vice versa) via the camp helpers; the calendar
+  // window follows the active camp's hours, so this repaints the grid.
+  const adjustCampHours = useCallback(
+    (id: string, field: "open" | "close", value: number) => {
+      setDoc("camps", (prev) =>
+        prev.map((c) =>
+          c.id === id ? (field === "open" ? withCampOpen(c, value) : withCampClose(c, value)) : c
+        )
+      );
     },
     [setDoc]
   );
@@ -165,6 +193,23 @@ export function useCamps({
     [activeCampId, events, upsertEvents]
   );
 
+  // The atomic upsert+delete counterpart (a scoped series edit regenerates some
+  // occurrences and removes others in one step). Stamps the active camp onto
+  // brand-new, unscoped upserts — same rule as the others — then commits as a
+  // single undo step.
+  const stampingCommitEvents = useCallback(
+    (upserts: CalendarEvent[], removes: string[]) => {
+      const stamped =
+        activeCampId
+          ? upserts.map((event) =>
+              !event.campId && !events[event.id] ? { ...event, campId: activeCampId } : event
+            )
+          : upserts;
+      commitEvents(stamped, removes);
+    },
+    [activeCampId, events, commitEvents]
+  );
+
   return {
     camps,
     activeCampId,
@@ -173,9 +218,11 @@ export function useCamps({
     createCamp,
     renameCamp,
     deleteCamp,
+    adjustCampHours,
     filterEvents,
     upsertEvent: stampingUpsertEvent,
     upsertEvents: stampingUpsertEvents,
+    commitEvents: stampingCommitEvents,
   };
 }
 

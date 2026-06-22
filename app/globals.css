@@ -943,6 +943,14 @@ body {
   width: 15px;
   height: 15px;
   color: var(--ink-faint);
+  /* The line icons (the calendar glyph + chevron) are stroke-drawn; without
+     this they fall back to a solid fill and read as a heavy blob. Matches the
+     per-context icon treatment used elsewhere (.icon-btn svg, .chip svg, …). */
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 /* The trailing chevron flips while the switcher is open, like the custom
    <select>, so the pill reads as a live dropdown rather than a static label. */
@@ -1098,17 +1106,47 @@ body {
   list-style: none;
 }
 .manager__row {
+  /* A card that stacks a main row (pick + rename/delete) over an optional hours
+     sub-row (camps carry per-camp viewing hours; themes don't). */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.manager__rowmain {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
   padding: 0 var(--s-2) 0 0;
-  background: var(--card);
 }
 .manager__row.is-active {
   border-color: var(--accent);
   background: var(--accent-tint);
+}
+/* Per-camp hours editor (Open – Close), sitting under the camp's main row. */
+.manager__rowhours {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  padding: 0 var(--s-4) var(--s-3);
+}
+.manager__hoursfield {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.manager__hourslabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.manager__hoursdash {
+  color: var(--ink-faint);
 }
 .manager__pick {
   display: flex;
@@ -1390,6 +1428,11 @@ body {
   background: color-mix(in srgb, var(--paper) 72%, #fff);
   color: var(--ink-faint);
 }
+/* Kit search had no focus affordance — match the rest of the inputs. */
+.material-filter__search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
 .material-filter__search svg {
   flex: none;
   width: 17px;
@@ -1404,7 +1447,8 @@ body {
   outline: 0;
   background: transparent;
   color: var(--ink);
-  font: 14px/1.2 var(--text);
+  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
+  font: 16px/1.2 var(--text);
 }
 .material-filter__search input::placeholder {
   color: var(--ink-faint);
@@ -1662,39 +1706,9 @@ body {
 .spine:active {
   filter: brightness(0.88);
 }
-/* Shelf wave: hovering anywhere on a rail sends a left→right ripple — each book
-   hops off the shelf, tips, then drops and squashes back into place. Staggered by
-   --i (set per spine in ShelfView). The spines hinge on the shelf line (bottom),
-   so the squash settles onto it. The directly-hovered book still darkens above. */
-.rail:hover .spine {
-  animation: book-jump 0.62s var(--ease) calc(var(--i, 0) * 55ms) both;
-  transform-origin: 50% 100%;
-}
-@keyframes book-jump {
-  0% {
-    transform: translateY(0) rotate(0) scaleY(1);
-  }
-  24% {
-    transform: translateY(-11px) rotate(-3.5deg) scaleY(1.02);
-  }
-  48% {
-    transform: translateY(0) rotate(0) scaleY(1);
-  }
-  62% {
-    transform: translateY(0) scaleY(0.9);
-  }
-  80% {
-    transform: translateY(0) scaleY(1.04);
-  }
-  100% {
-    transform: translateY(0) scaleY(1);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rail:hover .spine {
-    animation: none;
-  }
-}
+/* The rail-wide "book wave" (every spine hopping on hover) was removed — it read
+   as noisy on the shelf. The directly-hovered spine keeps its brightness feedback
+   (above), and the loved sidebar-logo book ripple is untouched. */
 .spine__title {
   position: relative;
   z-index: 1; /* always rides above the decorative mark, guaranteeing legibility */
@@ -2077,6 +2091,14 @@ body {
   border: 0;
   background: transparent;
   cursor: pointer;
+  /* A reliable, duration-independent save target on touch: no long-press text
+     selection or callout, no double-tap-zoom delay, and a transparent tap
+     highlight so a slow press can't read as selecting the card underneath. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .star:focus-visible {
   outline: 2px solid var(--accent);
@@ -2153,8 +2175,9 @@ body {
 /* Save delight — the ribbon "plants" itself: when a save toggles ON, the ribbon
    drops down from the top edge with a quick squash-and-settle (it's literally a
    flag hanging off the card, so it should flag down). The chip gives a softer
-   pop. The animation replays each time .is-on is (re)applied on toggle. */
-.star--ribbon.is-on .ribbon-svg {
+   pop. Keyed on the transient .is-justsaved class (set by SaveButton on toggle),
+   NOT .is-on, so a saved card mounting doesn't replay it. */
+.star--ribbon.is-justsaved .ribbon-svg {
   animation: ribbon-plant 0.42s var(--ease-overlay) both;
 }
 @keyframes ribbon-plant {
@@ -2171,7 +2194,7 @@ body {
     transform: none;
   }
 }
-.star--chip.is-on svg {
+.star--chip.is-justsaved svg {
   animation: chip-pop 0.34s var(--ease-overlay) both;
 }
 @keyframes chip-pop {
@@ -2186,8 +2209,8 @@ body {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .star--ribbon.is-on .ribbon-svg,
-  .star--chip.is-on svg {
+  .star--ribbon.is-justsaved .ribbon-svg,
+  .star--chip.is-justsaved svg {
     animation: none;
   }
 }
@@ -2358,7 +2381,9 @@ body {
    state above, instead of falling through to the washed-out 0.4 ghost fade, so
    the pair greys out consistently. */
 .printhead__btn:disabled,
-.printhead__btn:disabled:hover {
+.printhead__btn:disabled:hover,
+.printhead__btn[aria-disabled="true"],
+.printhead__btn[aria-disabled="true"]:hover {
   opacity: 1;
   background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
   border-color: var(--line);
@@ -4595,6 +4620,15 @@ body {
 .form__wide {
   grid-column: 1 / -1;
 }
+/* The age-section header carries the label on the left and the Grades⇄Ages
+   caption toggle on the right, on one line. */
+.form__agehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
 .form__runlist {
   min-width: 0;
 }
@@ -4859,8 +4893,9 @@ body {
   background: transparent;
   border: 0;
   outline: none;
-  font-family: var(--text);
-  font-size: 15px;
+  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused
+     (shorthand mirrors .material-filter__search input). */
+  font: 16px/1.2 var(--text);
   color: var(--ink);
 }
 .toolbar__search-input::placeholder {
@@ -5579,38 +5614,23 @@ body {
    page folds back down over the grid and the dates clear. The binder rings are
    the calendar's frame — they stay put (the old ring-hop was the gimmicky bit). */
 .cicon--cal {
-  perspective: 140px;
   overflow: visible;
-}
-.cicon--cal .cicon-cal__leaf {
-  transform-origin: 50% 0%; /* hinge along the header rule (top of the sheet) */
-  fill: currentColor;
-  fill-opacity: 0;
-  stroke: none;
-  transform: rotateX(0deg);
-  /* base = the page folding back down over the grid (the leave stage) */
-  transition: transform 0.46s var(--ease), fill-opacity 0.38s var(--ease);
 }
 .cicon--cal .cicon-cal__dots {
   fill: currentColor;
   stroke: none;
 }
-.cicon--cal .cicon-cal__dots circle {
-  transform-origin: 50% 50%;
-  transform: scale(0);
-  opacity: 0;
-  transition: transform 0.28s var(--ease), opacity 0.28s var(--ease);
+/* Calmed nav icon: the date dots sit at rest (a calendar always has its dates),
+   and the hover is ONE gentle settle of the whole glyph — no page fold-up, no
+   staggered dot cascade (the old "wiggle"). Matches the print icon's settle. */
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal {
+  animation: cicon-settle 0.3s var(--ease);
 }
-:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__leaf {
-  transform: rotateX(104deg); /* folds up over the header and holds */
-  fill-opacity: 0.22;
-}
-:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__dots circle {
-  transform: scale(1);
-  opacity: 1;
-  /* dates settle in row by row behind the folded page — clean, no pop */
-  transition: transform 0.28s var(--ease) calc(0.16s + var(--i) * 45ms),
-    opacity 0.28s var(--ease) calc(0.16s + var(--i) * 45ms);
+/* A tiny one-shot boop — up a hair and back. Shared by the calmed nav icons. */
+@keyframes cicon-settle {
+  50% {
+    transform: translateY(-1.8px);
+  }
 }
 
 /* --- Shelf: the spines jostle and settle, left→right ---------------------- */
@@ -5855,50 +5875,15 @@ body {
   }
 }
 
-/* --- Print: a sheet feeds out of the slot and HOLDS, text written on it ------
-   A two-state hover, mirroring the book (cover opens → lines write in) and the
-   calendar (page flips → dates settle). REST: a clean printer, no sheet out.
-   HOVER: the printed page slides down out of the slot and HOLDS, then the two
-   text lines are written onto it top→down and stay. LEAVE: the page draws back
-   into the printer and the text clears. The top document dips as it feeds. */
+/* --- Print: a plain printer with ONE tiny settle on hover --------------------
+   Deliberately basic — the earlier sheet-feed / line-draw choreography was
+   rejected. No part-level animation; the whole glyph just boops (shared with the
+   calmed calendar icon). */
 .cicon--print {
   overflow: visible;
 }
-.cicon--print .cicon-print__sheet {
-  transform-origin: 50% 0%; /* the slot — the page grows down from its top edge */
-  transform: scaleY(0); /* tucked inside the printer at rest */
-  opacity: 0; /* fully hidden at rest so no paper edge peeks below the slot */
-  transition: transform 0.4s var(--ease), opacity 0.18s var(--ease); /* base = drawing back in */
-}
-.cicon--print .cicon-print__text {
-  transform-origin: 0% 50%; /* each line is written from the left margin */
-  transform: scaleX(0);
-  opacity: 0;
-  transition: transform 0.26s var(--ease), opacity 0.26s var(--ease);
-}
-.cicon--print .cicon-print__feed {
-  transform-origin: 50% 0%;
-  transition: transform 0.4s var(--ease);
-}
-:where(button, a, summary, label, [role="button"], .viewswitch button):hover
-  .cicon--print
-  .cicon-print__sheet {
-  transform: scaleY(1); /* feeds out and holds */
-  opacity: 1;
-  transition: transform 0.44s var(--ease), opacity 0.16s var(--ease);
-}
-:where(button, a, summary, label, [role="button"], .viewswitch button):hover
-  .cicon--print
-  .cicon-print__text {
-  transform: scaleX(1);
-  opacity: 1;
-  /* written line by line, once the page is most of the way out */
-  transition-delay: calc(0.22s + var(--i) * 0.12s);
-}
-:where(button, a, summary, label, [role="button"], .viewswitch button):hover
-  .cicon--print
-  .cicon-print__feed {
-  transform: translateY(0.8px); /* the document feeds in a touch */
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--print {
+  animation: cicon-settle 0.3s var(--ease);
 }
 
 /* --- Export: the arrow drops out with a small bounce — "download" ----------- */
@@ -5941,26 +5926,9 @@ body {
     transform: scaleX(0) !important;
     opacity: 0 !important;
   }
-  .cicon--cal .cicon-cal__leaf {
-    transform: rotateX(0deg) !important;
-    fill-opacity: 0 !important;
-  }
-  .cicon--cal .cicon-cal__dots circle {
-    transform: scale(0) !important;
-    opacity: 0 !important;
-  }
-  /* Printer holds its rest pose: no sheet out, no text written. */
-  .cicon--print .cicon-print__sheet {
-    transform: scaleY(0) !important;
-    opacity: 0 !important;
-  }
-  .cicon--print .cicon-print__text {
-    transform: scaleX(0) !important;
-    opacity: 0 !important;
-  }
-  .cicon--print .cicon-print__feed {
-    transform: none !important;
-  }
+  /* The calendar + print icons now just settle (one boop), already suppressed by
+     the blanket `.cicon { animation: none }` above — and their dots/printer are
+     static at rest, so no extra pose overrides are needed. */
 }
 
 .sidenav__brand-copy {
@@ -7391,6 +7359,7 @@ button.rl-node {
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-height: var(--tap); /* a comfortable 44px touch target between rows */
   justify-content: center;
   cursor: pointer;
   background: transparent;
@@ -8115,7 +8084,11 @@ button.rl-node {
 .floating-root {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  /* Top of the stack: the portaled menus (custom Select, DatePopover, the
+     right-click ContextMenu) must clear the diagram-edit modal (215) and the
+     lightbox (210), or a piece menu opened inside the diagram editor renders
+     BEHIND the modal. Above present mode (200) too — a menu is always clickable. */
+  z-index: 220;
 }
 .floating__scrim {
   position: absolute;
@@ -8318,6 +8291,63 @@ button.rl-node {
   padding: var(--s-4);
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
+
+/* ---------- per-item color picker (ColorField) ---------- */
+.ccolor__trigger .ccolor__swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.ccolor__pop {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 224px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.ccolor__swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--s-2);
+}
+.ccolor__chip {
+  aspect-ratio: 1;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  padding: 0;
+  cursor: pointer;
+}
+.ccolor__chip.is-on {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.ccolor__picker.react-colorful {
+  width: 100%;
+  height: 132px;
+}
+.ccolor__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.ccolor__hash {
+  color: var(--ink-faint);
+}
+.ccolor__hex {
+  flex: 1;
+  min-width: 0;
+}
+.ccolor__reset {
+  flex: none;
+}
 .cdate__head {
   display: flex;
   align-items: center;
@@ -8437,6 +8467,13 @@ button.rl-node {
   gap: var(--s-4);
   flex-wrap: wrap;
   padding: var(--s-5) var(--page-x);
+}
+/* Match the calendar header's desktop horizontal padding so the two tab headers
+   line up (.calhead gets 32px at >=768; .printhead lacked the override → 14px off). */
+@media (min-width: 768px) {
+  .printhead {
+    padding: var(--s-5) 32px;
+  }
 }
 .printhead__heading {
   display: flex;
@@ -8654,6 +8691,60 @@ button.rl-node {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-soft);
+}
+/* Microcopy under a group header (e.g. Appendix's "added after the schedule"). */
+.prail__grouphint {
+  margin: 0 0 var(--s-4);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+/* Individual run-sheet picker: a label, the picked chips, then a kit-style search
+   with a small results list to add from. */
+.prail__runsheets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+}
+.prail__rschips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.prail__rsresults {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--s-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.prail__rsresult {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__rsresult:hover {
+  background: var(--paper);
+}
+.prail__rsresult svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-faint);
 }
 /* Drop the trailing dashed rule on each group's last ledger control. */
 .prail .ledger > :last-child {
@@ -9229,6 +9320,21 @@ button.rl-node {
 .pd-playbook .playbook__editcue {
   display: none !important;
 }
+/* CTF / multi-frame diagrams in a run sheet lay out 2-up, and each frame (plus
+   the intro + legend) stays whole when a page breaks — mirrors .print-playbook
+   (ActivityBookPrint) but for the Print tab's pd- sheets, and applied on screen
+   too so the WYSIWYG preview matches the printout. The field is deliberately NOT
+   height-capped here: the old 2.2in clamp cut tall diagrams. Pagination keeps
+   frames intact via break-inside instead of by shrinking them. */
+.pd-playbook .playbook__frames {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.12in;
+}
+.pd-playbook .playbook-frame,
+.pd-playbook .playbook__intro,
+.pd-playbook .playbook__legend {
+  break-inside: avoid;
+}
 
 /* ---- Plain formatting: strip the script/hand decoration to a text-first sheet ---- */
 .print-doc--plain .pd-cover__title,
@@ -9280,6 +9386,8 @@ button.rl-node {
   .pd-step,
   .pd-child,
   .pd-rollup,
+  .pd-facts--grid,
+  .pd-playbook .playbook-frame,
   .pd-runsheet__head {
     break-inside: avoid;
   }
@@ -9297,10 +9405,6 @@ button.rl-node {
   }
   .pd-runsheet:has(.pd-playbook) {
     break-inside: auto;
-  }
-  .pd-playbook .playbook-field {
-    min-height: 0;
-    max-height: 2.2in;
   }
 }
 

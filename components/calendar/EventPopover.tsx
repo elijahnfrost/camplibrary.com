@@ -5,7 +5,7 @@ import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import { summarizeRecurrence } from "@/lib/calendar/recurrence";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { categoryTint } from "@/lib/data";
+import { effectiveEventColor } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
@@ -90,7 +90,11 @@ export function EventPopover({
         tabIndex={-1}
       >
         <div className="cal-popover__head">
-          <span className="cal-popover__dot" style={{ background: categoryTint(activity?.type) }} aria-hidden="true" />
+          <span
+            className="cal-popover__dot"
+            style={{ background: effectiveEventColor(event, activity ?? undefined) }}
+            aria-hidden="true"
+          />
           <div className="cal-popover__heading">
             <h3 className="cal-popover__title">{title}</h3>
             <p className="cal-popover__when">

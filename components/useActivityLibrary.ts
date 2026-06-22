@@ -15,6 +15,7 @@ import {
   resolveRunDoc as resolveRunDocFor,
 } from "@/lib/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
+import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";
 
 export function useActivityLibrary({
@@ -26,7 +27,7 @@ export function useActivityLibrary({
   requireStaff: (action: string) => boolean;
   announce: (message: string) => void;
 }) {
-  const { docs, setDoc } = cloud;
+  const { docs, setDoc, events, commitEvents } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view } = docs;
   const availableMaterials = docs.availableMaterials;
   const { themes, themeAssignments } = docs;
@@ -240,13 +241,32 @@ export function useActivityLibrary({
     [announce, requireStaff, resolveRunDoc, setDoc]
   );
 
-  // Calendar events referencing a deleted activity self-heal on read
-  // (lib/calendar/adapter), so no calendar scrub is needed here.
+  // Calendar events referencing a deleted activity self-heal on READ
+  // (lib/calendar/adapter) for display, but the stored rows keep the dangling
+  // activityId — so the server-rendered .ics run-sheet links 404 and Print can
+  // diverge. Persist the heal here: rewrite every referencing event to a plain
+  // custom event (denormalized title kept) in one batch so the DB, the .ics
+  // feed, and Print all converge on reality.
   const deleteActivity = useCallback(
     (activity: Activity): boolean => {
       if (!requireStaff("delete activities")) return false;
       if (!window.confirm("Delete “" + activity.title + "”? Calendar events using it become plain events.")) {
         return false;
+      }
+      const orphaned = Object.values(events).filter((event) => event.activityId === activity.id);
+      if (orphaned.length) {
+        commitEvents(
+          orphaned.map((event) => {
+            const healed: CalendarEvent = {
+              ...event,
+              kind: "custom",
+              title: event.title || activity.title,
+            };
+            delete healed.activityId;
+            return healed;
+          }),
+          []
+        );
       }
       setDoc("extra", (p) => p.filter((x) => x.id !== activity.id));
       setDoc("favs", (p) => p.filter((id) => id !== activity.id));
@@ -277,7 +297,7 @@ export function useActivityLibrary({
       announce("Deleted " + activity.title);
       return true;
     },
-    [announce, requireStaff, setDoc]
+    [announce, commitEvents, events, requireStaff, setDoc]
   );
 
   return {
