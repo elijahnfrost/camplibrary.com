@@ -1,5 +1,5 @@
 import type { Activity, AgeGroupId, CategoryId } from "./types";
-import { hasRequiredMaterials } from "./materials";
+import { usesAnyMaterialTag } from "./materials";
 
 export type CatFilter = "All" | CategoryId;
 export type PlaceFilter = "All" | "Inside" | "Outside";
@@ -31,7 +31,7 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.theme && filters.theme !== "All" && (filters.themeAssignments?.[a.id] ?? "") !== filters.theme) {
     return false;
   }
-  if (!hasRequiredMaterials(a, filters.availableMaterialTags || [])) return false;
+  if (!usesAnyMaterialTag(a, filters.availableMaterialTags || [])) return false;
 
   const q = filters.query.trim().toLowerCase();
   if (!q) return true;

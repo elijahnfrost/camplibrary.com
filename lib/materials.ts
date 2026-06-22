@@ -42,8 +42,17 @@ function rawMaterialTags(activity: Activity): string[] {
   return materialTags.length ? materialTags : stringTags(activity.materials);
 }
 
+// "No materials", "No materials needed", "None" — sentinel labels that mean the
+// activity needs nothing. They must never read as a real kit item, so they're
+// kept out of the picker and out of the set a kit filter matches against.
+function isNoMaterialsId(id: string): boolean {
+  return id === "none" || id.startsWith("no-material");
+}
+
+// The kit an activity genuinely needs. Sentinel "No materials" tags are dropped
+// so a no-kit song counts as needing nothing (and never matches a kit filter).
 export function requiredMaterialTagIds(activity: Activity): string[] {
-  return unique(rawMaterialTags(activity).map(materialTagId).filter(Boolean));
+  return unique(rawMaterialTags(activity).map(materialTagId).filter((id) => Boolean(id) && !isNoMaterialsId(id)));
 }
 
 export interface MaterialNeed {
@@ -74,7 +83,7 @@ export function materialOptionsForActivities(activities: Activity[]): MaterialOp
     const activityIds = new Set<string>();
     rawMaterialTags(activity).forEach((raw) => {
       const id = materialTagId(raw);
-      if (!id) return;
+      if (!id || isNoMaterialsId(id)) return;
       if (!labels.has(id)) labels.set(id, compact(raw));
       activityIds.add(id);
     });
@@ -86,8 +95,12 @@ export function materialOptionsForActivities(activities: Activity[]): MaterialOp
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export function hasRequiredMaterials(activity: Activity, availableMaterialTagIds: string[]): boolean {
-  if (!availableMaterialTagIds.length) return true;
-  const available = new Set(availableMaterialTagIds);
-  return requiredMaterialTagIds(activity).every((id) => available.has(id));
+// The library "Available kit" filter is an OR across the picked items: an
+// activity matches when it uses ANY selected material, so ticking "Balloons"
+// surfaces every balloon activity — mirroring each item's count badge and the
+// Type/Where/Ages/Themes filters. No selection means no filtering.
+export function usesAnyMaterialTag(activity: Activity, selectedMaterialTagIds: string[]): boolean {
+  if (!selectedMaterialTagIds.length) return true;
+  const selected = new Set(selectedMaterialTagIds);
+  return requiredMaterialTagIds(activity).some((id) => selected.has(id));
 }
