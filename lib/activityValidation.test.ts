@@ -94,4 +94,44 @@ describe("activity validation", () => {
 
     expect(normalizeActivities({ bad: "payload" }, fallback)).toBe(fallback);
   });
+
+  it("re-attaches media, links, variations, and subsets through the rebuild", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      media: [
+        { title: "  Demo  ", url: "  https://youtube.com/results?search_query=x " },
+        { url: "https://example.com/tut" },
+        { title: "no url" },
+        "junk",
+      ],
+      links: [{ label: " Source ", url: "https://example.com" }, { url: "https://x.test" }, {}],
+      variations: ["  Bigger groups  ", "", 7, "Older kids"],
+      subsets: [["  warm up  ", ""], [], "nope", ["finish"]],
+    });
+
+    expect(normalized?.media).toEqual([
+      { title: "Demo", url: "https://youtube.com/results?search_query=x" },
+      { url: "https://example.com/tut" },
+    ]);
+    expect(normalized?.links).toEqual([
+      { label: "Source", url: "https://example.com" },
+      { url: "https://x.test" },
+    ]);
+    expect(normalized?.variations).toEqual(["Bigger groups", "Older kids"]);
+    expect(normalized?.subsets).toEqual([["warm up"], [], [], ["finish"]]);
+  });
+
+  it("drops empty media/links/variations/subsets to keep the fields absent", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      media: [{ title: "no url" }],
+      links: "nope",
+      variations: ["", "  "],
+      subsets: [[], [""]],
+    });
+    expect(normalized?.media).toBeUndefined();
+    expect(normalized?.links).toBeUndefined();
+    expect(normalized?.variations).toBeUndefined();
+    expect(normalized?.subsets).toBeUndefined();
+  });
 });

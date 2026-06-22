@@ -261,9 +261,26 @@ export function buildRunDoc(activity: Activity, playbook: ActivityPlaybookData |
 
   if (activity.steps.length || playbook) blocks.push(playHeadingBlock(activity));
 
-  // Detail that belongs to "setting up" the activity.
+  // Detail that belongs to "setting up" the activity: the field diagram, then
+  // any demo videos / tutorials / reference links so a counselor previews them
+  // while prepping. Media + links both render as "Media" details (inline player
+  // for YouTube/Vimeo, link card otherwise).
   const setupKids: RunChild[] = [];
   if (playbook) setupKids.push({ id: base + "-diagram", type: "diagram", diagram: playbook });
+  (activity.media || []).forEach((item, i) => {
+    setupKids.push({ id: base + "-media" + i, type: "video", title: item.title || "", url: item.url });
+  });
+  (activity.links || []).forEach((item, i) => {
+    setupKids.push({ id: base + "-link" + i, type: "video", title: item.label || "", url: item.url });
+  });
+
+  // Sub-steps ride under their step, aligned by index to `steps`.
+  const subStepsFor = (i: number): RunChild[] =>
+    (activity.subsets?.[i] || []).map((text, j) => ({
+      id: base + "-s" + i + "-sub" + j,
+      type: "substep",
+      text,
+    }));
 
   if (activity.steps.length) {
     activity.steps.forEach((text, i) => {
@@ -272,7 +289,7 @@ export function buildRunDoc(activity: Activity, playbook: ActivityPlaybookData |
         type: "step",
         text,
         collapsed: false,
-        children: i === 0 ? setupKids : [],
+        children: i === 0 ? [...setupKids, ...subStepsFor(i)] : subStepsFor(i),
       });
     });
   } else if (setupKids.length) {
@@ -290,6 +307,15 @@ export function buildRunDoc(activity: Activity, playbook: ActivityPlaybookData |
   }
   if (safety) {
     blocks.push({ id: base + "-safety", type: "safety", text: safety, children: [] });
+  }
+
+  // Alternate rules / scalings close out the sheet as their own section.
+  const variations = (activity.variations || []).map((text) => text.trim()).filter(Boolean);
+  if (variations.length) {
+    blocks.push({ id: base + "-h-vary", type: "heading", text: "Variations", children: [] });
+    variations.forEach((text, i) => {
+      blocks.push({ id: base + "-vary" + i, type: "variation", text, children: [] });
+    });
   }
 
   return { blocks };
