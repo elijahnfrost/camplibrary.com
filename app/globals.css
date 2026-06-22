@@ -8524,8 +8524,11 @@ button.rl-node {
 .printhead__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--s-3);
   margin-left: auto;
+  max-width: 100%;
 }
 .printhead__btn {
   height: var(--control-md);
@@ -8567,6 +8570,14 @@ button.rl-node {
 }
 @media (min-width: 768px) {
   .printhead__options {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .printhead__btn {
+    padding-inline: 12px;
+  }
+  .printhead__docbtn span {
     display: none;
   }
 }
