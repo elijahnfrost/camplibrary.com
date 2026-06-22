@@ -21,6 +21,9 @@ import * as store from "./store";
 loadEnv();
 
 const COLOR = z.enum(["teal", "clay", "amber", "sage", "dusk", "ink"]);
+const CATEGORY = z.enum(["Game", "Craft", "Song", "Water", "Quiet"]);
+const PLACE = z.enum(["Inside", "Outside", "Both"]);
+const AGE = z.enum(["pre", "g13", "g46", "g79", "g1012"]);
 const SHAPE = z.enum(["circle", "square", "triangle", "diamond", "flag", "pin", "text"]);
 const ZONE_KIND = z.enum(["safe", "jail", "area"]);
 const ARROW_TEAM = z.enum(["blue", "red", "neutral"]);
@@ -128,6 +131,30 @@ server.registerTool(
 );
 
 server.registerTool(
+  "search_activities",
+  {
+    title: "Search the activity library",
+    description:
+      "Find activities anywhere in the catalog (built-in library + your custom books) so you can reference a real activityId before placing or editing it. Fuzzy-matches the query against title, alternate names, type, blurb, and materials, and returns the best matches ranked by relevance with their id, title, type, source, effective color, ages, duration, and any theme. Optional facet filters narrow the field; with no query it just lists the (filtered) catalog by title. Prefer this over list_context for finding a specific activity — list_context dumps all 200+.",
+    inputSchema: {
+      query: z.string().optional().describe("free text, e.g. 'octopus tag' or 'tie dye'; matches title/alt-names/blurb/materials/type"),
+      type: CATEGORY.optional().describe("only this category"),
+      place: PLACE.optional().describe("only Inside/Outside/Both"),
+      age: AGE.optional().describe("only activities that include this age band"),
+      hasColorOverride: z.boolean().optional().describe("true = only activities with a custom color; false = only those inheriting the category tint"),
+      limit: z.number().int().min(1).max(100).optional().describe("max results (default 20)"),
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.searchActivities(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
   "list_events",
   {
     title: "List calendar events",
@@ -224,6 +251,51 @@ server.registerTool(
   async ({ ids }) => {
     try {
       return text(await store.deleteEvents(ids));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "recolor_events",
+  {
+    title: "Recolor events",
+    description:
+      "Set or clear the per-event color OVERRIDE on a batch of events (the calendar's recolor action). Choose targets by explicit `ids`, OR by `activityId` (every placement of that activity), optionally narrowed to a from/to date range. `color:null` clears the override so events fall back to the activity/category tint. To recolor every placement of an activity going forward, prefer set_activity_color (changes the activity's default); use this to override specific placements. Returns how many were recolored.",
+    inputSchema: {
+      ids: z.array(z.string().uuid()).optional().describe("explicit event ids; takes precedence over activityId"),
+      activityId: z.string().optional().describe("recolor every event linked to this activity"),
+      from: DATE.optional().describe("with activityId: only occurrences on/after this date"),
+      to: DATE.optional().describe("with activityId: only occurrences on/before this date"),
+      color: HEX.nullable().describe("hex like #3f6b45, or null to clear the override"),
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.recolorEvents(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "duplicate_event",
+  {
+    title: "Duplicate an event",
+    description:
+      "Clone one event into a standalone copy (the calendar's Duplicate action). The copy gets a new id and is detached from any series. By default it lands on the same date/time; pass `date` and/or `startMin` (minutes from midnight, 15-min grid) to drop it elsewhere — endMin follows the original's duration unless given. Returns the new event.",
+    inputSchema: {
+      id: z.string().uuid().describe("the event to duplicate"),
+      date: DATE.optional(),
+      startMin: z.number().int().min(0).max(1440).optional(),
+      endMin: z.number().int().min(0).max(1440).optional(),
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.duplicateEvent(args));
     } catch (err) {
       return fail(err);
     }
@@ -407,21 +479,131 @@ server.registerTool(
         .array(z.string())
         .optional()
         .describe("Alternate names this game is known by (searchable); e.g. ['Octopus','Fishes and Sharks']"),
-      type: z.enum(["Game", "Craft", "Song", "Water", "Quiet"]).optional(),
-      place: z.enum(["Inside", "Outside", "Both"]).optional(),
+      type: CATEGORY.optional(),
+      place: PLACE.optional(),
       durationMin: z.number().int().positive().optional(),
-      ages: z.array(z.enum(["pre", "g13", "g46", "g79", "g1012"])).optional(),
+      ages: z.array(AGE).optional(),
       blurb: z.string().optional(),
       steps: z.array(z.string()).optional(),
       notes: z.string().optional(),
       safety: z.string().optional(),
       materials: z.array(z.string()).optional(),
       prep: z.enum(["None", "Low", "Medium", "High"]).optional(),
+      color: HEX.optional().describe("default tint for this activity (hex); omit = inherit the category tint. Use set_activity_color to change/clear later."),
     },
   },
   async (args) => {
     try {
       return text(await store.addCustomActivity(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "set_activity_color",
+  {
+    title: "Set a library activity's color",
+    description:
+      "Change a library activity's DEFAULT color — the tint it shows in the catalog and the seed color when placed on the calendar. Works on built-in books too (the record is promoted to your library, shadowing the seed, exactly like the in-app editor). `color:null` resets it to the category tint. This changes the activity's default everywhere; to override the color of one placement only, use recolor_events. Returns the saved activity.",
+    inputSchema: {
+      activityId: z.string().describe("from search_activities / list_context"),
+      color: HEX.nullable().describe("hex like #3f6b45, or null to reset to the category tint"),
+    },
+  },
+  async ({ activityId, color }) => {
+    try {
+      return text(await store.setActivityColor(activityId, color ?? null));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "edit_camp",
+  {
+    title: "Edit a camp",
+    description:
+      "Rename a camp and/or move its viewing hours (drop-off → pickup), mirroring the calendar's “Manage camps…” editor. Hours are minutes from midnight, snapped to the 15-minute grid inside 6:00am–8:00pm with open kept before close. Pass only the fields you want to change. Returns the updated camp.",
+    inputSchema: {
+      id: z.string().describe("campId from list_context"),
+      name: z.string().min(1).max(60).optional(),
+      openMin: z.number().int().min(0).max(1440).optional().describe("drop-off, e.g. 450 = 7:30am"),
+      closeMin: z.number().int().min(0).max(1440).optional().describe("pickup, e.g. 1080 = 6:00pm"),
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.editCamp(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "delete_camp",
+  {
+    title: "Delete a camp",
+    description:
+      "Remove a camp (idempotent). Its events are NOT deleted — they keep their campId and fall back to unscoped, so they stay on the calendar, exactly like the app.",
+    inputSchema: { id: z.string() },
+  },
+  async ({ id }) => {
+    try {
+      return text(await store.deleteCamp(id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "edit_theme",
+  {
+    title: "Rename a theme",
+    description: "Rename a theme tag. Its tint is fixed (palette-assigned at creation). Returns the updated theme.",
+    inputSchema: { id: z.string(), label: z.string().min(1).max(40) },
+  },
+  async ({ id, label }) => {
+    try {
+      return text(await store.editTheme(id, label));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "delete_theme",
+  {
+    title: "Delete a theme",
+    description:
+      "Delete a theme tag and remove it from every activity it was assigned to (idempotent). Returns how many assignments were purged.",
+    inputSchema: { id: z.string() },
+  },
+  async ({ id }) => {
+    try {
+      return text(await store.deleteTheme(id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "unassign_theme",
+  {
+    title: "Remove an activity's theme",
+    description: "Clear the theme tag on one activity (the theme itself stays). Idempotent.",
+    inputSchema: { activityId: z.string() },
+  },
+  async ({ activityId }) => {
+    try {
+      await store.unassignTheme(activityId);
+      return text({ ok: true, activityId });
     } catch (err) {
       return fail(err);
     }
