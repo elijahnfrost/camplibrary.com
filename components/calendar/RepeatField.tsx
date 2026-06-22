@@ -129,74 +129,73 @@ export function RepeatField({
     onChange({ ...value, until: next < startDate ? startDate : next });
   }
 
+  // The repeat controls are ledger rows like every other event setting — the
+  // parent (.quickadd__settings / .quickadd__slotrepeat) supplies the .ledger
+  // frame, so a label sits left and a compact control right. Detail rows
+  // (weekday toggles, anchor, end date) and the plain-language summary appear
+  // only once a repeat is switched on.
   return (
-    <div className="repeatfield">
-      <div className="repeatfield__row">
-        <div className="field repeatfield__preset">
-          <label className="field__label" htmlFor="quickadd-repeat">
-            Repeat
-          </label>
-          <Select
-            id="quickadd-repeat"
-            value={preset}
-            options={presetOptions}
-            onChange={choosePreset}
-            ariaLabel="Repeat"
-          />
-        </div>
-        {value && (
-          <div className="field repeatfield__until">
-            <label className="field__label" htmlFor="quickadd-repeat-until">
-              Ends
-            </label>
-            <DatePopover
-              id="quickadd-repeat-until"
-              value={until}
-              onChange={setUntil}
-              ariaLabel="Repeat end date"
-            />
-          </div>
-        )}
+    <>
+      <div className="ledger__row">
+        <span className="ledger__label">Repeat</span>
+        <Select
+          id="quickadd-repeat"
+          value={preset}
+          options={presetOptions}
+          onChange={choosePreset}
+          ariaLabel="Repeat"
+        />
       </div>
 
       {value?.freq === "weekly" && (
-        <div className="repeatfield__days" role="group" aria-label="Repeat on">
-          {DAY_LETTERS.map((letter, day) => {
-            const on = weekdays.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                className={"repeatfield__day" + (on ? " is-on" : "")}
-                aria-pressed={on}
-                aria-label={DAY_NAMES[day]}
-                onClick={() => toggleWeekday(day)}
-              >
-                {letter}
-              </button>
-            );
-          })}
+        <div className="ledger__row">
+          <span className="ledger__label">On</span>
+          <div className="repeatfield__days" role="group" aria-label="Repeat on">
+            {DAY_LETTERS.map((letter, day) => {
+              const on = weekdays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={"repeatfield__day" + (on ? " is-on" : "")}
+                  aria-pressed={on}
+                  aria-label={DAY_NAMES[day]}
+                  onClick={() => toggleWeekday(day)}
+                >
+                  {letter}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {(value?.freq === "monthly" || value?.freq === "yearly") && (
-        <div className="repeatfield__row">
-          <div className="field repeatfield__anchor">
-            <label className="field__label" htmlFor="quickadd-repeat-anchor">
-              Repeat on
-            </label>
-            <Select
-              id="quickadd-repeat-anchor"
-              value={anchorMode}
-              options={anchorOptions}
-              onChange={chooseAnchor}
-              ariaLabel="Repeat on"
-            />
-          </div>
+        <div className="ledger__row">
+          <span className="ledger__label">Repeat on</span>
+          <Select
+            id="quickadd-repeat-anchor"
+            value={anchorMode}
+            options={anchorOptions}
+            onChange={chooseAnchor}
+            ariaLabel="Repeat on"
+          />
+        </div>
+      )}
+
+      {value && (
+        <div className="ledger__row">
+          <span className="ledger__label">Ends</span>
+          <DatePopover
+            id="quickadd-repeat-until"
+            value={until}
+            onChange={setUntil}
+            ariaLabel="Repeat end date"
+          />
         </div>
       )}
 
       {value && <p className="repeatfield__summary">{summarizeRecurrence({ ...value, until })}</p>}
-    </div>
+    </>
   );
 }

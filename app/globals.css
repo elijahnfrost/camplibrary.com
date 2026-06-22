@@ -8357,6 +8357,19 @@ button.rl-node {
 .ccolor__reset {
   flex: none;
 }
+
+/* ---------- per-event location field (LocationField) ----------
+   A plain inline text box (NOT a popover) — the staff type where the block
+   happens right in the schedule row. Locations already used elsewhere ride in a
+   native <datalist>, so the browser offers them as autocomplete with no custom
+   pane. Row sizing (compact height/padding) comes from .quickadd__settings. */
+.cloc {
+  position: relative;
+  width: 100%;
+}
+.cloc__input {
+  width: 100%;
+}
 .cdate__head {
   display: flex;
   align-items: center;

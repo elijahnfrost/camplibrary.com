@@ -483,6 +483,14 @@
   background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
   transition: box-shadow var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
+/* A hair of breathing room between vertically-stacked cards. FC fills each event
+   to its time-slot harness (bottom:0), so back-to-back events touch and read as
+   one continuous wall. Trim a few px off the bottom so each card floats as its
+   own paper block. Bottom-only keeps the card's TOP pinned to its real start
+   time; the tiny end trim is imperceptible against the time label. */
+.calshell .fc-timegrid-event-harness > .fc-timegrid-event {
+  bottom: 3px;
+}
 /* Event cards had zero hover feedback (--e1 resolves to none in this flat,
    shadow-free palette). Borrow the library deck-card's lift so the calendar
    matches its tactility — a small rise (and a press nudge), no shadow. */
@@ -491,6 +499,17 @@
 }
 .calshell .fc-timegrid-event:active {
   transform: translate(0, -1px);
+}
+/* …but NOT while a gesture is in flight. Drawing a new event (a date-select,
+   which mounts an .fc-highlight) or moving/resizing one sweeps the pointer
+   across whatever events sit under its path — and each would otherwise lift as
+   if hovered, so they pop up and down behind the gesture. Only a real, idle
+   hover should lift a card; suppress the lift whenever a create-selection or a
+   move/resize drag is active. */
+.calshell .fc:has(.fc-highlight) .fc-timegrid-event:hover,
+body.is-cal-dragging .calshell .fc-timegrid-event:hover,
+body.is-cal-resizing .calshell .fc-timegrid-event:hover {
+  transform: none;
 }
 /* Activity vs custom: an activity keeps the SOLID category spine; a custom event
    (lunch, assembly, free play) wears a HATCHED spine — a diagonal weave in the
@@ -508,6 +527,12 @@
   background-repeat: no-repeat;
   background-size: 3px 100%;
   background-position: left center;
+  /* Paint the hatch from the BORDER box, not the padding box. The 3px
+     transparent left border would otherwise push the stripe 3px inward, so a
+     custom card's spine sat detached from the column edge while an activity's
+     solid border-left sits flush against it. Border-box origin lands the hatch
+     exactly where the solid spine is — both flush, both 3px. */
+  background-origin: border-box;
 }
 .calshell .fc-event.fc-event-dragging,
 .calshell .fc-event.fc-event-resizing {
@@ -565,6 +590,23 @@ body.is-cal-dragging .calshell .fc-event-mirror * {
   border-left: 3px solid var(--cal-tint, var(--accent));
   background: color-mix(in srgb, var(--cal-tint, var(--card)) 20%, var(--card));
   box-shadow: var(--e4);
+}
+/* The card in your hand must read as the SAME card you grabbed — so a custom
+   event's hatched spine has to ride along, not collapse to the solid activity
+   spine. CalendarShell mirrors the dragged event's .cal-event--custom class
+   onto the follower; match the event-card hatch recipe here (flush, border-box
+   origin) so the carried card keeps its texture. */
+.cal-dragfollow.cal-event--custom {
+  border-left-color: transparent;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--cal-tint, var(--accent)) 0 2px,
+    color-mix(in srgb, var(--cal-tint, var(--accent)) 34%, var(--card)) 2px 4.2px
+  );
+  background-repeat: no-repeat;
+  background-size: 3px 100%;
+  background-position: left center;
+  background-origin: border-box;
 }
 
 /* Grabbing cursor across the document for the whole move/resize (FullCalendar's
@@ -667,6 +709,35 @@ body.is-cal-copy .cal-dragfollow::after {
   font-family: var(--hand-sc);
   font-size: var(--fs-meta);
   color: var(--ink-soft);
+}
+/* Where the block happens — a pin + place under the time. Only present when the
+   event carries a location; a short block clips it (the card is a size
+   container), so it never crowds tiny blocks. */
+.cal-card__loc {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.cal-card__locpin {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+}
+.cal-card__loctext {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* The title line pairs the (optional) theme dot with the title so it never
    stacks onto its own row in the column card. */
@@ -1004,6 +1075,10 @@ body.is-cal-copy .cal-dragfollow::after {
   }
 }
 .quickadd {
+  /* One content gutter for every section (head · tabs · search · list ·
+     schedule) so the whole window reads as a single aligned column instead of
+     each block hugging the edge by its own amount. Roomier from tablet up. */
+  --qa-gx: var(--s-5);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1013,13 +1088,18 @@ body.is-cal-copy .cal-dragfollow::after {
      instead of clipping the commit button at the overlay edge. */
   overflow-y: auto;
 }
+@media (min-width: 768px) {
+  .quickadd {
+    --qa-gx: var(--s-6);
+  }
+}
 .quickadd__head {
   flex: none;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--s-4);
-  padding: var(--s-4) var(--s-5) var(--s-3);
+  padding: var(--s-5) var(--qa-gx) var(--s-4);
 }
 .quickadd__when {
   display: flex;
@@ -1041,14 +1121,14 @@ body.is-cal-copy .cal-dragfollow::after {
 /* Library | Custom — both ways to fill the slot, visible up front. */
 .quickadd__tabs {
   flex: none;
-  padding: 0 var(--s-5) var(--s-4);
+  padding: 0 var(--qa-gx) var(--s-4);
 }
 .quickadd__search {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  margin: 0 var(--s-5);
+  margin: 0 var(--qa-gx);
   padding: 0 var(--s-4);
   height: var(--control-md);
   border: 1.5px solid var(--line);
@@ -1098,7 +1178,9 @@ body.is-cal-copy .cal-dragfollow::after {
   min-height: 96px; /* below this the window itself scrolls, never clips */
   overflow-y: auto;
   margin-top: var(--s-3);
-  padding: 0 var(--s-3);
+  /* Pull the rows in to the shared gutter (less a hair so the hover wash still
+     reads as a lane), then the row's own padding gives the name real air. */
+  padding: 0 calc(var(--qa-gx) - var(--s-2));
 }
 /* Edit mode: a compact "Editing: <activity>" summary stands in for the full
    searchable list, with a category spine matching the placed event card. */
@@ -1106,8 +1188,8 @@ body.is-cal-copy .cal-dragfollow::after {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  margin-top: var(--s-3);
-  padding: var(--s-3);
+  margin: var(--s-3) var(--qa-gx) 0;
+  padding: var(--s-4);
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   background: var(--card);
@@ -1148,12 +1230,12 @@ body.is-cal-copy .cal-dragfollow::after {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-4);
   border: 0;
   border-left: 3px solid var(--cal-tint, var(--line));
   background: transparent;
   border-radius: var(--r-sm);
-  padding: var(--s-3);
+  padding: var(--s-3) var(--s-5);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
@@ -1195,13 +1277,13 @@ body.is-cal-copy .cal-dragfollow::after {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-4);
   border: 0;
   /* Dashed spine: "a block that doesn't exist yet" — aligns with the real rows. */
   border-left: 3px dashed var(--accent);
   background: transparent;
   border-radius: var(--r-sm);
-  padding: var(--s-3);
+  padding: var(--s-3) var(--s-5);
   text-align: left;
   cursor: pointer;
   color: var(--accent-ink);
@@ -1238,8 +1320,17 @@ body.is-cal-copy .cal-dragfollow::after {
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
-  padding: var(--s-2) var(--s-5) var(--s-6);
+  padding: var(--s-3) var(--qa-gx) var(--s-6);
+  /* Slot posture only: the lone name + Add button would look stranded in a
+     short sheet, so reserve some presence. */
   min-height: 168px;
+}
+/* Pick-a-time / edit posture: the schedule block sits directly below, so drop
+   the reserved height and the deep bottom pad — that empty band between the
+   name and the date/time controls was the worst of the "funky spacing". */
+.quickadd__custom--inline {
+  min-height: 0;
+  padding-bottom: var(--s-3);
 }
 .quickadd__custom-add {
   align-self: flex-start;
@@ -1269,42 +1360,47 @@ body.is-cal-copy .cal-dragfollow::after {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Pick-a-time posture: when-row + commit, pinned under the list. */
+/* Pick-a-time posture: the schedule ledger + commit, pinned under the list. */
 .quickadd__schedule {
   flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  padding: var(--s-4) var(--s-5) var(--s-5);
+  padding: var(--s-3) var(--qa-gx) var(--s-5);
   border-top: 1.5px solid var(--line-soft);
   margin-top: var(--s-3);
 }
-.quickadd__whenrow {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: var(--s-4);
+/* The schedule as a switch ledger (see .ledger): every setting is one
+   label-left/control-right row with dashed rules between, the calendar
+   sidebar's exact vocabulary. The last row sheds its trailing rule. */
+.quickadd__settings > :last-child {
+  border-bottom: 0;
 }
-.quickadd__whenrow .field {
-  flex: 1 1 110px;
+/* The right-column controls (date · start · length · color · repeat) share one
+   width so they line up into a single column on the right — the View-settings
+   ledger / PrintControls trick. The trigger sheds .select's full-width look for
+   a compact, row-sized control. */
+.quickadd__settings .ledger__row > .cdate,
+.quickadd__settings .ledger__row > .cselect,
+.quickadd__settings .ledger__row > .ccolor {
+  flex: 0 0 auto;
+  width: 172px;
+}
+.quickadd__settings .cselect__trigger {
+  height: var(--control-sm);
+  padding: 0 var(--s-4);
+  font-size: var(--fs-ui);
+}
+/* Location is a plain text box filling the right of its row (no popover) — the
+   sidebar title-input pattern. It keeps the inherited 16px .input font so iOS
+   doesn't zoom the sheet when the field is focused. */
+.quickadd__settings .ledger__row > .cloc {
+  flex: 0 1 200px;
   min-width: 0;
 }
-.quickadd__allday {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--control-md);
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.quickadd__allday input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-  cursor: pointer;
+.quickadd__settings .cloc__input {
+  height: var(--control-sm);
+  padding: 0 var(--s-4);
 }
 .quickadd__foot {
   display: flex;
@@ -1703,7 +1799,10 @@ body.is-cal-copy .cal-dragfollow::after {
   .quickadd__schedule {
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
   }
-  .quickadd__custom {
+  /* Only the slot-posture custom form sits at the sheet bottom; the inline
+     (edit) variant is followed by the schedule block, which owns the safe-area
+     pad — so keep its name→date gap tight. */
+  .quickadd__custom:not(.quickadd__custom--inline) {
     padding-bottom: calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
   }
   /* The controls ride the top row; the date title wraps below them. */
@@ -1766,7 +1865,8 @@ body.is-cal-copy .cal-dragfollow::after {
 }
 
 /* The repeat summary line in the event popover (icon + "Repeats daily until…"). */
-.cal-popover__repeat {
+.cal-popover__repeat,
+.cal-popover__loc {
   display: flex;
   align-items: center;
   gap: var(--s-2);
@@ -1775,7 +1875,8 @@ body.is-cal-copy .cal-dragfollow::after {
   font-size: var(--fs-meta);
   color: var(--ink-soft);
 }
-.cal-popover__repeat svg {
+.cal-popover__repeat svg,
+.cal-popover__loc svg {
   flex: none;
   width: 14px;
   height: 14px;
@@ -1784,27 +1885,16 @@ body.is-cal-copy .cal-dragfollow::after {
   stroke-width: 1.8;
 }
 
-/* ---------- the Repeat control inside QuickAdd ---------- */
-.repeatfield {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.repeatfield__row {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-.repeatfield__row .field {
-  flex: 1 1 150px;
-  min-width: 0;
-}
+/* ---------- the Repeat control inside QuickAdd ----------
+   RepeatField renders bare .ledger__row lines now (no wrapper element); the
+   parent ledger frames them. The weekday toggles sit on their own ledger row,
+   right-aligned beside an "On" label like every other control. */
 /* The weekday toggles (S M T W T F S) — small round switches that morph the
    weekly rule, sharing the Library filter's selected-pill vocabulary. */
 .repeatfield__days {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--s-2);
 }
 .repeatfield__day {
@@ -1842,10 +1932,27 @@ body.is-cal-copy .cal-dragfollow::after {
 }
 
 /* Slot posture surfaces the repeat control between the tabs and the picker — a
-   hairline sets it apart from the activity list without a heavy box. */
+   hairline sets it apart from the activity list without a heavy box. Inset to
+   the shared gutter so the control lines up with the search box below it. The
+   inner .ledger frames RepeatField's rows; the last drops its dashed rule, and
+   the preset trigger shrinks to a row-sized control like the schedule ledger. */
 .quickadd__slotrepeat {
-  padding-bottom: var(--s-3);
+  padding: 0 var(--qa-gx) var(--s-4);
+  margin-bottom: var(--s-2);
   border-bottom: 1px solid var(--line);
+}
+.quickadd__slotrepeat .ledger > :last-child {
+  border-bottom: 0;
+}
+.quickadd__slotrepeat .ledger__row > .cdate,
+.quickadd__slotrepeat .ledger__row > .cselect {
+  flex: 0 0 auto;
+  width: 172px;
+}
+.quickadd__slotrepeat .cselect__trigger {
+  height: var(--control-sm);
+  padding: 0 var(--s-4);
+  font-size: var(--fs-ui);
 }
 
 /* ---------- repeating edit/delete scope chooser ---------- */
