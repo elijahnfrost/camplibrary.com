@@ -42,6 +42,20 @@ import {
   type UserDocKey,
 } from "@/lib/userDataDocs";
 import { snapDurationMin, snapMinutes, MINUTES_PER_DAY } from "@/lib/calendar/time";
+import {
+  buildSeriesEvents,
+  eventsInSeries,
+  normalizeRecurrence,
+  planSeriesDelete,
+  planSeriesEdit,
+  planSeriesSkip,
+  recurrenceDates,
+  summarizeRecurrence,
+  type SeriesScope,
+  type SeriesTemplate,
+} from "@/lib/calendar/recurrence";
+import { normalizeCalendarEvent, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { normalizeHexColor } from "@/lib/color";
 import { getAdminUserId } from "./config";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -102,6 +116,7 @@ export type EventInput = {
   title?: string;
   activityId?: string;
   campId?: string;
+  color?: string;
 };
 
 export async function upsertEvent(input: EventInput): Promise<StoredCalendarEvent> {
@@ -119,6 +134,10 @@ export async function upsertEvent(input: EventInput): Promise<StoredCalendarEven
   };
   if (input.activityId) base.activityId = input.activityId;
   if (input.campId) base.campId = input.campId;
+  if (input.color) {
+    const color = normalizeHexColor(input.color);
+    if (color) base.color = color;
+  }
 
   if (input.allDay) {
     base.allDay = true;
@@ -179,6 +198,231 @@ export async function createDaySchedule(input: {
     cursor = endMin;
   }
   return created;
+}
+
+/* ---------------------------------------------------------- recurring series */
+//
+// A "series" is a set of real calendar rows that share one `seriesId` and each
+// carry the same `recurrence` rule (the materialized-occurrence model — see
+// lib/calendar/recurrence). These wrappers reuse the app's OWN pure planners
+// (buildSeriesEvents / planSeriesEdit / planSeriesDelete / planSeriesSkip) so
+// every write is byte-identical to what the calendar UI produces, then persist
+// the plan through the same upsert/delete path as one-off events.
+
+// Load every event for the owner as a clean CalendarEvent map — the working set
+// the scoped planners reason over (they expect the in-app event shape, including
+// the seriesId/recurrence that ride in each row's JSONB payload).
+async function loadEventMap(): Promise<Record<string, CalendarEvent>> {
+  const stored = await listCalendarEvents(uid());
+  const out: Record<string, CalendarEvent> = {};
+  for (const row of stored) {
+    const event = normalizeCalendarEvent(row);
+    if (event) out[event.id] = event;
+  }
+  return out;
+}
+
+// The fields a series shares (everything except per-occurrence id + date),
+// snapped to the 15-minute grid exactly like upsertEvent / the editor's draft.
+function buildSeriesTemplate(input: {
+  startMin?: number;
+  endMin?: number;
+  allDay?: boolean;
+  title?: string;
+  activityId?: string;
+  campId?: string;
+  color?: string;
+}): SeriesTemplate {
+  const allDay = input.allDay === true;
+  let startMin = 0;
+  let endMin = 0;
+  if (!allDay) {
+    if (typeof input.startMin !== "number" || typeof input.endMin !== "number") {
+      throw new Error("Timed series need startMin and endMin (minutes from midnight), or set allDay:true.");
+    }
+    startMin = snapMinutes(input.startMin);
+    endMin = snapMinutes(input.endMin);
+    if (endMin <= startMin) endMin = startMin + 15;
+    if (startMin < 0 || endMin > MINUTES_PER_DAY) {
+      throw new Error("Event times must fall within 0–1440 minutes (one day).");
+    }
+  }
+  const template: SeriesTemplate = {
+    startMin,
+    endMin,
+    allDay,
+    kind: input.activityId ? "activity" : "custom",
+    title: (input.title ?? "").slice(0, 200) || "Untitled",
+  };
+  if (input.activityId) template.activityId = input.activityId;
+  if (input.campId) template.campId = input.campId;
+  if (input.color) {
+    const color = normalizeHexColor(input.color);
+    if (color) template.color = color;
+  }
+  return template;
+}
+
+// Apply a {upserts, removes} plan the way the app's commitEvents does: write the
+// new occurrences first, then delete only the ids NOT being rewritten — so a
+// regenerated series keeps its reused anchor id instead of deleting it.
+async function applyPlan(upserts: CalendarEvent[], removes: string[]): Promise<void> {
+  const upsertedIds = new Set(upserts.map((event) => event.id));
+  for (const event of upserts) {
+    const result = await upsertCalendarEvent(uid(), { ...event, updatedAt: Date.now() });
+    if (!result.ok) {
+      throw new Error(`Series occurrence rejected as invalid (date ${event.date}). Check times and activityId.`);
+    }
+  }
+  for (const id of removes) {
+    if (upsertedIds.has(id)) continue;
+    await deleteCalendarEvent(uid(), id);
+  }
+}
+
+export type SeriesSummary = {
+  ok: true;
+  seriesId: string;
+  rule: string;
+  dates: DateKey[];
+  count: number;
+  created?: number;
+  removed?: number;
+};
+
+export type RecurrenceInput = {
+  freq: "daily" | "weekly" | "monthly" | "yearly";
+  interval?: number;
+  weekdays?: number[];
+  monthDay?: number;
+  nthWeekday?: { week: number; weekday: number };
+  until: string;
+  exdates?: string[];
+};
+
+export type CreateSeriesInput = {
+  date: string;
+  startMin?: number;
+  endMin?: number;
+  allDay?: boolean;
+  title?: string;
+  activityId?: string;
+  campId?: string;
+  color?: string;
+  recurrence: RecurrenceInput;
+};
+
+// Materialize a brand-new repeating event into one real row per occurrence date.
+export async function createSeries(input: CreateSeriesInput): Promise<SeriesSummary> {
+  const rule = normalizeRecurrence(input.recurrence);
+  if (!rule) {
+    throw new Error(
+      "Invalid recurrence rule. Needs freq (daily/weekly/monthly/yearly) and until (YYYY-MM-DD); weekly takes weekdays[] (0=Sun..6=Sat), monthly/yearly takes monthDay (1-31) or nthWeekday {week:1..4|-1, weekday:0..6}.",
+    );
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    throw new Error(`Start date must be YYYY-MM-DD (got "${input.date}").`);
+  }
+  const template = buildSeriesTemplate(input);
+  const seriesId = randomEventId();
+  const anchorId = randomEventId();
+  const dates = recurrenceDates(input.date, rule);
+  const occurrences = buildSeriesEvents(template, dates, seriesId, rule, randomEventId, input.date, anchorId);
+  await applyPlan(occurrences, []);
+  return { ok: true, seriesId, rule: summarizeRecurrence(rule), dates, count: occurrences.length, created: occurrences.length };
+}
+
+export type EditSeriesInput = {
+  id: string;
+  scope: SeriesScope;
+  date?: string;
+  startMin?: number;
+  endMin?: number;
+  allDay?: boolean;
+  title?: string;
+  activityId?: string;
+  campId?: string;
+  color?: string;
+  recurrence?: RecurrenceInput;
+  stopRepeating?: boolean;
+};
+
+// Scoped edit of an existing series (this / following / all), mirroring the
+// app's SeriesScopeDialog. Unspecified template fields inherit the target
+// occurrence's current values, so an agent can change just the title or time.
+// The rule defaults to the series' existing rule unless a new `recurrence` is
+// given, or `stopRepeating` collapses the chosen scope to a single event.
+export async function editSeries(input: EditSeriesInput): Promise<SeriesSummary> {
+  const all = await loadEventMap();
+  const target = all[input.id.toLowerCase()] ?? all[input.id];
+  if (!target) throw new Error(`No event with id ${input.id}.`);
+  if (!target.seriesId) throw new Error(`Event ${input.id} is not part of a repeating series. Use upsert_event to edit a one-off.`);
+
+  const before = eventsInSeries(all, target.seriesId);
+  const template = buildSeriesTemplate({
+    startMin: input.startMin ?? target.startMin,
+    endMin: input.endMin ?? target.endMin,
+    allDay: input.allDay ?? target.allDay ?? false,
+    title: input.title ?? target.title,
+    activityId: input.activityId ?? target.activityId,
+    campId: input.campId ?? target.campId,
+    color: input.color ?? target.color,
+  });
+
+  const rule = input.stopRepeating
+    ? undefined
+    : input.recurrence
+      ? normalizeRecurrence(input.recurrence) ?? undefined
+      : target.recurrence;
+  if (!input.stopRepeating && input.recurrence && !rule) {
+    throw new Error("Invalid recurrence rule. Needs freq and until (YYYY-MM-DD).");
+  }
+
+  const draftDate = input.date ?? target.date;
+  const plan = planSeriesEdit(before, target, template, draftDate, rule, input.scope, randomEventId);
+  await applyPlan(plan.upserts, plan.removes);
+
+  const after = eventsInSeries(await loadEventMap(), target.seriesId);
+  return {
+    ok: true,
+    seriesId: target.seriesId,
+    rule: rule ? summarizeRecurrence(rule) : "no longer repeats",
+    dates: after.map((event) => event.date),
+    count: after.length,
+    created: plan.upserts.length,
+    removed: plan.removes.filter((id) => !plan.upserts.some((event) => event.id === id)).length,
+  };
+}
+
+// Scoped delete of a repeating event (this / following / all), mirroring the
+// app: scope "this" SKIPS the single occurrence (removes it AND records its date
+// as an exdate on the survivors so a later regeneration won't resurrect it);
+// "following" / "all" remove that slice of the series outright.
+export async function deleteSeries(input: { id: string; scope: SeriesScope }): Promise<{ ok: true; seriesId: string; removed: number; skipped?: string }> {
+  const all = await loadEventMap();
+  const target = all[input.id.toLowerCase()] ?? all[input.id];
+  if (!target) throw new Error(`No event with id ${input.id}.`);
+  if (!target.seriesId) throw new Error(`Event ${input.id} is not part of a repeating series. Use delete_event for a one-off.`);
+
+  const series = eventsInSeries(all, target.seriesId);
+  if (input.scope === "this") {
+    const plan = planSeriesSkip(series, target);
+    await applyPlan(plan.upserts, plan.removes);
+    return { ok: true, seriesId: target.seriesId, removed: 1, skipped: target.date };
+  }
+  const ids = planSeriesDelete(series, target, input.scope);
+  await applyPlan([], ids);
+  return { ok: true, seriesId: target.seriesId, removed: ids.length };
+}
+
+// Hard-delete an arbitrary set of events by id (idempotent). The general
+// "delete several events at once" verb, independent of any series.
+export async function deleteEvents(ids: string[]): Promise<{ ok: true; deleted: number; ids: string[] }> {
+  const deleted: string[] = [];
+  for (const id of ids) {
+    if (await deleteCalendarEvent(uid(), id)) deleted.push(id);
+  }
+  return { ok: true, deleted: deleted.length, ids: deleted };
 }
 
 /* ----------------------------------------------------------------- diagrams */

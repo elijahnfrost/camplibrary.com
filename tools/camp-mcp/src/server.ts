@@ -27,6 +27,28 @@ const ARROW_TEAM = z.enum(["blue", "red", "neutral"]);
 const COORD = z.number().min(0).max(100);
 const POINT = z.tuple([COORD, COORD]);
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD");
+const HEX = z
+  .string()
+  .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "color must be a hex like #2f6f4e or #abc")
+  .describe("Per-event color override (hex). Omit to inherit the activity/category tint.");
+const SCOPE = z.enum(["this", "following", "all"]);
+const RECURRENCE = z
+  .object({
+    freq: z.enum(["daily", "weekly", "monthly", "yearly"]),
+    interval: z.number().int().min(1).max(52).optional().describe("every N days/weeks/months/years (default 1)"),
+    weekdays: z
+      .array(z.number().int().min(0).max(6))
+      .optional()
+      .describe("weekly only: which weekdays land an occurrence, 0=Sun..6=Sat (defaults to the start day)"),
+    monthDay: z.number().int().min(1).max(31).optional().describe("monthly/yearly: day-of-month anchor (skips months without it)"),
+    nthWeekday: z
+      .object({ week: z.number().int().describe("1..4 = first..fourth, -1 = last"), weekday: z.number().int().min(0).max(6) })
+      .optional()
+      .describe("monthly/yearly: nth-weekday anchor, e.g. {week:3,weekday:2} = 3rd Tuesday. Mutually exclusive with monthDay."),
+    until: DATE.describe("inclusive last date the series may place an occurrence"),
+    exdates: z.array(DATE).optional().describe("specific occurrence dates to skip (EXDATE)"),
+  })
+  .describe("Repeat rule. Capped at 366 occurrences regardless of `until`.");
 
 const markerSchema = z.object({
   x: COORD,
@@ -126,7 +148,7 @@ server.registerTool(
   {
     title: "Create or edit an event",
     description:
-      "Create OR edit one calendar event. Times are minutes from local midnight, snapped to a 15-minute grid. Provide startMin+endMin for a timed event, or allDay:true. activityId (a real id from list_context) links a library activity and forces kind='activity'; omit it for a free-form custom event. Pass an existing id to edit in place; omit id to create.",
+      "Create OR edit one NON-repeating calendar event. Times are minutes from local midnight, snapped to a 15-minute grid. Provide startMin+endMin for a timed event, or allDay:true. activityId (a real id from list_context) links a library activity and forces kind='activity'; omit it for a free-form custom event. Pass an existing id to edit in place; omit id to create. For a REPEATING event use create_series; to edit/delete one that already repeats, use edit_series / delete_series (editing a series occurrence here would only touch that one row).",
     inputSchema: {
       date: DATE,
       startMin: z.number().int().min(0).max(1440).optional().describe("e.g. 540 = 9:00am"),
@@ -135,6 +157,7 @@ server.registerTool(
       title: z.string().max(200).optional(),
       activityId: z.string().max(120).optional(),
       campId: z.string().optional(),
+      color: HEX.optional(),
       id: z.string().uuid().optional().describe("reuse to edit an existing event"),
     },
   },
@@ -175,13 +198,103 @@ server.registerTool(
   "delete_event",
   {
     title: "Delete an event",
-    description: "Remove an event by its UUID (idempotent).",
+    description: "Remove a single NON-repeating event by its UUID (idempotent). To remove part of a repeating series use delete_series; to remove several arbitrary events at once use delete_events.",
     inputSchema: { id: z.string().uuid() },
   },
   async ({ id }) => {
     try {
       await store.deleteEvent(id);
       return text({ ok: true, id });
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "delete_events",
+  {
+    title: "Delete several events",
+    description: "Hard-delete multiple events at once by their UUIDs (idempotent). Independent of any series — for a repeating event use delete_series instead. Returns how many actually existed.",
+    inputSchema: { ids: z.array(z.string().uuid()).min(1) },
+  },
+  async ({ ids }) => {
+    try {
+      return text(await store.deleteEvents(ids));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "create_series",
+  {
+    title: "Create a repeating event",
+    description:
+      "Materialize a repeating event into one real calendar row per occurrence date (the app's series model — every occurrence shares a seriesId and the same rule, so any one can later describe/edit the whole series). `date` is the FIRST occurrence and is ALWAYS included even if it doesn't satisfy the rule's anchor. Times are minutes from midnight on the 15-minute grid (or allDay:true). Returns the seriesId, a human summary of the rule, and the occurrence dates.",
+    inputSchema: {
+      date: DATE.describe("first occurrence (always included)"),
+      startMin: z.number().int().min(0).max(1440).optional(),
+      endMin: z.number().int().min(0).max(1440).optional(),
+      allDay: z.boolean().optional(),
+      title: z.string().max(200).optional(),
+      activityId: z.string().max(120).optional(),
+      campId: z.string().optional(),
+      color: HEX.optional(),
+      recurrence: RECURRENCE,
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.createSeries(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "edit_series",
+  {
+    title: "Edit a repeating event",
+    description:
+      "Scoped edit of an event that belongs to a series (the Google-Calendar 'this / this-and-following / all' model). `id` is any occurrence in the series. Unspecified fields inherit that occurrence's current values, so you can change just the title or time. The repeat rule is kept as-is unless you pass a new `recurrence` (regenerates the affected slice) or `stopRepeating:true` (collapses the chosen scope to a single non-repeating event). scope 'following'/'all' regenerate occurrences from the edited template; previously skipped days stay skipped.",
+    inputSchema: {
+      id: z.string().uuid().describe("any occurrence in the series"),
+      scope: SCOPE,
+      date: DATE.optional().describe("move the edited occurrence to this date (defaults to its current date)"),
+      startMin: z.number().int().min(0).max(1440).optional(),
+      endMin: z.number().int().min(0).max(1440).optional(),
+      allDay: z.boolean().optional(),
+      title: z.string().max(200).optional(),
+      activityId: z.string().max(120).optional(),
+      campId: z.string().optional(),
+      color: HEX.optional(),
+      recurrence: RECURRENCE.optional().describe("new repeat rule to apply going forward; omit to keep the current rule"),
+      stopRepeating: z.boolean().optional().describe("true = stop repeating for this scope (collapse to a single event)"),
+    },
+  },
+  async (args) => {
+    try {
+      return text(await store.editSeries(args));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  "delete_series",
+  {
+    title: "Delete repeating event(s)",
+    description:
+      "Scoped delete of a repeating event, mirroring the app. `id` is any occurrence in the series. scope 'this' SKIPS just that one day (removes it and records the date so a later edit won't bring it back); 'following' removes that occurrence and every later one; 'all' removes the entire series.",
+    inputSchema: { id: z.string().uuid().describe("any occurrence in the series"), scope: SCOPE },
+  },
+  async ({ id, scope }) => {
+    try {
+      return text(await store.deleteSeries({ id, scope }));
     } catch (err) {
       return fail(err);
     }

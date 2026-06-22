@@ -5,7 +5,11 @@
 //   tsx src/cli.ts events --from 2026-07-06 --to 2026-07-10
 //   tsx src/cli.ts event --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Morning circle"}'
 //   tsx src/cli.ts day --file day.json
+//   tsx src/cli.ts series --json '{"date":"2026-07-06","startMin":540,"endMin":585,"title":"Flag","recurrence":{"freq":"weekly","weekdays":[1,3,5],"until":"2026-07-31"}}'
+//   tsx src/cli.ts editseries --json '{"id":"<uuid>","scope":"all","startMin":600}'
+//   tsx src/cli.ts deleteseries --json '{"id":"<uuid>","scope":"following"}'
 //   tsx src/cli.ts delete <uuid>
+//   tsx src/cli.ts deletemany --json '["<uuid>","<uuid>"]'
 //   tsx src/cli.ts activity --file activity.json   (custom library activity; CAN set a stable id)
 //   tsx src/cli.ts diagram --file diagram.json
 //   tsx src/cli.ts runlist --file runlist.json
@@ -56,12 +60,20 @@ async function run(): Promise<void> {
       return print(await store.upsertEvent(jsonArg() as store.EventInput));
     case "day":
       return print(await store.createDaySchedule(jsonArg() as Parameters<typeof store.createDaySchedule>[0]));
+    case "series":
+      return print(await store.createSeries(jsonArg() as store.CreateSeriesInput));
+    case "editseries":
+      return print(await store.editSeries(jsonArg() as store.EditSeriesInput));
+    case "deleteseries":
+      return print(await store.deleteSeries(jsonArg() as { id: string; scope: "this" | "following" | "all" }));
     case "delete": {
       const id = argv[1];
       if (!id) throw new Error("Usage: delete <uuid>");
       await store.deleteEvent(id);
       return print({ ok: true, id });
     }
+    case "deletemany":
+      return print(await store.deleteEvents(jsonArg() as string[]));
     case "activity":
       // Add a custom library activity. Unlike the MCP add_custom_activity tool,
       // the CLI passes the raw JSON straight to the store, so it CAN set a stable
@@ -92,7 +104,7 @@ async function run(): Promise<void> {
     }
     default:
       console.error(
-        "Commands: whoami | context | events | event | day | delete | activity | diagram | runlist | doc | camp | theme",
+        "Commands: whoami | context | events | event | day | series | editseries | deleteseries | delete | deletemany | activity | diagram | runlist | doc | camp | theme",
       );
       process.exit(2);
   }
