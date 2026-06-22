@@ -74,14 +74,17 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(untagged, filters({ theme: "theme-ocean", themeAssignments }))).toBe(false);
   });
 
-  it("composes material availability with other filters", () => {
+  it("composes the kit filter (uses ANY picked item) with other filters", () => {
     const base = activity({ type: "Game", materials: ["Cones", "Rope"] });
 
     expect(matchesActivityFilters(base, filters({ availableMaterialTags: undefined }))).toBe(true);
     expect(matchesActivityFilters(base, filters({ availableMaterialTags: [] }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["cones"] }))).toBe(false);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["cones", "rope"] }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ cat: "Craft", availableMaterialTags: ["cones", "rope"] }))).toBe(false);
+    // A single overlapping kit item surfaces the activity (matches its count badge).
+    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["cones"] }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string"] }))).toBe(false);
+    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string", "rope"] }))).toBe(true);
+    // The kit filter still ANDs with the other dimensions.
+    expect(matchesActivityFilters(base, filters({ cat: "Craft", availableMaterialTags: ["cones"] }))).toBe(false);
   });
 
   it("searches visible activity text case-insensitively", () => {

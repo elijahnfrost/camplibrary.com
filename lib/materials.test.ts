@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Activity } from "./types";
 import {
-  hasRequiredMaterials,
   materialNeedsForActivity,
   materialOptionsForActivities,
   materialTagId,
   materialTagsFromMaterials,
   requiredMaterialTagIds,
+  usesAnyMaterialTag,
 } from "./materials";
 
 function activity(overrides: Partial<Activity> = {}): Activity {
@@ -80,12 +80,29 @@ describe("materials selectors", () => {
     ]);
   });
 
-  it("checks material availability only when a kit filter is active", () => {
+  it("matches an activity that uses ANY of the picked kit items", () => {
     const needsCones = activity({ materials: ["Cones", "Rope"] });
 
-    expect(hasRequiredMaterials(needsCones, [])).toBe(true);
-    expect(hasRequiredMaterials(needsCones, ["cones"])).toBe(false);
-    expect(hasRequiredMaterials(needsCones, ["cones", "rope"])).toBe(true);
-    expect(hasRequiredMaterials(activity({ materials: [] }), ["cones"])).toBe(true);
+    // No kit picked = no filtering, everything matches.
+    expect(usesAnyMaterialTag(needsCones, [])).toBe(true);
+    // A single overlapping item is enough — the badge promises this activity.
+    expect(usesAnyMaterialTag(needsCones, ["cones"])).toBe(true);
+    expect(usesAnyMaterialTag(needsCones, ["string"])).toBe(false);
+    expect(usesAnyMaterialTag(needsCones, ["string", "rope"])).toBe(true);
+    // "No materials" activities need nothing, so they never match a kit filter.
+    expect(usesAnyMaterialTag(activity({ materialTags: ["No materials"] }), ["cones"])).toBe(false);
+    expect(usesAnyMaterialTag(activity({ materials: [] }), ["cones"])).toBe(false);
+  });
+
+  it("drops 'No materials' sentinels from requirements and kit options", () => {
+    expect(requiredMaterialTagIds(activity({ materialTags: ["No materials"] }))).toEqual([]);
+    expect(requiredMaterialTagIds(activity({ materials: ["No materials needed"] }))).toEqual([]);
+    expect(requiredMaterialTagIds(activity({ materialTags: ["Cones", "No materials"] }))).toEqual(["cones"]);
+
+    const options = materialOptionsForActivities([
+      activity({ id: "a", materialTags: ["No materials"] }),
+      activity({ id: "b", materialTags: ["Cones", "No materials"] }),
+    ]);
+    expect(options).toEqual([{ id: "cones", label: "Cones", count: 1 }]);
   });
 });

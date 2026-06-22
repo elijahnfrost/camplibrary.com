@@ -13,7 +13,7 @@ import {
   upsertActivityRecord,
 } from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
-import { hasRequiredMaterials, materialOptionsForActivities } from "@/lib/materials";
+import { materialOptionsForActivities } from "@/lib/materials";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
 import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
 import {
