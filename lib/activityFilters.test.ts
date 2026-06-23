@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { matchesActivityFilters, type ActivityFilterState } from "./activityFilters";
+import {
+  isLibrarySort,
+  matchesActivityFilters,
+  sortActivities,
+  type ActivityFilterState,
+} from "./activityFilters";
 import type { Activity } from "./types";
 
 function activity(overrides: Partial<Activity> = {}): Activity {
@@ -150,5 +155,59 @@ describe("activity filters", () => {
 
     expect(matchesActivityFilters(base, filters({ query: "needle" }))).toBe(false);
     expect(matchesActivityFilters(base, filters({ query: "rope" }))).toBe(true);
+  });
+});
+
+describe("sortActivities", () => {
+  const titles = (list: Activity[]) => list.map((a) => a.title);
+
+  it("sorts A–Z by title, case-insensitively", () => {
+    const list = [
+      activity({ id: "c", title: "canoe" }),
+      activity({ id: "a", title: "Archery" }),
+      activity({ id: "b", title: "balloon" }),
+    ];
+    expect(titles(sortActivities(list, "az"))).toEqual(["Archery", "balloon", "canoe"]);
+  });
+
+  it("sorts by rating high→low", () => {
+    const list = [
+      activity({ id: "lo", title: "Low", rating: 2 }),
+      activity({ id: "hi", title: "High", rating: 5 }),
+      activity({ id: "mid", title: "Mid", rating: 3 }),
+    ];
+    expect(titles(sortActivities(list, "rating"))).toEqual(["High", "Mid", "Low"]);
+  });
+
+  it("sinks unrated (0) activities to the bottom", () => {
+    const list = [
+      activity({ id: "u1", title: "Unrated A", rating: 0 }),
+      activity({ id: "r", title: "Rated", rating: 1 }),
+      activity({ id: "u2", title: "Unrated B", rating: 0 }),
+    ];
+    // Rated first; both unrated trail, ordered A–Z among themselves.
+    expect(titles(sortActivities(list, "rating"))).toEqual(["Rated", "Unrated A", "Unrated B"]);
+  });
+
+  it("breaks rating ties with A–Z", () => {
+    const list = [
+      activity({ id: "z", title: "Zebra", rating: 4 }),
+      activity({ id: "a", title: "Apple", rating: 4 }),
+    ];
+    expect(titles(sortActivities(list, "rating"))).toEqual(["Apple", "Zebra"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const list = [activity({ id: "b", title: "B" }), activity({ id: "a", title: "A" })];
+    const snapshot = titles(list);
+    sortActivities(list, "az");
+    expect(titles(list)).toEqual(snapshot);
+  });
+
+  it("validates the sort key", () => {
+    expect(isLibrarySort("az")).toBe(true);
+    expect(isLibrarySort("rating")).toBe(true);
+    expect(isLibrarySort("nope")).toBe(false);
+    expect(isLibrarySort(undefined)).toBe(false);
   });
 });

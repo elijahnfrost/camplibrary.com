@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, type AgeFilter, type CatFilter, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import type { AgeUnit } from "@/lib/data";
 import { useLocalStorage } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
@@ -280,6 +280,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // How the library list is ordered — a per-device preference, like ageUnit.
+  const [sort, setSort] = useLocalStorage<LibrarySort>("librarySort", "az", (v, fallback) =>
+    isLibrarySort(v) ? v : fallback
+  );
   // Grades⇄Ages caption unit — a library-wide display preference (per device).
   // Read by the cells/home via context; toggled from the filter and the editor.
   const [ageUnit, setAgeUnit] = useLocalStorage<AgeUnit>(
@@ -313,10 +317,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     [lib.all, lib.activeAvailableMaterials, lib.themeAssignments, cat, place, age, theme, query]
   );
   // Starred is a library-only lens; matchesActivityFilters stays fav-agnostic.
-  const libraryItems = useMemo(
-    () => (starredOnly ? filtered.filter((a) => lib.favSet.has(a.id)) : filtered),
-    [filtered, starredOnly, lib.favSet]
-  );
+  const libraryItems = useMemo(() => {
+    const list = starredOnly ? filtered.filter((a) => lib.favSet.has(a.id)) : filtered;
+    return sortActivities(list, sort);
+  }, [filtered, starredOnly, lib.favSet, sort]);
 
   // If the active theme filter points at a theme that was deleted (here or on
   // another device), fall back to "All" so the filter never strands the list.
@@ -573,6 +577,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onView={(view: LibraryView) => lib.setView(view)}
               query={query}
               onQuery={setQuery}
+              sort={sort}
+              onSort={setSort}
               items={libraryItems}
               cat={cat}
               place={place}

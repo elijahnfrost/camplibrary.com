@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { Activity } from "@/lib/types";
 import type { Theme } from "@/lib/themes";
 import {
@@ -144,27 +143,13 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, the
 }
 
 // ---------- Catalog view ----------
+// Ordering is owned by the library-wide sort control (see LibraryTab); items
+// arrive already sorted, so the view just renders them.
 export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
-  const [sort, setSort] = useState<"az" | "rating">("az");
   if (!items.length) return <EmptyResults />;
-  const sorted = [...items].sort((a, b) =>
-    sort === "rating"
-      ? b.rating - a.rating || a.title.localeCompare(b.title)
-      : a.title.localeCompare(b.title)
-  );
   return (
     <div className="catalog fadein">
-      <div className="catalog__head">
-        <span className="label">{sorted.length} entries</span>
-        <button
-          type="button"
-          className="sortbtn"
-          onClick={() => setSort((s) => (s === "az" ? "rating" : "az"))}
-        >
-          {sort === "az" ? "A–Z" : "Top rated"}
-        </button>
-      </div>
-      {sorted.map((a) => (
+      {items.map((a) => (
         <ActivityCell
           key={a.id}
           activity={a}

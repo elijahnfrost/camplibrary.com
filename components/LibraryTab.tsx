@@ -5,7 +5,7 @@
 // desktop filter rail renders inside the sidenav.
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import type { AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
@@ -13,6 +13,7 @@ import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
+import { MiniSeg } from "./primitives";
 
 export function LibraryTab({
   view,
@@ -20,6 +21,8 @@ export function LibraryTab({
   actions,
   query,
   onQuery,
+  sort,
+  onSort,
   items,
   cat,
   place,
@@ -50,6 +53,8 @@ export function LibraryTab({
   onView: (view: LibraryView) => void;
   query: string;
   onQuery: (query: string) => void;
+  sort: LibrarySort;
+  onSort: (sort: LibrarySort) => void;
   items: Activity[];
   cat: CatFilter;
   place: PlaceFilter;
@@ -235,6 +240,21 @@ export function LibraryTab({
           </div>
         ) : (
           <>
+            {/* Arrange row — one sort control above all three browse views so
+                ordering isn't buried in a single view. "Rating" sinks unrated
+                activities to the bottom (see sortActivities). */}
+            <div className="library-arrange">
+              <span className="label library-arrange__label">Sort</span>
+              <MiniSeg
+                ariaLabel="Sort the library"
+                value={sort}
+                onChange={onSort}
+                options={[
+                  { id: "az", label: "A–Z" },
+                  { id: "rating", label: "Rating" },
+                ]}
+              />
+            </div>
             {view === "shelf" && (
               <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} themeOf={themeOf} />
             )}
