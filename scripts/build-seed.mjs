@@ -173,7 +173,7 @@ function cleanEvent(raw, prefix, seenIds) {
     notes: trim(raw.notes),
     safety: trim(raw.safety),
     ages,
-    rating: clampInt(raw.rating, 1, 5, 3),
+    rating: clampInt(raw.rating, 0, 5, 0),
     ...(media.length ? { media } : {}),
     ...(links.length ? { links } : {}),
     ...(variations.length ? { variations } : {}),
