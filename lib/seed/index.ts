@@ -17,6 +17,26 @@ import { ssActivities } from "./lanes/ss";
 import { th1Activities } from "./lanes/th1";
 import { th2Activities } from "./lanes/th2";
 import { sciActivities } from "./lanes/sci";
+import { cpActivities } from "./lanes/cp";
+import { cnActivities } from "./lanes/cn";
+import { cyActivities } from "./lanes/cy";
+import { cmActivities } from "./lanes/cm";
+import { cdActivities } from "./lanes/cd";
+import { cwActivities } from "./lanes/cw";
+import { gtActivities } from "./lanes/gt";
+import { gpActivities } from "./lanes/gp";
+import { grActivities } from "./lanes/gr";
+import { gbActivities } from "./lanes/gb";
+import { gmActivities } from "./lanes/gm";
+import { qmActivities } from "./lanes/qm";
+import { qjActivities } from "./lanes/qj";
+import { qoActivities } from "./lanes/qo";
+import { wrActivities } from "./lanes/wr";
+import { wtActivities } from "./lanes/wt";
+import { wsActivities } from "./lanes/ws";
+import { sgActivities } from "./lanes/sg";
+import { smActivities } from "./lanes/sm";
+import { srActivities } from "./lanes/sr";
 
 export const SEED_ACTIVITIES: Activity[] = [
   ...reservedActivities,
@@ -36,4 +56,24 @@ export const SEED_ACTIVITIES: Activity[] = [
   ...th1Activities,
   ...th2Activities,
   ...sciActivities,
+  ...cpActivities,
+  ...cnActivities,
+  ...cyActivities,
+  ...cmActivities,
+  ...cdActivities,
+  ...cwActivities,
+  ...gtActivities,
+  ...gpActivities,
+  ...grActivities,
+  ...gbActivities,
+  ...gmActivities,
+  ...qmActivities,
+  ...qjActivities,
+  ...qoActivities,
+  ...wrActivities,
+  ...wtActivities,
+  ...wsActivities,
+  ...sgActivities,
+  ...smActivities,
+  ...srActivities,
 ];

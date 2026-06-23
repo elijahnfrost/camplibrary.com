@@ -99,7 +99,7 @@ describe("activity validation", () => {
     const normalized = normalizeActivity({
       ...legacyActivity,
       media: [
-        { title: "  Demo  ", url: "  https://youtube.com/results?search_query=x " },
+        { title: "  Demo  ", url: "  https://vimeo.com/76979871 " },
         { url: "https://example.com/tut" },
         { title: "no url" },
         "junk",
@@ -110,7 +110,7 @@ describe("activity validation", () => {
     });
 
     expect(normalized?.media).toEqual([
-      { title: "Demo", url: "https://youtube.com/results?search_query=x" },
+      { title: "Demo", url: "https://vimeo.com/76979871" },
       { url: "https://example.com/tut" },
     ]);
     expect(normalized?.links).toEqual([

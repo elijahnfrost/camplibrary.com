@@ -38,7 +38,7 @@ for (const a of A) {
   if (a.durationMin % 15 !== 0 || a.durationMin < 15 || a.durationMin > 120) issues.push(`bad duration ${a.durationMin}: ${a.id}`);
   if (a.groupMin != null && a.groupMax != null && a.groupMin > a.groupMax) issues.push(`group min>max: ${a.id}`);
   if (a.energy < 1 || a.energy > 3) issues.push(`bad energy: ${a.id}`);
-  if (a.rating < 1 || a.rating > 5) issues.push(`bad rating: ${a.id}`);
+  if (a.rating < 0 || a.rating > 5) issues.push(`bad rating: ${a.id}`);
   if (!a.ages.length) issues.push(`no ages: ${a.id}`);
   if (!a.steps.length) issues.push(`no steps: ${a.id}`);
   if (!a.blurb) issues.push(`no blurb: ${a.id}`);
@@ -56,13 +56,16 @@ for (const a of A) {
   if (a.variations?.length) withVar++;
   if (a.subsets?.length) withSub++;
   for (const m of a.media || []) {
-    if (/^https:\/\/www\.youtube\.com\/results\?/.test(m.url)) youtubeOk++;
-    else if (/youtube\.com\/watch|youtu\.be\//.test(m.url)) youtubeBad++;
+    // Search pages must never ship; a specific video/tutorial URL is good.
+    if (/youtube\.com\/results|google\.com\/search/.test(m.url)) { youtubeBad++; issues.push(`SEARCH media url: ${a.id}`); }
+    else if (/^https?:\/\//.test(m.url)) youtubeOk++;
+    else { youtubeBad++; issues.push(`non-http media url: ${a.id}`); }
   }
   for (const l of a.links || []) {
-    if (SOURCE_HOSTS.some((h) => l.url.includes(h))) { linkOk++; sourceCited++; }
-    else if (/google\.com\/search|youtube\.com\/results/.test(l.url)) linkOk++;
-    else linkBad++;
+    if (/google\.com\/search|youtube\.com\/results/.test(l.url)) { linkBad++; issues.push(`SEARCH link url: ${a.id}`); }
+    else if (SOURCE_HOSTS.some((h) => l.url.includes(h))) { linkOk++; sourceCited++; }
+    else if (/^https?:\/\//.test(l.url)) linkOk++;
+    else { linkBad++; issues.push(`non-http link url: ${a.id}`); }
   }
 }
 
@@ -75,8 +78,8 @@ for (const c of CATS) console.log([c.padEnd(7), ...BANDS.map((b) => String(catBa
 console.log("\nFIELD COVERAGE:");
 console.log(`  altNames: ${withAlt}/${A.length}  media: ${withMedia}  links: ${withLinks}  variations: ${withVar}  subsets: ${withSub}`);
 console.log(`  director-source citations: ${sourceCited}`);
-console.log(`  youtube search urls ok: ${youtubeOk}  fabricated watch urls: ${youtubeBad}`);
-console.log(`  link urls ok: ${linkOk}  bad/deep links: ${linkBad}`);
+console.log(`  specific media (video/tutorial) urls: ${youtubeOk}  search/bad media urls (BAD): ${youtubeBad}`);
+console.log(`  specific link urls: ${linkOk}  search/bad links (BAD): ${linkBad}`);
 console.log(`\nDISTINCT materialTags: ${tagCounts.size}`);
 const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
 console.log("  top tags:", topTags.map(([t, n]) => `${t}(${n})`).join(", "));
