@@ -7,6 +7,27 @@ export type AgeFilter = "All" | AgeGroupId;
 // "All", or a themeId. Themes are user-definable, so this can't be a fixed union.
 export type ThemeFilter = "All" | string;
 
+// How the library list is ordered. "az" = title A–Z; "rating" = approval rating
+// high→low. Applies across all three browse views (deck/shelf/catalog).
+export type LibrarySort = "az" | "rating";
+
+export function isLibrarySort(value: unknown): value is LibrarySort {
+  return value === "az" || value === "rating";
+}
+
+// Sort a copy of the list. For "rating" the highest approval rating comes first
+// and UNRATED activities (rating 0 = "not run yet") always sink to the bottom —
+// a plain descending sort does this since 0 is the lowest value. Ties (and the
+// whole unrated block) fall back to A–Z so the order is stable and scannable.
+export function sortActivities(items: Activity[], sort: LibrarySort): Activity[] {
+  const byTitle = (a: Activity, b: Activity) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+  if (sort === "rating") {
+    return [...items].sort((a, b) => (b.rating || 0) - (a.rating || 0) || byTitle(a, b));
+  }
+  return [...items].sort(byTitle);
+}
+
 export interface ActivityFilterState {
   cat: CatFilter;
   place: PlaceFilter;
