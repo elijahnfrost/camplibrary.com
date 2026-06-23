@@ -14,9 +14,11 @@ export interface Category {
 }
 
 // A piece of embedded media on an activity — a demo video, a tutorial, or a
-// reference page. `url` is a real http(s) URL (never a fabricated id): a
-// YouTube/Vimeo link plays inline, anything else renders as a link card
-// (lib/embed.ts). `title` is the short caption shown with it.
+// reference page. `url` must be a specific, real http(s) resource: never a
+// fabricated id and never a search page (a `youtube.com/results?...` "search this
+// game" link is not a demo). A YouTube/Vimeo link plays inline, anything else
+// renders as a link card (lib/embed.ts). `title` is the short caption shown with
+// it. The built-in seed never ships search URLs — see scripts/build-seed.mjs.
 export interface ActivityMedia {
   title?: string;
   url: string;
@@ -24,7 +26,9 @@ export interface ActivityMedia {
 
 // A reference link on an activity — an external website with a friendly label.
 // Renders as a tappable link card on the run sheet. Kept distinct from `media`
-// so "watch a demo" and "read more / source" read as separate ideas.
+// so "watch a demo" and "read more / source" read as separate ideas. `url` must
+// be a specific destination (an article/how-to page), never a `google.com/search`
+// or other search URL. The built-in seed only ships verified source links.
 export interface ActivityLink {
   label?: string;
   url: string;

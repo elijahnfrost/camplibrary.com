@@ -2,9 +2,11 @@
 //
 // Three camp staples kept on stable ids so their built-in field diagrams keep
 // resolving (capture-flag + sharks-minnows live in PLAYBOOKS_BY_ACTIVITY_ID),
-// rebuilt to the current quality bar with the full field set — alt-names, media,
-// links, variations, and per-step sub-steps. Hand-authored (not generated) so
-// the safety language and diagram coupling stay reviewed.
+// rebuilt to the current quality bar — alt-names, variations, per-step sub-steps,
+// and a `links` entry only where a specific verified reference exists. No `media`
+// and no search-style URLs: we never ship a "search YouTube/Google for this game"
+// link (see scripts/build-seed.mjs + docs/ai-authoring-guide.md). Hand-authored
+// (not generated) so the safety language and diagram coupling stay reviewed.
 
 import type { Activity } from "@/lib/types";
 
@@ -58,20 +60,10 @@ export const reservedActivities: Activity[] = [
       "Mixed ages: give younger runners a three-second head start and pair them with an older guard.",
       "Older grades (7-12): shrink the safe zones, allow only one guard within five steps of a flag, and require a two-hand tag to free a jailed teammate — it forces real strategy and communication.",
     ],
-    media: [
-      {
-        title: "Video demos: Capture the Flag",
-        url: "https://www.youtube.com/results?search_query=capture+the+flag+camp+game+how+to+play",
-      },
-    ],
     links: [
       {
         label: "Capture the Flag (Rustic Pathways)",
         url: "https://rusticpathways.com/blog/summer-camp-activities",
-      },
-      {
-        label: "More ideas: Capture the Flag variations",
-        url: "https://www.google.com/search?q=capture+the+flag+variations+summer+camp",
       },
     ],
   },
@@ -121,18 +113,6 @@ export const reservedActivities: Activity[] = [
       "Youngest groups: keep only 'below the knee = out', referee every call, and skip the catch-out rule.",
       "Older grades (7-12): add 'sudden death' for the final two — first clean low hit wins — and allow no-look bank shots off the wall for a real skill ceiling.",
     ],
-    media: [
-      {
-        title: "Video demos: Gaga Ball",
-        url: "https://www.youtube.com/results?search_query=gaga+ball+how+to+play+rules",
-      },
-    ],
-    links: [
-      {
-        label: "More ideas: Gaga Ball rules & variations",
-        url: "https://www.google.com/search?q=gaga+ball+rules+and+variations",
-      },
-    ],
   },
   {
     id: "sharks-minnows",
@@ -171,18 +151,6 @@ export const reservedActivities: Activity[] = [
       "Indoors or small space: replace running with power-walking, crab-walking, or heel-to-toe steps.",
       "Big groups (24+): start with three sharks and add a second 'safe island' cone mid-ocean for a one-second pause.",
       "Older grades (7-9): add a 'frozen seaweed' rule — tagged players freeze in place with arms out and can also tag, turning it into a fast strategy game.",
-    ],
-    media: [
-      {
-        title: "Video demos: Sharks and Minnows",
-        url: "https://www.youtube.com/results?search_query=sharks+and+minnows+tag+game+how+to+play",
-      },
-    ],
-    links: [
-      {
-        label: "More ideas: Sharks & Minnows variations",
-        url: "https://www.google.com/search?q=sharks+and+minnows+game+variations+camp",
-      },
     ],
   },
 ];
