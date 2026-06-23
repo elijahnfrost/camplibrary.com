@@ -23,7 +23,7 @@ export const reservedActivities: Activity[] = [
     groupMax: 30,
     energy: 3,
     prep: "Low",
-    rating: 5,
+    rating: 0,
     blurb: "Two teams, two flags, one no-man's-land. The camp classic.",
     materials: [
       "2 flags or pinnies",
@@ -89,7 +89,7 @@ export const reservedActivities: Activity[] = [
     groupMax: 20,
     energy: 3,
     prep: "None",
-    rating: 5,
+    rating: 0,
     blurb: "Dodgeball's faster, friendlier cousin — played in a pit.",
     materials: [
       "1 soft foam gaga ball or playground ball",
@@ -148,7 +148,7 @@ export const reservedActivities: Activity[] = [
     groupMax: 30,
     energy: 2,
     prep: "None",
-    rating: 4,
+    rating: 0,
     blurb: "A dash across open ground while the sharks try to tag you.",
     materials: ["8-12 cones, sidewalk chalk, or floor tape for two boundary lines"],
     materialTags: ["Boundary markers"],
