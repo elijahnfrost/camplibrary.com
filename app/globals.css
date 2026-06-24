@@ -5606,13 +5606,7 @@ body {
   transition-delay: calc(0.12s + var(--i) * 55ms);
 }
 
-/* --- Calendar: the page folds up to a new month, and the dates stay ---------
-   A two-state hover. REST: a clean outlined calendar — the leaf is a transparent
-   sheet over the grid, dates hidden. HOVER: the sheet FOLDS up over its top hinge
-   (the header rule) and HOLDS folded, a visible paper face making the fold read,
-   while a new month's date dots settle in row by row beneath and stay. LEAVE: the
-   page folds back down over the grid and the dates clear. The binder rings are
-   the calendar's frame — they stay put (the old ring-hop was the gimmicky bit). */
+/* --- Calendar: calmed icon — dates always visible, one settle boop on hover -- */
 .cicon--cal {
   overflow: visible;
 }
@@ -5620,10 +5614,10 @@ body {
   fill: currentColor;
   stroke: none;
 }
-/* Calmed nav icon: the date dots sit at rest (a calendar always has its dates),
-   and the hover is ONE gentle settle of the whole glyph — no page fold-up, no
-   staggered dot cascade (the old "wiggle"). Matches the print icon's settle. */
-:where(button, a, summary, label, [role="button"]):hover .cicon--cal {
+/* Fire the boop only on non-active buttons. On the active nav item the `:hover`
+   state can stick after click (focus bleed, browser quirk) making the mid-animation
+   pose appear frozen — suppress it there since active tabs don't need hover feedback. */
+:where(button, a, summary, label, [role="button"]):not(.is-active):hover .cicon--cal {
   animation: cicon-settle 0.3s var(--ease);
 }
 /* A tiny one-shot boop — up a hair and back. Shared by the calmed nav icons. */
@@ -5882,7 +5876,7 @@ body {
 .cicon--print {
   overflow: visible;
 }
-:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--print {
+:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover .cicon--print {
   animation: cicon-settle 0.3s var(--ease);
 }
 

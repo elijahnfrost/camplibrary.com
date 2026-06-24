@@ -211,25 +211,18 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer; on hover a fresh sheet feeds out of the slot and HOLDS while two
-  // lines of text are written onto it — the same content-draw idea as the book
-  // (cover opens, lines write in) and calendar (page flips, dates settle). Parts:
-  // __feed (document on top), __sheet (the printed page), __text (lines written
-  // on it, --i staggers them top→down). See globals.css §Print.
-  // A plain printer: paper on top, body, slot, status light, and a static output
-  // sheet. Hover gives ONE tiny settle (see globals.css) — no sheet-feed or
-  // line-draw choreography (deliberately basic).
+  // Printer: input paper on top, closed body with a notched output slot,
+  // closed output sheet, status dot. Hover = one settle boop (globals.css §Print).
   Print: svg(
     <>
-      {/* the document on top */}
+      {/* input paper — open bottom blends into body top */}
       <path d="M7 8V4h10v4" />
-      {/* printer body */}
-      <path d="M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
-      {/* output-slot lips + status light */}
-      <path d="M7 17h1.2M15.8 17H17" />
+      {/* printer body — closed, consistent 2px corners, notch for output */}
+      <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
+      {/* status dot */}
       <path d="M17.5 11.5h.01" />
-      {/* the printed sheet, resting in the output tray */}
-      <path d="M8.5 21.5v-5h7v5" />
+      {/* output sheet — closed rectangle */}
+      <path d="M7 14h10v6H7z" />
     </>,
     "print"
   ),
