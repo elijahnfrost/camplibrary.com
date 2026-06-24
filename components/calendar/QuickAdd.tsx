@@ -10,6 +10,7 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
+import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor } from "@/lib/data";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
@@ -118,17 +119,12 @@ export function QuickAdd({
     [activities]
   );
   const trimmed = query.trim();
-  const q = trimmed.toLowerCase();
+  // The SAME matcher the Library uses (lib/activityFilters) — multi-word,
+  // accent-/case-insensitive, over the shared activity haystack — so a query
+  // behaves identically whether you search the Library or this picker.
   const filtered = useMemo(
-    () =>
-      q
-        ? sorted.filter((a) =>
-            (a.title + " " + (a.altNames ?? []).join(" ") + " " + a.type + " " + a.blurb)
-              .toLowerCase()
-              .includes(q)
-          )
-        : sorted,
-    [sorted, q]
+    () => (trimmed ? sorted.filter((a) => matchesActivitySearch(a, trimmed)) : sorted),
+    [sorted, trimmed]
   );
   const selectedActivity = sorted.find((a) => a.id === activityId) ?? null;
 
@@ -332,6 +328,12 @@ export function QuickAdd({
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search activities"
                   aria-label="Search the library"
+                  // Stop the mobile keyboard from auto-capitalizing/autocorrecting
+                  // the query (see LibraryTab's search for the full rationale).
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="off"
+                  spellCheck={false}
                 />
                 {query && (
                   <button type="button" onClick={() => setQuery("")} aria-label="Clear">

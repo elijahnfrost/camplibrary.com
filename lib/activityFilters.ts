@@ -44,6 +44,60 @@ function searchableArray(values: unknown): string[] {
   return Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : [];
 }
 
+// Fold case AND accents so search is predictable however a word is typed:
+// "Café", "cafe", and "café" all collapse to the same form. This matters in
+// two real ways here — the seed catalog carries accented materials
+// ("papier-mâché"), and mobile keyboards quietly (de)capitalize the field, so
+// an accent-/case-sensitive match would silently miss what the user meant.
+export function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+// Split a raw query into normalized words. A multi-word query is matched word
+// by word (AND, order-independent) rather than as one literal phrase, so
+// "balloon relay" finds "Relay race with balloons" — not just the exact
+// string "balloon relay". An empty/whitespace query yields no tokens.
+export function searchTokens(query: string): string[] {
+  return normalizeSearchText(query).split(/\s+/).filter(Boolean);
+}
+
+// The text an activity is searchable by, normalized once. This is the SINGLE
+// haystack shared by the Library list and the calendar's QuickAdd picker, so a
+// query behaves identically in both places. Titles, alt-names, and play details
+// (blurb/materials/steps/notes/variations) are in on purpose — counselors
+// remember activities by how they play ("the one with the sponge line") and by
+// local/alternate names ("Octopus", "Goggaball") that never appear in the
+// title. Hidden implementation fields like `safety` stay out.
+export function activitySearchHaystack(a: Activity): string {
+  return normalizeSearchText(
+    [
+      a.title,
+      ...searchableArray(a.altNames),
+      a.type,
+      a.place,
+      a.blurb,
+      ...searchableArray(a.materials),
+      ...searchableArray(a.materialTags),
+      ...searchableArray(a.steps),
+      typeof a.notes === "string" ? a.notes : "",
+      ...searchableArray(a.variations),
+    ].join(" ")
+  );
+}
+
+// Free-text search: every word in `query` must appear somewhere in the
+// activity's haystack (case-/accent-insensitive, any order). Empty query
+// matches everything. Reused by both search surfaces — see callers.
+export function matchesActivitySearch(a: Activity, query: string): boolean {
+  const tokens = searchTokens(query);
+  if (!tokens.length) return true;
+  const hay = activitySearchHaystack(a);
+  return tokens.every((token) => hay.includes(token));
+}
+
 export function matchesActivityFilters(a: Activity, filters: ActivityFilterState): boolean {
   if (filters.cat !== "All" && a.type !== filters.cat) return false;
   if (filters.place === "Inside" && !(a.place === "Inside" || a.place === "Both")) return false;
@@ -54,31 +108,5 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   }
   if (!usesAnyMaterialTag(a, filters.availableMaterialTags || [])) return false;
 
-  const q = filters.query.trim().toLowerCase();
-  if (!q) return true;
-
-  // Steps and notes are searchable on purpose: counselors remember activities
-  // by play details ("the one with the sponge line"), not just titles. Alt-names
-  // are in the haystack too: many games are searched by a local/alternate name
-  // ("Octopus", "Goggaball") that never appears in the title.
-  const hay = (
-    a.title +
-    " " +
-    searchableArray(a.altNames).join(" ") +
-    " " +
-    a.type +
-    " " +
-    a.place +
-    " " +
-    a.blurb +
-    " " +
-    searchableArray(a.materials).join(" ") +
-    " " +
-    searchableArray(a.materialTags).join(" ") +
-    " " +
-    searchableArray(a.steps).join(" ") +
-    " " +
-    (typeof a.notes === "string" ? a.notes : "")
-  ).toLowerCase();
-  return hay.includes(q);
+  return matchesActivitySearch(a, filters.query);
 }

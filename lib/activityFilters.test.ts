@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isLibrarySort,
   matchesActivityFilters,
+  matchesActivitySearch,
+  normalizeSearchText,
+  searchTokens,
   sortActivities,
   type ActivityFilterState,
 } from "./activityFilters";
@@ -155,6 +158,69 @@ describe("activity filters", () => {
 
     expect(matchesActivityFilters(base, filters({ query: "needle" }))).toBe(false);
     expect(matchesActivityFilters(base, filters({ query: "rope" }))).toBe(true);
+  });
+
+  it("matches every word of a multi-word query in any order (not just the literal phrase)", () => {
+    const base = activity({
+      title: "Relay race",
+      blurb: "Pass balloons down the line",
+      materials: ["Balloons"],
+    });
+
+    // The words are scattered across title + blurb and out of order — the old
+    // whole-phrase match would have failed all three of these.
+    expect(matchesActivityFilters(base, filters({ query: "balloon relay" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "relay balloons" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "relay line balloons" }))).toBe(true);
+    // A word that isn't present anywhere still rules the activity out.
+    expect(matchesActivityFilters(base, filters({ query: "relay frisbee" }))).toBe(false);
+  });
+
+  it("searches accent- and case-insensitively", () => {
+    const base = activity({
+      title: "Mask making",
+      materials: ["Papier-mâché paste", "Balloons"],
+    });
+
+    // The material carries an accent; the user almost never types it.
+    expect(matchesActivityFilters(base, filters({ query: "mache" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "papier mache" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "PAPIER MÂCHÉ" }))).toBe(true);
+  });
+
+  it("finds hyphenated text when the query uses spaces", () => {
+    const base = activity({ title: "Tug-of-war", altNames: ["Rope pull"] });
+
+    expect(matchesActivityFilters(base, filters({ query: "tug of war" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "war tug" }))).toBe(true);
+  });
+
+  it("searches variation text", () => {
+    const base = activity({
+      title: "Capture the flag",
+      variations: ["Rainy-day indoor version using the gym"],
+    });
+
+    expect(matchesActivityFilters(base, filters({ query: "rainy gym" }))).toBe(true);
+  });
+});
+
+describe("search helpers", () => {
+  it("normalizeSearchText folds case and strips accents", () => {
+    expect(normalizeSearchText("Café")).toBe("cafe");
+    expect(normalizeSearchText("PAPIER-MÂCHÉ")).toBe("papier-mache");
+  });
+
+  it("searchTokens splits on whitespace and drops empties", () => {
+    expect(searchTokens("  balloon   relay ")).toEqual(["balloon", "relay"]);
+    expect(searchTokens("   ")).toEqual([]);
+    expect(searchTokens("")).toEqual([]);
+  });
+
+  it("matchesActivitySearch matches everything for an empty query", () => {
+    const base = activity({ title: "Anything" });
+    expect(matchesActivitySearch(base, "")).toBe(true);
+    expect(matchesActivitySearch(base, "   ")).toBe(true);
   });
 });
 
