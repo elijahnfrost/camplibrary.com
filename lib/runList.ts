@@ -31,6 +31,7 @@ export type RunChildType =
   | "safety"
   | "video"
   | "variation"
+  | "fieldnote"
   | "substep"
   | "diagram"
   | "materials";
@@ -41,6 +42,7 @@ export type RunBlockType =
   | "note"
   | "safety"
   | "variation"
+  | "fieldnote"
   | "playbook"
   | "materials";
 
@@ -57,6 +59,9 @@ export interface RunChild {
   title?: string;
   url?: string;
   diagram?: ActivityPlaybookData;
+  // fieldnote: ISO date (YYYY-MM-DD) the observation was captured, shown as a
+  // small dated-log chip. Optional so legacy docs and other detail types ignore it.
+  at?: string;
 }
 
 export interface RunBlock {
@@ -73,6 +78,8 @@ export interface RunBlock {
   tags?: RunDetailTag[];
   // step: whether it renders collapsed by default
   collapsed?: boolean;
+  // fieldnote: ISO date (YYYY-MM-DD) the observation was captured (see RunChild.at).
+  at?: string;
   children?: RunChild[];
 }
 
@@ -84,6 +91,7 @@ export const RUN_CHILD_TYPES: RunChildType[] = [
   "note",
   "safety",
   "variation",
+  "fieldnote",
   "substep",
   "video",
   "diagram",
@@ -96,6 +104,7 @@ const RUN_BLOCK_TYPES: RunBlockType[] = [
   "note",
   "safety",
   "variation",
+  "fieldnote",
   "playbook",
   "materials",
 ];
@@ -105,17 +114,22 @@ export const RUN_CHILD_META: Record<RunChildType, { label: string; placeholder: 
   safety: { label: "Safety", placeholder: "What's the safety call here?" },
   video: { label: "Media", placeholder: "YouTube, Vimeo, or a link…" },
   variation: { label: "Variation", placeholder: "Describe a variation…" },
+  fieldnote: { label: "Field note", placeholder: "What did you notice to change next time?" },
   substep: { label: "Sub-step", placeholder: "Break it down a step…" },
   diagram: { label: "Diagram", placeholder: "" },
   materials: { label: "Materials", placeholder: "" },
 };
 
-export const RUN_TOP_LABEL: Record<"heading" | "note" | "safety" | "variation" | "materials" | "details", string> = {
+export const RUN_TOP_LABEL: Record<
+  "heading" | "note" | "safety" | "variation" | "fieldnote" | "materials" | "details",
+  string
+> = {
   details: "Specific details",
   heading: "Heading",
   note: "Note",
   safety: "Safety",
   variation: "Variation",
+  fieldnote: "Field note",
   materials: "Materials",
 };
 
@@ -133,10 +147,27 @@ export function runPillLabel(type: RunChildType, n: number): string {
   if (type === "safety") return n > 1 ? n + " safety notes" : "safety note";
   if (type === "substep") return n + " sub-step" + (n > 1 ? "s" : "");
   if (type === "variation") return n > 1 ? n + " variations" : "variation";
+  if (type === "fieldnote") return n > 1 ? n + " field notes" : "field note";
   if (type === "diagram") return n > 1 ? n + " diagrams" : "diagram";
   if (type === "materials") return "materials";
   if (n === 1) return type;
   return n + " " + type + "s";
+}
+
+// Today as an ISO date (YYYY-MM-DD) for stamping a freshly captured field note.
+export function todayStamp(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// A fresh field-note detail, stamped with today's date. The unit a counselor
+// drops "in the field" to flag a change for later.
+export function fieldNoteChild(text = ""): RunChild {
+  return { id: runId("fn"), type: "fieldnote", text, at: todayStamp() };
+}
+
+// A fresh top-level field-note block, stamped with today's date.
+export function fieldNoteBlock(text = ""): RunBlock {
+  return { id: runId("fn"), type: "fieldnote", text, at: todayStamp(), children: [] };
 }
 
 // A fresh, empty diagram detail seeded with a blank field.
@@ -380,6 +411,12 @@ function normalizeChild(raw: unknown, index: number): RunChild | null {
   if (type === "materials") {
     return { id, type: "materials" };
   }
+  if (type === "fieldnote") {
+    const child: RunChild = { id, type: "fieldnote", text: asString(r.text) ?? "" };
+    const at = asString(r.at);
+    if (at) child.at = at;
+    return child;
+  }
   return { id, type: type as RunChildType, text: asString(r.text) ?? "" };
 }
 
@@ -438,6 +475,12 @@ function normalizeBlock(raw: unknown, index: number): RunBlock | null {
       collapsed: r.collapsed === true,
       children,
     };
+  }
+  if (type === "fieldnote") {
+    const block: RunBlock = { id, type: "fieldnote", text: asString(r.text) ?? "", children };
+    const at = asString(r.at);
+    if (at) block.at = at;
+    return block;
   }
   // heading / note / safety / variation
   return { id, type: type as RunBlockType, text: asString(r.text) ?? "", children };
@@ -512,6 +555,9 @@ export function sameDragItem(a: DragItem | null, b: DragItem): boolean {
 
 // A top-level block that can also live as a detail under a step.
 export function childFromTop(block: RunBlock): RunChild | null {
+  if (block.type === "fieldnote") {
+    return { id: block.id, type: "fieldnote", text: block.text || "", at: block.at };
+  }
   if (block.type === "note" || block.type === "safety" || block.type === "variation") {
     return { id: block.id, type: block.type, text: block.text || "" };
   }
@@ -521,6 +567,9 @@ export function childFromTop(block: RunBlock): RunChild | null {
 
 // A detail that can be promoted to a top-level block.
 export function topFromChild(child: RunChild): RunBlock | null {
+  if (child.type === "fieldnote") {
+    return { id: child.id, type: "fieldnote", text: child.text || "", at: child.at, children: [] };
+  }
   if (child.type === "note" || child.type === "safety" || child.type === "variation") {
     return { id: child.id, type: child.type, text: child.text || "", children: [] };
   }

@@ -192,6 +192,9 @@ export function DetailSheet({
             availableMaterials={availableMaterials}
             onToggleMaterial={onToggleMaterial}
             onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
+            // Lets staff jot field notes straight from the read-only viewer while
+            // running the game — no edit-mode toggle needed.
+            canCapture={canEdit}
           />
         </article>
       </div>

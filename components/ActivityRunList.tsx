@@ -42,12 +42,15 @@ import {
   cloneRunChild,
   cloneRunDoc,
   detailTagsForActivity,
+  fieldNoteBlock,
+  fieldNoteChild,
   insertBlockAfter,
   insertBlockAt,
   resolveDrop,
   runId,
   runPillLabel,
   sameDragItem,
+  todayStamp,
   type DragItem,
   type DropTarget,
   type RunBlock,
@@ -71,6 +74,7 @@ const TYPE_ICON: Record<string, IconCmp> = {
   safety: CampIcon.Shield,
   video: CampIcon.Video,
   variation: CampIcon.Variation,
+  fieldnote: CampIcon.Flag,
   substep: CampIcon.SubStep,
   diagram: CampIcon.Deck,
   materials: CampIcon.Card,
@@ -87,8 +91,20 @@ const ADD_BLOCKS: { type: RunBlockType; label: string; icon: IconCmp }[] = [
   { type: "note", label: "Note", icon: CampIcon.Note },
   { type: "safety", label: "Safety", icon: CampIcon.Shield },
   { type: "variation", label: "Variation", icon: CampIcon.Variation },
+  { type: "fieldnote", label: "Field note", icon: CampIcon.Flag },
 ];
 const ATTACH_BLOCKS = RUN_CHILD_TYPES.filter((type) => type !== "materials");
+
+// "Jun 23" from an ISO YYYY-MM-DD — parsed by hand so a field note's dated chip
+// never drifts a day across timezones (no Date() reparse of the stored string).
+const STAMP_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatStamp(at: string | undefined): string {
+  if (!at) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(at);
+  if (!m) return at;
+  const month = STAMP_MONTHS[Number(m[2]) - 1];
+  return month ? month + " " + Number(m[3]) : at;
+}
 
 type RailSegment = {
   id: string;
@@ -329,6 +345,7 @@ export function ActivityRunList({
   onToggleMaterial,
   onSetRating,
   hideAddBlocks,
+  canCapture = false,
 }: {
   doc: RunDoc;
   editable: boolean;
@@ -340,6 +357,11 @@ export function ActivityRunList({
   /** Block types kept out of the "Add a block" palettes (e.g. the add-activity
    *  form owns details/materials as plain form sections). */
   hideAddBlocks?: RunBlockType[];
+  /** Make field-note blocks live — directly typeable in the READ-ONLY viewer,
+   *  the same way the rating dots are interactive without entering edit mode. The
+   *  rest of the read view stays static (a stray tap on a step never pops the
+   *  keyboard). Only wired where saving is possible (signed-in staff). */
+  canCapture?: boolean;
 }) {
   const addableBlocks = hideAddBlocks?.length
     ? ADD_BLOCKS.filter((block) => !hideAddBlocks.includes(block.type))
@@ -350,6 +372,9 @@ export function ActivityRunList({
   const [openKid, setOpenKid] = useState<string | null>(null);
   const [openTop, setOpenTop] = useState(false);
   const [insertAt, setInsertAt] = useState<number | null>(null);
+  // Bumped after the trailing "jot a field note" line commits, so it remounts
+  // empty and ready for the next note.
+  const [fnDraftKey, setFnDraftKey] = useState(0);
   // The diagram detail (parent step + child id) currently open in the full-screen
   // editor, mirroring how read mode opens diagrams full screen in the lightbox.
   const [fullDiagram, setFullDiagram] = useState<{ stepId: string; childId: string } | null>(null);
@@ -558,6 +583,7 @@ export function ActivityRunList({
     if (type === "video") kid = { id: runId("k"), type, title: "", url: "" };
     else if (type === "diagram") kid = blankDiagramChild(activity.id, activity.title);
     else if (type === "materials") kid = { id: runId("k"), type };
+    else if (type === "fieldnote") kid = fieldNoteChild();
     else kid = { id: runId("k"), type, text: "" };
     commit({
       blocks: doc.blocks.map((b) =>
@@ -575,6 +601,7 @@ export function ActivityRunList({
     if (type === "heading") return { id: runId("b"), type, text: "New section", children: [] };
     if (type === "materials") return { id: runId("b"), type, children: [] };
     if (type === "details") return { id: runId("b"), type, children: [] };
+    if (type === "fieldnote") return fieldNoteBlock();
     return { id: runId("b"), type, text: "", children: [] };
   };
 
@@ -589,6 +616,22 @@ export function ActivityRunList({
     if (block.type === "step") pendingFocusRef.current = { id: block.id, caret: "end" };
     commit(insertBlockAt(doc, index, block));
     setInsertAt(null);
+  };
+
+  // ---- field notes (a plain block, typeable in read mode too — see canCapture)
+  // Commit an inline field-note edit. Clearing the text and tapping away removes
+  // the note — the read-mode delete, with no extra buttons.
+  const commitFieldNote = (id: string, text: string) => {
+    if (text.trim()) patchTop(id, { text });
+    else rmTop(id);
+  };
+
+  // The trailing "jot a field note" line: a non-empty commit appends a fresh
+  // dated block and resets the line for the next one.
+  const addFieldNote = (text: string) => {
+    if (!text.trim()) return;
+    commit({ blocks: [...doc.blocks, fieldNoteBlock(text)] });
+    setFnDraftKey((n) => n + 1);
   };
 
   const moveTo = (target: DropTarget) => {
@@ -863,6 +906,9 @@ export function ActivityRunList({
   const renderChild = (stepId: string, k: RunChild, closingNow: boolean): ReactNode => {
     const Icon = TYPE_ICON[k.type];
     const label = RUN_CHILD_META[k.type].label;
+    // Field notes read as a dated log; the date rides alongside the type label.
+    const timeExtra =
+      k.type === "fieldnote" && k.at ? <span className="rl-fndate">{formatStamp(k.at)}</span> : null;
     const parentBlock = doc.blocks.find((b) => b.id === stepId);
     const childIndex = (parentBlock?.children || []).findIndex((c) => c.id === k.id);
     const childCount = parentBlock?.children?.length ?? 0;
@@ -916,7 +962,10 @@ export function ActivityRunList({
         <div className="rl-block__main">
           <div className={"rl-row rl-row--detail rl-row--" + k.type}>
             <div className="rl-body">
-              <div className="rl-time">{label}</div>
+              <div className="rl-time">
+                {label}
+                {timeExtra}
+              </div>
               {body}
             </div>
             {removeBtn}
@@ -1014,14 +1063,19 @@ export function ActivityRunList({
       );
     }
 
+    const isFieldnote = k.type === "fieldnote";
     return shell(
       <Editable
         className="rl-text"
         value={k.text || ""}
-        editable={editable}
+        editable={editable || (isFieldnote && canCapture)}
         placeholder={RUN_CHILD_META[k.type].placeholder}
         ariaLabel={label + " detail text"}
-        onCommit={(v) => patchKid(stepId, k.id, { text: v })}
+        onCommit={
+          isFieldnote
+            ? (v) => (v.trim() ? patchKid(stepId, k.id, { text: v }) : rmKid(stepId, k.id))
+            : (v) => patchKid(stepId, k.id, { text: v })
+        }
       />
     );
   };
@@ -1318,7 +1372,10 @@ export function ActivityRunList({
             // ---- TOP-LEVEL NOTE / SAFETY / VARIATION ----
             if (b.type !== "step") {
               const Icon = TYPE_ICON[b.type] || CampIcon.Note;
-              const label = RUN_TOP_LABEL[b.type as "note" | "safety" | "variation"] || "Note";
+              const label = RUN_TOP_LABEL[b.type as "note" | "safety" | "variation" | "fieldnote"] || "Note";
+              // Field notes stay typeable in the read-only viewer (like the rating
+              // dots), and clearing one removes it — the no-button read-mode delete.
+              const isFieldnote = b.type === "fieldnote";
               return (
                 <li
                   key={b.id}
@@ -1336,14 +1393,21 @@ export function ActivityRunList({
                   <div className="rl-block__main">
                     <div className={"rl-row rl-row--" + b.type}>
                       <div className="rl-body">
-                        <div className="rl-time">{label}</div>
+                        <div className="rl-time">
+                          {label}
+                          {isFieldnote && b.at ? (
+                            <span className="rl-fndate">{formatStamp(b.at)}</span>
+                          ) : null}
+                        </div>
                         <Editable
                           className="rl-text"
                           value={b.text || ""}
-                          editable={editable}
-                          placeholder={label}
+                          editable={editable || (isFieldnote && canCapture)}
+                          placeholder={isFieldnote ? RUN_CHILD_META.fieldnote.placeholder : label}
                           ariaLabel={label + " text"}
-                          onCommit={(v) => patchTop(b.id, { text: v })}
+                          onCommit={
+                            isFieldnote ? (v) => commitFieldNote(b.id, v) : (v) => patchTop(b.id, { text: v })
+                          }
                         />
                       </div>
                       {handles(b.id)}
@@ -1499,6 +1563,36 @@ export function ActivityRunList({
               })()}
             </Fragment>
           ))}
+
+          {/* Read mode: a plain field-note block you just start typing in — no
+              edit mode, mirroring how the rating dots stay interactive. Commits
+              on blur; each entry is stamped and becomes its own block. */}
+          {!editable && canCapture && (
+            <li className="rl-block rl-block--fieldnote rl-block--fncreate">
+              <span className="rl-node rl-node--type rl-node--fieldnote" contentEditable={false}>
+                <CampIcon.Flag />
+              </span>
+              <div className="rl-block__main">
+                <div className="rl-row rl-row--fieldnote">
+                  <div className="rl-body">
+                    <div className="rl-time">
+                      {RUN_TOP_LABEL.fieldnote}
+                      <span className="rl-fndate">{formatStamp(todayStamp())}</span>
+                    </div>
+                    <Editable
+                      key={fnDraftKey}
+                      className="rl-text"
+                      value=""
+                      editable
+                      placeholder="Jot a field note…"
+                      ariaLabel="New field note"
+                      onCommit={addFieldNote}
+                    />
+                  </div>
+                </div>
+              </div>
+            </li>
+          )}
         </ul>
 
         {editable && (
@@ -1545,6 +1639,7 @@ export function ActivityRunList({
             </div>
           </div>
         )}
+
       </div>
 
       {undoState && (
