@@ -520,6 +520,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           {tab === "library" && (
             <Filters
               variant="rail"
+              sort={sort}
+              onSort={setSort}
               cat={cat}
               place={place}
               age={age}
