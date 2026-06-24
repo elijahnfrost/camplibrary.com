@@ -6561,6 +6561,7 @@ body {
   --rl-safety: var(--clay);
   --rl-video: var(--dusk);
   --rl-variation: var(--wood-soft);
+  --rl-fieldnote: var(--amber);
   --rl-substep: var(--accent-ink);
   --rl-node-size: 34px;
   --rl-detail-node-size: 30px;
@@ -6722,6 +6723,9 @@ button.rl-node {
 }
 .rl-node--variation {
   color: var(--rl-variation);
+}
+.rl-node--fieldnote {
+  color: var(--rl-fieldnote);
 }
 .rl-node--substep {
   color: var(--rl-substep);
@@ -6987,8 +6991,61 @@ button.rl-node {
 .rl-pill--variation {
   color: var(--rl-variation);
 }
+.rl-pill--fieldnote {
+  color: var(--rl-fieldnote);
+}
 .rl-pill--substep {
   color: var(--rl-substep);
+}
+
+/* ---------- field notes (the "change this later" log) ----------
+   A dated, flagged block kept visually apart from the cozy instructional
+   "Note". Its text is typeable straight from the read-only viewer (like the
+   rating dots stay interactive) — no edit mode. Never printed (excluded in
+   RunSheetBody / ActivityBookPrint). */
+.rl-row--fieldnote {
+  background: color-mix(in srgb, var(--amber) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--ink));
+  border-left: 3px solid var(--rl-fieldnote);
+}
+.rl-row--detail.rl-row--fieldnote {
+  background: color-mix(in srgb, var(--amber) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 38%, var(--line));
+  border-left: 3px solid color-mix(in srgb, var(--rl-fieldnote) 82%, transparent);
+}
+/* Field-note text stays a text caret even in the otherwise-static read view. */
+.rl.is-readonly .rl-row--fieldnote .rl-ed {
+  cursor: text;
+}
+/* The dated chip riding next to the "Field note" label. */
+.rl-fndate {
+  display: inline-block;
+  margin-left: var(--s-3);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--amber) 22%, var(--card));
+  color: var(--wood);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+/* The trailing "jot a field note" line — quiet + dashed until you focus it,
+   then it reads like a real field note. Click and type; it commits on blur. */
+.rl-block--fncreate .rl-row--fieldnote {
+  background: transparent;
+  border-style: dashed;
+  border-left-style: dashed;
+  opacity: 0.72;
+  transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.rl-block--fncreate .rl-row--fieldnote:hover,
+.rl-block--fncreate .rl-row--fieldnote:focus-within {
+  opacity: 1;
+  background: color-mix(in srgb, var(--amber) 10%, var(--card));
+  border-style: solid;
+  border-left-style: solid;
 }
 
 /* ---------- row tools (hover-only, top right) ---------- */

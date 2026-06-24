@@ -8,8 +8,11 @@ import {
   blankDiagramChild,
   blankStepBlock,
   buildRunDoc,
+  childFromTop,
   cloneRunChild,
   cloneRunDoc,
+  fieldNoteBlock,
+  fieldNoteChild,
   insertBlockAfter,
   insertBlockAt,
   detailTagsForActivity,
@@ -24,6 +27,8 @@ import {
   rekeyRunDoc,
   runId,
   runPillLabel,
+  todayStamp,
+  topFromChild,
   type RunDoc,
 } from "./runList";
 
@@ -66,9 +71,20 @@ function blockSummary(doc: RunDoc): string[] {
 
 describe("run list model", () => {
   it("exposes stable UI metadata and factories", () => {
-    expect(RUN_CHILD_TYPES).toEqual(["note", "safety", "variation", "substep", "video", "diagram", "materials"]);
+    expect(RUN_CHILD_TYPES).toEqual([
+      "note",
+      "safety",
+      "variation",
+      "fieldnote",
+      "substep",
+      "video",
+      "diagram",
+      "materials",
+    ]);
     expect(RUN_CHILD_META.video).toEqual({ label: "Media", placeholder: "YouTube, Vimeo, or a link\u2026" });
+    expect(RUN_CHILD_META.fieldnote.label).toBe("Field note");
     expect(RUN_TOP_LABEL.details).toBe("Specific details");
+    expect(RUN_TOP_LABEL.fieldnote).toBe("Field note");
 
     const first = runId("x");
     const second = runId("x");
@@ -83,6 +99,8 @@ describe("run list model", () => {
     expect(runPillLabel("diagram", 2)).toBe("2 diagrams");
     expect(runPillLabel("materials", 3)).toBe("materials");
     expect(runPillLabel("note", 2)).toBe("2 notes");
+    expect(runPillLabel("fieldnote", 1)).toBe("field note");
+    expect(runPillLabel("fieldnote", 3)).toBe("3 field notes");
 
     expect(blankDiagramChild("a1", "Game")).toMatchObject({
       type: "diagram",
@@ -90,6 +108,31 @@ describe("run list model", () => {
     });
     expect(materialsChild("a1")).toEqual({ id: "a1-mat", type: "materials" });
     expect(materialsBlock("a1")).toEqual({ id: "a1-mat", type: "materials", children: [] });
+  });
+
+  it("captures field notes as a dated, normalizable, lossless-promoting block", () => {
+    const stamp = todayStamp();
+    expect(stamp).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const block = fieldNoteBlock("move this earlier");
+    expect(block).toMatchObject({ type: "fieldnote", text: "move this earlier", at: stamp, children: [] });
+    const child = fieldNoteChild("kids needed more time");
+    expect(child).toMatchObject({ type: "fieldnote", text: "kids needed more time", at: stamp });
+
+    // The captured date survives a storage round-trip — top-level block + child.
+    const doc: RunDoc = {
+      blocks: [
+        { id: "b1", type: "fieldnote", text: "top note", at: "2026-06-23", children: [] },
+        { id: "s1", type: "step", text: "Play", collapsed: false, children: [child] },
+      ],
+    };
+    const normalized = normalizeRunDoc(JSON.parse(JSON.stringify(doc)));
+    expect(normalized?.blocks[0]).toMatchObject({ type: "fieldnote", text: "top note", at: "2026-06-23" });
+    expect(normalized?.blocks[1].children?.[0]).toMatchObject({ type: "fieldnote", at: stamp });
+
+    // Dragging a field note between top-level and under a step keeps its date.
+    expect(childFromTop(block)).toMatchObject({ type: "fieldnote", text: "move this earlier", at: stamp });
+    expect(topFromChild(child)).toMatchObject({ type: "fieldnote", text: "kids needed more time", at: stamp });
   });
 
   it("builds a runnable document from activity seed data", () => {

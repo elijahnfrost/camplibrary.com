@@ -15,6 +15,8 @@ const CHILD_LABEL: Record<RunChild["type"], string> = {
   safety: "Safety",
   video: "Media",
   variation: "Variation",
+  // Field notes are a private "change later" log — never printed (see PrintChild).
+  fieldnote: "Field note",
   substep: "Sub-step",
   diagram: "Diagram",
   materials: "Materials",
@@ -44,6 +46,8 @@ function MaterialsList({ activity }: { activity: Activity }) {
 }
 
 function PrintChild({ child, activity }: { child: RunChild; activity: Activity }) {
+  // Field notes are the counselor's private "change this later" log — never printed.
+  if (child.type === "fieldnote") return null;
   if (child.type === "materials") {
     return (
       <div className="print-run-child">
@@ -88,6 +92,8 @@ function PrintRunBlock({ block, activity }: { block: RunBlock; activity: Activit
   // The header's facts section already prints every activity fact — the
   // doc's details block would repeat it (with icon ids as labels, no less).
   if (block.type === "details") return null;
+  // Field notes never print (the private "change later" log — see PrintChild).
+  if (block.type === "fieldnote") return null;
 
   if (block.type === "materials") {
     return (

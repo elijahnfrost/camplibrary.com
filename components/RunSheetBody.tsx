@@ -19,6 +19,8 @@ const CHILD_LABEL: Record<RunChild["type"], string> = {
   safety: "Safety",
   video: "Media",
   variation: "Variation",
+  // Field notes are a private "change later" log — never printed (see RunChildView).
+  fieldnote: "Field note",
   substep: "Sub-step",
   diagram: "Diagram",
   materials: "Materials",
@@ -92,6 +94,9 @@ function MaterialsList({ activity, c }: { activity: Activity; c: Vars }) {
 }
 
 function RunChildView({ child, activity, c }: { child: RunChild; activity: Activity; c: Vars }) {
+  // Field notes are the counselor's private "change this later" log — kept out of
+  // the printed sheet and the shared run-sheet link.
+  if (child.type === "fieldnote") return null;
   if (child.type === "materials") {
     return (
       <div className={c.childBase}>
@@ -141,6 +146,8 @@ function RunBlockView({ block, activity, c }: { block: RunBlock; activity: Activ
   // The facts grid already prints every activity fact — the derived details block
   // would repeat it (with icon ids as labels), so skip it here.
   if (block.type === "details") return null;
+  // Field notes never print (the private "change later" log — see RunChildView).
+  if (block.type === "fieldnote") return null;
 
   if (block.type === "materials") {
     return (

@@ -264,6 +264,8 @@ export const CampIcon = {
   ),
   // ---- Run List detail glyphs (note / safety / video / variation / sub-step) ----
   Note: svg(<path d="M5 6h14M5 11h14M5 16h9" />),
+  // Field note: a flagged pennant on a pole — "mark this to change later".
+  Flag: svg(<path d="M6 21V4M6 4.5h11l-2.3 3.4L17 11.3H6" />),
   Shield: svg(
     <>
       <path d="M12 21c4-4.5 6-7.8 6-11a6 6 0 1 0-12 0c0 3.2 2 6.5 6 11z" />
