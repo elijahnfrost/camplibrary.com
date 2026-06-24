@@ -8000,7 +8000,7 @@ button.rl-node {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: var(--s-5);
+    gap: var(--s-3);
     /* Still the first row on the page until the sidebar appears at 1024px,
        so it keeps carrying the notch clearance. */
     padding: max(var(--s-5), calc(8px + env(safe-area-inset-top))) var(--s-7) var(--s-3);
