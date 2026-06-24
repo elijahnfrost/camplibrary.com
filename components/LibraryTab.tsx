@@ -13,7 +13,6 @@ import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
-import { MiniSeg } from "./primitives";
 
 export function LibraryTab({
   view,
@@ -162,6 +161,8 @@ export function LibraryTab({
       </div>
       <Filters
         variant="bar"
+        sort={sort}
+        onSort={onSort}
         cat={cat}
         place={place}
         age={age}
@@ -240,21 +241,6 @@ export function LibraryTab({
           </div>
         ) : (
           <>
-            {/* Arrange row — one sort control above all three browse views so
-                ordering isn't buried in a single view. "Rating" sinks unrated
-                activities to the bottom (see sortActivities). */}
-            <div className="library-arrange">
-              <span className="label library-arrange__label">Sort</span>
-              <MiniSeg
-                ariaLabel="Sort the library"
-                value={sort}
-                onChange={onSort}
-                options={[
-                  { id: "az", label: "A–Z" },
-                  { id: "rating", label: "Rating" },
-                ]}
-              />
-            </div>
             {view === "shelf" && (
               <ShelfView items={items} onOpen={onOpen} isFav={isFav} onToggleFav={onToggleFav} onContextMenu={onContextMenu} themeOf={themeOf} />
             )}

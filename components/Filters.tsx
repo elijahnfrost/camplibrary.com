@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, type CSSProperties } from "react";
-import type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
@@ -103,6 +103,10 @@ export function ActiveFilters({ className, ...props }: ActiveFilterProps & { cla
 
 interface FiltersProps {
   variant: "bar" | "rail";
+  /** Library-wide ordering (A–Z / Rating) — lives in the same ledger as the
+   *  filters so it reads as one sidebar control, not a row floating over the list. */
+  sort: LibrarySort;
+  onSort: (v: LibrarySort) => void;
   cat: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
@@ -238,6 +242,8 @@ function MaterialPicker({
 // inline menu, Where/Ages are mini segmented pills, Starred is a true switch,
 // and the kit row shows its picked count and expands in place.
 function LedgerFilters({
+  sort,
+  onSort,
   cat,
   place,
   age,
@@ -259,6 +265,21 @@ function LedgerFilters({
 }: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
     <div className="ledger">
+      {/* Sort leads the ledger: it orders the whole list, then the rows below
+          narrow it. "Rating" sinks unrated activities to the bottom (see
+          sortActivities). */}
+      <div className="ledger__row">
+        <span className="ledger__label">Sort</span>
+        <MiniSeg
+          ariaLabel="Sort the library"
+          value={sort}
+          onChange={onSort}
+          options={[
+            { id: "az" as LibrarySort, label: "A–Z" },
+            { id: "rating" as LibrarySort, label: "Rating" },
+          ]}
+        />
+      </div>
       <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
       {/* Always shown so themes are discoverable — the menu footer creates the
           first one when none exist yet. */}
@@ -318,6 +339,8 @@ function LedgerFilters({
 
 export function Filters({
   variant,
+  sort,
+  onSort,
   cat,
   place,
   age,
@@ -374,6 +397,8 @@ export function Filters({
 
   const ledger = (
     <LedgerFilters
+      sort={sort}
+      onSort={onSort}
       cat={cat}
       place={place}
       age={age}
