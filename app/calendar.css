@@ -663,6 +663,26 @@ body.is-cal-copy .cal-dragfollow::after {
 .calshell .fc .fc-event:focus::after {
   display: none;
 }
+/* Multi-selection (shift/cmd-click): a DEDICATED class toggled onto the event
+   harness from JS — deliberately NOT FC's own .fc-event-selected (whose accent
+   ring marks the single native selection and would read identically). A selected
+   card wears a thicker DOUBLE ring: an inner paper halo lifts the accent off the
+   card's own tint so it stays legible over ANY colour mode, then the solid
+   accent ring, then a faint accent glow so a run of selected cards reads as one
+   group at a glance. Stacked box-shadows only — no background-image, so the
+   custom event's hatched spine (also painted via background-image) is untouched.
+   Distinct from hover (a lift, no ring) and from the dragging/snap-box
+   treatments (dashed, mid-gesture). The slight raise echoes the hover lift so a
+   selected card reads as "picked up". */
+.calshell .fc-event.cal-event--selected:not(.fc-event-mirror) {
+  box-shadow:
+    0 0 0 1.5px var(--card),
+    0 0 0 3.5px var(--accent),
+    0 1px 6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.calshell .fc-timegrid-event.cal-event--selected:not(.fc-event-mirror) {
+  transform: translateY(-1px);
+}
 .cal-card {
   display: flex;
   flex-direction: column;
@@ -1390,17 +1410,6 @@ body.is-cal-copy .cal-dragfollow::after {
   height: var(--control-sm);
   padding: 0 var(--s-4);
   font-size: var(--fs-ui);
-}
-/* Location is a plain text box filling the right of its row (no popover) — the
-   sidebar title-input pattern. It keeps the inherited 16px .input font so iOS
-   doesn't zoom the sheet when the field is focused. */
-.quickadd__settings .ledger__row > .cloc {
-  flex: 0 1 200px;
-  min-width: 0;
-}
-.quickadd__settings .cloc__input {
-  height: var(--control-sm);
-  padding: 0 var(--s-4);
 }
 .quickadd__foot {
   display: flex;

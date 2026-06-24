@@ -8276,6 +8276,11 @@ button.rl-node {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Nothing chosen yet — the value reads as a muted placeholder ("Add location"),
+   matching the .input::placeholder weight used by the other compact controls. */
+.cselect__trigger .cselect__value.is-empty {
+  color: var(--ink-faint);
+}
 .cselect__trigger svg {
   flex: none;
   width: 16px;
@@ -8409,18 +8414,6 @@ button.rl-node {
   flex: none;
 }
 
-/* ---------- per-event location field (LocationField) ----------
-   A plain inline text box (NOT a popover) — the staff type where the block
-   happens right in the schedule row. Locations already used elsewhere ride in a
-   native <datalist>, so the browser offers them as autocomplete with no custom
-   pane. Row sizing (compact height/padding) comes from .quickadd__settings. */
-.cloc {
-  position: relative;
-  width: 100%;
-}
-.cloc__input {
-  width: 100%;
-}
 .cdate__head {
   display: flex;
   align-items: center;

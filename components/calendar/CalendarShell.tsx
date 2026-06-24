@@ -52,6 +52,7 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
+import { isColorMode, type ColorMode } from "@/lib/data";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import {
   buildSeriesEvents,
@@ -157,6 +158,11 @@ const boolStorage = (value: unknown, fallback: boolean) =>
 const slotZoomStorage = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) ? clampSlotZoom(value) : fallback;
 
+// Validate the stored "Color by" mode against the known ids (mirrors
+// parseWeekStart/boolStorage) so a stale/garbage value falls back to "custom".
+const colorModeStorage = (value: unknown, fallback: ColorMode) =>
+  isColorMode(value) ? value : fallback;
+
 export function CalendarShell({
   events,
   upsertEvent,
@@ -241,6 +247,15 @@ export function CalendarShell({
     DEFAULT_WEEK_START,
     parseWeekStart
   );
+  // How every event's --cal-tint is resolved (the "Color by" dropdown). "custom"
+  // is today's per-event/activity color; the others recolor by a single axis
+  // (type / rating / location / theme). Another local view pref, never staff-
+  // gated — it only changes how the same events are painted, never the data.
+  const [colorMode, setColorMode] = useLocalStorage<ColorMode>(
+    "calendarColorMode",
+    "custom",
+    colorModeStorage
+  );
   // The vertical hour-height zoom for the timed strip, driven by a trackpad/touch
   // pinch (and ctrl+wheel). Another local view pref, never gated on staff. The
   // LIVE value lives in slotZoomRef so a pinch can update the grid imperatively on
@@ -299,6 +314,12 @@ export function CalendarShell({
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  // Shift/Cmd-click multi-selection (Finder/Notion semantics): the SET of
+  // selected event ids, plus a FIXED anchor that a shift-click re-extends the
+  // range from. Selection is purely a view affordance — it never touches stored
+  // data; only Delete acts on it (bulk). A plain click collapses it to one.
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   // The pending repeating-event edit/delete awaiting a scope choice.
   const [scopePrompt, setScopePrompt] = useState<ScopePrompt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -338,18 +359,6 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
-  // Distinct locations already used on the calendar, offered as quick picks in
-  // the editor so "Gym" / "Field" come back with a tap instead of a retype.
-  // Case-insensitive de-dupe keeping the first-seen casing; alphabetised.
-  const knownLocations = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const event of Object.values(events)) {
-      const place = typeof event.location === "string" ? event.location.trim() : "";
-      if (place && !seen.has(place.toLowerCase())) seen.set(place.toLowerCase(), place);
-    }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b));
-  }, [events]);
-
   // Which days carry at least one event in the active camp — the mini-month
   // dots each of these so the sidebar previews where the schedule is busy.
   const eventDays = useMemo(() => {
@@ -357,6 +366,38 @@ export function CalendarShell({
     for (const event of healedEvents) days.add(event.date);
     return days;
   }, [healedEvents]);
+
+  // Every event id in chronological order — (date, then startMin, then id as a
+  // stable tiebreak). This is the spine a shift-click range walks: "in between"
+  // is simply the slice of this order between anchor and target, so a range
+  // spans days naturally (anchor Mon 9:00 → target Wed 14:00 sweeps in Tue).
+  // Ordered from the in-memory event set, independent of what's scrolled in.
+  const orderedEventIds = useMemo(() => {
+    return [...healedEvents]
+      .sort(
+        (a, b) =>
+          (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) ||
+          a.startMin - b.startMin ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      )
+      .map((event) => event.id);
+  }, [healedEvents]);
+  // onEventClick reads the order + anchor through refs so it can stay a STABLE
+  // callback: it's a dep of the heavy FullCalendar memo, and we don't want a
+  // re-anchor (every click) or an event change to re-render the whole grid just
+  // to refresh this closure. (fcEvents already triggers the grid on data change.)
+  const orderedEventIdsRef = useRef(orderedEventIds);
+  orderedEventIdsRef.current = orderedEventIds;
+  const selectionAnchorRef = useRef(selectionAnchor);
+  selectionAnchorRef.current = selectionAnchor;
+
+  // Drop the multi-selection (set + anchor) back to empty. Called on every
+  // gesture that should reset the selection: a plain background/date click, a
+  // drag-create, a view change, Escape, and opening a popover.
+  const clearSelection = useCallback(() => {
+    setSelection((prev) => (prev.size ? new Set() : prev));
+    setSelectionAnchor(null);
+  }, []);
 
   // Which month the mini-month surfaces: the one the visible window MOSTLY falls
   // in, not whichever month its first column happens to start in. A multi-day
@@ -384,9 +425,14 @@ export function CalendarShell({
     return effectiveWindow(scoped, dayWindow);
   }, [healedEvents, stripStart, dayWindow]);
 
+  // Re-tints every event by the active "Color by" mode. A colorMode change
+  // recomputes this memo, which (because each EventInput now carries a new
+  // extendedProps.tint) flows through renderEventContent's paint() — the same
+  // repaint path a per-event recolor already uses — so picking a mode recolors
+  // the visible cards immediately, no scroll/refresh needed.
   const fcEvents = useMemo(
-    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
-    [healedEvents, byId, themeOf]
+    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf, colorMode)),
+    [healedEvents, byId, themeOf, colorMode]
   );
 
   const scrollTime = useMemo(() => {
@@ -533,6 +579,11 @@ export function CalendarShell({
       const api = calendarRef.current?.getApi();
       const anchorDay =
         api && api.view.type === "timeGridStrip" ? firstVisibleDay() : focusDateRef.current;
+      // A genuine view switch (Day↔Week↔Month↔N) rebuilds the event DOM and is a
+      // clean break — drop the multi-selection. (Strip scroll re-anchors fire
+      // datesSet, not this, so scrolling to a selected event on another day keeps
+      // the selection intact.)
+      clearSelection();
       setActiveView(view);
       setStoredView(view);
       if (!api) return;
@@ -550,7 +601,7 @@ export function CalendarShell({
         setStripStart(newStart);
       }
     },
-    [firstVisibleDay, setStoredView]
+    [clearSelection, firstVisibleDay, setStoredView]
   );
 
   // Today: bring today to the strip's left edge (or jump the Month grid to it).
@@ -615,7 +666,7 @@ export function CalendarShell({
       };
       if (activity) template.activityId = activity.id;
       if (draft.color) template.color = draft.color;
-      if (draft.location) template.location = draft.location;
+      if (draft.locations?.length) template.locations = draft.locations;
       return template;
     },
     [byId]
@@ -682,7 +733,7 @@ export function CalendarShell({
       if (activity) event.activityId = activity.id;
       if (draft.allDay) event.allDay = true;
       if (draft.color) event.color = draft.color;
-      if (draft.location) event.location = draft.location;
+      if (draft.locations?.length) event.locations = draft.locations;
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + event.title);
@@ -719,6 +770,39 @@ export function CalendarShell({
     },
     [announce, removeEvent, requireStaff, showToast, upsertEvent]
   );
+
+  // Bulk-delete the whole multi-selection as ONE undoable step. Each occurrence
+  // is treated as a plain single-day delete — we deliberately do NOT pop the
+  // recurring this/following/all dialog here (a bulk delete is predictable: what
+  // you selected is exactly what goes), and the single Undo restores them all.
+  const deleteSelection = useCallback(() => {
+    if (!requireStaff("change the calendar")) return;
+    // Snapshot the live events for the selected ids, skipping any that no longer
+    // exist, so Undo can restore the exact rows (color/series fields and all).
+    const before: CalendarEvent[] = [];
+    for (const id of selection) {
+      const event = events[id];
+      if (event) before.push(healEvent(event, byId));
+    }
+    if (!before.length) return;
+    const ids = before.map((event) => event.id);
+    removeEvents(ids);
+    clearSelection();
+    setPopover(null);
+    setSheet(null);
+    const count = ids.length;
+    const label = "Deleted " + count + (count === 1 ? " event" : " events");
+    announce(label);
+    showToast(
+      {
+        message: label,
+        // Restore every removed row in one step (stamp updatedAt so the
+        // last-write-wins store re-accepts them after the delete).
+        onUndo: () => upsertEvents(before.map((event) => ({ ...event, updatedAt: Date.now() }))),
+      },
+      8000
+    );
+  }, [announce, byId, clearSelection, events, removeEvents, requireStaff, selection, showToast, upsertEvents]);
 
   // Commit a scoped edit of a repeating event once the user picks this/following/
   // all. The whole affected slice is replaced in one batch; Undo snapshots the
@@ -865,6 +949,8 @@ export function CalendarShell({
         api?.unselect();
         return;
       }
+      // A create gesture (drag-select on empty grid) drops any multi-selection.
+      clearSelection();
       // Keep the selection: unselectAuto is off, so the dashed landing box stays
       // on screen (a click inside QuickAdd won't drop it) until the sheet closes
       // — see the sheet-close effect. That's what makes a drag-create span
@@ -887,11 +973,14 @@ export function CalendarShell({
         pickTime: false,
       });
     },
-    [requireStaff, showToast]
+    [clearSelection, requireStaff, showToast]
   );
 
   const onDateClick = useCallback(
     (info: DateClickArg) => {
+      // A plain background/day click is a "deselect everything" gesture (Finder/
+      // Notion) — drop the multi-selection before any view jump or create.
+      clearSelection();
       if (info.view.type === "dayGridMonth") {
         // Google behavior: a month cell opens that day.
         calendarRef.current?.getApi().changeView("timeGridDay", info.date);
@@ -914,7 +1003,7 @@ export function CalendarShell({
         pickTime: false,
       });
     },
-    [requireStaff, setStoredView]
+    [clearSelection, requireStaff, setStoredView]
   );
 
   // Slot posture: a picked activity (or a custom title) creates immediately,
@@ -980,6 +1069,54 @@ export function CalendarShell({
       info.jsEvent.preventDefault();
       const event = events[info.event.id];
       if (!event) return;
+      const id = info.event.id;
+      const shift = info.jsEvent.shiftKey;
+      const toggle = info.jsEvent.metaKey || info.jsEvent.ctrlKey;
+
+      // SHIFT — range-select from the FIXED anchor to this event, inclusive, in
+      // chronological order (so it spans days). The anchor stays put, so a
+      // second shift-click re-extends the range from the same origin
+      // (Finder/Notion). With no anchor yet, this just selects + anchors here.
+      // Never opens the popover.
+      if (shift) {
+        setPopover(null);
+        const order = orderedEventIdsRef.current;
+        const anchor = selectionAnchorRef.current;
+        if (!anchor || anchor === id) {
+          setSelection(new Set([id]));
+          setSelectionAnchor(id);
+          return;
+        }
+        const ai = order.indexOf(anchor);
+        const bi = order.indexOf(id);
+        if (ai === -1 || bi === -1) {
+          setSelection(new Set([id]));
+          setSelectionAnchor(id);
+          return;
+        }
+        const [lo, hi] = ai <= bi ? [ai, bi] : [bi, ai];
+        setSelection(new Set(order.slice(lo, hi + 1)));
+        return; // anchor unchanged
+      }
+
+      // CMD/CTRL — toggle just this event in/out of the selection and make it
+      // the new anchor (so a following shift-click extends from here). No popover.
+      if (toggle) {
+        setPopover(null);
+        setSelection((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        setSelectionAnchor(id);
+        return;
+      }
+
+      // PLAIN click — collapse any multi-selection to just this event (it becomes
+      // the new anchor) and open its popover, the unchanged default behaviour.
+      setSelection(new Set([id]));
+      setSelectionAnchor(id);
       setPopover({ event: healEvent(event, byId), anchor: info.el.getBoundingClientRect() });
     },
     [byId, events]
@@ -1357,6 +1494,26 @@ export function CalendarShell({
       </div>
     );
   }, []);
+
+  // Paint the multi-selection onto FullCalendar's (non-React) event DOM. The
+  // cards aren't ours to render a className onto, so — like the contextmenu id
+  // stamp and the drag-source dimming — we reach into the grid and toggle a
+  // DEDICATED class (cal-event--selected, NOT FC's own .fc-event-selected, which
+  // its native single-select ring would clash with) on every [data-event-id]
+  // harness to match the set. Re-runs whenever the selection changes OR fcEvents
+  // rebuilds the DOM (a recolor / add / remove), deferred a frame so it lands
+  // after FC has committed its render. The same id can appear twice (a card in
+  // both the strip and a re-anchor overlap), so we walk ALL matching nodes.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const frame = window.requestAnimationFrame(() => {
+      grid.querySelectorAll<HTMLElement>("[data-event-id]").forEach((el) => {
+        el.classList.toggle("cal-event--selected", selection.has(el.dataset.eventId ?? ""));
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selection, fcEvents, activeView]);
 
   // Google-style day headers: "MON" over the date numeral, today circled.
   const renderDayHeader = useCallback((arg: DayHeaderContentArg) => {
@@ -1828,14 +1985,24 @@ export function CalendarShell({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
-      // Delete / Backspace removes the selected event — the one whose popover is
-      // open (clicking an event selects it). The keyboard twin of the popover's
-      // own Delete button; allowed even though the view shortcuts below are
-      // suppressed while a popover is up.
-      if ((event.key === "Backspace" || event.key === "Delete") && popover && !sheet && !scopePrompt) {
-        event.preventDefault();
-        deleteEvent(popover.event);
-        return;
+      // Delete / Backspace. Two paths, both suppressed while an editor sheet or
+      // the scope prompt is up:
+      //   · a multi-selection (shift/cmd-click, no popover) → delete them ALL in
+      //     one undoable step ("Deleted N events");
+      //   · otherwise the single event whose popover is open (a plain click both
+      //     selects and opens it) → the existing per-event delete (which still
+      //     routes a recurring event through the this/following/all scope dialog).
+      if ((event.key === "Backspace" || event.key === "Delete") && !sheet && !scopePrompt) {
+        if (!popover && selection.size) {
+          event.preventDefault();
+          deleteSelection();
+          return;
+        }
+        if (popover) {
+          event.preventDefault();
+          deleteEvent(popover.event);
+          return;
+        }
       }
       // Undo / redo: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, scoped to the calendar.
       // Handled BEFORE the modifier early-return below. Suppressed while an
@@ -1895,7 +2062,25 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, deleteEvent, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+
+  // Escape clears the multi-selection. We honour the app's capture-phase Escape
+  // contract (see FloatingLayer/useDialogFocus): a capture listener that runs
+  // FIRST but BAILS on defaultPrevented, then preventDefault()s itself so any
+  // bubble-phase dialog underneath stays untouched. Only armed when there's a
+  // real selection AND nothing is open over it — a popover/menu/sheet/scope
+  // prompt owns its own Escape (close the layer first), and a plain click leaves
+  // a 1-item selection beneath an open popover that this must NOT swallow.
+  useEffect(() => {
+    if (!selection.size || popover || menu || sheet || scopePrompt || settingsOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== "Escape") return;
+      event.preventDefault();
+      clearSelection();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [selection, popover, menu, sheet, scopePrompt, settingsOpen, clearSelection]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -2061,6 +2246,8 @@ export function CalendarShell({
                 <div className="sidesection__body cal-view__body">
                   <CalendarViewSettings
                     view={activeView}
+                    colorMode={colorMode}
+                    onColorMode={setColorMode}
                     shadeWeekendsOn={shadeWeekends}
                     onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
                     weekStart={weekStart}
@@ -2090,7 +2277,6 @@ export function CalendarShell({
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
-          knownLocations={knownLocations}
           window={window_}
           onPickActivity={quickAddActivity}
           onCustom={quickAddCustom}
@@ -2122,6 +2308,8 @@ export function CalendarShell({
           <div className="overlay__body filtersheet">
             <CalendarViewSettings
               view={activeView}
+              colorMode={colorMode}
+              onColorMode={setColorMode}
               shadeWeekendsOn={shadeWeekends}
               onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
               weekStart={weekStart}

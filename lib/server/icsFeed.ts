@@ -70,10 +70,15 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
   for (const event of input.events) {
     if (!DATE_KEY_PATTERN.test(event.date)) continue; // defensive: skip malformed rows.
 
-    // A per-event location (gym, field…) wins over the camp-wide fallback so
-    // subscribers see where each block actually happens.
-    const eventLocation =
-      (typeof event.location === "string" && event.location.trim()) || campLocation;
+    // A per-event location (gym, classroom…) wins over the camp-wide fallback so
+    // subscribers see where each block actually happens. The field is a list now;
+    // a legacy single `location` string is still honored.
+    const places = Array.isArray(event.locations)
+      ? event.locations.filter((p): p is string => typeof p === "string" && p.trim() !== "")
+      : typeof event.location === "string" && event.location.trim()
+        ? [event.location.trim()]
+        : [];
+    const eventLocation = places.join(", ") || campLocation;
 
     const timed =
       typeof event.startMin === "number" &&

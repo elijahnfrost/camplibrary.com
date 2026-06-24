@@ -100,4 +100,20 @@ describe("buildCalendarFeed", () => {
     const ics = buildCalendarFeed({ ...base, events: [event({})] });
     expect(ics).toContain("LOCATION:Summer Day Camp");
   });
+
+  it("joins a multi-value locations array, overriding the camp fallback", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ locations: ["Gym", "Kitchen"] } as Partial<StoredCalendarEvent>)],
+    });
+    expect(ics).toContain("LOCATION:Gym\\, Kitchen");
+  });
+
+  it("honors a legacy single location string", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ location: "Playground" } as Partial<StoredCalendarEvent>)],
+    });
+    expect(ics).toContain("LOCATION:Playground");
+  });
 });
