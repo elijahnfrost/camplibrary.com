@@ -478,6 +478,49 @@ describe("normalizeCalendarEvent series round-trip", () => {
   });
 });
 
+describe("normalizeCalendarEvent locations", () => {
+  const base = {
+    id: "1",
+    date: "2026-06-21",
+    startMin: 540,
+    endMin: 600,
+    kind: "custom",
+    title: "Meeting",
+    updatedAt: 1,
+  };
+
+  it("keeps a multi-value locations array", () => {
+    const event = normalizeCalendarEvent({ ...base, locations: ["Gym", "Kitchen"] });
+    expect(event?.locations).toEqual(["Gym", "Kitchen"]);
+  });
+
+  it("trims entries and drops blanks", () => {
+    const event = normalizeCalendarEvent({ ...base, locations: ["  Gym  ", "", "   "] });
+    expect(event?.locations).toEqual(["Gym"]);
+  });
+
+  it("dedupes case-insensitively, keeping the first casing", () => {
+    const event = normalizeCalendarEvent({ ...base, locations: ["Gym", "gym", "Fields"] });
+    expect(event?.locations).toEqual(["Gym", "Fields"]);
+  });
+
+  it("falls back to a legacy single location string", () => {
+    const event = normalizeCalendarEvent({ ...base, location: "Playground" });
+    expect(event?.locations).toEqual(["Playground"]);
+  });
+
+  it("leaves locations unset when none resolve", () => {
+    const event = normalizeCalendarEvent({ ...base, locations: ["", 7, null] });
+    expect(event?.locations).toBeUndefined();
+  });
+
+  it("bounds the list against an unbounded payload", () => {
+    const many = Array.from({ length: 50 }, (_, i) => `Place ${i}`);
+    const event = normalizeCalendarEvent({ ...base, locations: many });
+    expect(event?.locations?.length).toBe(12);
+  });
+});
+
 describe("summarizeRecurrence", () => {
   it("summarizes daily", () => {
     expect(summarizeRecurrence({ freq: "daily", interval: 1, until: "2026-07-31" })).toMatch(

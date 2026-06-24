@@ -12,7 +12,7 @@ import {
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor } from "@/lib/data";
-import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import { EVENT_LOCATION_OPTIONS, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
@@ -41,8 +41,8 @@ export type EditorDraft = {
   /** Per-placement color override (validated hex); absent = inherit the
    *  activity's / category's color. */
   color?: string;
-  /** Where this placement happens (gym, field…); absent = unstated. */
-  location?: string;
+  /** Where this placement happens (gym, classroom…); empty = unstated. */
+  locations?: string[];
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -57,7 +57,7 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     explicitDuration: true,
     recurrence: event.recurrence,
     color: event.color,
-    location: event.location,
+    locations: event.locations,
   };
 }
 
@@ -75,7 +75,6 @@ export function QuickAdd({
   draft,
   pickTime,
   activities,
-  knownLocations = [],
   window: dayWindow,
   onPickActivity,
   onCustom,
@@ -87,8 +86,6 @@ export function QuickAdd({
   /** Show the when-row + commit button (library pick, FAB, and edit). */
   pickTime: boolean;
   activities: Activity[];
-  /** Locations already used on the calendar — offered as quick picks. */
-  knownLocations?: string[];
   window: DayWindow;
   onPickActivity: (activity: Activity) => void;
   onCustom: (title: string) => void;
@@ -109,7 +106,7 @@ export function QuickAdd({
   const [allDay, setAllDay] = useState(draft.allDay);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
-  const [location, setLocation] = useState<string | undefined>(draft.location);
+  const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
@@ -243,7 +240,7 @@ export function QuickAdd({
       // clamp it so the saved rule always covers the start.
       recurrence: clampedRule(),
       color,
-      location,
+      locations,
     });
   }
 
@@ -493,9 +490,9 @@ export function QuickAdd({
                 <span className="ledger__label">Location</span>
                 <LocationField
                   id="quickadd-location"
-                  value={location}
-                  suggestions={knownLocations}
-                  onChange={setLocation}
+                  value={locations}
+                  options={EVENT_LOCATION_OPTIONS}
+                  onChange={setLocations}
                   ariaLabel="Event location"
                 />
               </div>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Activity } from "../types";
+import { CUSTOM_NEUTRAL, LOCATION_TINTS, categoryTint, ratingColor } from "../data";
+import type { Theme } from "../themes";
 import { fromFcDates, healEvent, toFcEvent } from "./adapter";
 import type { CalendarEvent } from "./types";
 
@@ -112,5 +114,64 @@ describe("healEvent", () => {
     expect(healed.activityId).toBeUndefined();
     expect(healed.kind).toBe("custom");
     expect(healed.title).toBe("Capture the Flag");
+  });
+});
+
+// The "Color by" modes resolve a different --cal-tint without ever touching the
+// event's stored color — the tint lands in extendedProps.tint for the painter.
+describe("toFcEvent color modes", () => {
+  const RATED: Activity = { ...ACTIVITY, id: "rated", rating: 5 };
+  const BY_ID_RATED = { ...BY_ID, [RATED.id]: RATED };
+
+  // A standalone custom event (no activity backing it).
+  function customEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
+    return event({ kind: "custom", activityId: undefined, title: "Lunch", ...overrides });
+  }
+
+  function tintOf(fc: ReturnType<typeof toFcEvent>): unknown {
+    return fc.extendedProps?.tint;
+  }
+
+  it("custom mode keeps the per-event/activity → category tint (default)", () => {
+    // Capture the Flag is an unstyled Game, so it falls to the Game category tint.
+    expect(tintOf(toFcEvent(event(), BY_ID, undefined, "custom"))).toBe(categoryTint("Game"));
+    // The default arg matches explicit "custom".
+    expect(tintOf(toFcEvent(event(), BY_ID))).toBe(categoryTint("Game"));
+  });
+
+  it("type mode colors by category, custom events by the neutral category tint", () => {
+    expect(tintOf(toFcEvent(event(), BY_ID, undefined, "type"))).toBe(categoryTint("Game"));
+    // No activity → categoryTint(undefined), the neutral stone.
+    expect(tintOf(toFcEvent(customEvent(), BY_ID, undefined, "type"))).toBe(categoryTint(undefined));
+  });
+
+  it("rating mode: custom-neutral for a custom event, kraft for unrated, scale for rated", () => {
+    // A custom event has nothing to rate → the cooler custom stone.
+    expect(tintOf(toFcEvent(customEvent(), BY_ID, undefined, "rating"))).toBe(CUSTOM_NEUTRAL);
+    // An unrated activity (rating 0) → the warm kraft, a DIFFERENT gray.
+    expect(tintOf(toFcEvent(event(), BY_ID, undefined, "rating"))).toBe(ratingColor(0));
+    expect(ratingColor(0)).not.toBe(CUSTOM_NEUTRAL);
+    // A rated activity → its place on the warm low→high scale.
+    const fc = toFcEvent(event({ activityId: "rated" }), BY_ID_RATED, undefined, "rating");
+    expect(tintOf(fc)).toBe(ratingColor(5));
+  });
+
+  it("location mode maps the first location, falling back to the neutral", () => {
+    const inGym = toFcEvent(event({ locations: ["Gym", "Fields"] }), BY_ID, undefined, "location");
+    expect(tintOf(inGym)).toBe(LOCATION_TINTS.Gym);
+    // No location → the neutral stone.
+    expect(tintOf(toFcEvent(event(), BY_ID, undefined, "location"))).toBe(CUSTOM_NEUTRAL);
+    // A legacy free-text location not in the taxonomy → the neutral stone.
+    expect(tintOf(toFcEvent(event({ locations: ["Back lawn"] }), BY_ID, undefined, "location"))).toBe(
+      CUSTOM_NEUTRAL
+    );
+  });
+
+  it("theme mode uses the activity's theme tint, else the neutral", () => {
+    const theme: Theme = { id: "ocean", label: "Ocean Week", tint: "#4d7a86" };
+    const themeOf = (id: string) => (id === ACTIVITY.id ? theme : null);
+    expect(tintOf(toFcEvent(event(), BY_ID, themeOf, "theme"))).toBe(theme.tint);
+    // No theme on this activity → the neutral stone.
+    expect(tintOf(toFcEvent(event(), BY_ID, () => null, "theme"))).toBe(CUSTOM_NEUTRAL);
   });
 });

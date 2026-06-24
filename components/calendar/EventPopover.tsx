@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import { summarizeRecurrence } from "@/lib/calendar/recurrence";
-import type { CalendarEvent } from "@/lib/calendar/types";
+import { formatLocations, type CalendarEvent } from "@/lib/calendar/types";
 import { effectiveEventColor } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
@@ -67,6 +67,7 @@ export function EventPopover({
 
   const timeLabel = event.allDay ? "All day" : formatRangeLabel(event.startMin, event.endMin);
   const title = activity?.title || event.title || "Untitled";
+  const locationLabel = formatLocations(event.locations);
 
   return (
     <div className="cal-popover-root">
@@ -100,10 +101,10 @@ export function EventPopover({
             <p className="cal-popover__when">
               {formatEventDateLabel(event.date)} · {timeLabel}
             </p>
-            {event.location && (
+            {locationLabel && (
               <p className="cal-popover__loc">
                 <CampIcon.Pin />
-                {event.location}
+                {locationLabel}
               </p>
             )}
             {activity && <p className="cal-popover__meta">{activity.type}</p>}

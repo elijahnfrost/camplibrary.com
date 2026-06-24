@@ -32,14 +32,59 @@ export interface CalendarEvent {
   // lazily by effectiveEventColor (lib/data), so untouched events "start" at
   // their tag color with no backfill. Clearing it falls back to the tag color.
   color?: string;
-  // Where this placement happens — free text the staff pick or type per event
-  // (gym, playground, field…). Absent = unstated. Trimmed/length-clamped here so
-  // an untrusted payload can't carry an unbounded string.
-  location?: string;
+  // Where this placement happens — one or more places picked per event from a
+  // fixed set (gym, classroom, kitchen…). Absent/empty = unstated. Each entry is
+  // trimmed/length-clamped and the list bounded here so an untrusted payload
+  // can't carry unbounded strings.
+  locations?: string[];
   updatedAt: number; // epoch ms, last-write-wins
 }
 
+// The fixed set of places a block can happen, offered by the editor's location
+// picker. A short, shared taxonomy (not free text) so the same place reads the
+// same everywhere it's shown — the card, the popover, the feed.
+export const EVENT_LOCATION_OPTIONS = [
+  "Gym",
+  "Classroom",
+  "Kitchen",
+  "Playground",
+  "Fields",
+  "Baseball pitch",
+] as const;
+
 export const EVENT_LOCATION_MAX_LENGTH = 80;
+// Bound the per-event list so a malformed payload can't carry a huge array; the
+// picker only ever offers a handful, but legacy free-text values ride along too.
+const EVENT_LOCATIONS_MAX = 12;
+
+// Join an event's places into one display string (card / popover / feed).
+export function formatLocations(locations: readonly string[] | undefined): string {
+  return locations && locations.length ? locations.join(", ") : "";
+}
+
+// Parse a per-event locations value from an untrusted payload (localStorage
+// cache or API). Accepts the new `locations` array or a legacy single `location`
+// string. Each entry is trimmed + length-clamped, blanks dropped, duplicates
+// removed case-insensitively, and the list capped.
+function normalizeLocations(value: Record<string, unknown>): string[] {
+  const raw = Array.isArray(value.locations)
+    ? value.locations
+    : typeof value.location === "string"
+      ? [value.location]
+      : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const place = item.trim().slice(0, EVENT_LOCATION_MAX_LENGTH);
+    const key = place.toLowerCase();
+    if (!place || seen.has(key)) continue;
+    seen.add(key);
+    out.push(place);
+    if (out.length >= EVENT_LOCATIONS_MAX) break;
+  }
+  return out;
+}
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MINUTES_PER_DAY = 1440;
@@ -93,11 +138,11 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   // rebuild must re-attach it or it's stripped on every read / optimistic write.
   const color = normalizeHexColor(value.color);
   if (color) event.color = color;
-  // Per-placement location rides in the payload too; same clean-rebuild rule —
-  // re-attach it or it's stripped on every read / optimistic write. Trim + clamp
-  // at this boundary so an untrusted cache/API value stays bounded.
-  const location = typeof value.location === "string" ? value.location.trim().slice(0, EVENT_LOCATION_MAX_LENGTH) : "";
-  if (location) event.location = location;
+  // Per-placement locations ride in the payload too; same clean-rebuild rule —
+  // re-attach them or they're stripped on every read / optimistic write. Trim,
+  // clamp, dedupe and bound at this boundary (see normalizeLocations).
+  const locations = normalizeLocations(value);
+  if (locations.length) event.locations = locations;
   // Recurrence rides in the payload; this normalizer rebuilds a clean object, so
   // the series fields must be re-attached or they'd be stripped on every read /
   // optimistic write. A seriesId only means something with a parseable rule.
