@@ -4763,27 +4763,6 @@ body {
   background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
 }
 
-/* Library "arrange" row — the single sort control shown above every browse
-   view (deck/shelf/catalog). Inline padding tracks the .deck/.catalog content
-   gutters (18 → 32 → 40) so the row's edges line up with the cards below. */
-.library-arrange {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  padding: var(--s-3) var(--page-x) var(--s-1);
-}
-@media (min-width: 768px) {
-  .library-arrange {
-    padding-inline: 32px;
-  }
-}
-@media (min-width: 1200px) {
-  .library-arrange {
-    padding-inline: 40px;
-  }
-}
-
 /* ---------- approval rating ---------- */
 .approval {
   margin-top: 18px;
