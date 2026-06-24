@@ -21,6 +21,7 @@ import type { DateKey } from "@/lib/calendar/types";
 import type { Camp } from "@/lib/camps";
 import type { Activity } from "@/lib/types";
 import type { PrintLayout, PrintOptions, ScheduleDetail, TimelineDensity } from "@/lib/print/options";
+import { normalizeSearchText, searchTokens } from "@/lib/activityFilters";
 import { MAX_PRINT_DAYS } from "@/lib/print/schedule";
 import { CampIcon } from "../icons";
 import { MenuPicker, MiniSeg, ToggleSwitch } from "../primitives";
@@ -183,14 +184,17 @@ function RunSheetPicker({
   const [query, setQuery] = useState("");
   const selectedSet = new Set(selected);
   const picked = activities.filter((a) => selectedSet.has(a.id));
-  const q = query.trim().toLowerCase();
-  const matches = q
+  // Multi-word + accent-/case-insensitive, matching the rest of the app's
+  // search. Picking a run sheet is name-based, so the haystack stays title +
+  // alt-names (not the full play-detail haystack the Library searches).
+  const tokens = searchTokens(query);
+  const matches = tokens.length
     ? activities
-        .filter(
-          (a) =>
-            !selectedSet.has(a.id) &&
-            (a.title + " " + (a.altNames ?? []).join(" ")).toLowerCase().includes(q)
-        )
+        .filter((a) => {
+          if (selectedSet.has(a.id)) return false;
+          const hay = normalizeSearchText(a.title + " " + (a.altNames ?? []).join(" "));
+          return tokens.every((token) => hay.includes(token));
+        })
         .slice(0, 6)
     : [];
 
@@ -222,6 +226,10 @@ function RunSheetPicker({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Add a scheduled activity"
               aria-label="Search scheduled activities to add a run sheet"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
             />
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear search">

@@ -2,6 +2,7 @@
 
 import { Fragment, useState, type CSSProperties } from "react";
 import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
@@ -149,8 +150,10 @@ function MaterialPicker({
   const [query, setQuery] = useState("");
   if (!options.length) return null;
   const selectedSet = new Set(selected);
-  const q = query.trim().toLowerCase();
-  const matchesQuery = (option: MaterialOption) => !q || option.label.toLowerCase().includes(q);
+  // Accent-/case-insensitive so "mache" finds "papier-mâché" — same normalizer
+  // the library search uses.
+  const q = normalizeSearchText(query.trim());
+  const matchesQuery = (option: MaterialOption) => !q || normalizeSearchText(option.label).includes(q);
   // Picked kit floats to the top so "what am I filtering by" is always in view.
   const visibleSelected = options.filter((option) => selectedSet.has(option.id)).filter(matchesQuery);
   const visibleRest = options.filter((option) => !selectedSet.has(option.id)).filter(matchesQuery);
@@ -193,6 +196,10 @@ function MaterialPicker({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search kit"
               aria-label="Search available kit"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
             />
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear kit search">

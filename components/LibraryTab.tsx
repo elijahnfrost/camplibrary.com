@@ -133,6 +133,14 @@ export function LibraryTab({
             onChange={(e) => onQuery(e.target.value)}
             aria-label="Search the library"
             enterKeyHint="search"
+            // Mobile keyboards otherwise auto-capitalize and autocorrect the
+            // field, silently rewriting unusual game/alt-names ("Goggaball",
+            // "gaga") into real words before they reach the matcher — the
+            // root of "it searched something I didn't type."
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
             }}
