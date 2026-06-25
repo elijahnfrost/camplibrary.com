@@ -6538,6 +6538,22 @@
       "property": "padding",
       "value": "var(--s-5) 32px",
       "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.rl-block--fnlog.is-collapsed .rl-node--fnhead|box-shadow|inset 0 0 0 2px var(--rl-fieldnote)|screen",
+      "kind": "declaration",
+      "selector": ".rl-block--fnlog.is-collapsed .rl-node--fnhead",
+      "property": "box-shadow",
+      "value": "inset 0 0 0 2px var(--rl-fieldnote)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.rl-block--fnlog.has-children:not(.is-collapsed) > .rl-block__main > .rl-row|box-shadow|var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--rl-fieldnote) 18%, transparent)|screen",
+      "kind": "declaration",
+      "selector": ".rl-block--fnlog.has-children:not(.is-collapsed) > .rl-block__main > .rl-row",
+      "property": "box-shadow",
+      "value": "var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--rl-fieldnote) 18%, transparent)",
+      "context": "screen"
     }
   ]
 }

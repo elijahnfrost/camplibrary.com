@@ -11,8 +11,8 @@ import {
   childFromTop,
   cloneRunChild,
   cloneRunDoc,
-  fieldNoteBlock,
   fieldNoteChild,
+  fieldNotesBlock,
   insertBlockAfter,
   insertBlockAt,
   detailTagsForActivity,
@@ -22,6 +22,7 @@ import {
   materialsBlock,
   materialsChild,
   normalizeRunDoc,
+  nowStamp,
   playHeadingBlock,
   promoteMaterialsBlocks,
   rekeyRunDoc,
@@ -110,29 +111,46 @@ describe("run list model", () => {
     expect(materialsBlock("a1")).toEqual({ id: "a1-mat", type: "materials", children: [] });
   });
 
-  it("captures field notes as a dated, normalizable, lossless-promoting block", () => {
-    const stamp = todayStamp();
-    expect(stamp).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it("captures field notes as a dated log of entries inside one container block", () => {
+    expect(todayStamp()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // New entries stamp the local date AND time (no UTC reparse drift).
+    const stamp = nowStamp();
+    expect(stamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 
-    const block = fieldNoteBlock("move this earlier");
-    expect(block).toMatchObject({ type: "fieldnote", text: "move this earlier", at: stamp, children: [] });
-    const child = fieldNoteChild("kids needed more time");
-    expect(child).toMatchObject({ type: "fieldnote", text: "kids needed more time", at: stamp });
+    // The log is a self-contained container — entries live in its children.
+    const log = fieldNotesBlock("act-1-fieldnotes");
+    expect(log).toEqual({ id: "act-1-fieldnotes", type: "fieldnote", children: [] });
+    const entry = fieldNoteChild("kids needed more time");
+    expect(entry).toMatchObject({ type: "fieldnote", text: "kids needed more time", at: stamp });
 
-    // The captured date survives a storage round-trip — top-level block + child.
+    // A legacy flat field note (text on the block) folds into a first entry, and
+    // a stored entry keeps its stamp — both survive a storage round-trip.
     const doc: RunDoc = {
       blocks: [
         { id: "b1", type: "fieldnote", text: "top note", at: "2026-06-23", children: [] },
-        { id: "s1", type: "step", text: "Play", collapsed: false, children: [child] },
+        {
+          id: "log",
+          type: "fieldnote",
+          children: [{ id: "e1", type: "fieldnote", text: "ran long", at: stamp }],
+        },
       ],
     };
     const normalized = normalizeRunDoc(JSON.parse(JSON.stringify(doc)));
-    expect(normalized?.blocks[0]).toMatchObject({ type: "fieldnote", text: "top note", at: "2026-06-23" });
-    expect(normalized?.blocks[1].children?.[0]).toMatchObject({ type: "fieldnote", at: stamp });
+    expect(normalized?.blocks[0]).toMatchObject({ type: "fieldnote" });
+    expect(normalized?.blocks[0].children?.[0]).toMatchObject({
+      type: "fieldnote",
+      text: "top note",
+      at: "2026-06-23",
+    });
+    expect(normalized?.blocks[1].children?.[0]).toMatchObject({
+      type: "fieldnote",
+      text: "ran long",
+      at: stamp,
+    });
 
-    // Dragging a field note between top-level and under a step keeps its date.
-    expect(childFromTop(block)).toMatchObject({ type: "fieldnote", text: "move this earlier", at: stamp });
-    expect(topFromChild(child)).toMatchObject({ type: "fieldnote", text: "kids needed more time", at: stamp });
+    // The log container stays top-level — never demoted to a single lossy child.
+    expect(childFromTop(log)).toBeNull();
+    expect(topFromChild(entry)).toBeNull();
   });
 
   it("builds a runnable document from activity seed data", () => {
@@ -141,6 +159,7 @@ describe("run list model", () => {
     expect(blockSummary(doc)).toEqual([
       "heading:Details",
       "details:",
+      "fieldnote:",
       "materials:",
       "heading:How to play",
       "step:Set boundaries",
@@ -149,7 +168,9 @@ describe("run list model", () => {
       "variation:Rotate captains",
       "safety:No sliding",
     ]);
-    expect(doc.blocks[4].children).toEqual([{ id: "act-1-diagram", type: "diagram", diagram: playbook }]);
+    // The Field notes log is seeded in the Details section, empty by default.
+    expect(doc.blocks[2]).toEqual({ id: "act-1-fieldnotes", type: "fieldnote", children: [] });
+    expect(doc.blocks[5].children).toEqual([{ id: "act-1-diagram", type: "diagram", diagram: playbook }]);
   });
 
   it("omits optional sections when the activity does not need them", () => {
@@ -162,6 +183,7 @@ describe("run list model", () => {
     expect(blockSummary(buildRunDoc(activity({ steps: [], notes: "", safety: "" }), playbook))).toEqual([
       "heading:Details",
       "details:",
+      "fieldnote:",
       "materials:",
       "heading:How to play",
       "step:Set up",
