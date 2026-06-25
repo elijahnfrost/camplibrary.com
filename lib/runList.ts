@@ -59,8 +59,9 @@ export interface RunChild {
   title?: string;
   url?: string;
   diagram?: ActivityPlaybookData;
-  // fieldnote: ISO date (YYYY-MM-DD) the observation was captured, shown as a
-  // small dated-log chip. Optional so legacy docs and other detail types ignore it.
+  // fieldnote entry: the captured stamp — a local "YYYY-MM-DDTHH:mm" for new
+  // notes (date + time), or a legacy date-only "YYYY-MM-DD". Optional so other
+  // detail types ignore it.
   at?: string;
 }
 
@@ -78,7 +79,9 @@ export interface RunBlock {
   tags?: RunDetailTag[];
   // step: whether it renders collapsed by default
   collapsed?: boolean;
-  // fieldnote: ISO date (YYYY-MM-DD) the observation was captured (see RunChild.at).
+  // fieldnote: a "Field notes" log is a container — its dated entries live in
+  // `children`. (Legacy flat notes stored their text/at on the block itself;
+  // normalizeBlock folds that into a first entry.)
   at?: string;
   children?: RunChild[];
 }
@@ -154,20 +157,42 @@ export function runPillLabel(type: RunChildType, n: number): string {
   return n + " " + type + "s";
 }
 
-// Today as an ISO date (YYYY-MM-DD) for stamping a freshly captured field note.
+// Today as an ISO date (YYYY-MM-DD). Kept for legacy field notes that stored a
+// date-only stamp; new entries also capture the time (see nowStamp).
 export function todayStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// A fresh field-note detail, stamped with today's date. The unit a counselor
-// drops "in the field" to flag a change for later.
-export function fieldNoteChild(text = ""): RunChild {
-  return { id: runId("fn"), type: "fieldnote", text, at: todayStamp() };
+// Local wall-clock stamp "YYYY-MM-DDTHH:mm" for a freshly captured note. Built
+// from LOCAL components (not UTC) so the dated/timed chip reads the way the
+// counselor saw the clock, with no timezone reparse drift on the date.
+export function nowStamp(): string {
+  const d = new Date();
+  const pad = (n: number) => (n < 10 ? "0" + n : String(n));
+  return (
+    d.getFullYear() +
+    "-" +
+    pad(d.getMonth() + 1) +
+    "-" +
+    pad(d.getDate()) +
+    "T" +
+    pad(d.getHours()) +
+    ":" +
+    pad(d.getMinutes())
+  );
 }
 
-// A fresh top-level field-note block, stamped with today's date.
-export function fieldNoteBlock(text = ""): RunBlock {
-  return { id: runId("fn"), type: "fieldnote", text, at: todayStamp(), children: [] };
+// One dated note entry — the unit you jot into the log, stamped with the local
+// date + time it was captured.
+export function fieldNoteChild(text = ""): RunChild {
+  return { id: runId("fn"), type: "fieldnote", text, at: nowStamp() };
+}
+
+// A self-contained "Field notes" log: a container block holding dated entries
+// as children. The id is deterministic when seeded into the Details section (so
+// the derived doc merges cleanly), and a fresh runId when added from the palette.
+export function fieldNotesBlock(id: string = runId("fn")): RunBlock {
+  return { id, type: "fieldnote", children: [] };
 }
 
 // A fresh, empty diagram detail seeded with a blank field.
@@ -285,6 +310,11 @@ export function buildRunDoc(activity: Activity, playbook: ActivityPlaybookData |
 
   blocks.push(detailsHeadingBlock(activity));
   blocks.push(detailsBlock(activity));
+  // A running Field notes log sits in the Details section, ahead of the play
+  // steps — a self-contained block staff jot dated observations into while the
+  // activity runs. Seeded into the DERIVED doc only (never re-injected into a
+  // saved override), so once it's deleted the deletion sticks.
+  blocks.push(fieldNotesBlock(base + "-fieldnotes"));
 
   // Materials are prep/miscellaneous, not necessarily part of a numbered step.
   // Keep them before the first parent block by default.
@@ -477,9 +507,17 @@ function normalizeBlock(raw: unknown, index: number): RunBlock | null {
     };
   }
   if (type === "fieldnote") {
-    const block: RunBlock = { id, type: "fieldnote", text: asString(r.text) ?? "", children };
-    const at = asString(r.at);
-    if (at) block.at = at;
+    // A "Field notes" log is a container of dated entries (children). Legacy
+    // flat field notes stored their text/at on the block itself — fold that
+    // into a first entry so old drafts upgrade into the multi-note log losslessly.
+    const block: RunBlock = { id, type: "fieldnote", children };
+    const legacyText = (asString(r.text) ?? "").trim();
+    if (legacyText && !children.some((c) => c.type === "fieldnote")) {
+      const entry: RunChild = { id: runId("fn"), type: "fieldnote", text: legacyText };
+      const at = asString(r.at);
+      if (at) entry.at = at;
+      block.children = [entry, ...children];
+    }
     return block;
   }
   // heading / note / safety / variation
@@ -553,11 +591,10 @@ export function sameDragItem(a: DragItem | null, b: DragItem): boolean {
   return a.kind === "top" || b.kind === "top" || a.parentId === b.parentId;
 }
 
-// A top-level block that can also live as a detail under a step.
+// A top-level block that can also live as a detail under a step. A Field notes
+// log is a multi-entry container, so it stays top-level (never demoted to one
+// lossy child) — the dedicated block in the Details section, not an attachment.
 export function childFromTop(block: RunBlock): RunChild | null {
-  if (block.type === "fieldnote") {
-    return { id: block.id, type: "fieldnote", text: block.text || "", at: block.at };
-  }
   if (block.type === "note" || block.type === "safety" || block.type === "variation") {
     return { id: block.id, type: block.type, text: block.text || "" };
   }
@@ -565,11 +602,9 @@ export function childFromTop(block: RunBlock): RunChild | null {
   return null;
 }
 
-// A detail that can be promoted to a top-level block.
+// A detail that can be promoted to a top-level block. (A legacy field-note
+// detail stays put — field notes now live in the dedicated log container.)
 export function topFromChild(child: RunChild): RunBlock | null {
-  if (child.type === "fieldnote") {
-    return { id: child.id, type: "fieldnote", text: child.text || "", at: child.at, children: [] };
-  }
   if (child.type === "note" || child.type === "safety" || child.type === "variation") {
     return { id: child.id, type: child.type, text: child.text || "", children: [] };
   }
