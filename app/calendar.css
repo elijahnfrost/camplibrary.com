@@ -859,6 +859,38 @@ body.is-cal-copy .cal-dragfollow::after {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Restyle the Color-by select to match the pill pickers (TypePicker,
+   ThemePicker) in the Library filter rail — pill shape, hand-sc font,
+   accent-tint fill when open. Overrides the .select base sizing. */
+.calset .cselect {
+  flex: 0 0 auto;
+  width: auto;
+}
+.calset .cselect__trigger {
+  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-5);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  height: auto;
+}
+.calset .cselect__trigger:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.calset .cselect__trigger.is-open {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border-color: var(--line);
+}
+.calset .cselect__trigger.is-open svg {
+  color: var(--accent-ink);
+}
+.calset .cselect__trigger svg {
+  width: 13px;
+  height: 13px;
+}
 /* The "Number of days" stepper: − n + in a bordered pill, the same control
    family as the search box and the header pager. */
 .daysstepper {
