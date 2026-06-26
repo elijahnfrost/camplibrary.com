@@ -6054,66 +6054,21 @@ body {
   transition-delay: calc(0.12s + var(--i) * 55ms);
 }
 
-/* --- Calendar: the header lifts open on a hinge, the dates populate ----------
-   REST: a plain closed calendar with all its dates. HOVER (non-active nav only):
-   the header band — top bar + binder rings + the divider rule — swings open on a
-   hinge at the divider line, and the date dots pop in across the grid, staggered
-   left→right / top→down, like the month filling in. LEAVE: the icon snaps back to
-   the static rest pose (the animations are one-shot `both`, but the dots/header
-   carry no resting transform, so removing :hover returns them to rest). The
-   icon's rotateX is safe here — an ICON is not a containing block for fixed
-   overlays (that constraint only applied to the calendar GRID). The open angle is
-   tuned so the swung header doesn't clip at 18–24px. */
+/* --- Calendar: calmed icon — dates always visible, one settle boop on hover -- */
 .cicon--cal {
-  perspective: 120px;
   overflow: visible;
 }
 .cicon--cal .cicon-cal__dots {
   fill: currentColor;
   stroke: none;
 }
-.cicon--cal .cicon-cal__header {
-  transform-origin: 50% 9.5px; /* the divider line — the binding the page lifts on */
-}
-/* Fire the open only on non-active buttons. On the active nav item the `:hover`
+/* Fire the boop only on non-active buttons. On the active nav item the `:hover`
    state can stick after click (focus bleed, browser quirk) making the mid-animation
    pose appear frozen — suppress it there since active tabs don't need hover feedback. */
-:where(button, a, summary, label, [role="button"]):not(.is-active):hover
-  .cicon--cal
-  .cicon-cal__header {
-  animation: cicon-cal-open var(--t-slow) var(--ease-overlay) both;
+:where(button, a, summary, label, [role="button"]):not(.is-active):hover .cicon--cal {
+  animation: cicon-settle 0.3s var(--ease);
 }
-:where(button, a, summary, label, [role="button"]):not(.is-active):hover
-  .cicon--cal
-  .cicon-cal__dots circle {
-  animation: cicon-cal-dot 0.34s var(--ease) calc(80ms + var(--i) * 55ms) both;
-}
-/* Header lifts open on its bottom hinge — a calm overlay-style swing. */
-@keyframes cicon-cal-open {
-  from {
-    transform: rotateX(0deg);
-  }
-  to {
-    transform: rotateX(-58deg);
-  }
-}
-/* Each date pops in with a tiny overshoot — the month populating. */
-@keyframes cicon-cal-dot {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  70% {
-    transform: scale(1.25);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* A tiny one-shot boop — up a hair and back. Kept for any icon that still uses it. */
+/* A tiny one-shot boop — up a hair and back. Shared by the calmed nav icons. */
 @keyframes cicon-settle {
   50% {
     transform: translateY(-1.8px);
@@ -6362,36 +6317,31 @@ body {
   }
 }
 
-/* --- Print: a single sheet feeds UP out of the output slot ------------------
-   ONE clean gesture — the printed sheet rises out of the printer's output mouth
-   and rests slightly raised while hovered, then settles back when hover ends. The
-   sheet is clipped to the slot (see icons.tsx) so its body stays hidden inside
-   the printer body and only the emerging edge shows. The printer body / input /
-   status dot stay put. */
+/* --- Print: a page feeds DOWN and OUT of the bottom output mouth -------------
+   ONE clean gesture — at rest the printed page is parked INSIDE the body (clipped
+   above the mouth lip, so the icon reads as a plain printer). On hover it slides
+   DOWN through the output mouth and SETTLES just below the printer's front lip — a
+   printed page in the output tray, not paper retracting up into the body. The page
+   is clipped to the output window (see icons.tsx) so its body never shows through
+   the printer body. The printer body / input / status dot stay put. `both` holds
+   it emerged while hovered; removing :hover returns it to the parked rest pose. */
 .cicon--print {
   overflow: visible;
 }
-.cicon--print .cicon-print__sheet {
-  transform-origin: 50% 100%;
-}
-.cicon--print .cicon-print__sheet rect {
-  fill: currentColor;
-  stroke: none;
+.cicon--print .cicon-print__page {
+  fill: none;
 }
 :where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
   .cicon--print
   .cicon-print__sheet {
-  animation: cicon-print-feed 0.42s var(--ease) both;
+  animation: cicon-print-feed 0.46s var(--ease-overlay) both;
 }
 @keyframes cicon-print-feed {
-  0% {
+  from {
     transform: translateY(0);
   }
-  60% {
-    transform: translateY(-3.2px);
-  }
-  100% {
-    transform: translateY(-2.4px);
+  to {
+    transform: translateY(7.2px);
   }
 }
 
@@ -6422,11 +6372,11 @@ body {
   .cicon [class^="cicon-"],
   .cicon [class*=" cicon-"] {
     animation: none !important;
-    /* book + calendar open via transitions now — suppress those too */
+    /* book opens via transitions now — suppress those too */
     transition: none !important;
   }
-  /* Book + calendar hold their rest pose even on hover (the !important beats the
-     hover rules), so nothing moves under reduced motion. */
+  /* Book holds its rest pose even on hover (the !important beats the hover
+     rules), so nothing moves under reduced motion. */
   .cicon--book .cicon-book__cover {
     transform: rotateY(0deg) !important;
     fill-opacity: 0 !important;
@@ -6435,16 +6385,8 @@ body {
     transform: scaleX(0) !important;
     opacity: 0 !important;
   }
-  /* Calendar: hold the header closed and every date visible, so the resting icon
-     always reads as a full calendar (the !important beats the hover rules). */
-  .cicon--cal .cicon-cal__header {
-    transform: rotateX(0deg) !important;
-  }
-  .cicon--cal .cicon-cal__dots circle {
-    transform: scale(1) !important;
-    opacity: 1 !important;
-  }
-  /* Print: hold the sheet at the slot (not fed out) so the printer reads at rest. */
+  /* Print: hold the sheet hidden inside the printer so it reads as a plain
+     printer at rest (the !important beats the hover rule). */
   .cicon--print .cicon-print__sheet {
     transform: translateY(0) !important;
   }

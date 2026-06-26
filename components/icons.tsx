@@ -104,31 +104,21 @@ export const CampIcon = {
       <path d="M8 11h8M8 15h6" />
     </>
   ),
-  // Wall calendar that "opens" on hover: the header band (top bar + binder rings
-  // + the divider rule) lifts open on a hinge at the divider line, and the date
-  // dots pop in beneath it, staggered across the grid — "open the calendar, the
-  // month fills in". The frame body stays put as the header swings up. At rest
-  // it's a plain closed calendar with all its dates (see globals.css §cicon--cal).
   Calendar: svg(
     <>
-      {/* Frame body — static; the lower box the header opens away from. */}
-      <rect className="cicon-cal__body" x="4" y="5.5" width="16" height="15" />
-      {/* Date dots — populate on hover, staggered by --i (0..4); visible at rest. */}
+      <rect x="4" y="5.5" width="16" height="15" />
+      <path d="M4 9.5h16" />
+      {/* Date dots — shown at rest (a calendar always has its dates). The old
+          page-fold + staggered dot cascade was the "wiggle"; the icon now just
+          gives one calm settle on hover (see globals.css §cicon--cal). */}
       <g className="cicon-cal__dots">
-        <circle style={{ "--i": 0 } as React.CSSProperties} cx="8" cy="13" r="0.9" />
-        <circle style={{ "--i": 1 } as React.CSSProperties} cx="12" cy="13" r="0.9" />
-        <circle style={{ "--i": 2 } as React.CSSProperties} cx="16" cy="13" r="0.9" />
-        <circle style={{ "--i": 3 } as React.CSSProperties} cx="8" cy="16.5" r="0.9" />
-        <circle style={{ "--i": 4 } as React.CSSProperties} cx="12" cy="16.5" r="0.9" />
+        <circle cx="8" cy="13" r="0.9" />
+        <circle cx="12" cy="13" r="0.9" />
+        <circle cx="16" cy="13" r="0.9" />
+        <circle cx="8" cy="16.5" r="0.9" />
+        <circle cx="12" cy="16.5" r="0.9" />
       </g>
-      {/* Header band — the top bar of the frame, the binder rings, and the divider
-          rule. Lifts open on a hinge at the divider line (y=9.5) on hover. Drawn
-          last so it sits on top as it swings up. */}
-      <g className="cicon-cal__header">
-        <path d="M4 9.5h16" />
-        <path d="M4 9.5v-2.5a1.5 1.5 0 0 1 1.5-1.5h13a1.5 1.5 0 0 1 1.5 1.5v2.5" />
-        <path d="M8.5 3.5v4M15.5 3.5v4" />
-      </g>
+      <path className="cicon-cal__rings" d="M8.5 3.5v4M15.5 3.5v4" />
     </>,
     "cal"
   ),
@@ -217,33 +207,36 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer: input paper on top, closed body with a notched output slot, status
-  // dot, and a printed sheet that feeds UP out of the output slot on hover. The
-  // sheet is a filled rect clipped to the slot so it reads as emerging from
-  // INSIDE the body (globals.css §Print). The clip is a narrow band over the
-  // output mouth; the rect rises within it. clipPath id is unique per icon set.
+  // Printer: input paper on top, closed body, status dot, and a printed page that
+  // feeds DOWN and OUT through the output mouth at the bottom-front of the body on
+  // hover. At rest the page is parked INSIDE the body (clipped away above the
+  // mouth lip), so the icon reads as a plain printer. On hover it slides down and
+  // settles just below the front lip — a printed page in the output tray (see
+  // globals.css §Print). clipPath id is unique per icon set.
   Print: svg(
     <>
       <defs>
-        {/* Slot window: the sheet is only visible from the output mouth (y≈14)
-            downward, so its top edge appears to come UP out of the printer mouth
-            as it feeds. Everything above the lip is clipped away (hidden inside
-            the body). */}
+        {/* Output window: the page is only visible from the mouth lip (y≈14) on
+            DOWN to just below the printer's front, so it reads as emerging out the
+            bottom. Anything above the lip is clipped (parked inside the body). */}
         <clipPath id="cicon-print-slot" clipPathUnits="userSpaceOnUse">
-          <rect x="7" y="14" width="10" height="6.6" />
+          <rect x="6.5" y="14" width="11" height="9" />
         </clipPath>
       </defs>
       {/* input paper — open bottom blends into body top */}
       <path d="M7 8V4h10v4" />
-      {/* printer body — closed, consistent 2px corners, notch for output */}
+      {/* printer body — closed, consistent 2px corners, notch for the output mouth */}
       <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
       {/* status dot */}
       <path d="M17.5 11.5h.01" />
-      {/* output sheet — a filled page sitting at the output mouth. Rises on hover
-          so more of it emerges; clipped to the slot so its body stays hidden in
-          the printer body and only the printed page shows below the lip. */}
+      {/* output page — a clean (unfilled) page with one short print line so it
+          reads as a printed sheet, not a heavy slab. Parked inside the body at
+          rest (above the lip, clipped away); feeds DOWN on hover to emerge below
+          the front lip. Clipped to the output window so its body never shows
+          through the printer body. */}
       <g className="cicon-print__sheet" clipPath="url(#cicon-print-slot)">
-        <rect x="8" y="14.5" width="8" height="6.5" rx="0.6" />
+        <rect className="cicon-print__page" x="8" y="7" width="8" height="6.6" rx="0.6" />
+        <path className="cicon-print__line" d="M9.8 10.6h4.4" />
       </g>
     </>,
     "print"

@@ -34,96 +34,6 @@
   }
 }
 
-/* ---------- reveal entrance: "flips open and populates" ----------
- * The grid mounts + settles BEHIND the host veil, so an entrance played on mount
- * would be invisible. CampApp flips `playEntrance` true the instant the calendar
- * veil LIFTS, and CalendarShell tags .calshell__grid with .is-entering for one
- * ~600ms window (it self-clears, so FullCalendar's later scroll/zoom/drag DOM
- * rebuilds never re-animate). Two beats, both gated by that class:
- *   1. FRAME OPENS — FullCalendar's own .fc element scales open from the top
- *      (a metaphorical "flip open", NOT a 3D rotateX — a real flip would make .fc
- *      a containing block for the position:fixed .cal-dragfollow clone, which is
- *      a SIBLING of .fc and must never be offset). The transform is transient
- *      (no fill-mode) and ends at identity, so nothing is retained.
- *   2. EVENTS POPULATE — the cards/chips present at reveal settle in on a short
- *      :nth-child stagger (capped so a full month doesn't crawl).
- * Both collapse to nothing under prefers-reduced-motion (the veil's plain
- * cross-fade is the whole reveal there). */
-.calshell__grid.is-entering .fc {
-  transform-origin: top center;
-  animation: cal-frame-open var(--t-slow) var(--ease-overlay);
-}
-@keyframes cal-frame-open {
-  from {
-    opacity: 0;
-    transform: scaleY(0.94) translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: scaleY(1) translateY(0);
-  }
-}
-/* Events settle in AFTER the frame begins opening. Each card/chip lifts a few px
-   and fades up; a per-position delay (capped at the 8th) gives the cascade. The
-   harness is FullCalendar's per-event wrapper in both layouts (timed +
-   month), so :nth-child resets per column/day — a natural left-to-right,
-   top-to-bottom ripple rather than one global queue. */
-.calshell__grid.is-entering .fc-timegrid-event-harness,
-.calshell__grid.is-entering .fc-daygrid-event-harness {
-  animation: cal-event-pop var(--t-med) var(--ease-overlay) both;
-  animation-delay: calc(var(--t-fast) + (var(--cal-pop-i, 0) * 28ms));
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(1) {
-  --cal-pop-i: 0;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(2),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(2) {
-  --cal-pop-i: 1;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(3),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(3) {
-  --cal-pop-i: 2;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(4),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(4) {
-  --cal-pop-i: 3;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(5),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(5) {
-  --cal-pop-i: 4;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(6),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(6) {
-  --cal-pop-i: 5;
-}
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(7),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(7) {
-  --cal-pop-i: 6;
-}
-/* Cap the cascade: everything from the 8th on shares the last step so a dense
-   day never drifts past the entry window. */
-.calshell__grid.is-entering .fc-timegrid-event-harness:nth-child(n + 8),
-.calshell__grid.is-entering .fc-daygrid-event-harness:nth-child(n + 8) {
-  --cal-pop-i: 7;
-}
-@keyframes cal-event-pop {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .calshell__grid.is-entering .fc,
-  .calshell__grid.is-entering .fc-timegrid-event-harness,
-  .calshell__grid.is-entering .fc-daygrid-event-harness {
-    animation: none;
-  }
-}
-
 .calshell__body {
   display: flex;
   flex: 1;
@@ -769,9 +679,8 @@ body.is-cal-copy .cal-dragfollow::after {
    reads as one group at a glance. Stacked box-shadows only — no background-image,
    so the custom event's hatched spine (also painted via background-image) is
    untouched. Distinct from hover (a lift, no ring) and from the dragging/snap-box
-   treatments (dashed, mid-gesture). It composes with the entrance reveal (the
-   .is-entering window only animates opacity/transform on the card, not its ring).
-   The slight raise echoes the hover lift so a selected card reads as "picked up". */
+   treatments (dashed, mid-gesture). The slight raise echoes the hover lift so a
+   selected card reads as "picked up". */
 .calshell .fc-event.cal-event--selected:not(.fc-event-mirror) {
   box-shadow:
     0 0 0 1.5px var(--card),
