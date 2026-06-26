@@ -75,11 +75,22 @@
   --e3: none;
   --e4: 0 18px 48px -12px rgba(56, 44, 28, 0.4);
 
-  /* Quiet humanist companion for body + dense data; handwriting stays on display. */
+  /* Quiet humanist companion for body + dense data; handwriting stays on display.
+     next/font (display:swap) already EXPANDS each --font-* var to the real face
+     PLUS its size-adjusted, metric-matched fallback — e.g. --font-hand resolves to
+     `"Patrick Hand", "Patrick Hand Fallback"` where the Fallback is a synthetic
+     @font-face (src:local(Arial) + size-adjust/ascent-override) tuned to the real
+     face's metrics. So pre-swap text lays out at the FINAL metrics and does NOT
+     reflow when the webfont arrives (this is what kills the FOUT/text-shift on
+     re-sort). We must NOT re-append the real family names ("Patrick Hand",
+     "Caveat", …) after the var: if that face happens to be installed locally it
+     renders pre-swap at the WRONG, non-metric-matched metrics and reintroduces the
+     shift. Keep only a generic last-resort so the metric-matched fallback always
+     wins until the webfont swaps. */
   --text: var(--font-text), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --hand: var(--font-hand), "Patrick Hand", "Comic Sans MS", cursive;
-  --hand-sc: var(--font-hand-sc), var(--font-hand), "Patrick Hand SC", cursive;
-  --script: var(--font-script), "Caveat", cursive;
+  --hand: var(--font-hand), cursive;
+  --hand-sc: var(--font-hand-sc), var(--font-hand), cursive;
+  --script: var(--font-script), cursive;
 
   /* Token-scale guardrail: compact aliases for new CSS only; existing selectors are unchanged. */
   --s-0: 0;
@@ -96,6 +107,10 @@
   --tap: 44px;
   --control-sm: 34px;
   --control-md: 40px;
+  /* Library content column: on wide desks the browse views (deck/catalog/shelf)
+     cap at this width and center (margin-inline:auto) so items read centered with
+     consistent room instead of hugging the window edges. T7. */
+  --lib-col-max: 1180px;
 
   --r-none: 0;
   --r-xs: 3px;
@@ -1699,6 +1714,9 @@ body {
   border: 1.5px solid var(--ink);
   border-bottom: none;
   border-radius: 5px 5px 0 0;
+  /* Each spine has a fixed inline width and an overflow-hidden vertical title,
+     so isolating its layout keeps a re-sort reorder of the rail cheap. */
+  contain: layout;
   transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .spine:hover {
@@ -1865,6 +1883,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Wall off each card's internal layout so a stable-keyed grid reorder (sort)
+     doesn't relayout the whole deck subtree. Reused wholesale by Home favorites
+     (.home-fav .deck-card), so this containment helps there too. */
+  contain: layout;
   transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .deck-card:hover {
@@ -1958,6 +1980,12 @@ body {
   padding: 13px 0 13px var(--s-5);
   border-left: 3px solid var(--cal-tint, var(--line));
   border-bottom: 1.5px dashed var(--line-soft);
+  /* Isolate each row's layout: on a stable-keyed re-sort React only reorders
+     nodes, so a row whose contents/size don't change shouldn't force the rest of
+     the list to relayout. `contain: layout` walls that off; paired with the
+     reserved title height below it makes A→Z / by-rating reflow without the
+     chunky per-row buffering. */
+  contain: layout;
 }
 .cat-row:hover .cat-title {
   color: var(--accent-ink);
@@ -1978,7 +2006,13 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2; /* standard alongside the -webkit- prefix (forward-compat) */
   overflow: hidden;
+  /* Reserve two lines of title height so a 1-line vs 2-line title never changes
+     the row's height. Without this, re-sorting reshuffles short/long titles and
+     each row's height recomputes mid-flow → the visible "buffer/shift". 2 lines
+     at line-height 1.05 ≈ 2.1em. */
+  min-height: 2.1em;
 }
 .cat-row__meta {
   font-family: var(--hand-sc);
@@ -4731,6 +4765,14 @@ body {
     opacity: 1;
   }
 }
+/* .fadein plays on mount / view-switch only (its containers carry no React key
+   keyed off the list, so a re-sort reorders nodes WITHOUT replaying it). Honor
+   reduced-motion: skip the rise/fade entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .fadein {
+    animation: none;
+  }
+}
 .label {
   font-family: var(--hand-sc);
   font-size: 11px;
@@ -5255,17 +5297,29 @@ body {
     color: var(--ink-faint);
   }
 
-  /* ---- content: fluid + comfortable ---- */
+  /* ---- content: capped, centered column with consistent room ----
+     On the desk tier the browse views cap at --lib-col-max and center
+     (margin-inline:auto) so items read centered with even gutters instead of
+     hugging the window edges. The 32px is now the column's INNER gutter. */
   .deck {
-    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    /* Fixed-width tracks (not 1fr) + justify-content:center keep cards a STABLE
+       width and center the grid inside the capped column, so a re-sort never
+       restretches cards. Composes with the F0 tablet block (768–1023, fluid
+       auto-fill) and the >=1200 widen below. */
+    grid-template-columns: repeat(auto-fill, 210px);
+    justify-content: center;
     gap: 16px;
     padding: 20px 32px 14px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
                   .deck-card__title {
     font-size: 22px;
   }
   .shelfwrap {
     padding-top: 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
   .shelf__head {
     margin: 0 32px;
@@ -5276,6 +5330,8 @@ body {
   }
   .catalog {
     padding: 14px 32px 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
 
   .form {
@@ -5314,11 +5370,9 @@ body {
   }
 }
 
-/* Wider desks: more columns and a little more air. */
+/* Wider desks: a little more air inside the capped column. Cards keep a stable
+   fixed width (the centered grid just fits more of them as room allows). */
 @media (min-width: 1200px) {
-  .deck {
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  }
   .toolbar,
   .catalog,
   .deck {
