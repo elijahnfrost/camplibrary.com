@@ -2596,13 +2596,19 @@ body {
   color: var(--ink);
 }
 
-/* ---- staff tab (the dedicated sign-in / account surface) ----
-   Shares the admin page's head treatment; the body is a centered column so the
-   self-contained auth-form card sits comfortably rather than stretching wide. */
+/* ---- staff tab (the dedicated sign-in / account + dashboard surface) ----
+   Signed out: shares the admin page's head treatment; the body is a centered
+   column so the self-contained auth-form card sits comfortably rather than
+   stretching wide. Signed in (.staff-tab--dash): widens to the full page and
+   lays out the usage dashboard in the home-* card idiom. */
 .staff-tab {
   padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
 }
 .staff-tab__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
   width: min(100%, 1120px);
   margin: 0 auto 16px;
 }
@@ -2627,6 +2633,341 @@ body {
 }
 .staff-tab__switch {
   margin: 0;
+}
+
+/* ---- staff dashboard (signed-in) ----
+   A responsive card grid mirroring the Home surface: one column on phones, two
+   from tablet up. Each card reuses the home section-head + boxed-card idiom. */
+.staff-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-7);
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+.staff-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.staff-stat__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+.staff-stat__title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.staff-stat__sub {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.staff-stat__card {
+  background: var(--content);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+/* Empty / loading states sit flush inside the card (the card already supplies
+   the border), so drop the home-empty box edge when nested here. */
+.staff-stat__empty {
+  border: 0;
+  border-radius: 0;
+}
+.staff-stat__loading {
+  margin: 0;
+  padding: var(--s-7) var(--s-6);
+  text-align: center;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---- account card ---- */
+.staff-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+}
+.staff-account__name {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.05;
+  color: var(--ink);
+}
+.staff-account__email {
+  margin: -2px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.staff-account__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+.staff-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.staff-tag--quiet {
+  background: var(--chrome-well);
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+.staff-account__sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-2) 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.staff-account__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.staff-account__dot--synced {
+  background: var(--accent);
+}
+.staff-account__dot--syncing {
+  background: var(--accent-ink);
+}
+.staff-account__dot--pending {
+  background: var(--amber);
+}
+.staff-account__dot--offline {
+  background: var(--ink-faint);
+}
+.staff-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+.staff-account__actions .btn {
+  flex: 1;
+  min-width: 130px;
+}
+
+/* ---- ranked usage rows (category-tinted) ---- */
+.staff-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-rank__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-left: 3px solid var(--cal-tint, var(--line));
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-rank__row:last-child {
+  border-bottom: 0;
+}
+.staff-rank__mono {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--cal-tint, var(--line)) 22%, var(--card));
+  border: 1.5px solid color-mix(in srgb, var(--cal-tint, var(--line)) 55%, var(--line));
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-ui);
+  line-height: 1;
+  color: var(--ink);
+}
+.staff-rank__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-rank__count {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-title-sm);
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+}
+.staff-rank__unit {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---- field notes log ---- */
+.staff-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-notes__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-notes__row:last-child {
+  border-bottom: 0;
+}
+.staff-notes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.staff-notes__activity {
+  min-width: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-notes__date {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.staff-notes__text {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+/* ---- recent activity feed ---- */
+.staff-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-recent__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-recent__row:last-child {
+  border-bottom: 0;
+}
+.staff-recent__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-round);
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+}
+.staff-recent__icon--note {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.staff-recent__icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.staff-recent__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.staff-recent__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-recent__detail {
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-recent__when {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Two-up dashboard from tablet width: the account card leads, the three stat
+   cards flow beside it. */
+@media (min-width: 768px) {
+  .staff-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .admin-panel {

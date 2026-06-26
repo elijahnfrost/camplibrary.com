@@ -807,6 +807,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onMode={setStaffTabMode}
               onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
               onSignOut={() => auth.signOut("/")}
+              events={calendarEvents}
+              allEvents={cloud.events}
+              runLists={cloud.docs.runLists}
+              byId={lib.byId}
+              hasLoaded={cloud.hasLoaded}
+              syncStatus={cloud.status}
+              pendingCount={cloud.pendingCount}
+              isAdmin={isAdmin}
+              onOpenInvites={() => setTab("admin")}
+              activeCamp={campKit.activeCamp}
+              campCount={campKit.camps.length}
             />
           )}
         </main>
