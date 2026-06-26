@@ -7281,6 +7281,236 @@ button.rl-node {
   padding-top: 10px;
   border-top: 1.3px dashed var(--line-soft);
 }
+
+/* ---------- inline Details editor (edit/create) ---------------------------
+   The activity's scalar facts edited as structured dropdowns on the run sheet,
+   one ledger row each (small-caps label left, a compact control right) — the
+   same switch-ledger vocabulary as the sidebar filters, hosted inside the
+   Details block so the run sheet IS the editor (no form above it). */
+.rldetail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rldetail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  min-height: var(--tap);
+}
+.rldetail__label {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  flex: 0 0 auto;
+}
+/* Each row's control sits to the right; segmented controls grow to a comfortable
+   width, menu triggers hug their label. */
+.rldetail__row .seg {
+  flex: 0 1 260px;
+}
+.rldetail__row .themefield {
+  flex: 0 1 260px;
+  width: auto;
+}
+.rldetail__pick {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+}
+.rldetail__menu,
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  min-width: 180px;
+}
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  padding: var(--s-4);
+}
+.rldetail__ageunit {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-4);
+}
+.rldetail__agechips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.rldetail__grouprow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__numin {
+  width: 72px;
+  text-align: center;
+}
+.rldetail__groupdash {
+  color: var(--ink-faint);
+}
+.rldetail__grouperr {
+  display: block;
+  margin-top: var(--s-3);
+  color: var(--danger-ink);
+  font-size: var(--fs-ui);
+}
+.typepick__trigger.is-invalid {
+  border-color: var(--danger);
+}
+/* Minutes: a ± stepper bracketing the value menu. */
+.rldetail__dur {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__durbtn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.rldetail__durbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rldetail__durbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* On a phone a 4-way segment + label won't fit one line — let the control drop
+   below its label and stretch full width. */
+@media (max-width: 640px) {
+  .rldetail__row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    min-height: 0;
+    gap: var(--s-3);
+  }
+  .rldetail__row .seg,
+  .rldetail__pick {
+    flex: 1 1 100%;
+  }
+  .rldetail__pick .typepick__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ---------- inline Materials editor (edit/create) ---------- */
+.rlmat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+}
+.rlmat__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 30px;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-5);
+  border: 1.4px solid var(--line);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--card) 82%, var(--paper));
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+}
+.rlmat__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.rlmat__x:hover {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
+}
+.rlmat__x svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+.rlmat__add {
+  width: auto;
+  min-width: 150px;
+  flex: 1 1 150px;
+  /* font-size inherits the .input base (16px) — kept >=16px so iOS doesn't zoom. */
+}
+
+/* The form-bound scaffold blocks reuse the run-sheet block chrome (heading,
+   Details/Materials labels) unchanged; they carry no drag handles because they
+   bind to the form, not the run-doc. */
+
+/* ---------- inline header fields (edit/create) ---------- */
+/* The color swatch in the edit header is a compact trigger (not a full-width
+   field) so it sits inline with the back/duplicate/delete cluster. */
+.rlv--edit .rlv-head__row .ccolor {
+  flex: 0 0 auto;
+  width: auto;
+}
+.rlv--edit .rlv-head__row .ccolor__trigger {
+  width: auto;
+  min-height: 36px;
+}
+.rlv-title--edit,
+.rlv-blurb--edit,
+.rlv-aka--edit {
+  width: 100%;
+  display: block;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: var(--s-1) 0;
+  outline: none;
+}
+.rlv-title--edit {
+  font-size: clamp(var(--fs-title), 5vw, var(--fs-display));
+}
+.rlv-title--edit:focus,
+.rlv-blurb--edit:focus,
+.rlv-aka--edit:focus {
+  border-bottom-color: var(--accent);
+}
+.rlv-title--edit::placeholder,
+.rlv-blurb--edit::placeholder,
+.rlv-aka--edit::placeholder {
+  color: var(--ink-faint);
+}
+.rlv-blurb--edit {
+  margin-top: var(--s-5);
+}
+.rlv-aka--edit {
+  margin-top: var(--s-3);
+}
+.rlv-save {
+  max-width: 880px;
+  margin: var(--s-7) auto 0;
+  padding: 0 var(--s-6);
+}
+
 /* ---------- collapsed summary pills ---------- */
 .rl-summary {
   display: flex;
