@@ -21,11 +21,11 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
+import { activityFromForm, BLANK_FORM } from "@/lib/activityForm";
 import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
 import { ActivityBookPrint } from "./ActivityBookPrint";
-import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
@@ -411,14 +411,37 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     prevLibCountRef.current = count;
   }, [libraryItems.length, tab]);
 
-  // Activity viewer state. The event context is display-only strings from the
-  // calendar event the viewer was opened from (never calendar types).
+  // The ONE activity surface — create, edit, and browse all render through
+  // DetailSheet. `detail` is the activity it's showing (a fresh blank one in
+  // create mode); `detailMode` picks create vs browse; `detailStartEdit` opens
+  // an existing activity straight in edit mode (the "Edit" entry points). The
+  // event context is display-only strings from the calendar event it was opened
+  // from (never calendar types).
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [detailMode, setDetailMode] = useState<"create" | "view">("view");
+  const [detailStartEdit, setDetailStartEdit] = useState(false);
+  // Bumped on every explicit open/edit/create action so the surface remounts
+  // fresh — re-seeding its form/play-doc drafts — even when the same activity
+  // is re-opened (e.g. context-menu "Edit" on the already-open activity).
+  const [detailNonce, setDetailNonce] = useState(0);
   const [detailEventContext, setDetailEventContext] = useState<{ dateLabel: string; timeLabel: string } | null>(
     null
   );
-  const detailActivity = detail ? lib.byId[detail.id] || detail : null;
+  // In create mode `detail` is a fresh draft not in the catalog, so it must
+  // pass through verbatim; otherwise track the live catalog record by id.
+  const detailActivity = detail
+    ? detailMode === "create"
+      ? detail
+      : lib.byId[detail.id] || detail
+    : null;
   const activityDeepLinkOpenedRef = useRef(false);
+
+  const closeDetail = useCallback(() => {
+    setDetail(null);
+    setDetailMode("view");
+    setDetailStartEdit(false);
+    setDetailEventContext(null);
+  }, []);
 
   useEffect(() => {
     if (activityDeepLinkOpenedRef.current) return;
@@ -426,11 +449,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     if (!activityId || !lib.byId[activityId]) return;
     activityDeepLinkOpenedRef.current = true;
     setTab("library");
+    setDetailMode("view");
+    setDetailStartEdit(false);
+    setDetailEventContext(null);
+    setDetailNonce((n) => n + 1);
     setDetail(lib.byId[activityId]);
   }, [lib.byId]);
 
   const openDetail = useCallback((activity: Activity) => {
+    setDetailMode("view");
+    setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
 
@@ -442,15 +472,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }, []);
 
   const openDetailFromEvent = useCallback((activity: Activity, calEvent: CalendarEvent) => {
+    setDetailMode("view");
+    setDetailStartEdit(false);
     setDetailEventContext({
       dateLabel: formatEventDateLabel(calEvent.date),
       timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
     });
+    setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
-
-  // The in-Library add/edit sheet. null = closed; { activity: null } = adding new.
-  const [editorSheet, setEditorSheet] = useState<{ activity: Activity | null } | null>(null);
 
   // The desktop calendar shares the left sidebar: CalendarShell portals its
   // activity library into this slot (the same place the Library filters live).
@@ -462,32 +492,50 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [printRail, setPrintRail] = useState<HTMLDivElement | null>(null);
   const printRailRef = useCallback((node: HTMLDivElement | null) => setPrintRail(node), []);
 
+  // Create: open the ONE surface blank, in edit mode, on a fresh draft activity
+  // (built from BLANK_FORM so the read-mode preview/tint is coherent before the
+  // first keystroke). No separate listed-view form remains.
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
-    setEditorSheet({ activity: null });
+    setDetailEventContext(null);
+    setDetailStartEdit(false);
+    setDetailMode("create");
+    setDetailNonce((n) => n + 1);
+    setDetail(activityFromForm(BLANK_FORM, "draft-activity"));
   }
 
+  // Edit: open the SAME surface on the existing activity, straight in edit mode.
   function editActivity(activity: Activity) {
     if (!requireStaff("edit activities")) return;
-    setDetail(null);
-    setEditorSheet({ activity });
+    setDetailEventContext(null);
+    setDetailMode("view");
+    setDetailStartEdit(true);
+    setDetailNonce((n) => n + 1);
+    setDetail(activity);
   }
 
-  function submitEditorSheet(activity: Activity, runDoc?: RunDoc, themeId?: string | null) {
-    const isEditing = Boolean(editorSheet?.activity);
+  // Save from the unified surface. Create adds; edit updates. Theme is assigned
+  // off the returned themeId either way (unchanged save contract).
+  function submitDetail(activity: Activity, runDoc: RunDoc, themeId: string | null) {
+    const isEditing = detailMode !== "create";
     const ok = isEditing ? lib.updateActivity(activity, runDoc) : lib.addActivity(activity, runDoc);
     if (!ok) return;
     lib.assignTheme(activity.id, themeId ?? null);
-    if (!isEditing) {
+    if (isEditing) {
+      // Stay on the surface in browse mode, now showing the live catalog record.
+      setDetailMode("view");
+      setDetailStartEdit(false);
+      setDetail(activity);
+    } else {
       setCat("All");
       lib.setView("catalog");
       setTab("library");
+      closeDetail();
     }
-    setEditorSheet(null);
   }
 
   function deleteActivity(activity: Activity) {
-    if (lib.deleteActivity(activity)) setDetail(null);
+    if (lib.deleteActivity(activity)) closeDetail();
   }
 
   function duplicateActivity(activity: Activity) {
@@ -839,32 +887,21 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onClose={() => setCampsManagerOpen(false)}
           />
         )}
-        {editorSheet && (
-          <ActivityEditorSheet
-            editing={editorSheet.activity}
-            initialRunDoc={editorSheet.activity ? lib.resolveRunDoc(editorSheet.activity) : null}
-            onClose={() => setEditorSheet(null)}
-            onSubmit={submitEditorSheet}
-            ageUnit={ageUnit}
-            onAgeUnit={setAgeUnit}
-            themeKit={{
-              themes: lib.themes,
-              initialThemeId: editorSheet.activity ? lib.themeAssignments[editorSheet.activity.id] ?? "" : "",
-              onCreate: lib.createTheme,
-            }}
-          />
-        )}
         {detailActivity && (
           <DetailSheet
+            // Remount per open action so the form/play-doc drafts re-seed
+            // cleanly when the surface switches what (or how) it's showing.
+            key={"detail-" + detailNonce}
             activity={detailActivity}
+            mode={detailMode}
+            startEditing={detailStartEdit}
             isFav={lib.isFav}
             onToggleFav={lib.toggleFav}
             onClose={() => {
-              setDetail(null);
-              setDetailEventContext(null);
+              closeDetail();
               setPrintActivityId(null); // a stale book never outlives its viewer
             }}
-            onEdit={editActivity}
+            onSubmit={isSignedIn ? submitDetail : undefined}
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
@@ -873,6 +910,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSetRating={isSignedIn ? lib.setRating : undefined}
             onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}
+            themeKit={{
+              themes: lib.themes,
+              initialThemeId: detailMode === "create" ? "" : lib.themeAssignments[detailActivity.id] ?? "",
+              onCreate: lib.createTheme,
+            }}
+            ageUnit={ageUnit}
+            onAgeUnit={setAgeUnit}
             eventContext={detailEventContext ?? undefined}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
             theme={lib.themeOf(detailActivity.id)}

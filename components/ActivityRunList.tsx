@@ -354,8 +354,11 @@ export function ActivityRunList({
   availableMaterials: string[];
   onToggleMaterial: (id: string) => void;
   onSetRating?: (value: number) => void;
-  /** Block types kept out of the "Add a block" palettes (e.g. the add-activity
-   *  form owns details/materials as plain form sections). */
+  /** Block types kept out of the "Add a block" palettes. In the unified editor
+   *  the scalar Activity-card controls own details/materials as plain form
+   *  fields, so those scaffold blocks are stripped from the editable play-doc
+   *  AND kept out of the palette here — there is no second editable copy of the
+   *  detail facts to fight the form on save (the old dual-write). */
   hideAddBlocks?: RunBlockType[];
   /** Make field-note blocks live — directly typeable in the READ-ONLY viewer,
    *  the same way the rating dots are interactive without entering edit mode. The
@@ -1209,6 +1212,8 @@ export function ActivityRunList({
 
             // ---- ACTIVITY DETAILS / TAGS ----
             if (b.type === "details") {
+              const tagsEditable = editable;
+              const shownTags = detailTagsOf(b);
               return (
                 <li
                   key={b.id}
@@ -1228,10 +1233,10 @@ export function ActivityRunList({
                       <div className="rl-body">
                         <div className="rl-time">{RUN_TOP_LABEL.details}</div>
                         <div className="rl-detailtags">
-                          {detailTagsOf(b)
+                          {shownTags
                             .filter((tag) => tag.id !== "rating" || !onSetRating)
                             .map((tag) =>
-                              editable ? (
+                              tagsEditable ? (
                                 <span className="rl-detailtag rl-detailtag--edit" key={tag.id}>
                                   {detailIcon(tag.icon)}
                                   <Editable
@@ -1260,7 +1265,7 @@ export function ActivityRunList({
                                 </span>
                               )
                             )}
-                          {editable && (
+                          {tagsEditable && (
                             <button
                               type="button"
                               className="rl-detailtag rl-detailtag--add"
