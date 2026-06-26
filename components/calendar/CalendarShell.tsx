@@ -54,6 +54,12 @@ import {
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import {
+  applyMoveDelta,
+  moveDelta,
+  orderEventIds,
+  rangeSelection,
+} from "@/lib/calendar/selection";
+import {
   buildSeriesEvents,
   eventsInSeries,
   planSeriesDelete,
@@ -75,6 +81,7 @@ import { EventPopover } from "./EventPopover";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
+import { BulkEditPanel } from "./BulkEditPanel";
 
 // The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
 // "day"), so they list consecutive days from wherever you've scrolled and never
@@ -144,6 +151,17 @@ type ToastState = { message: string; onUndo?: () => void };
 type ScopePrompt =
   | { mode: "edit"; event: CalendarEvent; draft: EditorDraft }
   | { mode: "delete"; event: CalendarEvent };
+
+// A bulk edit's TOUCHED fields only ("leave unchanged unless touched"): a field
+// is present iff the panel actually changed it. color/location use `undefined` to
+// mean "clear" (vs absent = "leave"), so presence is checked with `in`.
+export type BulkEditChanges = {
+  color?: string | undefined;
+  location?: string | undefined;
+  allDay?: boolean;
+  dayShift?: number;
+  minShift?: number;
+};
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -343,6 +361,16 @@ export function CalendarShell({
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  // Shift/Cmd-click (and touch long-press) multi-selection, Finder/Notion
+  // semantics: the SET of selected event ids, plus a FIXED anchor that a
+  // shift-click re-extends the range from. Selection is purely a view affordance
+  // — it never touches stored data; only the bulk Delete / group-move / bulk-edit
+  // act on it. A plain click collapses it to one and opens the popover.
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
+  // The bulk-edit panel (shown when the bulk bar's Edit is pressed); holds the
+  // ids it opened over so a later selection change can't retarget mid-edit.
+  const [bulkEdit, setBulkEdit] = useState<{ ids: string[] } | null>(null);
   // The pending repeating-event edit/delete awaiting a scope choice.
   const [scopePrompt, setScopePrompt] = useState<ScopePrompt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -401,6 +429,43 @@ export function CalendarShell({
     for (const event of healedEvents) days.add(event.date);
     return days;
   }, [healedEvents]);
+
+  // Every event id in chronological order — the spine a shift-click range walks
+  // (anchor→target is just the slice between, so a range spans days naturally).
+  // Ordered from the in-memory event set, independent of what's scrolled in.
+  const orderedEventIds = useMemo(() => orderEventIds(healedEvents), [healedEvents]);
+  // onEventClick reads the order + anchor through refs so it can stay a STABLE
+  // callback: it's a dep of the heavy FullCalendar memo, and we don't want a
+  // re-anchor (every click) or an event change to re-render the whole grid just
+  // to refresh this closure. (fcEvents already triggers the grid on data change.)
+  const orderedEventIdsRef = useRef(orderedEventIds);
+  orderedEventIdsRef.current = orderedEventIds;
+  const selectionAnchorRef = useRef(selectionAnchor);
+  selectionAnchorRef.current = selectionAnchor;
+  // The live selection, read by the (stable) drag callbacks to decide group vs
+  // single move without re-arming the FullCalendar memo on every selection change.
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  // Touch multi-select mode: a long-press on an event ARMS this (and seeds the
+  // selection). While armed, a plain TAP on an event toggles it into/out of the
+  // selection (instead of opening the popover), the touch twin of cmd-click —
+  // the only multi-select gesture phones have (no modifier keys, no marquee).
+  // Cleared when the selection empties (clearSelection / Clear). Read via a ref
+  // so onEventClick stays a stable FullCalendar-memo callback.
+  const touchMultiRef = useRef(false);
+  // The tap that ENDS an arming long-press must be swallowed (touch only) so it
+  // doesn't toggle the just-selected event straight back off. Declared up here so
+  // onEventClick (above the long-press effect) can read it.
+  const suppressNextTapRef = useRef(false);
+
+  // Drop the multi-selection (set + anchor) back to empty. Called on every
+  // gesture that should reset the selection: a plain background/date click, a
+  // drag-create, a view change, Escape, and opening a single-event popover.
+  const clearSelection = useCallback(() => {
+    setSelection((prev) => (prev.size ? new Set() : prev));
+    setSelectionAnchor(null);
+    touchMultiRef.current = false;
+  }, []);
 
   // Which month the mini-month surfaces: the one the visible window MOSTLY falls
   // in, not whichever month its first column happens to start in. A multi-day
@@ -577,6 +642,11 @@ export function CalendarShell({
       const api = calendarRef.current?.getApi();
       const anchorDay =
         api && api.view.type === "timeGridStrip" ? firstVisibleDay() : focusDateRef.current;
+      // A genuine view switch (Day↔Week↔Month↔N) rebuilds the event DOM and is a
+      // clean break — drop the multi-selection. (Strip scroll re-anchors fire
+      // datesSet, not this, so scrolling to a selected event on another day keeps
+      // the selection intact.)
+      clearSelection();
       setActiveView(view);
       setStoredView(view);
       if (!api) return;
@@ -594,7 +664,7 @@ export function CalendarShell({
         setStripStart(newStart);
       }
     },
-    [firstVisibleDay, setStoredView]
+    [clearSelection, firstVisibleDay, setStoredView]
   );
 
   // Today: bring today to the strip's left edge (or jump the Month grid to it).
@@ -764,6 +834,99 @@ export function CalendarShell({
     [announce, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
+  // Bulk-delete the whole multi-selection as ONE undoable step. Each occurrence
+  // is treated as a plain single-day delete — we deliberately do NOT pop the
+  // recurring this/following/all dialog here (a bulk delete is predictable: what
+  // you selected is exactly what goes), and the single Undo restores them all.
+  const deleteSelection = useCallback(() => {
+    if (!requireStaff("change the calendar")) return;
+    // Snapshot the live events for the selected ids, skipping any that no longer
+    // exist, so Undo can restore the exact rows (color/series fields and all).
+    const before: CalendarEvent[] = [];
+    for (const id of selection) {
+      const event = events[id];
+      if (event) before.push(healEvent(event, byId));
+    }
+    if (!before.length) return;
+    const ids = before.map((event) => event.id);
+    removeEvents(ids);
+    clearSelection();
+    setPopover(null);
+    setSheet(null);
+    const count = ids.length;
+    const label = "Deleted " + count + (count === 1 ? " event" : " events");
+    announce(label);
+    showToast(
+      {
+        message: label,
+        // Restore every removed row in one step (stamp updatedAt so the
+        // last-write-wins store re-accepts them after the delete).
+        onUndo: () => upsertEvents(before.map((event) => ({ ...event, updatedAt: Date.now() }))),
+      },
+      8000
+    );
+  }, [announce, byId, clearSelection, events, removeEvents, requireStaff, selection, showToast, upsertEvents]);
+
+  // Apply a bulk edit across the whole selection in ONE undoable commit. Only the
+  // fields the panel actually TOUCHED are applied (the "leave unchanged unless
+  // touched" model); date/time shifts ride the same per-day clamp the group move
+  // uses. Recurring occurrences are edited as predictable single rows here too
+  // (no scope dialog), matching bulk-delete / group-move.
+  const applyBulkEdit = useCallback(
+    (ids: string[], changes: BulkEditChanges) => {
+      if (!requireStaff("change the calendar")) return;
+      const before: CalendarEvent[] = [];
+      const after: CalendarEvent[] = [];
+      const shift =
+        changes.dayShift || changes.minShift
+          ? { dayDelta: changes.dayShift ?? 0, minDelta: changes.minShift ?? 0 }
+          : null;
+      for (const id of ids) {
+        const live = events[id];
+        if (!live) continue;
+        const original = healEvent(live, byId);
+        let next: CalendarEvent = { ...original };
+        if ("color" in changes) {
+          if (changes.color) next.color = changes.color;
+          else delete next.color;
+        }
+        if ("location" in changes) {
+          if (changes.location) next.location = changes.location;
+          else delete next.location;
+        }
+        if ("allDay" in changes && changes.allDay !== undefined) {
+          if (changes.allDay) {
+            next.allDay = true;
+            next.startMin = 0;
+            next.endMin = 0;
+          } else if (next.allDay) {
+            // Turning all-day OFF needs a real timed span — seed a default block.
+            delete next.allDay;
+            next.startMin = DEFAULT_PLANNING_START_MIN;
+            next.endMin = Math.min(MINUTES_PER_DAY, DEFAULT_PLANNING_START_MIN + DEFAULT_DURATION_MIN);
+          }
+        }
+        // A date/time shift rides last so it composes with an all-day change.
+        if (shift) next = applyMoveDelta(next, shift);
+        next.updatedAt = Date.now();
+        before.push(original);
+        after.push(next);
+      }
+      if (!after.length) return;
+      commitEvents(after, []);
+      setBulkEdit(null);
+      setSelection(new Set(after.map((ev) => ev.id)));
+      const count = after.length;
+      const label = "Updated " + count + (count === 1 ? " event" : " events");
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents(before, []),
+      });
+    },
+    [announce, byId, commitEvents, events, requireStaff, showToast]
+  );
+
   // Commit a scoped edit of a repeating event once the user picks this/following/
   // all. The whole affected slice is replaced in one batch; Undo snapshots the
   // pre-edit series and restores it (clearing whatever the edit produced).
@@ -909,6 +1072,8 @@ export function CalendarShell({
         api?.unselect();
         return;
       }
+      // A create gesture (drag-select on empty grid) drops any multi-selection.
+      clearSelection();
       // Keep the selection: unselectAuto is off, so the dashed landing box stays
       // on screen (a click inside QuickAdd won't drop it) until the sheet closes
       // — see the sheet-close effect. That's what makes a drag-create span
@@ -931,11 +1096,14 @@ export function CalendarShell({
         pickTime: false,
       });
     },
-    [requireStaff, showToast]
+    [clearSelection, requireStaff, showToast]
   );
 
   const onDateClick = useCallback(
     (info: DateClickArg) => {
+      // A plain background/day click is a "deselect everything" gesture (Finder/
+      // Notion) — drop the multi-selection before any view jump or create.
+      clearSelection();
       if (info.view.type === "dayGridMonth") {
         // Google behavior: a month cell opens that day.
         calendarRef.current?.getApi().changeView("timeGridDay", info.date);
@@ -958,7 +1126,7 @@ export function CalendarShell({
         pickTime: false,
       });
     },
-    [requireStaff, setStoredView]
+    [clearSelection, requireStaff, setStoredView]
   );
 
   // Slot posture: a picked activity (or a custom title) creates immediately,
@@ -1022,8 +1190,71 @@ export function CalendarShell({
   const onEventClick = useCallback(
     (info: EventClickArg) => {
       info.jsEvent.preventDefault();
+      // The tap that ENDS an arming long-press is swallowed here so it doesn't
+      // immediately toggle the just-selected event back off (touch only).
+      if (suppressNextTapRef.current) {
+        suppressNextTapRef.current = false;
+        return;
+      }
       const event = events[info.event.id];
       if (!event) return;
+      const id = info.event.id;
+      const shift = info.jsEvent.shiftKey;
+      const toggle = info.jsEvent.metaKey || info.jsEvent.ctrlKey;
+
+      // SHIFT — range-select from the FIXED anchor to this event, inclusive, in
+      // chronological order (so it spans days). The anchor stays put, so a second
+      // shift-click re-extends the range from the same origin (Finder/Notion).
+      // With no anchor yet, this just selects + anchors here. Never opens the
+      // popover. Reads order/anchor via refs to keep this callback memo-stable.
+      if (shift) {
+        setPopover(null);
+        const order = orderedEventIdsRef.current;
+        const anchor = selectionAnchorRef.current;
+        if (!anchor || anchor === id) {
+          setSelection(new Set([id]));
+          setSelectionAnchor(id);
+          return;
+        }
+        setSelection(rangeSelection(order, anchor, id));
+        return; // anchor unchanged
+      }
+
+      // CMD/CTRL — toggle just this event in/out of the selection and make it the
+      // new anchor (so a following shift-click extends from here). No popover.
+      if (toggle) {
+        setPopover(null);
+        setSelection((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        setSelectionAnchor(id);
+        return;
+      }
+
+      // TOUCH MULTI-SELECT — once a long-press has armed multi mode, a plain tap
+      // TOGGLES this event (the touch twin of cmd-click) instead of opening the
+      // popover, so phones can build a selection with no modifier keys.
+      if (touchMultiRef.current) {
+        setPopover(null);
+        setSelection((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          // Tapping the last one back off exits touch-multi mode.
+          if (next.size === 0) touchMultiRef.current = false;
+          return next;
+        });
+        setSelectionAnchor(id);
+        return;
+      }
+
+      // PLAIN click — collapse any multi-selection to just this event (it becomes
+      // the new anchor) and open its popover, the unchanged default behaviour.
+      setSelection(new Set([id]));
+      setSelectionAnchor(id);
       setPopover({ event: healEvent(event, byId), anchor: info.el.getBoundingClientRect() });
     },
     [byId, events]
@@ -1047,6 +1278,83 @@ export function CalendarShell({
     },
     [byId, events]
   );
+
+  // ---- Touch long-press → multi-select arm --------------------------------
+  // Phones have no modifier keys and no marquee, so the entry into multi-select
+  // is a long-press on an event: it seeds the selection and arms touch-multi mode
+  // (after which a tap toggles — see onEventClick). We detect the press ourselves
+  // (a 500ms still-finger timer over an event harness) rather than via FC's drag
+  // long-press, so a long-press SELECTS instead of starting a move; once a group
+  // is selected, FC's own long-press drag group-moves it (startMoveAffordance
+  // reads the selection, modifier-free). suppressNextTapRef swallows the
+  // touchend's eventClick so the arming press doesn't immediately toggle back off.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressOriginRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const LONG_PRESS_MS = 500;
+    const MOVE_TOLERANCE = 10; // px — beyond this the press is a scroll, not a hold
+
+    const cancel = () => {
+      if (longPressTimerRef.current != null) {
+        window.clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      longPressOriginRef.current = null;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return cancel(); // two-finger = pinch-zoom; leave it
+      const target = e.target as HTMLElement | null;
+      const el = target?.closest<HTMLElement>("[data-event-id]");
+      const id = el?.dataset.eventId;
+      if (!id || !events[id]) return;
+      const touch = e.touches[0];
+      longPressOriginRef.current = { x: touch.clientX, y: touch.clientY };
+      cancel();
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressTimerRef.current = null;
+        // Arm touch-multi + seed the selection with this event. Swallow the
+        // touchend's tap so it doesn't toggle the just-selected event back off.
+        touchMultiRef.current = true;
+        suppressNextTapRef.current = true;
+        setPopover(null);
+        setMenu(null);
+        setSelection((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+        setSelectionAnchor(id);
+        announce("Selected — tap more events, then use the bar");
+      }, LONG_PRESS_MS);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const origin = longPressOriginRef.current;
+      if (!origin) return;
+      const touch = e.touches[0];
+      if (!touch) return cancel();
+      if (
+        Math.abs(touch.clientX - origin.x) > MOVE_TOLERANCE ||
+        Math.abs(touch.clientY - origin.y) > MOVE_TOLERANCE
+      ) {
+        cancel(); // the finger moved — a scroll/drag, not a hold
+      }
+    };
+
+    grid.addEventListener("touchstart", onTouchStart, { passive: true });
+    grid.addEventListener("touchmove", onTouchMove, { passive: true });
+    grid.addEventListener("touchend", cancel);
+    grid.addEventListener("touchcancel", cancel);
+    return () => {
+      cancel();
+      grid.removeEventListener("touchstart", onTouchStart);
+      grid.removeEventListener("touchmove", onTouchMove);
+      grid.removeEventListener("touchend", cancel);
+      grid.removeEventListener("touchcancel", cancel);
+    };
+  }, [announce, events]);
 
   // ---- Drag affordance (three-part move preview) --------------------------
   // The move gesture shows three things at once, like Notion/Apple Calendar:
@@ -1075,6 +1383,13 @@ export function CalendarShell({
   // pressing/releasing Option mid-drag flips the affordance; the drop reads the
   // final state.
   const altDragRef = useRef(false);
+  // The ids being GROUP-moved together (the live selection at drag start, when
+  // the grabbed event was part of a multi-selection). Empty for a single-event
+  // move. Read at drop time so the whole group shifts by the grabbed event's
+  // delta in one undoable commit. The harnesses of every member are also dimmed
+  // for the duration of the drag (tracked so they can be un-dimmed on stop).
+  const groupMoveRef = useRef<string[]>([]);
+  const groupHarnessesRef = useRef<HTMLElement[]>([]);
 
   // Reflect copy-drag mode: the body class drives the visual cue (the carried
   // card gets a "+" copy badge, the original shows un-dimmed because it stays,
@@ -1110,6 +1425,17 @@ export function CalendarShell({
     follow.style.left = pointerRef.current.x - grabOffsetRef.current.dx + "px";
     follow.style.top = pointerRef.current.y - grabOffsetRef.current.dy + "px";
     follow.style.opacity = "1";
+    // A group move carries a "N" count badge on the follower (a CSS ::after off
+    // data-group-count) — it survives the per-frame innerHTML swap above because
+    // it's an attribute, not a child node. Cleared for a single-event move.
+    const groupCount = groupMoveRef.current.length;
+    if (groupCount > 1) {
+      follow.setAttribute("data-group-count", String(groupCount));
+      follow.classList.add("is-group");
+    } else {
+      follow.removeAttribute("data-group-count");
+      follow.classList.remove("is-group");
+    }
   }, []);
 
   const addPointerSafetyNet = useCallback(
@@ -1156,9 +1482,16 @@ export function CalendarShell({
       // Reset the spine style so the next drag (which may grab an activity) never
       // briefly inherits the previous custom card's hatch.
       followRef.current.classList.remove("cal-event--custom");
+      followRef.current.classList.remove("is-group");
+      followRef.current.removeAttribute("data-group-count");
     }
     sourceHarnessRef.current?.classList.remove("is-drag-source");
     sourceHarnessRef.current = null;
+    // Un-dim every group-move origin and forget the group (so the next single
+    // drag isn't mistaken for a group move).
+    for (const el of groupHarnessesRef.current) el.classList.remove("is-drag-source");
+    groupHarnessesRef.current = [];
+    groupMoveRef.current = [];
     dragCleanupRef.current?.();
     dragCleanupRef.current = null;
   }, []);
@@ -1180,6 +1513,31 @@ export function CalendarShell({
       if (harness) {
         harness.classList.add("is-drag-source");
         sourceHarnessRef.current = harness;
+      }
+      // GROUP MOVE: if the grabbed event is part of a multi-selection (size > 1),
+      // the whole selection moves together. Dim every selected origin's harness
+      // (not just the grabbed one) so it reads as "all of these are lifting", and
+      // record the ids so the drop shifts them all by one delta. A grab of an
+      // unselected event (or a 1-item selection) stays a single-event move.
+      const grabbedId = arg.el.closest<HTMLElement>("[data-event-id]")?.dataset.eventId ?? "";
+      const sel = selectionRef.current;
+      if (grabbedId && sel.has(grabbedId) && sel.size > 1) {
+        groupMoveRef.current = [...sel];
+        const grid = gridRef.current;
+        if (grid) {
+          for (const node of grid.querySelectorAll<HTMLElement>("[data-event-id]")) {
+            if (!sel.has(node.dataset.eventId ?? "")) continue;
+            const h = node.closest<HTMLElement>(
+              ".fc-timegrid-event-harness, .fc-daygrid-event-harness"
+            );
+            if (h && !groupHarnessesRef.current.includes(h)) {
+              h.classList.add("is-drag-source");
+              groupHarnessesRef.current.push(h);
+            }
+          }
+        }
+      } else {
+        groupMoveRef.current = [];
       }
       if (followRef.current) followRef.current.style.opacity = "0";
       if (dragRafRef.current == null) traceFollower();
@@ -1211,6 +1569,41 @@ export function CalendarShell({
         return;
       }
       const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
+      // GROUP MOVE: the grabbed event was part of a multi-selection (captured at
+      // drag start). FullCalendar moved only the grabbed one — so compute its
+      // delta and apply the SAME date+time shift to every OTHER selected event,
+      // committing them all (grabbed + shifted others) as ONE undoable step.
+      // Recurring occurrences in the group are treated as predictable single-day
+      // moves (no this/following/all dialog — a bulk gesture must be predictable),
+      // matching the bulk-delete contract. Copy-drag is single-event only.
+      const groupIds = groupMoveRef.current;
+      if (groupIds.length > 1 && !(info.jsEvent?.altKey || altDragRef.current)) {
+        // Revert FC's optimistic single move; we re-commit the whole group from
+        // the store so every member (incl. the grabbed one) lands consistently.
+        info.revert();
+        const delta = moveDelta(existing, next);
+        const upserts: CalendarEvent[] = [];
+        for (const id of groupIds) {
+          const ev = events[id];
+          if (!ev) continue;
+          upserts.push(id === existing.id ? { ...next, updatedAt: Date.now() } : applyMoveDelta(ev, delta));
+        }
+        if (upserts.length) {
+          const before = upserts
+            .map((ev) => events[ev.id])
+            .filter((ev): ev is CalendarEvent => Boolean(ev));
+          commitEvents(upserts, []);
+          // Keep the moved set selected so a follow-up nudge/edit stays in scope.
+          setSelection(new Set(upserts.map((ev) => ev.id)));
+          const count = upserts.length;
+          announce("Moved " + count + (count === 1 ? " event" : " events"));
+          showToast({
+            message: "Moved " + count + (count === 1 ? " event" : " events"),
+            onUndo: () => commitEvents(before, []),
+          });
+        }
+        return;
+      }
       // Option/Alt held at drop → drop a COPY at the new slot and leave the
       // original untouched (macOS option-drag duplicate). Read at drop time so
       // pressing/releasing Option mid-drag decides copy vs move; altDragRef is the
@@ -1239,7 +1632,7 @@ export function CalendarShell({
       upsertEvent(next);
       announce("Moved " + (existing.title || "event") + " to " + formatClock(next.startMin));
     },
-    [announce, events, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, commitEvents, events, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const onEventResize = useCallback(
@@ -1401,6 +1794,26 @@ export function CalendarShell({
       </div>
     );
   }, []);
+
+  // Paint the multi-selection onto FullCalendar's (non-React) event DOM. The
+  // cards aren't ours to render a className onto, so — like the contextmenu id
+  // stamp and the drag-source dimming — we reach into the grid and toggle a
+  // DEDICATED class (cal-event--selected, NOT FC's own .fc-event-selected, which
+  // its native single-select ring would clash with) on every [data-event-id]
+  // harness to match the set. Re-runs whenever the selection changes OR fcEvents
+  // rebuilds the DOM (an add / remove / heal) or the view changes, deferred a
+  // frame so it lands after FC has committed its render. The same id can appear
+  // on more than one node (a strip/month overlap), so we walk ALL matches.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const frame = window.requestAnimationFrame(() => {
+      grid.querySelectorAll<HTMLElement>("[data-event-id]").forEach((el) => {
+        el.classList.toggle("cal-event--selected", selection.has(el.dataset.eventId ?? ""));
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selection, fcEvents, activeView]);
 
   // Google-style day headers: "MON" over the date numeral, today circled.
   const renderDayHeader = useCallback((arg: DayHeaderContentArg) => {
@@ -1886,14 +2299,24 @@ export function CalendarShell({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
-      // Delete / Backspace removes the selected event — the one whose popover is
-      // open (clicking an event selects it). The keyboard twin of the popover's
-      // own Delete button; allowed even though the view shortcuts below are
-      // suppressed while a popover is up.
-      if ((event.key === "Backspace" || event.key === "Delete") && popover && !sheet && !scopePrompt) {
-        event.preventDefault();
-        deleteEvent(popover.event);
-        return;
+      // Delete / Backspace. Two paths, both suppressed while an editor sheet, the
+      // bulk-edit panel, or the scope prompt is up:
+      //   · a multi-selection (shift/cmd-click, no popover) → delete them ALL in
+      //     one undoable step ("Deleted N events");
+      //   · otherwise the single event whose popover is open (a plain click both
+      //     selects and opens it) → the existing per-event delete (which still
+      //     routes a recurring event through the this/following/all scope dialog).
+      if ((event.key === "Backspace" || event.key === "Delete") && !sheet && !scopePrompt && !bulkEdit) {
+        if (!popover && selection.size) {
+          event.preventDefault();
+          deleteSelection();
+          return;
+        }
+        if (popover) {
+          event.preventDefault();
+          deleteEvent(popover.event);
+          return;
+        }
       }
       // Undo / redo: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, scoped to the calendar.
       // Handled BEFORE the modifier early-return below. Suppressed while an
@@ -1953,7 +2376,25 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, deleteEvent, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, bulkEdit, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+
+  // Escape clears the multi-selection. We honour the app's capture-phase Escape
+  // contract (see FloatingLayer/useDialogFocus): a capture listener that runs
+  // FIRST but BAILS on defaultPrevented, then preventDefault()s itself so any
+  // bubble-phase dialog underneath stays untouched. Only armed when there's a
+  // real selection AND nothing is open over it — a popover/menu/sheet/scope
+  // prompt/bulk panel owns its own Escape (close the layer first), and a plain
+  // click leaves a 1-item selection beneath an open popover this must NOT swallow.
+  useEffect(() => {
+    if (!selection.size || popover || menu || sheet || scopePrompt || settingsOpen || bulkEdit) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== "Escape") return;
+      event.preventDefault();
+      clearSelection();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [selection, popover, menu, sheet, scopePrompt, settingsOpen, bulkEdit, clearSelection]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -2285,6 +2726,45 @@ export function CalendarShell({
               : commitSeriesDelete(scopePrompt.event, scope)
           }
           onClose={() => setScopePrompt(null)}
+        />
+      )}
+
+      {/* Bulk action bar — shown the moment a multi-selection exists (the touch
+          entry point for bulk actions too, since the context menu is pointer-fine
+          only). "N events" plus Edit / Delete / Clear. Hidden while the bulk-edit
+          panel is open (the panel takes over) so the two don't stack. Staffing is
+          enforced by the underlying mutations (deleteSelection / applyBulkEdit). */}
+      {selection.size > 1 && !bulkEdit && (
+        <div className="calshell__bulkbar" role="toolbar" aria-label="Selected events">
+          <span className="calshell__bulkcount">
+            {selection.size} {selection.size === 1 ? "event" : "events"}
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              if (!requireStaff("change the calendar")) return;
+              setPopover(null);
+              setBulkEdit({ ids: [...selection] });
+            }}
+          >
+            Edit
+          </button>
+          <button type="button" className="btn btn--ghost calshell__bulkdanger" onClick={deleteSelection}>
+            Delete
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={clearSelection}>
+            Clear
+          </button>
+        </div>
+      )}
+
+      {bulkEdit && (
+        <BulkEditPanel
+          count={bulkEdit.ids.length}
+          suggestions={knownLocations}
+          onApply={(changes) => applyBulkEdit(bulkEdit.ids, changes)}
+          onClose={() => setBulkEdit(null)}
         />
       )}
 

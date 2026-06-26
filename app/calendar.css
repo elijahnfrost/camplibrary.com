@@ -736,6 +736,56 @@ body.is-cal-copy .cal-dragfollow::after {
   /* A paper halo separates the badge from the card's own tint. */
   box-shadow: 0 0 0 1.5px var(--card);
 }
+/* GROUP MOVE: dragging a multi-selection carries a count badge ("3") on the
+   follower so it reads as "all of these are moving". The number rides a
+   data-group-count attribute (set per frame in JS), so it survives the
+   follower's innerHTML swap — a child node wouldn't. Same badge anatomy as the
+   copy "+", anchored top-left so it can't collide with it. */
+.cal-dragfollow.is-group::before {
+  content: attr(data-group-count);
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 2;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 1.5px var(--card);
+}
+/* Multi-selection (shift/cmd-click, touch long-press): a DEDICATED class toggled
+   onto the event harness from JS — deliberately NOT FC's own .fc-event-selected
+   (whose accent ring marks the single native selection and would read
+   identically). A selected card wears a thicker DOUBLE ring: an inner paper halo
+   lifts the accent off the card's own tint so it stays legible over any tint,
+   then the solid accent ring, then a faint accent glow so a run of selected cards
+   reads as one group at a glance. Stacked box-shadows only — no background-image,
+   so the custom event's hatched spine (also painted via background-image) is
+   untouched. Distinct from hover (a lift, no ring) and from the dragging/snap-box
+   treatments (dashed, mid-gesture). It composes with the entrance reveal (the
+   .is-entering window only animates opacity/transform on the card, not its ring).
+   The slight raise echoes the hover lift so a selected card reads as "picked up". */
+.calshell .fc-event.cal-event--selected:not(.fc-event-mirror) {
+  box-shadow:
+    0 0 0 1.5px var(--card),
+    0 0 0 3.5px var(--accent),
+    0 1px 6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.calshell .fc-timegrid-event.cal-event--selected:not(.fc-event-mirror) {
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .calshell .fc-timegrid-event.cal-event--selected:not(.fc-event-mirror) {
+    transform: none;
+  }
+}
 /* Selected / keyboard-focused event: FullCalendar ships a grey overlay (killed
    via --fc-event-selected-overlay-color above) plus a drop-shadow ring and two
    positioned pseudo-elements. Replace all of it with the app's quiet accent
@@ -1645,6 +1695,72 @@ body.is-cal-copy .cal-dragfollow::after {
 }
 .calshell__toast button:focus-visible {
   outline-color: var(--paper); /* accent vanishes on the ink toast */
+}
+
+/* Bulk action bar — the floating toolbar shown while a multi-selection exists
+   (the touch entry point for bulk actions, where the pointer-only context menu
+   isn't reachable). A card surface (distinct from the ink toast) centred above
+   the toast slot so the two can coexist (a bulk op shows its own undo toast). */
+.calshell__bulkbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-2) var(--s-3);
+  box-shadow: var(--e3);
+  z-index: 30; /* above the undo toast, under open overlays/editors */
+}
+.calshell__bulkcount {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  white-space: nowrap;
+}
+.calshell__bulkbar .btn {
+  min-height: var(--s-8);
+}
+/* The Delete action reads as destructive (warm red ink) without leaving the
+   ghost-button shape the bar's other actions use. */
+.calshell__bulkdanger {
+  color: var(--danger);
+}
+
+/* Bulk-edit panel — reuses the View-settings card shell (overlay--card) + the
+   shared ledger rows, so it reads as the same compact vocabulary as QuickAdd
+   without retrofitting it. A field's control only appears once its row's "change"
+   switch is on (the leave-unchanged model). */
+.bulkedit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.bulkedit__hint {
+  margin: 0;
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
+}
+.bulkedit__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.bulkedit__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line);
 }
 
 /* ============================================================
