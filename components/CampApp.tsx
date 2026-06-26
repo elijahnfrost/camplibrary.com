@@ -41,6 +41,7 @@ import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
+import { useDeviceShape, DESKTOP_MIN } from "./useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the
@@ -164,19 +165,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     }
   }, [storageScope]);
 
-  // The desktop sidebar holds the calendar / print rail portals. On phones the
-  // sidebar is display:none but its nodes still exist, so an ungated portal would
-  // ALSO mount into the hidden rail (two PrintControls fighting over one title).
-  // Gate the rail nodes to desktop so the ref is null on phones. useLayoutEffect
-  // resolves the match before paint, so there's no flash.
-  const [isDesktop, setIsDesktop] = useState(true);
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const update = () => setIsDesktop(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
+  // The desk sidebar holds the calendar / print rail portals. Below the desk
+  // breakpoint the sidebar is display:none but its nodes would still exist, so an
+  // ungated portal would ALSO mount into the hidden rail (two PrintControls
+  // fighting over one title). Gate the rail nodes to the desk (>=1024) so the ref
+  // is null on phone + tablet, where the touch shell uses sheets instead. The
+  // hook resolves the match in a layout effect before paint, so there's no flash.
+  const { isDesktop } = useDeviceShape();
 
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
@@ -209,13 +204,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setTab("staff");
   }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
 
-  // Phones have no Home tab and no sidebar brand mark, so an initial "home"
-  // landing would be a dead end. Send phone-width sessions to Library instead.
-  // The auth/activity deep-links still win: they set the tab first, and the
-  // functional updater leaves any non-"home" tab untouched.
+  // The touch shell (phone + tablet) has no Home tab and no sidebar brand mark,
+  // so an initial "home" landing would be a dead end. Send touch-shell sessions
+  // (<1024) to Library instead. The auth/activity deep-links still win: they set
+  // the tab first, and the functional updater leaves any non-"home" tab untouched.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    if (!window.matchMedia(`(max-width: ${DESKTOP_MIN - 1}px)`).matches) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") || params.get("activity")) return;
     setTab((t) => (t === "home" ? "library" : t));

@@ -29,6 +29,10 @@ const ALLOWED_MEDIA = new Set([
   "(max-width: 640px)",
   "(max-width: 767px)",
   "(min-width: 768px)",
+  // Tablet tier (iPad portrait) ↔ desk seam. The shell switches to the sidebar
+  // "desk" at 1024 (DESKTOP_MIN); 768–1023 is the roomy touch-shell tablet tier.
+  "(max-width: 1023px)",
+  "(min-width: 768px) and (max-width: 1023px)",
   "(min-width: 1024px)",
   "(min-width: 1320px)",
   "(hover: none)",

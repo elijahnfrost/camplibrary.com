@@ -152,22 +152,22 @@
   width: 18px;
   height: 18px;
 }
-@media (min-width: 768px) {
-  /* Both are mobile-only: the sidebar (≥768px) carries the view settings and the
-     mini-month, and the mini-month is where Today lives on desktop. */
+@media (min-width: 1024px) {
+  /* Both are touch-shell-only: the desk sidebar (≥1024px) carries the view
+     settings and the mini-month, and the mini-month is where Today lives there. */
   .calhead__settings,
   .calhead__today {
     display: none;
   }
 }
 /* The green Add — the calendar's twin of the Library's Add button (same .btn
-   .btn--primary), sized to the header's control family. Desktop only; phones
-   keep the FAB (the header is tight there). */
+   .btn--primary), sized to the header's control family. Desk only; the touch
+   shell (phone + tablet) keeps the FAB (the header is tight there). */
 .calhead__add {
   height: var(--control-md);
   border-radius: var(--r-md);
 }
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .calhead__add {
     display: none;
   }
@@ -1067,9 +1067,10 @@ body.is-cal-copy .cal-dragfollow::after {
   background: var(--on-accent);
 }
 /* ---------- the event window (every create + edit) ---------- */
-/* The tall bottom sheet is a phone affordance; from tablet up the centered
-   card keeps the editors' compact 640px cap from globals.css. */
-@media (max-width: 767px) {
+/* The tall bottom sheet is the touch-shell affordance (phone + tablet); from
+   the desk up the centered card keeps the editors' compact 640px cap from
+   globals.css. */
+@media (max-width: 1023px) {
   .overlay--quickadd {
     max-height: 78dvh;
   }
@@ -1088,7 +1089,7 @@ body.is-cal-copy .cal-dragfollow::after {
      instead of clipping the commit button at the overlay edge. */
   overflow-y: auto;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .quickadd {
     --qa-gx: var(--s-6);
   }
@@ -1772,7 +1773,7 @@ body.is-cal-copy .cal-dragfollow::after {
 }
 
 /* ---------- responsive ---------- */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .calshell__fab {
     display: none;
   }
@@ -1781,16 +1782,16 @@ body.is-cal-copy .cal-dragfollow::after {
   }
 }
 
-/* Below the desktop breakpoint there's no sidebar (and no page-title bar), so
-   the calendar header is the first thing on the page — it carries the notch
-   clearance the old topbar used to provide. */
-@media (max-width: 767px) {
+/* Below the desk breakpoint (phone + tablet) there's no sidebar (and no
+   page-title bar), so the calendar header is the first thing on the page — it
+   carries the notch clearance the old topbar used to provide. */
+@media (max-width: 1023px) {
   .calhead {
     padding-top: max(14px, calc(6px + env(safe-area-inset-top)));
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .calhead {
     gap: var(--s-3);
   }
@@ -2013,7 +2014,7 @@ body.is-cal-copy .cal-dragfollow::after {
   justify-content: flex-end;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .overlay--scope {
     width: var(--scope-w);
   }

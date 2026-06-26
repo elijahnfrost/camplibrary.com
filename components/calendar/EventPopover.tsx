@@ -12,6 +12,7 @@ import { CampIcon } from "../icons";
 import { ThemeBadge } from "../primitives";
 import { useDialogFocus } from "../useDialogFocus";
 import { useFloatingPosition } from "../floating/useFloatingPosition";
+import { DESKTOP_MIN } from "../useDeviceShape";
 
 // Google Calendar's signature interaction: clicking an event shows a small
 // anchored card with the essentials and actions, not a full modal. On phones
@@ -44,7 +45,7 @@ export function EventPopover({
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  const docked = typeof window !== "undefined" && window.innerWidth < 768;
+  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
   const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
 
   // Desktop-anchored mode: the position is computed once from the anchor rect,

@@ -4909,16 +4909,42 @@ body {
 }
 
 /* ============================================================
+ * TABLET TIER (iPad portrait): 768–1023px
+ * The purpose-built touch shell (bottom tab bar, FAB, full-screen sheets,
+ * docked menus) stays exactly as on phone — only the content GRIDS open up so a
+ * wide viewport reads as a real tablet layout instead of a stretched 2-up phone.
+ * The desk sidebar deliberately does NOT appear here (see DESKTOP_MIN in
+ * components/useDeviceShape.ts). T7 owns the centered content column across tiers.
+ * ============================================================ */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Library deck: phone is a fixed 2-up, which stretches each cover on an iPad.
+     Pack adaptive columns instead (≈3 at 768 → ≈4 near 1024). */
+  .deck {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--s-5);
+    padding: var(--s-5) var(--s-6) var(--s-3);
+  }
+  /* Home favorites already auto-fill; nudge the gutter to match the deck. */
+  .home-favs {
+    gap: var(--s-5);
+  }
+}
+
+/* ============================================================
  * DESKTOP APP (>= 1024px)
  * A full-window application, not a scaled phone. The app fills the
  * browser window; primary nav + filters live in a full-height left
  * sidebar; search sits in a header toolbar; and detail / picker slide
  * in as a right-hand inspector panel (master–detail).
  * ============================================================ */
-/* The shell switch (bottom tab bar -> sidebar "desk"). Landed at --bp-tablet
-   (768px) so iPad portrait gets the real sidebar + calendar rail the design
-   intends, instead of a stretched phone layout. Phones (<768) keep the tab bar. */
-@media (min-width: 768px) {
+/* The shell switch (touch shell -> sidebar "desk"). Landed at --bp-desktop
+   (1024px): the desk sidebar is ~292px, which on an iPad-portrait viewport
+   (768–1023px) would eat ~40% of the width — a "shrunk desktop". So phone AND
+   tablet keep the purpose-built touch shell (tab bar, FAB, sheets); only true
+   desktop / iPad-landscape (>=1024) gets the sidebar + stage. The 768–1023 tier
+   gets roomy grids in its own block below. Keep this in lockstep with DESKTOP_MIN
+   in components/useDeviceShape.ts (it gates the sidebar rail portals). */
+@media (min-width: 1024px) {
   body {
     background: var(--stage-bg);
   }
@@ -5306,7 +5332,7 @@ body {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .overlay--viewer {
     top: max(12px, env(safe-area-inset-top));
     overflow: visible;
@@ -5319,7 +5345,7 @@ body {
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   /* ---- Home: roomier desk ---- */
   .home {
     padding: var(--s-7) var(--s-8) var(--s-8);
@@ -7988,8 +8014,8 @@ button.rl-node {
  * and the new small components from the deep-clean pass.
  * ============================================================ */
 
-/* ---- tablet (and up) library toolbar: one tidy row, no stretched phone ---- */
-@media (min-width: 768px) {
+/* ---- desk library toolbar: one tidy row (touch shell uses the search row) ---- */
+@media (min-width: 1024px) {
   .toolbar {
     display: flex;
     align-items: center;
@@ -8483,8 +8509,8 @@ button.rl-node {
   color: var(--accent-ink);
 }
 
-/* ---- phone: dropdowns + date grid bottom-dock like the event popover ---- */
-@media (max-width: 767px) {
+/* ---- touch shell: dropdowns + date grid bottom-dock like the event popover ---- */
+@media (max-width: 1023px) {
   .cmenu,
   .cselect__menu,
   .cdate__pop {
@@ -8541,9 +8567,9 @@ button.rl-node {
   flex-wrap: wrap;
   padding: var(--s-5) var(--page-x);
 }
-/* Match the calendar header's desktop horizontal padding so the two tab headers
-   line up (.calhead gets 32px at >=768; .printhead lacked the override → 14px off). */
-@media (min-width: 768px) {
+/* Match the calendar header's desk horizontal padding so the two tab headers
+   line up (.calhead gets 32px at >=1024; .printhead lacked the override → 14px off). */
+@media (min-width: 1024px) {
   .printhead {
     padding: var(--s-5) 32px;
   }
@@ -8619,7 +8645,7 @@ button.rl-node {
   width: 18px;
   height: 18px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .printhead__options {
     display: none;
   }
@@ -9498,8 +9524,8 @@ button.rl-node {
   }
 }
 
-/* ---- Phones: stack console over preview ---- */
-@media (max-width: 767px) {
+/* ---- Touch shell: stack console over preview ---- */
+@media (max-width: 1023px) {
   /* Tighter header padding; the actions wrap under the title if the phone is
      narrow. The preview fills the rest of the screen (min-height floors it so
      the flex column can never collapse it to nothing). */

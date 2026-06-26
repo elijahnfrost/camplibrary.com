@@ -8,6 +8,7 @@ import { CampIcon } from "./icons";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
 import { ActivityRunList } from "./ActivityRunList";
+import { DESKTOP_MIN } from "./useDeviceShape";
 
 export function DetailSheet({
   activity: a,
@@ -59,11 +60,12 @@ export function DetailSheet({
   const editable = editing && canEdit;
   const showOwner = showOwnerActions;
 
-  // On phones, a downward swipe that STARTS on the header closes the viewer —
-  // scoping it to the header keeps iOS rubber-band overscroll in the step list
-  // from accidentally dismissing the whole sheet mid-activity.
+  // On the touch shell (phone + tablet), a downward swipe that STARTS on the
+  // header closes the viewer — scoping it to the header keeps iOS rubber-band
+  // overscroll in the step list from accidentally dismissing the whole sheet
+  // mid-activity. Re-read per gesture, so rotation is always reflected.
   const onBodyTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 1 || typeof window === "undefined" || window.innerWidth >= 768) return;
+    if (event.touches.length !== 1 || typeof window === "undefined" || window.innerWidth >= DESKTOP_MIN) return;
     const body = bodyRef.current;
     const onHeader = Boolean((event.target as HTMLElement).closest(".rlv-head, .overlay__handle"));
     if (!body || body.scrollTop > 4 || !onHeader) {
