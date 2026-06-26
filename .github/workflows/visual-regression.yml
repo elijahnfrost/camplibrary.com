@@ -32,18 +32,15 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
 
-      # TEMP (eight-workstream-pass): regenerate darwin baselines ON the runner so
-      # they match macos-latest's font rasterizer (the local dev Mac is macOS 26,
-      # newer than the runner → sub-tolerance mismatch). Reverted in a follow-up
-      # commit; the normal `test:visual` gate is restored after the baselines land.
-      - name: Regenerate baselines on runner (TEMP)
-        run: npm run test:visual:update
+      - name: Visual regression
+        run: npm run test:visual
         env:
           CI: "true"
 
-      - name: Upload regenerated baselines (TEMP)
+      - name: Upload diff report on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: darwin-baselines
-          path: tests/visual/surfaces.spec.ts-snapshots/
-          retention-days: 3
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
