@@ -9030,10 +9030,13 @@ button.rl-node {
 /* ---- The sidebar print rail (.prail) ----
    Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
    is built from the SAME pieces as the calendar rail so all three rails read as
-   one: a headerless range widget on top (the mini-month's role), then
-   always-visible, TITLED setting groups (the "View" section's role), each a flat
-   switch ledger. No bespoke disclosures — every group reads as a Library /
-   Calendar sidebar section, and every control is one inline label-left row. */
+   one: a headerless range widget on top (the mini-month's role), then TITLED
+   setting groups (the "View" section's role), each a switch ledger. Most groups
+   are COLLAPSIBLE (a <details> whose summary IS the group header) so a long list
+   of knobs rests as a short stack of section headers — frequently-changed groups
+   lead open, set-once groups fold closed, and controls only appear when they
+   apply. Every group reads as a Library / Calendar sidebar section, and every
+   control is one inline label-left row. */
 .prail {
   display: flex;
   flex-direction: column;
@@ -9114,9 +9117,10 @@ button.rl-node {
 }
 
 /* Setting groups — the shared section vocabulary (a small-caps title over a
-   switch ledger), always visible. A generous top margin (the .sidesection /
-   mini-month 26px rhythm) gives each group its breathing room and a clear break,
-   replacing the old fold-away disclosures. */
+   switch ledger). A generous top margin (the .sidesection / mini-month 26px
+   rhythm) gives each group its breathing room and a clear break. Most groups are
+   collapsible (see .prail__group--collapsible below); the title treatment is
+   shared whether the header is a static div or a clickable summary. */
 .prail__group {
   margin-top: 26px;
 }
@@ -9394,6 +9398,48 @@ button.rl-node {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Collapsible setting groups — the same <details>/<summary> disclosure as
+   "More options", but the summary IS the group header (small-caps title left,
+   chevron right) so a whole section folds away. Lets the rail rest short:
+   frequently-changed groups (Layout, Document sections) lead open; set-once
+   groups (Page setup, Content, Appendix) fold closed. Keyboard-operable for
+   free (native summary), and the chevron rotates to signal state. */
+.prail__group--collapsible {
+  /* A details element — strip its own box; the header carries the rhythm. */
+  display: block;
+}
+.prail__groupsum {
+  cursor: pointer;
+  list-style: none;
+  /* The header row already carries its own min-height + bottom margin. */
+}
+.prail__groupsum::-webkit-details-marker {
+  display: none;
+}
+/* When the header is a clickable summary, pull the chevron's color toward ink
+   on hover so the whole row reads as one affordance. */
+.prail__groupsum:hover .prail__grouptitle,
+.prail__groupsum:hover .prail__morestate {
+  color: var(--ink);
+}
+/* Collapsed: drop the header's bottom margin so a folded group is a tidy line. */
+.prail__group--collapsible:not([open]) > .prail__groupsum {
+  margin-bottom: 0;
+}
+.prail__group--collapsible[open] > .prail__groupsum .prail__morestate svg {
+  transform: rotate(180deg);
+}
+/* The revealed group body fades in like the More-options panel (reduced-motion
+   guarded by the shared rule below). */
+.prail__grouppanel {
+  animation: prail-reveal var(--t-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .prail__grouppanel {
+    animation: none;
   }
 }
 
