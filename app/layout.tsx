@@ -1,35 +1,43 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Nunito_Sans, Patrick_Hand, Patrick_Hand_SC } from "next/font/google";
+import localFont from "next/font/local";
 import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
 import "./globals.css";
 import "./calendar.css";
 
-// The design's three handwriting faces, loaded as CSS variables.
-const caveat = Caveat({
-  subsets: ["latin"],
+// The design's faces are SELF-HOSTED (next/font/local, woff2 in ./fonts) rather
+// than fetched via next/font/google. next/font/google needs a build-time network
+// fetch to inject the real @font-face rules; when that fetch can't reach Google
+// (offline / sandboxed dev) it silently emits ONLY the Arial metric-fallback
+// faces, so every surface renders in default Arial. Bundling the woff2 makes the
+// real faces load deterministically in dev, CI, and prod. Caveat + Nunito Sans
+// are variable woff2 (one file each, a 400–700 weight range); Patrick Hand and
+// its small-caps are static 400.
+const caveat = localFont({
+  src: "./fonts/caveat-400.woff2",
   variable: "--font-script",
+  weight: "400 700",
   display: "swap",
 });
-const patrickHand = Patrick_Hand({
-  subsets: ["latin"],
-  weight: "400",
+const patrickHand = localFont({
+  src: "./fonts/patrick-hand-400.woff2",
   variable: "--font-hand",
+  weight: "400",
   display: "swap",
 });
-const patrickHandSc = Patrick_Hand_SC({
-  subsets: ["latin"],
-  weight: "400",
+const patrickHandSc = localFont({
+  src: "./fonts/patrick-hand-sc-400.woff2",
   variable: "--font-hand-sc",
+  weight: "400",
   display: "swap",
 });
 // A quiet humanist companion for body copy and dense data (catalog meta,
 // schedule times, blurbs) so the densest text stays legible while the
 // handwriting faces keep their personality on display headings/labels.
-const nunitoSans = Nunito_Sans({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+const nunitoSans = localFont({
+  src: "./fonts/nunito-sans-400.woff2",
   variable: "--font-text",
+  weight: "400 700",
   display: "swap",
 });
 
