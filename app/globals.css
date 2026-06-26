@@ -7239,10 +7239,10 @@ button.rl-node {
 }
 
 /* ---------- field notes (the "change this later" log) ----------
-   A dated, flagged block kept visually apart from the cozy instructional
-   "Note". Its text is typeable straight from the read-only viewer (like the
-   rating dots stay interactive) — no edit mode. Never printed (excluded in
-   RunSheetBody / ActivityBookPrint). */
+   A self-contained, flagged block kept visually apart from the cozy
+   instructional "Note". It holds dated ENTRIES you type straight from the
+   read-only viewer (like the rating dots stay interactive) — no edit mode.
+   Never printed (excluded in RunSheetBody / ActivityBookPrint). */
 .rl-row--fieldnote {
   background: color-mix(in srgb, var(--amber) 12%, var(--card));
   border-color: color-mix(in srgb, var(--amber) 50%, var(--ink));
@@ -7257,10 +7257,9 @@ button.rl-node {
 .rl.is-readonly .rl-row--fieldnote .rl-ed {
   cursor: text;
 }
-/* The dated chip riding next to the "Field note" label. */
+/* The dated chip riding next to a label / an entry header. */
 .rl-fndate {
   display: inline-block;
-  margin-left: var(--s-3);
   padding: var(--s-1) var(--s-3);
   border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--amber) 22%, var(--card));
@@ -7269,23 +7268,46 @@ button.rl-node {
   letter-spacing: 0.04em;
   text-transform: none;
   vertical-align: middle;
+  white-space: nowrap;
 }
-
-/* The trailing "jot a field note" line — quiet + dashed until you focus it,
-   then it reads like a real field note. Click and type; it commits on blur. */
-.rl-block--fncreate .rl-row--fieldnote {
-  background: transparent;
-  border-style: dashed;
-  border-left-style: dashed;
-  opacity: 0.72;
-  transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+/* ---- the log as a collapsible parent (the step + sub-steps idiom) ----
+   The block is rendered exactly like a step: a parent row whose node toggles
+   collapse, with the dated entries riding beneath it as detail rows on the same
+   rail. The parent's text field is a composer — Enter (or blur) logs a fresh
+   dated entry below it. */
+/* The parent node — a filled amber Flag that toggles collapse, the field-note
+   counterpart to a step's numbered node. */
+.rl-node--fnhead {
+  background: var(--rl-fieldnote);
+  color: var(--on-accent);
+  border: 3px solid var(--rl-bg);
 }
-.rl-block--fncreate .rl-row--fieldnote:hover,
-.rl-block--fncreate .rl-row--fieldnote:focus-within {
-  opacity: 1;
-  background: color-mix(in srgb, var(--amber) 10%, var(--card));
-  border-style: solid;
-  border-left-style: solid;
+.rl-node--fnhead svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Collapsed / closing mirror the step node's treatment. */
+.rl-block--fnlog.is-collapsed .rl-node--fnhead {
+  background: var(--card);
+  color: var(--rl-fieldnote);
+  box-shadow: inset 0 0 0 2px var(--rl-fieldnote);
+}
+.rl-block--fnlog.is-closing .rl-node--fnhead {
+  transform: scale(0.97);
+}
+/* The open log gets the same "owns the rows below" footer cue a step has
+   (keep the base --e2 lift, add the inset accent — exactly like the step row). */
+.rl-block--fnlog.has-children:not(.is-collapsed) > .rl-block__main > .rl-row {
+  box-shadow: var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--rl-fieldnote) 18%, transparent);
+}
+/* The composer line on the parent row — the always-ready "jot a note" input. */
+.rl-fncompose {
+  cursor: text;
 }
 
 /* ---------- row tools (hover-only, top right) ---------- */
@@ -8522,6 +8544,11 @@ button.rl-node {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Nothing chosen yet — the value reads as a muted placeholder ("Add location"),
+   matching the .input::placeholder weight used by the other compact controls. */
+.cselect__trigger .cselect__value.is-empty {
+  color: var(--ink-faint);
+}
 .cselect__trigger svg {
   flex: none;
   width: 16px;
@@ -8655,18 +8682,6 @@ button.rl-node {
   flex: none;
 }
 
-/* ---------- per-event location field (LocationField) ----------
-   A plain inline text box (NOT a popover) — the staff type where the block
-   happens right in the schedule row. Locations already used elsewhere ride in a
-   native <datalist>, so the browser offers them as autocomplete with no custom
-   pane. Row sizing (compact height/padding) comes from .quickadd__settings. */
-.cloc {
-  position: relative;
-  width: 100%;
-}
-.cloc__input {
-  width: 100%;
-}
 .cdate__head {
   display: flex;
   align-items: center;

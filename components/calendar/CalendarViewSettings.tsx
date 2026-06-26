@@ -2,8 +2,20 @@
 
 import { CampIcon } from "../icons";
 import { MiniSeg, ToggleSwitch } from "../primitives";
+import { Select } from "../floating/Select";
 import { isNDaysView, type ViewKey, type WeekStart } from "@/lib/calendar/views";
+import type { ColorMode } from "@/lib/data";
 import { DaysStepper } from "./DaysStepper";
+
+// The "Color by" choices, in resolver order. Labels read in the View ledger's
+// quiet voice; the ids are the ColorMode union (lib/data).
+const COLOR_BY_OPTIONS: { value: ColorMode; label: string }[] = [
+  { value: "custom", label: "Custom" },
+  { value: "type", label: "Activity type" },
+  { value: "rating", label: "Rating" },
+  { value: "location", label: "Location" },
+  { value: "theme", label: "Theme" },
+];
 
 // The calendar's view settings, persistently visible in the sidebar "View"
 // section (and the mobile settings sheet) — a switch ledger in the Library
@@ -12,6 +24,8 @@ import { DaysStepper } from "./DaysStepper";
 
 export function CalendarViewSettings({
   view,
+  colorMode,
+  onColorMode,
   shadeWeekendsOn,
   onToggleShadeWeekends,
   weekStart,
@@ -20,6 +34,8 @@ export function CalendarViewSettings({
   onOpenCamps,
 }: {
   view: ViewKey;
+  colorMode: ColorMode;
+  onColorMode: (mode: ColorMode) => void;
   shadeWeekendsOn: boolean;
   onToggleShadeWeekends: () => void;
   weekStart: WeekStart;
@@ -36,6 +52,15 @@ export function CalendarViewSettings({
   const dayCount = isNDaysView(view) ? view.n : 7;
   return (
     <div className="ledger calset">
+      <div className="ledger__row">
+        <span className="ledger__label">Color by</span>
+        <Select
+          value={colorMode}
+          options={COLOR_BY_OPTIONS}
+          onChange={onColorMode}
+          ariaLabel="Color events by"
+        />
+      </div>
       <div className="ledger__row">
         <span className="ledger__label">Shade weekends</span>
         <ToggleSwitch

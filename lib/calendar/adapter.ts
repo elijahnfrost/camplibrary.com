@@ -3,12 +3,12 @@
 // this boundary, so neither the backend nor the store ever sees FC types.
 
 import type { EventInput } from "@fullcalendar/core";
-import { effectiveEventColor } from "@/lib/data";
+import { eventTint, type ColorMode } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Activity } from "@/lib/types";
 import { fromDateKey, minutesOfDay, toDateKey } from "./dates";
 import { MIN_DURATION_MIN, MINUTES_PER_DAY, SNAP_MIN, snapMinutes } from "./time";
-import type { CalendarEvent } from "./types";
+import { formatLocations, type CalendarEvent } from "./types";
 
 export type ActivityIndex = Record<string, Activity>;
 
@@ -25,11 +25,20 @@ export function healEvent(event: CalendarEvent, byId: ActivityIndex): CalendarEv
   return healed;
 }
 
-export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: ThemeResolver): EventInput {
+export function toFcEvent(
+  event: CalendarEvent,
+  byId: ActivityIndex,
+  themeOf?: ThemeResolver,
+  colorMode: ColorMode = "custom"
+): EventInput {
   const activity = event.activityId ? byId[event.activityId] : undefined;
   const title = activity?.title || event.title || "Untitled";
-  const tint = effectiveEventColor(event, activity);
   const theme = activity && themeOf ? themeOf(activity.id) : null;
+  // The tint is resolved by the active ColorMode (default "custom" = today's
+  // per-event/activity override → category tint). The theme tint is already in
+  // hand, so the "theme" mode is just a hand-off — every mode flows out through
+  // the same --cal-tint channel downstream, no per-mode wiring past here.
+  const tint = eventTint(colorMode, { event, activity, themeTint: theme?.tint });
   const dayStart = fromDateKey(event.date);
 
   const base: EventInput = {
@@ -43,7 +52,7 @@ export function toFcEvent(event: CalendarEvent, byId: ActivityIndex, themeOf?: T
       categoryLabel: activity?.type,
       themeTint: theme?.tint,
       themeLabel: theme?.label,
-      location: event.location,
+      location: formatLocations(event.locations) || undefined,
       repeats: Boolean(event.recurrence),
     },
   };

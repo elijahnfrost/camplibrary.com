@@ -52,7 +52,8 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import { isColorMode, type ColorMode } from "@/lib/data";
+import { EVENT_LOCATION_OPTIONS, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import {
   applyMoveDelta,
   moveDelta,
@@ -153,11 +154,12 @@ type ScopePrompt =
   | { mode: "delete"; event: CalendarEvent };
 
 // A bulk edit's TOUCHED fields only ("leave unchanged unless touched"): a field
-// is present iff the panel actually changed it. color/location use `undefined` to
-// mean "clear" (vs absent = "leave"), so presence is checked with `in`.
+// is present iff the panel actually changed it. color uses `undefined` to mean
+// "clear", and locations uses an empty array to mean "clear" (vs the key absent
+// = "leave"), so presence is checked with `in`.
 export type BulkEditChanges = {
   color?: string | undefined;
-  location?: string | undefined;
+  locations?: string[];
   allDay?: boolean;
   dayShift?: number;
   minShift?: number;
@@ -174,6 +176,11 @@ const boolStorage = (value: unknown, fallback: boolean) =>
 
 const slotZoomStorage = (value: unknown, fallback: number) =>
   typeof value === "number" && Number.isFinite(value) ? clampSlotZoom(value) : fallback;
+
+// Validate the stored "Color by" mode against the known ids (mirrors
+// parseWeekStart/boolStorage) so a stale/garbage value falls back to "custom".
+const colorModeStorage = (value: unknown, fallback: ColorMode) =>
+  isColorMode(value) ? value : fallback;
 
 export function CalendarShell({
   events,
@@ -265,6 +272,15 @@ export function CalendarShell({
     "calendarWeekStart",
     DEFAULT_WEEK_START,
     parseWeekStart
+  );
+  // How every event's --cal-tint is resolved (the "Color by" dropdown). "custom"
+  // is today's per-event/activity color; the others recolor by a single axis
+  // (type / rating / location / theme). Another local view pref, never staff-
+  // gated — it only changes how the same events are painted, never the data.
+  const [colorMode, setColorMode] = useLocalStorage<ColorMode>(
+    "calendarColorMode",
+    "custom",
+    colorModeStorage
   );
   // The vertical hour-height zoom for the timed strip, driven by a trackpad/touch
   // pinch (and ctrl+wheel). Another local view pref, never gated on staff. The
@@ -384,18 +400,6 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
-  // Distinct locations already used on the calendar, offered as quick picks in
-  // the editor so "Gym" / "Field" come back with a tap instead of a retype.
-  // Case-insensitive de-dupe keeping the first-seen casing; alphabetised.
-  const knownLocations = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const event of Object.values(events)) {
-      const place = typeof event.location === "string" ? event.location.trim() : "";
-      if (place && !seen.has(place.toLowerCase())) seen.set(place.toLowerCase(), place);
-    }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b));
-  }, [events]);
-
   // Which days carry at least one event in the active camp — the mini-month
   // dots each of these so the sidebar previews where the schedule is busy.
   const eventDays = useMemo(() => {
@@ -404,9 +408,13 @@ export function CalendarShell({
     return days;
   }, [healedEvents]);
 
-  // Every event id in chronological order — the spine a shift-click range walks
-  // (anchor→target is just the slice between, so a range spans days naturally).
+  // Every event id in chronological order — (date, then startMin, then id as a
+  // stable tiebreak). This is the spine a shift-click range walks: "in between"
+  // is simply the slice of this order between anchor and target, so a range
+  // spans days naturally (anchor Mon 9:00 → target Wed 14:00 sweeps in Tue).
   // Ordered from the in-memory event set, independent of what's scrolled in.
+  // (orderEventIds is the same pure sort, extracted to lib/calendar/selection so
+  // it's unit-tested in isolation alongside the group-move math.)
   const orderedEventIds = useMemo(() => orderEventIds(healedEvents), [healedEvents]);
   // onEventClick reads the order + anchor through refs so it can stay a STABLE
   // callback: it's a dep of the heavy FullCalendar memo, and we don't want a
@@ -467,9 +475,14 @@ export function CalendarShell({
     return effectiveWindow(scoped, dayWindow);
   }, [healedEvents, stripStart, dayWindow]);
 
+  // Re-tints every event by the active "Color by" mode. A colorMode change
+  // recomputes this memo, which (because each EventInput now carries a new
+  // extendedProps.tint) flows through renderEventContent's paint() — the same
+  // repaint path a per-event recolor already uses — so picking a mode recolors
+  // the visible cards immediately, no scroll/refresh needed.
   const fcEvents = useMemo(
-    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf)),
-    [healedEvents, byId, themeOf]
+    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf, colorMode)),
+    [healedEvents, byId, themeOf, colorMode]
   );
 
   const scrollTime = useMemo(() => {
@@ -703,7 +716,7 @@ export function CalendarShell({
       };
       if (activity) template.activityId = activity.id;
       if (draft.color) template.color = draft.color;
-      if (draft.location) template.location = draft.location;
+      if (draft.locations?.length) template.locations = draft.locations;
       return template;
     },
     [byId]
@@ -770,7 +783,7 @@ export function CalendarShell({
       if (activity) event.activityId = activity.id;
       if (draft.allDay) event.allDay = true;
       if (draft.color) event.color = draft.color;
-      if (draft.location) event.location = draft.location;
+      if (draft.locations?.length) event.locations = draft.locations;
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + event.title);
@@ -864,9 +877,11 @@ export function CalendarShell({
           if (changes.color) next.color = changes.color;
           else delete next.color;
         }
-        if ("location" in changes) {
-          if (changes.location) next.location = changes.location;
-          else delete next.location;
+        // Multi-location set (the merged model): a non-empty array replaces the
+        // event's places; an empty array (or absent value) clears them.
+        if ("locations" in changes) {
+          if (changes.locations && changes.locations.length) next.locations = changes.locations;
+          else delete next.locations;
         }
         if ("allDay" in changes && changes.allDay !== undefined) {
           if (changes.allDay) {
@@ -1775,9 +1790,10 @@ export function CalendarShell({
   // DEDICATED class (cal-event--selected, NOT FC's own .fc-event-selected, which
   // its native single-select ring would clash with) on every [data-event-id]
   // harness to match the set. Re-runs whenever the selection changes OR fcEvents
-  // rebuilds the DOM (an add / remove / heal) or the view changes, deferred a
-  // frame so it lands after FC has committed its render. The same id can appear
-  // on more than one node (a strip/month overlap), so we walk ALL matches.
+  // rebuilds the DOM (a recolor / add / remove / heal) or the view changes,
+  // deferred a frame so it lands after FC has committed its render. The same id
+  // can appear on more than one node (a strip/month overlap), so we walk ALL
+  // matching nodes.
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -2534,6 +2550,8 @@ export function CalendarShell({
                 <div className="sidesection__body cal-view__body">
                   <CalendarViewSettings
                     view={activeView}
+                    colorMode={colorMode}
+                    onColorMode={setColorMode}
                     shadeWeekendsOn={shadeWeekends}
                     onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
                     weekStart={weekStart}
@@ -2563,7 +2581,6 @@ export function CalendarShell({
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
-          knownLocations={knownLocations}
           window={window_}
           onPickActivity={quickAddActivity}
           onCustom={quickAddCustom}
@@ -2595,6 +2612,8 @@ export function CalendarShell({
           <div className="overlay__body filtersheet">
             <CalendarViewSettings
               view={activeView}
+              colorMode={colorMode}
+              onColorMode={setColorMode}
               shadeWeekendsOn={shadeWeekends}
               onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
               weekStart={weekStart}
@@ -2728,7 +2747,7 @@ export function CalendarShell({
       {bulkEdit && (
         <BulkEditPanel
           count={bulkEdit.ids.length}
-          suggestions={knownLocations}
+          options={EVENT_LOCATION_OPTIONS}
           onApply={(changes) => applyBulkEdit(bulkEdit.ids, changes)}
           onClose={() => setBulkEdit(null)}
         />

@@ -6,7 +6,8 @@
 // model — deliberately separate from QuickAdd (which T1 owns) so the two never
 // collide. Each field carries a per-field "Change" toggle: only fields whose
 // toggle is ON are sent back, so an untouched field is never written across the
-// selection. Color/location use `undefined` to mean CLEAR (vs absent = leave).
+// selection. Color uses `undefined` to mean CLEAR; locations uses an empty array
+// to mean CLEAR (the same multi-select LocationField QuickAdd uses).
 
 import { useState } from "react";
 import { categoryTint } from "@/lib/data";
@@ -51,24 +52,25 @@ const ALLDAY_CHOICES: { value: AllDayChoice; label: string }[] = [
 
 export function BulkEditPanel({
   count,
-  suggestions,
+  options,
   onApply,
   onClose,
 }: {
   /** How many events the edit will touch. */
   count: number;
-  /** Locations already used elsewhere — offered as native autocomplete. */
-  suggestions: string[];
+  /** The fixed set of places offered by the multi-select location picker. */
+  options: readonly string[];
   /** Apply the touched fields across the selection (one undoable commit). */
   onApply: (changes: BulkEditChanges) => void;
   onClose: () => void;
 }) {
   // Per-field "change this" toggles — a field is applied only when its toggle is
-  // on (the leave-unchanged model). Color/location values: undefined = clear.
+  // on (the leave-unchanged model). Color value: undefined = clear. Locations
+  // value: an empty array = clear.
   const [changeColor, setChangeColor] = useState(false);
   const [color, setColor] = useState<string | undefined>(undefined);
   const [changeLocation, setChangeLocation] = useState(false);
-  const [location, setLocation] = useState<string | undefined>(undefined);
+  const [locations, setLocations] = useState<string[]>([]);
   const [allDay, setAllDay] = useState<AllDayChoice>("leave");
   const [dayShift, setDayShift] = useState(0);
   const [minShift, setMinShift] = useState(0);
@@ -80,7 +82,7 @@ export function BulkEditPanel({
   function apply() {
     const changes: BulkEditChanges = {};
     if (changeColor) changes.color = color; // undefined → reset to tag color
-    if (changeLocation) changes.location = location; // undefined → clear
+    if (changeLocation) changes.locations = locations; // empty array → clear
     if (allDay !== "leave") changes.allDay = allDay === "on";
     if (dayShift !== 0) changes.dayShift = dayShift;
     if (minShift !== 0) changes.minShift = minShift;
@@ -119,9 +121,9 @@ export function BulkEditPanel({
               <ToggleSwitch on={changeLocation} onChange={setChangeLocation} ariaLabel="Change location" />
               {changeLocation && (
                 <LocationField
-                  value={location}
-                  suggestions={suggestions}
-                  onChange={setLocation}
+                  value={locations}
+                  options={options}
+                  onChange={setLocations}
                   ariaLabel="Bulk event location"
                 />
               )}
