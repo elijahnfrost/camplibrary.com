@@ -15,7 +15,7 @@ import { useAgeUnit } from "./ageUnit";
 import type { Activity, CategoryId } from "@/lib/types";
 import type { CatFilter } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
-import { SaveButton } from "./primitives";
+import { LoadingVeil, SaveButton } from "./primitives";
 
 // "Sunday · June 14" — the dateline under the kicker.
 function formatTodayLine(): string {
@@ -147,6 +147,7 @@ export function HomeTab({
   onStaffSignIn,
   onStaffSignUp,
   onOpenAccount,
+  hasLoaded = true,
 }: {
   /** Rendered at the right of the welcome header (the auth pill). */
   actions?: ReactNode;
@@ -174,6 +175,10 @@ export function HomeTab({
   onStaffSignIn: () => void;
   onStaffSignUp: () => void;
   onOpenAccount: () => void;
+  /** First-load readiness from the cloud store. While false (a signed-in cold
+   *  load whose bootstrap hasn't resolved), the events-driven section shows a calm
+   *  loading line instead of "Nothing planned" — so loading ≠ genuinely empty. */
+  hasLoaded?: boolean;
 }) {
   const today = todayKey();
 
@@ -257,6 +262,11 @@ export function HomeTab({
                     />
                   ))}
                 </div>
+              ) : !hasLoaded ? (
+                // Cold signed-in load: the schedule comes from synced events that
+                // haven't arrived yet — show a calm loading line, not the "nothing
+                // planned" empty-state, so loading reads differently from empty.
+                <LoadingVeil label="Loading your schedule…" />
               ) : (
                 <div className="home-empty">
                   <span className="home-empty__mark" aria-hidden="true">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingPosition, type FloatingAnchor } from "./useFloatingPosition";
+import { DESKTOP_MIN } from "../useDeviceShape";
 
 // The portaled floating engine shared by Select, DatePopover, and ContextMenu.
 // It owns the universal layer behaviour: a transparent scrim that catches the
@@ -40,7 +41,10 @@ export function FloatingLayer({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  const docked = typeof window !== "undefined" && window.innerWidth < 768;
+  // Below the desk breakpoint (phone + tablet) the layer is a bottom-docked sheet
+  // styled in CSS; at/above it, JS anchors it to the trigger. The layer closes on
+  // resize, so this recomputes each open — no stale read across rotation.
+  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
   const position = useFloatingPosition(anchor, layerRef, docked);
 
   // Restore focus to whatever was focused before the layer opened.

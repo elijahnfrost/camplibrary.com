@@ -17,12 +17,21 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { addDays, fromDateKey, todayKey, toDateKey } from "@/lib/calendar/dates";
-import type { DateKey } from "@/lib/calendar/types";
+import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
+import { formatRangeLabel } from "@/lib/calendar/time";
 import type { Camp } from "@/lib/camps";
 import type { Activity } from "@/lib/types";
-import type { PrintLayout, PrintOptions, ScheduleDetail, TimelineDensity } from "@/lib/print/options";
+import type {
+  DocDensity,
+  DocSection,
+  FontScale,
+  PrintLayout,
+  PrintOptions,
+  ScheduleDetail,
+  TimelineDensity,
+} from "@/lib/print/options";
 import { normalizeSearchText, searchTokens } from "@/lib/activityFilters";
-import { MAX_PRINT_DAYS } from "@/lib/print/schedule";
+import { MAX_PRINT_DAYS, type ScheduleDay } from "@/lib/print/schedule";
 import { CampIcon } from "../icons";
 import { MenuPicker, MiniSeg, ToggleSwitch } from "../primitives";
 import { MiniRangeCalendar } from "./MiniRangeCalendar";
@@ -161,6 +170,24 @@ const DENSITY_OPTIONS: { id: TimelineDensity; label: string }[] = [
   { id: "roomy", label: "Roomy" },
 ];
 
+const FONT_SCALE_OPTIONS: { id: FontScale; label: string }[] = [
+  { id: "small", label: "Small" },
+  { id: "regular", label: "Regular" },
+  { id: "large", label: "Large" },
+];
+
+const DOC_DENSITY_OPTIONS: { id: DocDensity; label: string }[] = [
+  { id: "tight", label: "Tight" },
+  { id: "regular", label: "Regular" },
+  { id: "airy", label: "Airy" },
+];
+
+const SECTION_LABEL: Record<DocSection, string> = {
+  rollup: "Materials list",
+  schedule: "Schedule",
+  appendix: "Run sheets",
+};
+
 // A short, human label for the chosen span — e.g. "Mon, Jun 16 → Sun, Jun 22".
 function rangeReadout(start: DateKey, end: DateKey): string {
   const fmt = (key: DateKey) =>
@@ -263,16 +290,148 @@ function RunSheetPicker({
   );
 }
 
+// Section order: a tiny ordered ledger with up/down nudges, so cover-relative
+// sections (Materials list / Schedule / Run sheets) can be reordered without a
+// drag library. The cover is toggled separately (it always leads). Order persists.
+function SectionOrder({ order, onChange }: { order: DocSection[]; onChange: (order: DocSection[]) => void }) {
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  };
+  return (
+    <div className="prail__sections" role="list" aria-label="Section order">
+      {order.map((id, index) => (
+        <div className="prail__section" role="listitem" key={id}>
+          <span className="prail__sectionidx" aria-hidden="true">
+            {index + 1}
+          </span>
+          <span className="prail__sectionlabel">{SECTION_LABEL[id]}</span>
+          <span className="prail__sectionmove">
+            <button
+              type="button"
+              onClick={() => move(index, index - 1)}
+              disabled={index === 0}
+              aria-label={"Move " + SECTION_LABEL[id] + " up"}
+            >
+              <CampIcon.ChevronUp />
+            </button>
+            <button
+              type="button"
+              onClick={() => move(index, index + 1)}
+              disabled={index === order.length - 1}
+              aria-label={"Move " + SECTION_LABEL[id] + " down"}
+            >
+              <CampIcon.ChevronDown />
+            </button>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Per-day / per-event include picker: the days in range, each a checkbox row that
+// expands to its events (also checkboxes). Toggling tracks the EXCLUSION sets so
+// "everything in" needs no per-print state. Ephemeral selection, like the range.
+function ContentPicker({
+  days,
+  byId,
+  excludedDays,
+  excludedEventIds,
+  onChange,
+}: {
+  days: ScheduleDay[];
+  byId: Record<string, Activity>;
+  excludedDays: string[];
+  excludedEventIds: string[];
+  onChange: (patch: Patch) => void;
+}) {
+  const dayOut = new Set(excludedDays);
+  const eventOut = new Set(excludedEventIds);
+
+  const setDay = (date: string, on: boolean) => {
+    const next = new Set(dayOut);
+    if (on) next.delete(date);
+    else next.add(date);
+    onChange({ excludedDays: [...next] });
+  };
+  const setEvent = (id: string, on: boolean) => {
+    const next = new Set(eventOut);
+    if (on) next.delete(id);
+    else next.add(id);
+    onChange({ excludedEventIds: [...next] });
+  };
+
+  const dayLabel = (date: string) =>
+    fromDateKey(date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const eventLabel = (event: CalendarEvent) => {
+    const name = (event.activityId ? byId[event.activityId]?.title : null) || event.title || "Untitled";
+    const time = event.allDay ? "All day" : formatRangeLabel(event.startMin, event.endMin);
+    return { name, time };
+  };
+
+  if (days.length === 0) {
+    return <p className="prail__grouphint">Nothing scheduled in this range to include or skip.</p>;
+  }
+
+  return (
+    <div className="prail__content">
+      {days.map((day) => {
+        const dayOn = !dayOut.has(day.date);
+        return (
+          <div className="prail__cday" key={day.date}>
+            <label className="prail__crow prail__crow--day">
+              <input
+                type="checkbox"
+                checked={dayOn}
+                onChange={(event) => setDay(day.date, event.target.checked)}
+                aria-label={"Include " + dayLabel(day.date)}
+              />
+              <span className="prail__cname">{dayLabel(day.date)}</span>
+              <span className="prail__ccount">{day.events.length}</span>
+            </label>
+            {dayOn &&
+              day.events.map((event) => {
+                const { name, time } = eventLabel(event);
+                return (
+                  <label className="prail__crow prail__crow--event" key={event.id}>
+                    <input
+                      type="checkbox"
+                      checked={!eventOut.has(event.id)}
+                      onChange={(e) => setEvent(event.id, e.target.checked)}
+                      aria-label={"Include " + name}
+                    />
+                    <span className="prail__cname">{name}</span>
+                    <span className="prail__ctime">{time}</span>
+                  </label>
+                );
+              })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PrintControls({
   options,
   onChange,
   camps,
   scheduledActivities,
+  scheduleDays,
+  byId,
 }: {
   options: PrintOptions;
   onChange: (patch: Patch) => void;
   camps: Camp[];
   scheduledActivities: Activity[];
+  // The days in range (with sorted events), unfiltered by the exclusion sets, so
+  // the content picker can show every day/event as a toggle.
+  scheduleDays: ScheduleDay[];
+  byId: Record<string, Activity>;
 }) {
   const rangeDays = (() => {
     const lo = fromDateKey(options.start).getTime();
@@ -374,6 +533,14 @@ export function PrintControls({
             onChange={(color) => onChange({ color })}
           />
         </Row>
+        <Row label="Text size">
+          <MiniSeg
+            options={FONT_SCALE_OPTIONS}
+            value={options.fontScale}
+            ariaLabel="Document text size"
+            onChange={(fontScale) => onChange({ fontScale })}
+          />
+        </Row>
 
         {/* The set-once / niche knobs — out of sight until needed. */}
         <MoreOptions>
@@ -388,11 +555,32 @@ export function PrintControls({
               onChange={(style) => onChange({ style })}
             />
           </Row>
+          <MenuPicker
+            label="Density"
+            options={DOC_DENSITY_OPTIONS}
+            value={options.density}
+            ariaLabel="Spacing density of the printed page"
+            onChange={(density) => onChange({ density })}
+          />
+          <Row label="Title cover">
+            <ToggleSwitch
+              on={options.showCover}
+              ariaLabel="Print the title cover header"
+              onChange={(showCover) => onChange({ showCover })}
+            />
+          </Row>
           <Row label="A page per day">
             <ToggleSwitch
               on={options.pageBreakPerDay}
               ariaLabel="Start each day on a new page"
               onChange={(pageBreakPerDay) => onChange({ pageBreakPerDay })}
+            />
+          </Row>
+          <Row label="Page numbers">
+            <ToggleSwitch
+              on={options.pageNumbers}
+              ariaLabel="Show a page-number footer"
+              onChange={(pageNumbers) => onChange({ pageNumbers })}
             />
           </Row>
           <Row label="Show themes">
@@ -429,6 +617,24 @@ export function PrintControls({
             <TitleField value={options.title} onCommit={(title) => onChange({ title })} />
           </Row>
         </MoreOptions>
+      </Group>
+
+      {/* Sections — reorder the document's parts (the cover always leads, toggled
+          above). A short, ordered ledger with up/down nudges. */}
+      <Group title="Sections">
+        <SectionOrder order={options.sectionOrder} onChange={(sectionOrder) => onChange({ sectionOrder })} />
+      </Group>
+
+      {/* Content — pick exactly which days and events print. Defaults to all in;
+          unchecking adds to the ephemeral exclusion sets. */}
+      <Group title="Content">
+        <ContentPicker
+          days={scheduleDays}
+          byId={byId}
+          excludedDays={options.excludedDays}
+          excludedEventIds={options.excludedEventIds}
+          onChange={onChange}
+        />
       </Group>
 
       {/* Appendix — what gets stapled on AFTER the schedule. Distinct from the

@@ -104,10 +104,6 @@ export const CampIcon = {
       <path d="M8 11h8M8 15h6" />
     </>
   ),
-  // Wall calendar. On hover a fresh page flips down over the grid (turning to a
-  // new month): the page sheet rotates down from the header on its top hinge, a
-  // new set of date dots pops in beneath it, and the two binder rings hop. The
-  // body frame + header rule stay put as the page turns.
   Calendar: svg(
     <>
       <rect x="4" y="5.5" width="16" height="15" />
@@ -211,18 +207,37 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer: input paper on top, closed body with a notched output slot,
-  // closed output sheet, status dot. Hover = one settle boop (globals.css §Print).
+  // Printer: input paper on top, closed body, status dot, and a printed page that
+  // feeds DOWN and OUT through the output mouth at the bottom-front of the body on
+  // hover. At rest the page is parked INSIDE the body (clipped away above the
+  // mouth lip), so the icon reads as a plain printer. On hover it slides down and
+  // settles just below the front lip — a printed page in the output tray (see
+  // globals.css §Print). clipPath id is unique per icon set.
   Print: svg(
     <>
+      <defs>
+        {/* Output window: the page is only visible from the mouth lip (y≈14) on
+            DOWN to just below the printer's front, so it reads as emerging out the
+            bottom. Anything above the lip is clipped (parked inside the body). */}
+        <clipPath id="cicon-print-slot" clipPathUnits="userSpaceOnUse">
+          <rect x="6.5" y="14" width="11" height="9" />
+        </clipPath>
+      </defs>
       {/* input paper — open bottom blends into body top */}
       <path d="M7 8V4h10v4" />
-      {/* printer body — closed, consistent 2px corners, notch for output */}
+      {/* printer body — closed, consistent 2px corners, notch for the output mouth */}
       <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
       {/* status dot */}
       <path d="M17.5 11.5h.01" />
-      {/* output sheet — closed rectangle */}
-      <path d="M7 14h10v6H7z" />
+      {/* output page — a clean (unfilled) page with one short print line so it
+          reads as a printed sheet, not a heavy slab. Parked inside the body at
+          rest (above the lip, clipped away); feeds DOWN on hover to emerge below
+          the front lip. Clipped to the output window so its body never shows
+          through the printer body. */}
+      <g className="cicon-print__sheet" clipPath="url(#cicon-print-slot)">
+        <rect className="cicon-print__page" x="8" y="7" width="8" height="6.6" rx="0.6" />
+        <path className="cicon-print__line" d="M9.8 10.6h4.4" />
+      </g>
     </>,
     "print"
   ),

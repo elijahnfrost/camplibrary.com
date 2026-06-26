@@ -11,22 +11,21 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-  /* Gentle slide-up on first paint, so the calendar settles into place rather
-     than snapping in. Plays on mount (and on each return to the Calendar tab,
-     since the surface remounts). NO fill-mode: once it finishes the element
-     reverts to its base style with NO transform — a retained transform (even an
-     identity matrix from `both`) makes .calshell the containing block for
-     position:fixed, which offset overlays by a column. --ease-overlay curve. */
-  animation: cal-enter 360ms var(--ease-overlay);
+  /* The calendar mounts + lays out BEHIND the host's loading veil (CampApp holds
+     it until CalendarShell.onReady fires), so the grid is already settled when the
+     veil fades off — that fade IS the reveal. A short opacity-only fade-in covers
+     the seam if the veil clears a frame early; it is OPACITY ONLY (no transform).
+     A retained transform — even an identity matrix from animation-fill — would make
+     .calshell the containing block for the position:fixed overlays + the drag-follow
+     clone and offset them by a column, so no translate is used here. --ease curve. */
+  animation: cal-enter var(--t-slow) var(--ease);
 }
 @keyframes cal-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -152,22 +151,22 @@
   width: 18px;
   height: 18px;
 }
-@media (min-width: 768px) {
-  /* Both are mobile-only: the sidebar (≥768px) carries the view settings and the
-     mini-month, and the mini-month is where Today lives on desktop. */
+@media (min-width: 1024px) {
+  /* Both are touch-shell-only: the desk sidebar (≥1024px) carries the view
+     settings and the mini-month, and the mini-month is where Today lives there. */
   .calhead__settings,
   .calhead__today {
     display: none;
   }
 }
 /* The green Add — the calendar's twin of the Library's Add button (same .btn
-   .btn--primary), sized to the header's control family. Desktop only; phones
-   keep the FAB (the header is tight there). */
+   .btn--primary), sized to the header's control family. Desk only; the touch
+   shell (phone + tablet) keeps the FAB (the header is tight there). */
 .calhead__add {
   height: var(--control-md);
   border-radius: var(--r-md);
 }
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .calhead__add {
     display: none;
   }
@@ -647,6 +646,55 @@ body.is-cal-copy .cal-dragfollow::after {
   /* A paper halo separates the badge from the card's own tint. */
   box-shadow: 0 0 0 1.5px var(--card);
 }
+/* GROUP MOVE: dragging a multi-selection carries a count badge ("3") on the
+   follower so it reads as "all of these are moving". The number rides a
+   data-group-count attribute (set per frame in JS), so it survives the
+   follower's innerHTML swap — a child node wouldn't. Same badge anatomy as the
+   copy "+", anchored top-left so it can't collide with it. */
+.cal-dragfollow.is-group::before {
+  content: attr(data-group-count);
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 2;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 1.5px var(--card);
+}
+/* Multi-selection (shift/cmd-click, touch long-press): a DEDICATED class toggled
+   onto the event harness from JS — deliberately NOT FC's own .fc-event-selected
+   (whose accent ring marks the single native selection and would read
+   identically). A selected card wears a thicker DOUBLE ring: an inner paper halo
+   lifts the accent off the card's own tint so it stays legible over any tint,
+   then the solid accent ring, then a faint accent glow so a run of selected cards
+   reads as one group at a glance. Stacked box-shadows only — no background-image,
+   so the custom event's hatched spine (also painted via background-image) is
+   untouched. Distinct from hover (a lift, no ring) and from the dragging/snap-box
+   treatments (dashed, mid-gesture). The slight raise echoes the hover lift so a
+   selected card reads as "picked up". */
+.calshell .fc-event.cal-event--selected:not(.fc-event-mirror) {
+  box-shadow:
+    0 0 0 1.5px var(--card),
+    0 0 0 3.5px var(--accent),
+    0 1px 6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.calshell .fc-timegrid-event.cal-event--selected:not(.fc-event-mirror) {
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .calshell .fc-timegrid-event.cal-event--selected:not(.fc-event-mirror) {
+    transform: none;
+  }
+}
 /* Selected / keyboard-focused event: FullCalendar ships a grey overlay (killed
    via --fc-event-selected-overlay-color above) plus a drop-shadow ring and two
    positioned pseudo-elements. Replace all of it with the app's quiet accent
@@ -898,7 +946,9 @@ body.is-cal-copy .cal-dragfollow::after {
   align-items: center;
   height: var(--control-sm);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  /* A full pill so it matches the MiniSeg sharing this ledger row (also --r-pill)
+     instead of carrying a stray --r-md on the same line. */
+  border-radius: var(--r-pill);
   background: var(--card);
   padding: var(--s-1);
   gap: var(--s-1);
@@ -911,13 +961,16 @@ body.is-cal-copy .cal-dragfollow::after {
   height: 100%;
   border: 0;
   background: transparent;
-  border-radius: var(--r-sm);
+  /* Round to a pill so the hover wash follows the container pill, matching the
+     MiniSeg's pill-on-pill buttons on the same ledger row. */
+  border-radius: var(--r-pill);
   color: var(--ink-soft);
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .daysstepper__btn:hover:not(:disabled) {
-  background: var(--paper-2);
+  /* Canonical flat-hover fill (semantic role), not the raw --paper-2 it aliases. */
+  background: var(--chrome-well);
   color: var(--ink);
 }
 .daysstepper__btn:disabled {
@@ -983,7 +1036,9 @@ body.is-cal-copy .cal-dragfollow::after {
   margin-right: var(--s-1);
   border: 0;
   background: transparent;
-  border-radius: var(--r-sm);
+  /* It's described as a pill and its hover is a wash — round it to a true pill so
+     the widget stops mixing a stray --r-sm into its rounded vocabulary. */
+  border-radius: var(--r-pill);
   font-family: var(--hand-sc);
   font-size: var(--fs-label);
   color: var(--ink-soft);
@@ -1070,7 +1125,7 @@ body.is-cal-copy .cal-dragfollow::after {
   content: "";
   position: absolute;
   inset: 2px 0;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--indicator-band);
 }
 .cal-mini__day.is-band-start::before {
   left: 3px;
@@ -1109,8 +1164,8 @@ body.is-cal-copy .cal-dragfollow::after {
   transform: translateX(-50%);
   width: 3px;
   height: 3px;
-  border-radius: 50%;
-  background: var(--ink-soft);
+  border-radius: var(--r-round);
+  background: var(--indicator-dot);
 }
 .cal-mini__day.is-out .cal-mini__dot {
   background: var(--ink-faint);
@@ -1119,9 +1174,10 @@ body.is-cal-copy .cal-dragfollow::after {
   background: var(--on-accent);
 }
 /* ---------- the event window (every create + edit) ---------- */
-/* The tall bottom sheet is a phone affordance; from tablet up the centered
-   card keeps the editors' compact 640px cap from globals.css. */
-@media (max-width: 767px) {
+/* The tall bottom sheet is the touch-shell affordance (phone + tablet); from
+   the desk up the centered card keeps the editors' compact 640px cap from
+   globals.css. */
+@media (max-width: 1023px) {
   .overlay--quickadd {
     max-height: 78dvh;
   }
@@ -1140,7 +1196,7 @@ body.is-cal-copy .cal-dragfollow::after {
      instead of clipping the commit button at the overlay edge. */
   overflow-y: auto;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .quickadd {
     --qa-gx: var(--s-6);
   }
@@ -1598,6 +1654,72 @@ body.is-cal-copy .cal-dragfollow::after {
   outline-color: var(--paper); /* accent vanishes on the ink toast */
 }
 
+/* Bulk action bar — the floating toolbar shown while a multi-selection exists
+   (the touch entry point for bulk actions, where the pointer-only context menu
+   isn't reachable). A card surface (distinct from the ink toast) centred above
+   the toast slot so the two can coexist (a bulk op shows its own undo toast). */
+.calshell__bulkbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-2) var(--s-3);
+  box-shadow: var(--e3);
+  z-index: 30; /* above the undo toast, under open overlays/editors */
+}
+.calshell__bulkcount {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  white-space: nowrap;
+}
+.calshell__bulkbar .btn {
+  min-height: var(--s-8);
+}
+/* The Delete action reads as destructive (warm red ink) without leaving the
+   ghost-button shape the bar's other actions use. */
+.calshell__bulkdanger {
+  color: var(--danger);
+}
+
+/* Bulk-edit panel — reuses the View-settings card shell (overlay--card) + the
+   shared ledger rows, so it reads as the same compact vocabulary as QuickAdd
+   without retrofitting it. A field's control only appears once its row's "change"
+   switch is on (the leave-unchanged model). */
+.bulkedit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.bulkedit__hint {
+  margin: 0;
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
+}
+.bulkedit__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.bulkedit__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
 /* ============================================================
  * CONTINUOUS DAY-STRIP SCROLL (the Notion feel, free — no premium ScrollGrid)
  * ------------------------------------------------------------
@@ -1813,7 +1935,7 @@ body.is-cal-copy .cal-dragfollow::after {
 }
 
 /* ---------- responsive ---------- */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .calshell__fab {
     display: none;
   }
@@ -1822,16 +1944,16 @@ body.is-cal-copy .cal-dragfollow::after {
   }
 }
 
-/* Below the desktop breakpoint there's no sidebar (and no page-title bar), so
-   the calendar header is the first thing on the page — it carries the notch
-   clearance the old topbar used to provide. */
-@media (max-width: 767px) {
+/* Below the desk breakpoint (phone + tablet) there's no sidebar (and no
+   page-title bar), so the calendar header is the first thing on the page — it
+   carries the notch clearance the old topbar used to provide. */
+@media (max-width: 1023px) {
   .calhead {
     padding-top: max(14px, calc(6px + env(safe-area-inset-top)));
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .calhead {
     gap: var(--s-3);
   }
@@ -2054,7 +2176,7 @@ body.is-cal-copy .cal-dragfollow::after {
   justify-content: flex-end;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .overlay--scope {
     width: var(--scope-w);
   }

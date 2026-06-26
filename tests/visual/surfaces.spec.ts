@@ -94,4 +94,17 @@ test.describe("surfaces", () => {
     await nav(page, "Calendar");
     await expect(page).toHaveScreenshot("calendar.png");
   });
+
+  test("print", async ({ page }) => {
+    // Print is reachable on every viewport (sidebar at the desk, the bottom tab
+    // bar on touch), so it's covered at all three. The Paged.js preview is the
+    // heaviest surface; we wait for the first page-set to settle before diffing.
+    await gotoApp(page);
+    await nav(page, "Print");
+    // The loading veil clears to data-status="paged" (or "fallback") once the
+    // first page-set lands — diff the settled document, not the loading veil.
+    await page.waitForSelector('.paged-preview:not([data-status="loading"])', { timeout: 30_000 });
+    await quiet(page);
+    await expect(page).toHaveScreenshot("print.png");
+  });
 });

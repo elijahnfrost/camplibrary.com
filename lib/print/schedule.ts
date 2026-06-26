@@ -77,6 +77,27 @@ export interface ScheduleDay {
   events: CalendarEvent[];
 }
 
+// Trim a built day list by the per-print content selection: drop whole days the
+// user excluded, and drop individually-excluded events from the days that stay.
+// Pure (no React) so the include/exclude rules are unit-testable; an excluded day
+// is removed entirely rather than printed empty.
+export function applyExclusions(
+  days: ScheduleDay[],
+  excludedDays: readonly DateKey[],
+  excludedEventIds: readonly string[]
+): ScheduleDay[] {
+  if (excludedDays.length === 0 && excludedEventIds.length === 0) return days;
+  const dayOut = new Set(excludedDays);
+  const eventOut = new Set(excludedEventIds);
+  return days
+    .filter((day) => !dayOut.has(day.date))
+    .map((day) =>
+      eventOut.size === 0
+        ? day
+        : { date: day.date, events: day.events.filter((event) => !eventOut.has(event.id)) }
+    );
+}
+
 // The range as a list of days (each with its sorted events). Empty days are
 // kept or dropped per `includeEmptyDays`, but the first/last day of the chosen
 // range always survive so the printout spans exactly what was asked for.

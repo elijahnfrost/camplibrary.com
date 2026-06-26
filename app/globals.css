@@ -75,11 +75,22 @@
   --e3: none;
   --e4: 0 18px 48px -12px rgba(56, 44, 28, 0.4);
 
-  /* Quiet humanist companion for body + dense data; handwriting stays on display. */
+  /* Quiet humanist companion for body + dense data; handwriting stays on display.
+     next/font (display:swap) already EXPANDS each --font-* var to the real face
+     PLUS its size-adjusted, metric-matched fallback — e.g. --font-hand resolves to
+     `"Patrick Hand", "Patrick Hand Fallback"` where the Fallback is a synthetic
+     @font-face (src:local(Arial) + size-adjust/ascent-override) tuned to the real
+     face's metrics. So pre-swap text lays out at the FINAL metrics and does NOT
+     reflow when the webfont arrives (this is what kills the FOUT/text-shift on
+     re-sort). We must NOT re-append the real family names ("Patrick Hand",
+     "Caveat", …) after the var: if that face happens to be installed locally it
+     renders pre-swap at the WRONG, non-metric-matched metrics and reintroduces the
+     shift. Keep only a generic last-resort so the metric-matched fallback always
+     wins until the webfont swaps. */
   --text: var(--font-text), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --hand: var(--font-hand), "Patrick Hand", "Comic Sans MS", cursive;
-  --hand-sc: var(--font-hand-sc), var(--font-hand), "Patrick Hand SC", cursive;
-  --script: var(--font-script), "Caveat", cursive;
+  --hand: var(--font-hand), cursive;
+  --hand-sc: var(--font-hand-sc), var(--font-hand), cursive;
+  --script: var(--font-script), cursive;
 
   /* Token-scale guardrail: compact aliases for new CSS only; existing selectors are unchanged. */
   --s-0: 0;
@@ -96,6 +107,10 @@
   --tap: 44px;
   --control-sm: 34px;
   --control-md: 40px;
+  /* Library content column: on wide desks the browse views (deck/catalog/shelf)
+     cap at this width and center (margin-inline:auto) so items read centered with
+     consistent room instead of hugging the window edges. T7. */
+  --lib-col-max: 1180px;
 
   --r-none: 0;
   --r-xs: 3px;
@@ -145,6 +160,12 @@
   --t-slow: 240ms; /* overlays, sheet rise */
   --ease: cubic-bezier(0.2, 0, 0, 1); /* standard decelerate */
   --ease-overlay: cubic-bezier(0.16, 1, 0.3, 1); /* overlay entrances ONLY, never hover */
+
+  /* Named calendar indicator values — so the mini-month's in-view band and
+     busy-day dot reference an intent (a soft accent wash, a quiet mark) instead
+     of bare color-mix percentages / raw ink tones scattered in calendar.css. */
+  --indicator-band: color-mix(in srgb, var(--accent) 18%, transparent);
+  --indicator-dot: var(--ink-soft);
 }
 
 * {
@@ -253,6 +274,7 @@ body {
   font-size: 15px;
 }
 .app__main {
+  position: relative; /* positioning context for the .app__veil loading cover */
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -442,19 +464,31 @@ body {
   border-color: var(--accent);
   color: var(--accent-ink);
 }
-.filtertrigger__count {
+/* ---------- shared count pill ----------
+   ONE on-token count-badge recipe so every rail's tally reads like the controls
+   beside it (MiniSeg/ToggleSwitch/TypePicker — all --r-pill). The base sets the
+   shared geometry/type; the two existing count selectors extend it rather than
+   re-spelling their own off-token literals:
+     · .filtertrigger__count — solid accent skin (an "on" filter trigger);
+     · .material-filter__count — quiet token-surface skin (per-item kit tally).
+   The base lives on .filtertrigger__count so the de-facto-correct pill is the
+   canonical one; .material-filter__count just inherits + reskins. */
+.filtertrigger__count,
+.material-filter__count {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 var(--s-3);
   border-radius: var(--r-pill);
+  font-size: var(--fs-meta);
+  line-height: 1;
+}
+.filtertrigger__count {
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 10px;
-  line-height: 1;
 }
 /* Active-filter summary — removable chips. Wraps in the rail/sheet, scrolls
    horizontally in the mobile trigger row. */
@@ -1419,13 +1453,13 @@ body {
 .material-filter__search {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
   min-height: var(--tap);
-  margin-bottom: 12px;
-  padding: 0 10px;
+  margin-bottom: var(--s-5);
+  padding: 0 var(--s-5);
   border: 1.5px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--paper) 72%, #fff);
+  border-radius: var(--r-md);
+  background: var(--content);
   color: var(--ink-faint);
 }
 /* Kit search had no focus affordance — match the rest of the inputs. */
@@ -1485,18 +1519,17 @@ body {
   padding: var(--s-4) var(--s-5);
   font-size: 14px;
 }
+/* Quiet skin over the shared count-pill base above: a token surface + the 1.5px
+   interactive --line edge so it matches the kit's other controls instead of the
+   old off-token paper color-mix / 1px / 999px / 10px literals. Wider min-width
+   keeps two-digit tallies centered. */
 .material-filter__count {
-  flex: none;
   min-width: 26px;
-  padding: 2px 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--paper) 74%, #fff);
+  border: 1.5px solid var(--line);
+  background: var(--chrome-well);
   color: var(--ink-faint);
   font-family: var(--hand-sc);
-  font-size: 10px;
   letter-spacing: 0.04em;
-  text-align: center;
 }
 .material-filter__item.is-have .material-filter__count {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
@@ -1698,6 +1731,9 @@ body {
   border: 1.5px solid var(--ink);
   border-bottom: none;
   border-radius: 5px 5px 0 0;
+  /* Each spine has a fixed inline width and an overflow-hidden vertical title,
+     so isolating its layout keeps a re-sort reorder of the rail cheap. */
+  contain: layout;
   transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
 }
 .spine:hover {
@@ -1864,6 +1900,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Wall off each card's internal layout so a stable-keyed grid reorder (sort)
+     doesn't relayout the whole deck subtree. Reused wholesale by Home favorites
+     (.home-fav .deck-card), so this containment helps there too. */
+  contain: layout;
   transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .deck-card:hover {
@@ -1957,6 +1997,12 @@ body {
   padding: 13px 0 13px var(--s-5);
   border-left: 3px solid var(--cal-tint, var(--line));
   border-bottom: 1.5px dashed var(--line-soft);
+  /* Isolate each row's layout: on a stable-keyed re-sort React only reorders
+     nodes, so a row whose contents/size don't change shouldn't force the rest of
+     the list to relayout. `contain: layout` walls that off; paired with the
+     reserved title height below it makes A→Z / by-rating reflow without the
+     chunky per-row buffering. */
+  contain: layout;
 }
 .cat-row:hover .cat-title {
   color: var(--accent-ink);
@@ -1977,7 +2023,13 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2; /* standard alongside the -webkit- prefix (forward-compat) */
   overflow: hidden;
+  /* Reserve two lines of title height so a 1-line vs 2-line title never changes
+     the row's height. Without this, re-sorting reshuffles short/long titles and
+     each row's height recomputes mid-flow → the visible "buffer/shift". 2 lines
+     at line-height 1.05 ≈ 2.1em. */
+  min-height: 2.1em;
 }
 .cat-row__meta {
   font-family: var(--hand-sc);
@@ -2544,13 +2596,19 @@ body {
   color: var(--ink);
 }
 
-/* ---- staff tab (the dedicated sign-in / account surface) ----
-   Shares the admin page's head treatment; the body is a centered column so the
-   self-contained auth-form card sits comfortably rather than stretching wide. */
+/* ---- staff tab (the dedicated sign-in / account + dashboard surface) ----
+   Signed out: shares the admin page's head treatment; the body is a centered
+   column so the self-contained auth-form card sits comfortably rather than
+   stretching wide. Signed in (.staff-tab--dash): widens to the full page and
+   lays out the usage dashboard in the home-* card idiom. */
 .staff-tab {
   padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
 }
 .staff-tab__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
   width: min(100%, 1120px);
   margin: 0 auto 16px;
 }
@@ -2575,6 +2633,341 @@ body {
 }
 .staff-tab__switch {
   margin: 0;
+}
+
+/* ---- staff dashboard (signed-in) ----
+   A responsive card grid mirroring the Home surface: one column on phones, two
+   from tablet up. Each card reuses the home section-head + boxed-card idiom. */
+.staff-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-7);
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+.staff-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.staff-stat__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+.staff-stat__title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.staff-stat__sub {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.staff-stat__card {
+  background: var(--content);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+/* Empty / loading states sit flush inside the card (the card already supplies
+   the border), so drop the home-empty box edge when nested here. */
+.staff-stat__empty {
+  border: 0;
+  border-radius: 0;
+}
+.staff-stat__loading {
+  margin: 0;
+  padding: var(--s-7) var(--s-6);
+  text-align: center;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---- account card ---- */
+.staff-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-6);
+}
+.staff-account__name {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.05;
+  color: var(--ink);
+}
+.staff-account__email {
+  margin: -2px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.staff-account__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+.staff-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.staff-tag--quiet {
+  background: var(--chrome-well);
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+.staff-account__sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: var(--s-2) 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.staff-account__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.staff-account__dot--synced {
+  background: var(--accent);
+}
+.staff-account__dot--syncing {
+  background: var(--accent-ink);
+}
+.staff-account__dot--pending {
+  background: var(--amber);
+}
+.staff-account__dot--offline {
+  background: var(--ink-faint);
+}
+.staff-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+.staff-account__actions .btn {
+  flex: 1;
+  min-width: 130px;
+}
+
+/* ---- ranked usage rows (category-tinted) ---- */
+.staff-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-rank__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-left: 3px solid var(--cal-tint, var(--line));
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-rank__row:last-child {
+  border-bottom: 0;
+}
+.staff-rank__mono {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--cal-tint, var(--line)) 22%, var(--card));
+  border: 1.5px solid color-mix(in srgb, var(--cal-tint, var(--line)) 55%, var(--line));
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-ui);
+  line-height: 1;
+  color: var(--ink);
+}
+.staff-rank__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-rank__count {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-title-sm);
+  letter-spacing: 0.02em;
+  color: var(--accent-ink);
+}
+.staff-rank__unit {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---- field notes log ---- */
+.staff-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-notes__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-notes__row:last-child {
+  border-bottom: 0;
+}
+.staff-notes__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.staff-notes__activity {
+  min-width: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-notes__date {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.staff-notes__text {
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+/* ---- recent activity feed ---- */
+.staff-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.staff-recent__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+.staff-recent__row:last-child {
+  border-bottom: 0;
+}
+.staff-recent__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-round);
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+}
+.staff-recent__icon--note {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.staff-recent__icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.staff-recent__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.staff-recent__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-recent__detail {
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staff-recent__when {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Two-up dashboard from tablet width: the account card leads, the three stat
+   cards flow beside it. */
+@media (min-width: 768px) {
+  .staff-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .admin-panel {
@@ -3523,12 +3916,12 @@ body {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  margin-bottom: 12px;
+  gap: var(--s-4) var(--s-5);
+  margin-bottom: var(--s-5);
 }
 .matkit__status {
   font-family: var(--hand-sc);
-  font-size: 10px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -3546,17 +3939,17 @@ body {
 .matkit__item {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: var(--s-5);
   width: 100%;
   text-align: left;
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: var(--tap);
+  padding: var(--s-4) var(--s-5);
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   cursor: pointer;
   font-family: var(--text);
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.3;
   color: var(--ink);
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
@@ -3572,7 +3965,7 @@ body {
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: var(--r-round);
   border: 1.6px solid var(--ink-soft);
   display: inline-flex;
   align-items: center;
@@ -4730,6 +5123,14 @@ body {
     opacity: 1;
   }
 }
+/* .fadein plays on mount / view-switch only (its containers carry no React key
+   keyed off the list, so a re-sort reorders nodes WITHOUT replaying it). Honor
+   reduced-motion: skip the rise/fade entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .fadein {
+    animation: none;
+  }
+}
 .label {
   font-family: var(--hand-sc);
   font-size: 11px;
@@ -4909,16 +5310,42 @@ body {
 }
 
 /* ============================================================
+ * TABLET TIER (iPad portrait): 768–1023px
+ * The purpose-built touch shell (bottom tab bar, FAB, full-screen sheets,
+ * docked menus) stays exactly as on phone — only the content GRIDS open up so a
+ * wide viewport reads as a real tablet layout instead of a stretched 2-up phone.
+ * The desk sidebar deliberately does NOT appear here (see DESKTOP_MIN in
+ * components/useDeviceShape.ts). T7 owns the centered content column across tiers.
+ * ============================================================ */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Library deck: phone is a fixed 2-up, which stretches each cover on an iPad.
+     Pack adaptive columns instead (≈3 at 768 → ≈4 near 1024). */
+  .deck {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--s-5);
+    padding: var(--s-5) var(--s-6) var(--s-3);
+  }
+  /* Home favorites already auto-fill; nudge the gutter to match the deck. */
+  .home-favs {
+    gap: var(--s-5);
+  }
+}
+
+/* ============================================================
  * DESKTOP APP (>= 1024px)
  * A full-window application, not a scaled phone. The app fills the
  * browser window; primary nav + filters live in a full-height left
  * sidebar; search sits in a header toolbar; and detail / picker slide
  * in as a right-hand inspector panel (master–detail).
  * ============================================================ */
-/* The shell switch (bottom tab bar -> sidebar "desk"). Landed at --bp-tablet
-   (768px) so iPad portrait gets the real sidebar + calendar rail the design
-   intends, instead of a stretched phone layout. Phones (<768) keep the tab bar. */
-@media (min-width: 768px) {
+/* The shell switch (touch shell -> sidebar "desk"). Landed at --bp-desktop
+   (1024px): the desk sidebar is ~292px, which on an iPad-portrait viewport
+   (768–1023px) would eat ~40% of the width — a "shrunk desktop". So phone AND
+   tablet keep the purpose-built touch shell (tab bar, FAB, sheets); only true
+   desktop / iPad-landscape (>=1024) gets the sidebar + stage. The 768–1023 tier
+   gets roomy grids in its own block below. Keep this in lockstep with DESKTOP_MIN
+   in components/useDeviceShape.ts (it gates the sidebar rail portals). */
+@media (min-width: 1024px) {
   body {
     background: var(--stage-bg);
   }
@@ -5122,7 +5549,7 @@ body {
     margin-bottom: 10px;
     padding-inline: 9px;
     border-color: var(--line);
-    background: color-mix(in srgb, var(--paper) 58%, transparent);
+    background: var(--chrome-well);
   }
   .sidefilters .material-filter__list {
     max-height: none;
@@ -5151,7 +5578,11 @@ body {
     border-radius: 8px;
     background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
+  /* In the desktop rail the kit items are borderless (just bottom hairlines), so
+     the count drops its fill AND its --line edge to read as a quiet inline tally
+     rather than a bordered chip floating on chrome. */
   .sidefilters .material-filter__count {
+    border-color: transparent;
     background: transparent;
   }
 
@@ -5171,12 +5602,17 @@ body {
     display: none;
   }
   /* header toolbar: view switch + persistent search — sits flush over the
-     page like the calendar header (no divider line). */
+     page like the calendar header (no divider line). Capped + centered to the
+     same --lib-col-max column as the browse views below (32px inner gutter), so
+     on ultra-wide the view switch / search track the cards instead of drifting
+     to the window edge. */
   .toolbar {
     display: flex;
     align-items: center;
     gap: 16px;
     padding: 12px 32px 14px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
   .viewswitch {
     flex: none;
@@ -5228,17 +5664,29 @@ body {
     color: var(--ink-faint);
   }
 
-  /* ---- content: fluid + comfortable ---- */
+  /* ---- content: capped, centered column with consistent room ----
+     On the desk tier the browse views cap at --lib-col-max and center
+     (margin-inline:auto) so items read centered with even gutters instead of
+     hugging the window edges. The 32px is now the column's INNER gutter. */
   .deck {
-    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    /* Fixed-width tracks (not 1fr) + justify-content:center keep cards a STABLE
+       width and center the grid inside the capped column, so a re-sort never
+       restretches cards. Composes with the F0 tablet block (768–1023, fluid
+       auto-fill) and the >=1200 widen below. */
+    grid-template-columns: repeat(auto-fill, 210px);
+    justify-content: center;
     gap: 16px;
     padding: 20px 32px 14px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
                   .deck-card__title {
     font-size: 22px;
   }
   .shelfwrap {
     padding-top: 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
   .shelf__head {
     margin: 0 32px;
@@ -5249,6 +5697,8 @@ body {
   }
   .catalog {
     padding: 14px 32px 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
   }
 
   .form {
@@ -5287,11 +5737,9 @@ body {
   }
 }
 
-/* Wider desks: more columns and a little more air. */
+/* Wider desks: a little more air inside the capped column. Cards keep a stable
+   fixed width (the centered grid just fits more of them as room allows). */
 @media (min-width: 1200px) {
-  .deck {
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  }
   .toolbar,
   .catalog,
   .deck {
@@ -5306,7 +5754,7 @@ body {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .overlay--viewer {
     top: max(12px, env(safe-area-inset-top));
     overflow: visible;
@@ -5319,7 +5767,7 @@ body {
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   /* ---- Home: roomier desk ---- */
   .home {
     padding: var(--s-7) var(--s-8) var(--s-8);
@@ -5869,15 +6317,32 @@ body {
   }
 }
 
-/* --- Print: a plain printer with ONE tiny settle on hover --------------------
-   Deliberately basic — the earlier sheet-feed / line-draw choreography was
-   rejected. No part-level animation; the whole glyph just boops (shared with the
-   calmed calendar icon). */
+/* --- Print: a page feeds DOWN and OUT of the bottom output mouth -------------
+   ONE clean gesture — at rest the printed page is parked INSIDE the body (clipped
+   above the mouth lip, so the icon reads as a plain printer). On hover it slides
+   DOWN through the output mouth and SETTLES just below the printer's front lip — a
+   printed page in the output tray, not paper retracting up into the body. The page
+   is clipped to the output window (see icons.tsx) so its body never shows through
+   the printer body. The printer body / input / status dot stay put. `both` holds
+   it emerged while hovered; removing :hover returns it to the parked rest pose. */
 .cicon--print {
   overflow: visible;
 }
-:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover .cicon--print {
-  animation: cicon-settle 0.3s var(--ease);
+.cicon--print .cicon-print__page {
+  fill: none;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
+  .cicon--print
+  .cicon-print__sheet {
+  animation: cicon-print-feed 0.46s var(--ease-overlay) both;
+}
+@keyframes cicon-print-feed {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(7.2px);
+  }
 }
 
 /* --- Export: the arrow drops out with a small bounce — "download" ----------- */
@@ -5907,11 +6372,11 @@ body {
   .cicon [class^="cicon-"],
   .cicon [class*=" cicon-"] {
     animation: none !important;
-    /* book + calendar open via transitions now — suppress those too */
+    /* book opens via transitions now — suppress those too */
     transition: none !important;
   }
-  /* Book + calendar hold their rest pose even on hover (the !important beats the
-     hover rules), so nothing moves under reduced motion. */
+  /* Book holds its rest pose even on hover (the !important beats the hover
+     rules), so nothing moves under reduced motion. */
   .cicon--book .cicon-book__cover {
     transform: rotateY(0deg) !important;
     fill-opacity: 0 !important;
@@ -5920,9 +6385,11 @@ body {
     transform: scaleX(0) !important;
     opacity: 0 !important;
   }
-  /* The calendar + print icons now just settle (one boop), already suppressed by
-     the blanket `.cicon { animation: none }` above — and their dots/printer are
-     static at rest, so no extra pose overrides are needed. */
+  /* Print: hold the sheet hidden inside the printer so it reads as a plain
+     printer at rest (the !important beats the hover rule). */
+  .cicon--print .cicon-print__sheet {
+    transform: translateY(0) !important;
+  }
 }
 
 .sidenav__brand-copy {
@@ -5976,232 +6443,11 @@ body {
   .app:has(.print-root) .print-root {
     display: block !important;
   }
-  .print-sheet {
-    display: block;
-    width: 100%;
-    color: #000;
-    background: #fff;
-    font-family: var(--text);
-    font-size: 10.5pt;
-    line-height: 1.32;
-  }
-  .print-header {
-    padding-bottom: 0.16in;
-    margin-bottom: 0.16in;
-    border-bottom: 1.5pt solid #000;
-    break-after: avoid;
-  }
-  .print-kicker {
-    display: block;
-    margin-bottom: 0.04in;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .print-header h1 {
-    margin: 0;
-    font-family: var(--script);
-    font-size: 30pt;
-    line-height: 0.9;
-  }
-  .print-header p {
-    margin: 0.08in 0 0;
-    max-width: 7in;
-    font-size: 10.5pt;
-  }
-  .print-facts {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1pt solid #000;
-    break-inside: avoid;
-  }
-  .print-fact {
-    min-height: 0.52in;
-    padding: 0.07in 0.09in;
-    border-right: 0.7pt solid #aaa;
-    border-bottom: 0.7pt solid #aaa;
-  }
-  .print-fact:nth-child(4n) {
-    border-right: 0;
-  }
-  .print-fact span {
-    display: block;
-    font-family: var(--hand-sc);
-    font-size: 7.4pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-fact strong {
-    display: block;
-    margin-top: 0.02in;
-    font-family: var(--hand);
-    font-size: 12pt;
-    line-height: 1;
-  }
-  .print-section {
-    margin-top: 0.18in;
-    break-inside: avoid;
-  }
-  .print-section h2 {
-    margin: 0 0 0.07in;
-    padding-top: 0.08in;
-    border-top: 0.8pt dashed #999;
-    font-family: var(--hand-sc);
-    font-size: 9pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .print-section p {
-    margin: 0;
-  }
-  .print-run-list {
-    display: grid;
-    gap: 0.12in;
-    margin-top: 0.18in;
-    counter-reset: print-step;
-  }
-  .print-run-heading {
-    margin: 0.12in 0 0.02in;
-    padding-top: 0.08in;
-    border-top: 0.8pt dashed #999;
-    font-family: var(--hand-sc);
-    font-size: 9pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    break-after: avoid;
-  }
-  .print-run-details {
-    margin-top: 0;
-  }
-  .print-run-step,
-  .print-run-note {
-    break-inside: avoid;
-  }
-  .print-run-step {
-    display: grid;
-    gap: 0.08in;
-    padding: 0.1in 0;
-    border-bottom: 0.7pt solid #bbb;
-  }
-  .print-run-step__main {
-    display: grid;
-    grid-template-columns: 0.26in minmax(0, 1fr);
-    gap: 0.08in;
-  }
-  .print-run-step__main::before {
-    counter-increment: print-step;
-    content: counter(print-step);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0.22in;
-    height: 0.22in;
-    border: 0.8pt solid #000;
-    border-radius: 999px;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    line-height: 1;
-  }
-  .print-run-step__main span {
-    grid-column: 2;
-    font-family: var(--hand-sc);
-    font-size: 7.4pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-run-step__main p {
-    grid-column: 2;
-    margin: 0;
-    font-size: 11pt;
-    font-weight: 600;
-  }
-  .print-run-child {
-    margin-left: 0.34in;
-    padding: 0.07in 0.09in;
-    border-left: 2pt solid #999;
-    background: #fff;
-    break-inside: avoid;
-  }
-  .print-run-child h3,
-  .print-run-note h2 {
-    margin: 0 0 0.04in;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-  }
-  .print-run-child p,
-  .print-run-note p {
-    margin: 0;
-  }
-  .print-run-child small {
-    display: block;
-    margin-top: 0.03in;
-    overflow-wrap: anywhere;
-    font-size: 7.5pt;
-  }
-  .print-run-note {
-    padding: 0.08in 0;
-    border-bottom: 0.7pt solid #bbb;
-  }
-  .print-chip-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.06in;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .print-chip-list li {
-    padding: 0.03in 0.07in;
-    border: 0.7pt solid #555;
-    border-radius: 2pt;
-    font-family: var(--hand-sc);
-    font-size: 7.6pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-steps {
-    margin: 0;
-    padding-left: 0.22in;
-  }
-  .print-steps li {
-    margin-bottom: 0.07in;
-    break-inside: avoid;
-  }
-  .print-two-col {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.22in;
-  }
-  .print-playbook .playbook {
-    margin-top: 0;
-  }
-  .print-playbook .playbook__intro,
-  .print-playbook .playbook__legend {
-    break-inside: avoid;
-  }
-  .print-playbook .playbook__editcue {
-    display: none !important;
-  }
-  .print-playbook .playbook__frames {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.12in;
-  }
-  .print-playbook .playbook-frame {
-    break-inside: avoid;
-  }
-  .print-playbook .playbook-field {
-    min-height: 0; /* beat the screen min-height so max-height + aspect win */
-    max-height: 2.2in;
-  }
-  /* A step carrying a multi-frame diagram can exceed a page — let it flow
-     (individual frames still avoid splitting). */
-  .print-run-step:has(.print-playbook) {
-    break-inside: auto;
-  }
-                            }
+  /* The single-activity book + the schedule run sheets now share the .print-doc /
+     pd- system (see the Print tab block below); the old bespoke `.print-*` grey
+     CSS that lived here was removed when ActivityBookPrint folded onto
+     RunSheetBody. The pd- break rules are emitted with that block. */
+}
 
 /* ============================================================
  * Planner calendar
@@ -8010,8 +8256,8 @@ button.rl-node {
  * and the new small components from the deep-clean pass.
  * ============================================================ */
 
-/* ---- tablet (and up) library toolbar: one tidy row, no stretched phone ---- */
-@media (min-width: 768px) {
+/* ---- desk library toolbar: one tidy row (touch shell uses the search row) ---- */
+@media (min-width: 1024px) {
   .toolbar {
     display: flex;
     align-items: center;
@@ -8498,8 +8744,8 @@ button.rl-node {
   color: var(--accent-ink);
 }
 
-/* ---- phone: dropdowns + date grid bottom-dock like the event popover ---- */
-@media (max-width: 767px) {
+/* ---- touch shell: dropdowns + date grid bottom-dock like the event popover ---- */
+@media (max-width: 1023px) {
   .cmenu,
   .cselect__menu,
   .cdate__pop {
@@ -8556,9 +8802,9 @@ button.rl-node {
   flex-wrap: wrap;
   padding: var(--s-5) var(--page-x);
 }
-/* Match the calendar header's desktop horizontal padding so the two tab headers
-   line up (.calhead gets 32px at >=768; .printhead lacked the override → 14px off). */
-@media (min-width: 768px) {
+/* Match the calendar header's desk horizontal padding so the two tab headers
+   line up (.calhead gets 32px at >=1024; .printhead lacked the override → 14px off). */
+@media (min-width: 1024px) {
   .printhead {
     padding: var(--s-5) 32px;
   }
@@ -8634,7 +8880,7 @@ button.rl-node {
   width: 18px;
   height: 18px;
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .printhead__options {
     display: none;
   }
@@ -8868,6 +9114,131 @@ button.rl-node {
   padding: 0 var(--s-4);
 }
 
+/* Section order — a short ordered ledger: a numbered chip, the section name, and
+   the up/down nudges, each row a quiet bordered card the same family as the
+   run-sheet results list. */
+.prail__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.prail__section {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.prail__sectionidx {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.prail__sectionlabel {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__sectionmove {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.prail__sectionmove button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.prail__sectionmove button:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--ink);
+}
+.prail__sectionmove button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.prail__sectionmove svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Content picker — the days in range, each a checkbox row that reveals its
+   events (also checkboxes). A compact, scannable include list. */
+.prail__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.prail__cday {
+  display: flex;
+  flex-direction: column;
+}
+.prail__crow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  cursor: pointer;
+}
+.prail__crow input {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.prail__crow--day .prail__cname {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.prail__crow--event {
+  padding-left: var(--s-6);
+}
+.prail__cname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__ccount,
+.prail__ctime {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
 /* "More options" — the set-once / niche settings folded behind ONE ledger row,
    the Library "Available kit" pattern: a <summary> that IS a ledger row (label
    left, chevron right) expanding a sub-ledger. Keeps the resting rail short. */
@@ -8940,6 +9311,11 @@ button.rl-node {
   display: flex;
   justify-content: center;
   padding: var(--s-6);
+  /* Reserve height while status="loading" — the source is hidden and no pages
+     have rendered yet, so without a floor the box (and its absolute veil) would
+     collapse to nothing and the loading screen wouldn't be visible. Generalized
+     from the old mobile-only print preview floor so it holds at every width. */
+  min-height: 60vh;
 }
 /* The paginated view (Paged.js-owned). Parked off-screen until the first
    pagination lands so Paged.js can still measure it (display:none would zero its
@@ -9009,17 +9385,61 @@ button.rl-node {
   margin: 0.18in 0;
   padding: 0.12in 0.14in;
   border: 1pt dashed var(--accent-light);
-  border-radius: calc(4pt);
+  border-radius: var(--pd-radius);
   background: color-mix(in srgb, var(--accent-light) 12%, var(--card));
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
   color: var(--ink-soft);
 }
 
-/* ---- The document itself (screen + print) ---- */
+/* ---- The print scale (PRINT-SCOPED custom props) ----
+   The print document used to scatter calc(<n>pt) font sizes and `in` box metrics
+   inline — a parallel physical-unit scale decoupled from the app's --fs-/--s-/--r-
+   tokens, so print read as a different document. These vars de-duplicate those
+   magic numbers ONCE and make the print scale TRACK the design system: each step
+   echoes an app --fs-/--s-/--r- relationship, re-expressed in print's native pt/in
+   so the page is sized in physical units yet the rhythm matches the live cards.
+
+   --pd-scale is the user-facing font-scale knob (the Print tab's "Text size"
+   control, 0.9–1.15): every type token multiplies through it, so the whole sheet
+   grows/shrinks in lockstep without touching any rule. --pd-pad-scale does the
+   same for the density control, scaling the box paddings/gaps. The cover/title
+   sizes also ride --pd-scale so headings track body text. */
 .print-doc {
+  /* Font scale (echoes --fs-: meta→title). 10.5pt body == the app's --fs-body
+     reference; the rest hold the same ratios as the px ladder, ×--pd-scale. */
+  --pd-scale: 1;
+  --pd-fs-micro: calc(7pt * var(--pd-scale)); /* ↔ --fs-micro: fact/cue eyebrows */
+  --pd-fs-meta: calc(7.5pt * var(--pd-scale)); /* ↔ --fs-meta: badges, inline facts */
+  --pd-fs-label: calc(8pt * var(--pd-scale)); /* ↔ --fs-label: small-caps labels */
+  --pd-fs-kicker: calc(8pt * var(--pd-scale)); /* the --hand-sc kicker / facts caps */
+  --pd-fs-ui: calc(9pt * var(--pd-scale)); /* ↔ --fs-ui: TLDR, secondary lines */
+  --pd-fs-body: calc(10.5pt * var(--pd-scale)); /* ↔ --fs-body: running copy */
+  --pd-fs-lead: calc(11pt * var(--pd-scale)); /* ↔ --fs-body-lg: step/event titles */
+  --pd-fs-head: calc(12pt * var(--pd-scale)); /* event names + fact values */
+  --pd-fs-dayhead: calc(11pt * var(--pd-scale)); /* day-section small-caps head */
+  --pd-fs-runtitle: calc(26pt * var(--pd-scale)); /* ↔ --fs-title: run-sheet title */
+  --pd-fs-covertitle: calc(32pt * var(--pd-scale)); /* ↔ --fs-display: cover title */
+
+  /* Spacing (echoes --s-, in print inches). --pd-pad-scale is the density knob. */
+  --pd-pad-scale: 1;
+  --pd-gap-xs: calc(0.02in * var(--pd-pad-scale)); /* ↔ --s-1 hairline */
+  --pd-gap-sm: calc(0.04in * var(--pd-pad-scale)); /* ↔ --s-2 */
+  --pd-gap: calc(0.06in * var(--pd-pad-scale)); /* ↔ --s-3 default gap */
+  --pd-gap-md: calc(0.08in * var(--pd-pad-scale)); /* ↔ --s-4 */
+  --pd-gap-lg: calc(0.1in * var(--pd-pad-scale)); /* ↔ --s-5/event row gap */
+  --pd-pad-y: calc(0.06in * var(--pd-pad-scale)); /* row vertical padding */
+  --pd-pad-x: calc(0.08in * var(--pd-pad-scale)); /* row horizontal padding */
+  --pd-block-gap: calc(0.12in * var(--pd-pad-scale)); /* ↔ --s-6 between blocks */
+  --pd-section-gap: calc(0.2in * var(--pd-pad-scale)); /* ↔ --s-7 between sections */
+  --pd-indent: calc(0.28in * var(--pd-pad-scale)); /* child block left inset */
+
+  /* Radius (echoes --r-). Print stays crisp, so these are small. */
+  --pd-radius: calc(2pt); /* ↔ --r-xs chips/badges */
+  --pd-spine: 3pt; /* the category tint spine — matches the live 3px card spine */
+
   color: var(--ink);
   font-family: var(--text);
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
   line-height: 1.34;
 }
 .print-doc--mono {
@@ -9028,7 +9448,7 @@ button.rl-node {
 .pd-kicker {
   display: block;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-kicker);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -9047,13 +9467,13 @@ button.rl-node {
 .pd-cover__title {
   margin: 0.02in 0 0;
   font-family: var(--script);
-  font-size: calc(32pt);
+  font-size: var(--pd-fs-covertitle);
   line-height: 0.95;
   color: var(--accent-ink);
 }
 .pd-cover__sub {
   margin: 0.06in 0 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-ui);
   color: var(--ink-soft);
 }
 .print-doc--mono .pd-cover {
@@ -9071,11 +9491,13 @@ button.rl-node {
   border: 1pt solid var(--line);
   border-left: 3pt solid var(--accent-light);
 }
-/* Screen-only: read the roll-up + facts grid as warm inset wells (print keeps
-   them as plain bordered tables on white). Scoped to the preview surface, which
-   never contains the printable .print-root. */
-.paged-preview .pd-rollup,
-.paged-preview .pd-facts--grid {
+/* Read the roll-up + facts grid as warm inset wells, the way the live facts/kit
+   cards do. Emitted on screen AND print (color mode only — mono keeps plain
+   bordered tables on white) via print-color-adjust:exact, so the preview is a
+   true WYSIWYG of the printed page rather than a tinted preview that drops to
+   white on paper. */
+.print-doc--color .pd-rollup,
+.print-doc--color .pd-facts--grid {
   background: color-mix(in srgb, var(--paper-2) 55%, var(--card));
 }
 .print-doc--mono .pd-rollup {
@@ -9084,7 +9506,7 @@ button.rl-node {
 .pd-rollup__head {
   margin: 0 0 0.06in;
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -9094,8 +9516,8 @@ button.rl-node {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.04in 0.18in;
-  font-size: calc(9.5pt);
+  gap: var(--pd-gap-sm) 0.18in;
+  font-size: var(--pd-fs-ui);
 }
 .pd-rollup__list li {
   display: flex;
@@ -9110,21 +9532,21 @@ button.rl-node {
 }
 .pd-rollup__count {
   margin-left: auto;
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   color: var(--ink-faint);
 }
 
 /* Day sections + events */
 .pd-day {
-  margin-top: 0.2in;
+  margin-top: var(--pd-section-gap);
 }
 .pd-day__head {
-  margin: 0 0 0.08in;
+  margin: 0 0 var(--pd-gap-md);
   padding-top: 0.07in;
   border-top: 1.5pt solid var(--accent);
   color: var(--accent-ink);
   font-family: var(--hand-sc);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-dayhead);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -9137,28 +9559,35 @@ button.rl-node {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.1in;
+  gap: var(--pd-gap-lg);
 }
+/* An event row reads as the calendar's .cal-card translated to paper: a category
+   tint SPINE on the left (--pd-spine == the card's 3px border-left), a --hand-sc
+   time, and a --hand title — the same visual contract, so an activity looks the
+   same in print as on the calendar. */
 .pd-event {
   display: grid;
   grid-template-columns: 1.3in minmax(0, 1fr);
-  gap: 0.12in;
-  padding: 0.06in 0;
+  gap: var(--pd-block-gap);
+  padding: var(--pd-pad-y) 0;
   border-bottom: 0.75pt solid var(--line);
 }
 .print-doc--color .pd-event {
-  padding-left: 0.1in;
-  border-left: 3pt solid var(--pd-tint, var(--line));
+  padding-left: var(--pd-pad-x);
+  border-left: var(--pd-spine) solid var(--pd-tint, var(--line));
 }
-/* Screen-only: a whisper of the category tint behind each event so the preview
-   reads like the calendar's tinted cards. Print keeps the spine-on-white look. */
-.paged-preview .print-doc--color .pd-event {
+/* A whisper of the category tint behind each event so it reads like the
+   calendar's tinted cards. Emitted on screen AND print (print-color-adjust:exact
+   in the print block) so the preview is a true WYSIWYG — the wash no longer
+   drops when the page actually prints. */
+.print-doc--color .pd-event {
   background: color-mix(in srgb, var(--pd-tint, transparent) 7%, var(--card));
 }
 .pd-event__time {
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.03em;
+  color: var(--ink-soft);
 }
 .pd-event__head {
   display: flex;
@@ -9167,18 +9596,20 @@ button.rl-node {
   gap: var(--s-3);
 }
 .pd-event__name {
-  font-weight: 700;
-  font-size: calc(12pt);
+  font-family: var(--hand);
+  font-weight: 600;
+  font-size: var(--pd-fs-head);
+  color: var(--ink);
 }
 .pd-event__type,
 .pd-event__theme {
   font-family: var(--hand-sc);
-  font-size: calc(7.5pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 0 0.05in;
   border: 0.75pt solid var(--line);
-  border-radius: calc(2pt);
+  border-radius: var(--pd-radius);
 }
 .print-doc--color .pd-event__type {
   color: #fff;
@@ -9202,7 +9633,7 @@ button.rl-node {
 }
 .pd-event__blurb {
   margin: 0.04in 0 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-facts--inline {
   list-style: none;
@@ -9210,9 +9641,9 @@ button.rl-node {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.02in 0;
+  gap: var(--pd-gap-xs) 0;
   font-family: var(--hand-sc);
-  font-size: calc(7.8pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -9231,19 +9662,19 @@ button.rl-node {
 .pd-tldr__steps {
   margin: 0;
   padding-left: 0.2in;
-  font-size: calc(9.5pt);
+  font-size: var(--pd-fs-ui);
 }
 .pd-tldr__steps li {
-  margin-bottom: 0.02in;
+  margin-bottom: var(--pd-gap-xs);
 }
 .pd-tldr__line {
   margin: 0.04in 0 0;
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
 }
 .pd-tldr__line span {
   margin-right: 0.05in;
   font-family: var(--hand-sc);
-  font-size: calc(7pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -9256,7 +9687,7 @@ button.rl-node {
 /* Empty states */
 .pd-empty {
   margin: 0.04in 0 0;
-  font-size: calc(9.5pt);
+  font-size: var(--pd-fs-ui);
   font-style: italic;
   color: var(--ink-faint);
 }
@@ -9269,7 +9700,7 @@ button.rl-node {
 .pd-runsheets__head {
   margin: 0.3in 0 0.1in;
   font-family: var(--hand-sc);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-dayhead);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--accent-ink);
@@ -9278,13 +9709,13 @@ button.rl-node {
   margin-top: 0.24in;
 }
 .pd-runsheet__head {
-  padding-bottom: 0.1in;
+  padding-bottom: var(--pd-gap-lg);
   border-bottom: 1.5pt solid var(--accent);
 }
 .pd-runsheet__title {
   margin: 0.02in 0 0;
   font-family: var(--script);
-  font-size: calc(26pt);
+  font-size: var(--pd-fs-runtitle);
   line-height: 0.95;
   color: var(--accent-ink);
 }
@@ -9297,12 +9728,12 @@ button.rl-node {
 }
 .pd-runsheet__blurb {
   margin: 0.06in 0 0;
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
 }
 /* "Also called …" alias line on the printed run sheet — quiet, under the title. */
 .pd-runsheet__aka {
   margin: 0.05in 0 0;
-  font-size: calc(8.5pt);
+  font-size: var(--pd-fs-label);
   color: var(--ink-faint);
 }
 .pd-facts--grid {
@@ -9312,7 +9743,7 @@ button.rl-node {
   border: 1pt solid currentColor;
 }
 .pd-fact {
-  padding: 0.06in 0.08in;
+  padding: var(--pd-pad-y) var(--pd-pad-x);
   border-right: 0.7pt solid var(--line);
   border-bottom: 0.7pt solid var(--line);
 }
@@ -9322,7 +9753,7 @@ button.rl-node {
 .pd-fact span {
   display: block;
   font-family: var(--hand-sc);
-  font-size: calc(7pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -9330,12 +9761,12 @@ button.rl-node {
   display: block;
   margin-top: 0.02in;
   font-family: var(--hand);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-lead);
   line-height: 1;
 }
 .pd-run-list {
   display: grid;
-  gap: 0.1in;
+  gap: var(--pd-gap-lg);
   margin-top: 0.14in;
 }
 .pd-run-heading {
@@ -9343,67 +9774,67 @@ button.rl-node {
   padding-top: 0.07in;
   border-top: 0.8pt dashed var(--ink-faint);
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .pd-step {
   display: grid;
-  gap: 0.06in;
-  padding: 0.08in 0;
+  gap: var(--pd-gap);
+  padding: var(--pd-gap-md) 0;
   border-bottom: 0.7pt solid var(--line);
 }
 .pd-step__main {
   display: grid;
-  gap: 0.02in;
+  gap: var(--pd-gap-xs);
 }
 .pd-step__cue {
   font-family: var(--hand-sc);
-  font-size: calc(7.4pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .pd-step__main p {
   margin: 0;
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-lead);
   font-weight: 600;
 }
 .pd-child {
-  margin-left: 0.28in;
-  padding: 0.06in 0.08in;
+  margin-left: var(--pd-indent);
+  padding: var(--pd-pad-y) var(--pd-pad-x);
   border-left: 2pt solid var(--line);
 }
 .pd-child h4 {
   margin: 0 0 0.03in;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .pd-child p {
   margin: 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-child small {
   display: block;
   margin-top: 0.03in;
   overflow-wrap: anywhere;
-  font-size: calc(7.5pt);
+  font-size: var(--pd-fs-meta);
 }
 .pd-run-note {
-  padding: 0.06in 0;
+  padding: var(--pd-pad-y) 0;
   border-bottom: 0.7pt solid var(--line);
 }
 .pd-run-note h3 {
   margin: 0 0 0.03in;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .pd-run-note p {
   margin: 0;
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-chips {
   list-style: none;
@@ -9411,14 +9842,14 @@ button.rl-node {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.06in;
+  gap: var(--pd-gap);
 }
 .pd-chips li {
   padding: 0.02in 0.06in;
   border: 0.7pt solid var(--ink-faint);
-  border-radius: calc(2pt);
+  border-radius: var(--pd-radius);
   font-family: var(--hand-sc);
-  font-size: calc(7.6pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -9448,10 +9879,10 @@ button.rl-node {
   font-weight: 800;
 }
 .print-doc--plain .pd-cover__title {
-  font-size: calc(20pt);
+  font-size: calc(20pt * var(--pd-scale));
 }
 .print-doc--plain .pd-runsheet__title {
-  font-size: calc(17pt);
+  font-size: calc(17pt * var(--pd-scale));
 }
 .print-doc--plain .pd-kicker,
 .print-doc--plain .pd-day__head,
@@ -9513,8 +9944,8 @@ button.rl-node {
   }
 }
 
-/* ---- Phones: stack console over preview ---- */
-@media (max-width: 767px) {
+/* ---- Touch shell: stack console over preview ---- */
+@media (max-width: 1023px) {
   /* Tighter header padding; the actions wrap under the title if the phone is
      narrow. The preview fills the rest of the screen (min-height floors it so
      the flex column can never collapse it to nothing). */
@@ -9584,8 +10015,14 @@ button.rl-node {
   }
 }
 
-/* Tab-switch veil: a full-bleed paper cover over the main pane that fades out as
-   the new (often heavy) surface paints behind it, so the mount never flashes. */
+/* Loading veil: a full-bleed paper cover over the main pane while a heavy surface
+   mounts + settles. Dismissal is now READINESS-driven by the host (CampApp holds
+   it up until CalendarShell.onReady + cloud data load, or a print timer), so the
+   cover stays solid paper while mounted and simply unmounts when ready — the
+   surface's own fade-in (e.g. .calshell cal-enter) is the reveal. No auto-fade
+   here, so a slow mount can never let the veil melt off before the surface is up.
+   It paints over the main pane while a tab change is in flight, so it briefly
+   covers the OUTGOING surface too — accept that over a flash of an empty frame. */
 .loadveil.app__veil {
   position: absolute;
   inset: 0;
@@ -9593,15 +10030,13 @@ button.rl-node {
   justify-content: center;
   background: var(--paper);
   pointer-events: none;
-  animation: app-veil-out var(--t-slow) var(--ease) forwards;
 }
-@keyframes app-veil-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+/* Static variant — the dynamic-import `loading:` fallback uses the same solid
+   cover; kept as an explicit class so the chunk-download fallback reads clearly at
+   the call site, and it pins opacity in case any future .app__veil fade returns. */
+.loadveil.app__veil--static {
+  opacity: 1;
+  animation: none;
 }
 
 /* Print-preview veil: covers the canvas while Paged.js lays the first pages out,
@@ -9617,9 +10052,6 @@ button.rl-node {
 
 @media (prefers-reduced-motion: reduce) {
   .loadveil__bar {
-    animation: none;
-  }
-  .loadveil.app__veil {
     animation: none;
   }
 }

@@ -21,11 +21,11 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
+import { activityFromForm, BLANK_FORM } from "@/lib/activityForm";
 import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
 import { ActivityBookPrint } from "./ActivityBookPrint";
-import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
@@ -41,14 +41,24 @@ import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
+import { useDeviceShape, DESKTOP_MIN } from "./useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the
-// loading veil. Client-only (both are "use client" components).
+// loading veil. Client-only (both are "use client" components). The `loading:`
+// fallback paints the SAME branded veil while the chunk downloads, so the gap
+// before the module arrives is never an empty `app__scroll` frame. It's a static
+// (non-auto-fade) variant — once the chunk lands, the host's own readiness veil
+// (calendar) or the PagedPreview veil (print) carries the rest of the settle.
+const ChunkVeil = () => <LoadingVeil className="app__veil app__veil--static" label="One moment…" decorative />;
 const CalendarShell = dynamic(() => import("./calendar/CalendarShell").then((m) => m.CalendarShell), {
   ssr: false,
+  loading: ChunkVeil,
 });
-const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab), { ssr: false });
+const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab), {
+  ssr: false,
+  loading: ChunkVeil,
+});
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
@@ -127,26 +137,67 @@ function StaffPromptModal({
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
-  // A brief, branded veil over the main pane while a new tab mounts — heavy
-  // surfaces (FullCalendar, the Paged.js preview) jank on first paint, so we
-  // fade them in behind a clean loading screen instead of flashing. The veil is
-  // started in the SAME render as the tab change (so it paints over the mount),
-  // then cleared on a short timer. Wrapping setTab means every nav path — the
-  // sidebar, the phone tabbar, and programmatic jumps — gets the transition.
-  const [tabLoading, setTabLoading] = useState(false);
+  // A branded veil over the main pane while a heavy surface mounts + settles —
+  // FullCalendar and the Paged.js preview jank on first paint, so we reveal them
+  // behind a clean loading screen instead of flashing an empty frame. The veil
+  // covers EVERY arrival at those surfaces (sidebar, phone tabbar, programmatic
+  // jumps, and the first land), so phone and desktop get the same treatment.
+  //
+  // `veil` holds which heavy tab is currently covered (null = no veil). The
+  // calendar's veil is dismissed by READINESS — CalendarShell.onReady fires once
+  // its view has mounted and the first scroll-to-today realign has run — with a
+  // generous max-timeout safety so a hang can never trap the user behind it.
+  // Print keeps a short timed cover for the chunk+mount gap; its real settle is
+  // carried by PagedPreview's own veil once the module is in.
+  const isHeavyTab = (id: TabId) => id === "calendar" || id === "print";
+  const [veil, setVeil] = useState<TabId | null>(() => (isHeavyTab(initialTab) ? initialTab : null));
+  // onReady has fired for the CURRENT calendar mount (grid laid out + landed on
+  // today). Half of the calendar veil's dismissal; the other half is the cloud
+  // data being loaded (the combined effect below). Reset SYNCHRONOUSLY the moment
+  // we raise the calendar veil — a fresh CalendarShell mount must re-earn its
+  // reveal, and resetting in an effect would leave a stale-true render that could
+  // dismiss the veil before the new mount paints.
+  const [calShellReady, setCalShellReady] = useState(false);
+  const onCalendarReady = useCallback(() => setCalShellReady(true), []);
+  // A fresh raise of the calendar veil arms a new max-timeout — bump this so the
+  // safety effect re-runs on every return, not just the first.
+  const [calVeilNonce, setCalVeilNonce] = useState(0);
   const setTab = useCallback((value: TabId | ((prev: TabId) => TabId)) => {
-    // Only the heavy surfaces (FullCalendar, the Paged.js preview) jank on first
-    // paint and need the veil; instant surfaces (Library/Home/Staff) switch with
-    // no veil. Functional updaters are programmatic jumps (the phone redirect) and
-    // skip it. The veil now also code-loads the dynamic chunk on first visit.
-    if (typeof value !== "function") setTabLoading(value === "calendar" || value === "print");
-    setTabRaw(value);
+    // Raise the veil in the SAME render as the tab change so it paints over the
+    // mount. Functional updaters (the phone redirect / activity deep-link) resolve
+    // the next tab so they get the same coverage as a direct tap. Switching AWAY
+    // from a heavy tab clears the veil immediately (instant surfaces never wait).
+    setTabRaw((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      if (isHeavyTab(next)) {
+        setVeil(next);
+        if (next === "calendar") {
+          setCalShellReady(false);
+          setCalVeilNonce((n) => n + 1);
+        }
+      } else {
+        setVeil(null);
+      }
+      return next;
+    });
   }, []);
+  // Print veil: a short timed cover for the chunk-download + mount gap. Once the
+  // module is in, PagedPreview's own veil carries the pagination settle.
   useEffect(() => {
-    if (!tabLoading) return;
-    const id = window.setTimeout(() => setTabLoading(false), 300);
+    if (veil !== "print") return;
+    const id = window.setTimeout(() => setVeil((v) => (v === "print" ? null : v)), 300);
     return () => window.clearTimeout(id);
-  }, [tabLoading, tab]);
+  }, [veil]);
+  // Calendar veil safety: a max-timeout so a layout hang (or a never-resolving
+  // bootstrap) can't trap the user behind the veil. Re-armed on each raise.
+  const CAL_VEIL_MAX_MS = 1500;
+  useEffect(() => {
+    if (veil !== "calendar") return;
+    const id = window.setTimeout(() => {
+      setVeil((v) => (v === "calendar" ? null : v));
+    }, CAL_VEIL_MAX_MS);
+    return () => window.clearTimeout(id);
+  }, [veil, calVeilNonce]);
   const auth = usePreviewAuth();
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
   const isSignedIn = signedInUserId != null;
@@ -164,19 +215,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     }
   }, [storageScope]);
 
-  // The desktop sidebar holds the calendar / print rail portals. On phones the
-  // sidebar is display:none but its nodes still exist, so an ungated portal would
-  // ALSO mount into the hidden rail (two PrintControls fighting over one title).
-  // Gate the rail nodes to desktop so the ref is null on phones. useLayoutEffect
-  // resolves the match before paint, so there's no flash.
-  const [isDesktop, setIsDesktop] = useState(true);
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const update = () => setIsDesktop(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
+  // The desk sidebar holds the calendar / print rail portals. Below the desk
+  // breakpoint the sidebar is display:none but its nodes would still exist, so an
+  // ungated portal would ALSO mount into the hidden rail (two PrintControls
+  // fighting over one title). Gate the rail nodes to the desk (>=1024) so the ref
+  // is null on phone + tablet, where the touch shell uses sheets instead. The
+  // hook resolves the match in a layout effect before paint, so there's no flash.
+  const { isDesktop } = useDeviceShape();
 
   const [liveMsg, setLiveMsg] = useState("");
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
@@ -209,13 +254,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setTab("staff");
   }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
 
-  // Phones have no Home tab and no sidebar brand mark, so an initial "home"
-  // landing would be a dead end. Send phone-width sessions to Library instead.
-  // The auth/activity deep-links still win: they set the tab first, and the
-  // functional updater leaves any non-"home" tab untouched.
+  // The touch shell (phone + tablet) has no Home tab and no sidebar brand mark,
+  // so an initial "home" landing would be a dead end. Send touch-shell sessions
+  // (<1024) to Library instead. The auth/activity deep-links still win: they set
+  // the tab first, and the functional updater leaves any non-"home" tab untouched.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    if (!window.matchMedia(`(max-width: ${DESKTOP_MIN - 1}px)`).matches) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") || params.get("activity")) return;
     setTab((t) => (t === "home" ? "library" : t));
@@ -246,6 +291,16 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   useEffect(() => {
     if (cloud.syncError) setLiveMsg(cloud.syncError);
   }, [cloud.syncError]);
+  // Dismiss the calendar veil once BOTH the grid has settled (calShellReady) AND
+  // the data is loaded (cloud.hasLoaded — true at once for anon/cached, held for a
+  // cold signed-in load until the bootstrap resolves). Revealing only when both
+  // are true means the calendar never flashes empty then pops events in. The
+  // max-timeout above is the backstop if either signal stalls.
+  useEffect(() => {
+    if (veil === "calendar" && calShellReady && cloud.hasLoaded) {
+      setVeil((v) => (v === "calendar" ? null : v));
+    }
+  }, [veil, calShellReady, cloud.hasLoaded]);
   const lib = useActivityLibrary({ cloud, requireStaff, announce: setLiveMsg });
   // Multiple camps: filters the calendar's event set + stamps new events. The
   // shared library and every other surface are camp-agnostic.
@@ -344,14 +399,37 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     prevLibCountRef.current = count;
   }, [libraryItems.length, tab]);
 
-  // Activity viewer state. The event context is display-only strings from the
-  // calendar event the viewer was opened from (never calendar types).
+  // The ONE activity surface — create, edit, and browse all render through
+  // DetailSheet. `detail` is the activity it's showing (a fresh blank one in
+  // create mode); `detailMode` picks create vs browse; `detailStartEdit` opens
+  // an existing activity straight in edit mode (the "Edit" entry points). The
+  // event context is display-only strings from the calendar event it was opened
+  // from (never calendar types).
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [detailMode, setDetailMode] = useState<"create" | "view">("view");
+  const [detailStartEdit, setDetailStartEdit] = useState(false);
+  // Bumped on every explicit open/edit/create action so the surface remounts
+  // fresh — re-seeding its form/play-doc drafts — even when the same activity
+  // is re-opened (e.g. context-menu "Edit" on the already-open activity).
+  const [detailNonce, setDetailNonce] = useState(0);
   const [detailEventContext, setDetailEventContext] = useState<{ dateLabel: string; timeLabel: string } | null>(
     null
   );
-  const detailActivity = detail ? lib.byId[detail.id] || detail : null;
+  // In create mode `detail` is a fresh draft not in the catalog, so it must
+  // pass through verbatim; otherwise track the live catalog record by id.
+  const detailActivity = detail
+    ? detailMode === "create"
+      ? detail
+      : lib.byId[detail.id] || detail
+    : null;
   const activityDeepLinkOpenedRef = useRef(false);
+
+  const closeDetail = useCallback(() => {
+    setDetail(null);
+    setDetailMode("view");
+    setDetailStartEdit(false);
+    setDetailEventContext(null);
+  }, []);
 
   useEffect(() => {
     if (activityDeepLinkOpenedRef.current) return;
@@ -359,11 +437,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     if (!activityId || !lib.byId[activityId]) return;
     activityDeepLinkOpenedRef.current = true;
     setTab("library");
+    setDetailMode("view");
+    setDetailStartEdit(false);
+    setDetailEventContext(null);
+    setDetailNonce((n) => n + 1);
     setDetail(lib.byId[activityId]);
   }, [lib.byId]);
 
   const openDetail = useCallback((activity: Activity) => {
+    setDetailMode("view");
+    setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
 
@@ -375,15 +460,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }, []);
 
   const openDetailFromEvent = useCallback((activity: Activity, calEvent: CalendarEvent) => {
+    setDetailMode("view");
+    setDetailStartEdit(false);
     setDetailEventContext({
       dateLabel: formatEventDateLabel(calEvent.date),
       timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
     });
+    setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
-
-  // The in-Library add/edit sheet. null = closed; { activity: null } = adding new.
-  const [editorSheet, setEditorSheet] = useState<{ activity: Activity | null } | null>(null);
 
   // The desktop calendar shares the left sidebar: CalendarShell portals its
   // activity library into this slot (the same place the Library filters live).
@@ -395,32 +480,50 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [printRail, setPrintRail] = useState<HTMLDivElement | null>(null);
   const printRailRef = useCallback((node: HTMLDivElement | null) => setPrintRail(node), []);
 
+  // Create: open the ONE surface blank, in edit mode, on a fresh draft activity
+  // (built from BLANK_FORM so the read-mode preview/tint is coherent before the
+  // first keystroke). No separate listed-view form remains.
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
-    setEditorSheet({ activity: null });
+    setDetailEventContext(null);
+    setDetailStartEdit(false);
+    setDetailMode("create");
+    setDetailNonce((n) => n + 1);
+    setDetail(activityFromForm(BLANK_FORM, "draft-activity"));
   }
 
+  // Edit: open the SAME surface on the existing activity, straight in edit mode.
   function editActivity(activity: Activity) {
     if (!requireStaff("edit activities")) return;
-    setDetail(null);
-    setEditorSheet({ activity });
+    setDetailEventContext(null);
+    setDetailMode("view");
+    setDetailStartEdit(true);
+    setDetailNonce((n) => n + 1);
+    setDetail(activity);
   }
 
-  function submitEditorSheet(activity: Activity, runDoc?: RunDoc, themeId?: string | null) {
-    const isEditing = Boolean(editorSheet?.activity);
+  // Save from the unified surface. Create adds; edit updates. Theme is assigned
+  // off the returned themeId either way (unchanged save contract).
+  function submitDetail(activity: Activity, runDoc: RunDoc, themeId: string | null) {
+    const isEditing = detailMode !== "create";
     const ok = isEditing ? lib.updateActivity(activity, runDoc) : lib.addActivity(activity, runDoc);
     if (!ok) return;
     lib.assignTheme(activity.id, themeId ?? null);
-    if (!isEditing) {
+    if (isEditing) {
+      // Stay on the surface in browse mode, now showing the live catalog record.
+      setDetailMode("view");
+      setDetailStartEdit(false);
+      setDetail(activity);
+    } else {
       setCat("All");
       lib.setView("catalog");
       setTab("library");
+      closeDetail();
     }
-    setEditorSheet(null);
   }
 
   function deleteActivity(activity: Activity) {
-    if (lib.deleteActivity(activity)) setDetail(null);
+    if (lib.deleteActivity(activity)) closeDetail();
   }
 
   function duplicateActivity(activity: Activity) {
@@ -547,7 +650,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         </nav>
 
         <main className="app__main" id="main">
-          {tabLoading && <LoadingVeil className="app__veil" label="One moment…" decorative />}
+          {veil != null && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
           {tab === "library" && <h1 className="sr-only">Library</h1>}
 
@@ -570,6 +673,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onStaffSignIn={openSignInPrompt}
               onStaffSignUp={openSignUpPrompt}
               onOpenAccount={() => setTab("staff")}
+              hasLoaded={cloud.hasLoaded}
             />
           )}
 
@@ -606,6 +710,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onToggleFav={lib.toggleFav}
               onContextMenu={(activity, e) => libMenu.open(e, activity)}
               onAdd={openAddActivity}
+              hasLoaded={cloud.hasLoaded}
             />
           )}
 
@@ -628,6 +733,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 announce={setLiveMsg}
                 railSlot={calRail}
                 themeOf={lib.themeOf}
+                onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 dayWindow={calendarDayWindow}
                 headerActions={
@@ -688,6 +794,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onMode={setStaffTabMode}
               onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
               onSignOut={() => auth.signOut("/")}
+              events={calendarEvents}
+              allEvents={cloud.events}
+              runLists={cloud.docs.runLists}
+              byId={lib.byId}
+              hasLoaded={cloud.hasLoaded}
+              syncStatus={cloud.status}
+              pendingCount={cloud.pendingCount}
+              isAdmin={isAdmin}
+              onOpenInvites={() => setTab("admin")}
+              activeCamp={campKit.activeCamp}
+              campCount={campKit.camps.length}
             />
           )}
         </main>
@@ -768,32 +885,21 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onClose={() => setCampsManagerOpen(false)}
           />
         )}
-        {editorSheet && (
-          <ActivityEditorSheet
-            editing={editorSheet.activity}
-            initialRunDoc={editorSheet.activity ? lib.resolveRunDoc(editorSheet.activity) : null}
-            onClose={() => setEditorSheet(null)}
-            onSubmit={submitEditorSheet}
-            ageUnit={ageUnit}
-            onAgeUnit={setAgeUnit}
-            themeKit={{
-              themes: lib.themes,
-              initialThemeId: editorSheet.activity ? lib.themeAssignments[editorSheet.activity.id] ?? "" : "",
-              onCreate: lib.createTheme,
-            }}
-          />
-        )}
         {detailActivity && (
           <DetailSheet
+            // Remount per open action so the form/play-doc drafts re-seed
+            // cleanly when the surface switches what (or how) it's showing.
+            key={"detail-" + detailNonce}
             activity={detailActivity}
+            mode={detailMode}
+            startEditing={detailStartEdit}
             isFav={lib.isFav}
             onToggleFav={lib.toggleFav}
             onClose={() => {
-              setDetail(null);
-              setDetailEventContext(null);
+              closeDetail();
               setPrintActivityId(null); // a stale book never outlives its viewer
             }}
-            onEdit={editActivity}
+            onSubmit={isSignedIn ? submitDetail : undefined}
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
@@ -802,6 +908,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSetRating={isSignedIn ? lib.setRating : undefined}
             onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}
+            themeKit={{
+              themes: lib.themes,
+              initialThemeId: detailMode === "create" ? "" : lib.themeAssignments[detailActivity.id] ?? "",
+              onCreate: lib.createTheme,
+            }}
+            ageUnit={ageUnit}
+            onAgeUnit={setAgeUnit}
             eventContext={detailEventContext ?? undefined}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
             theme={lib.themeOf(detailActivity.id)}
