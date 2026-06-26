@@ -178,6 +178,7 @@ export function CalendarShell({
   headerActions,
   themeOf,
   onReady,
+  playEntrance,
 }: {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
@@ -222,6 +223,13 @@ export function CalendarShell({
    *  paint. Lets the host hold a loading veil over the mount/layout-settle gap
    *  rather than dropping it on a blind timer. Idempotent on the caller's side. */
   onReady?: () => void;
+  /** Flips true the moment the host's loading veil CLEARS (the reveal beat). The
+   *  grid mounts + settles BEHIND that veil, so an entrance played on mount would
+   *  be invisible — this prop is the cue to play the flip-open + populate exactly
+   *  when it can be seen. Plays once per mount; later flips are ignored (the entry
+   *  window self-clears, and FullCalendar's scroll/zoom/drag DOM rebuilds never
+   *  re-trigger it). */
+  playEntrance?: boolean;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -282,6 +290,24 @@ export function CalendarShell({
     firedReadyRef.current = true;
     onReadyRef.current?.();
   }, []);
+  // The reveal entrance — a brief "the calendar flips open and its events settle
+  // in" window. It MUST play when the host's veil lifts (playEntrance), not on
+  // mount: the grid mounts + settles behind the veil, so a mount-time animation
+  // would be invisible. `entering` is true only across the ~600ms entry window
+  // and gates the CSS — the frame's open-from-top reveal and a per-event stagger
+  // both hang off the .is-entering class on .calshell__grid. Because the class is
+  // present ONLY in that window, FullCalendar's later DOM rebuilds (scroll
+  // re-anchor / pinch-zoom / drag) never re-animate. Plays exactly once per mount.
+  const CAL_ENTRANCE_MS = 600;
+  const [entering, setEntering] = useState(false);
+  const enteredRef = useRef(false);
+  useEffect(() => {
+    if (!playEntrance || enteredRef.current) return;
+    enteredRef.current = true;
+    setEntering(true);
+    const id = window.setTimeout(() => setEntering(false), CAL_ENTRANCE_MS);
+    return () => window.clearTimeout(id);
+  }, [playEntrance]);
   const [activeView, setActiveView] = useState<ViewKey>("timeGridWeek");
   // How many days the active timed view sizes to fit the viewport (the zoom).
   const targetDays = targetDaysFor(activeView);
@@ -2050,11 +2076,19 @@ export function CalendarShell({
           className={
             "calshell__grid" +
             (isMonthView ? "" : " calshell__grid--strip") +
-            (shadeWeekends ? " is-shade-weekends" : "")
+            (shadeWeekends ? " is-shade-weekends" : "") +
+            (entering ? " is-entering" : "")
           }
           onScroll={isMonthView ? undefined : onGridScroll}
           onContextMenu={onGridContextMenu}
         >
+          {/* FullCalendar's own outer .fc element is what the reveal entrance
+              scales open from the top — NOT .calshell and NOT .calshell__grid
+              (which holds the drag clone below). .fc is a SIBLING of the clone, so
+              transforming it never becomes the clone's containing block. The
+              transform is transient (no fill-mode) and only applied while the
+              .is-entering window is open, so it ends at identity. See the
+              `.calshell__grid.is-entering .fc` rule in calendar.css. */}
           {calendarEl}
           {/* The free-following "card in hand" during a drag: a full-opacity
               clone of the event that tracks the raw cursor (the snapped dotted

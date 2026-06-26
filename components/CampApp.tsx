@@ -162,6 +162,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // A fresh raise of the calendar veil arms a new max-timeout — bump this so the
   // safety effect re-runs on every return, not just the first.
   const [calVeilNonce, setCalVeilNonce] = useState(0);
+  // True the moment the calendar veil CLEARS (the reveal beat) — the entrance
+  // animation can only be seen once the veil lifts, so this is what CalendarShell
+  // plays its flip-open + populate on (see playEntrance below). Reset to false
+  // SYNCHRONOUSLY on a fresh raise so a returning mount re-earns its reveal and a
+  // stale-true render can't fire the entrance before the new grid paints.
+  const [calRevealed, setCalRevealed] = useState(false);
   const setTab = useCallback((value: TabId | ((prev: TabId) => TabId)) => {
     // Raise the veil in the SAME render as the tab change so it paints over the
     // mount. Functional updaters (the phone redirect / activity deep-link) resolve
@@ -173,6 +179,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         setVeil(next);
         if (next === "calendar") {
           setCalShellReady(false);
+          setCalRevealed(false);
           setCalVeilNonce((n) => n + 1);
         }
       } else {
@@ -193,7 +200,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const CAL_VEIL_MAX_MS = 1500;
   useEffect(() => {
     if (veil !== "calendar") return;
-    const id = window.setTimeout(() => setVeil((v) => (v === "calendar" ? null : v)), CAL_VEIL_MAX_MS);
+    const id = window.setTimeout(() => {
+      setVeil((v) => (v === "calendar" ? null : v));
+      setCalRevealed(true);
+    }, CAL_VEIL_MAX_MS);
     return () => window.clearTimeout(id);
   }, [veil, calVeilNonce]);
   const auth = usePreviewAuth();
@@ -297,6 +307,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   useEffect(() => {
     if (veil === "calendar" && calShellReady && cloud.hasLoaded) {
       setVeil((v) => (v === "calendar" ? null : v));
+      // The veil is lifting on a settled, populated grid — this is the reveal
+      // beat, so cue CalendarShell's flip-open + populate entrance now (the only
+      // moment it would actually be visible).
+      setCalRevealed(true);
     }
   }, [veil, calShellReady, cloud.hasLoaded]);
   const lib = useActivityLibrary({ cloud, requireStaff, announce: setLiveMsg });
@@ -684,6 +698,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 railSlot={calRail}
                 themeOf={lib.themeOf}
                 onReady={onCalendarReady}
+                playEntrance={calRevealed}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 dayWindow={calendarDayWindow}
                 headerActions={
