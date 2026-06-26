@@ -108,16 +108,18 @@ export const CampIcon = {
     <>
       <rect x="4" y="5.5" width="16" height="15" />
       <path d="M4 9.5h16" />
-      {/* Date dots — shown at rest (a calendar always has its dates). The old
-          page-fold + staggered dot cascade was the "wiggle"; the icon now just
-          gives one calm settle on hover (see globals.css §cicon--cal). */}
+      {/* New-month date dots — pop in (populate) as the page settles on hover. */}
       <g className="cicon-cal__dots">
-        <circle cx="8" cy="13" r="0.9" />
-        <circle cx="12" cy="13" r="0.9" />
-        <circle cx="16" cy="13" r="0.9" />
-        <circle cx="8" cy="16.5" r="0.9" />
-        <circle cx="12" cy="16.5" r="0.9" />
+        <circle cx="8" cy="13" r="0.9" style={{ "--i": 0 } as React.CSSProperties} />
+        <circle cx="12" cy="13" r="0.9" style={{ "--i": 1 } as React.CSSProperties} />
+        <circle cx="16" cy="13" r="0.9" style={{ "--i": 2 } as React.CSSProperties} />
+        <circle cx="8" cy="16.5" r="0.9" style={{ "--i": 3 } as React.CSSProperties} />
+        <circle cx="12" cy="16.5" r="0.9" style={{ "--i": 4 } as React.CSSProperties} />
       </g>
+      {/* The turning page: a full sheet hinged at the header rule that flips down
+          on hover to reveal the grid — "the calendar opens and the events
+          populate" beneath it (see globals.css §cicon--cal). */}
+      <path className="cicon-cal__leaf" d="M4 9.5h16V20H4z" />
       <path className="cicon-cal__rings" d="M8.5 3.5v4M15.5 3.5v4" />
     </>,
     "cal"
@@ -229,14 +231,16 @@ export const CampIcon = {
       <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
       {/* status dot */}
       <path d="M17.5 11.5h.01" />
-      {/* output page — a clean (unfilled) page with one short print line so it
-          reads as a printed sheet, not a heavy slab. Parked inside the body at
-          rest (above the lip, clipped away); feeds DOWN on hover to emerge below
-          the front lip. Clipped to the output window so its body never shows
-          through the printer body. */}
+      {/* output page — a clean (unfilled) page. Parked inside the body at rest
+          (above the lip, clipped away) so the icon reads as a plain printer. On
+          hover it feeds DOWN to emerge below the front lip, and the print lines
+          DRAW IN (left→right, staggered) as it comes out — "the page prints and
+          the text populates." Clipped to the output window so its body never
+          shows through the printer body. (see globals.css §cicon--print) */}
       <g className="cicon-print__sheet" clipPath="url(#cicon-print-slot)">
-        <rect className="cicon-print__page" x="8" y="7" width="8" height="6.6" rx="0.6" />
-        <path className="cicon-print__line" d="M9.8 10.6h4.4" />
+        <rect className="cicon-print__page" x="8" y="6.4" width="8" height="7.2" rx="0.6" />
+        <path className="cicon-print__line" style={{ "--i": 0 } as React.CSSProperties} d="M9.8 9.6h4.4" />
+        <path className="cicon-print__line" style={{ "--i": 1 } as React.CSSProperties} d="M9.8 11.4h2.9" />
       </g>
     </>,
     "print"

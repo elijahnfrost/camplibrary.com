@@ -6054,24 +6054,92 @@ body {
   transition-delay: calc(0.12s + var(--i) * 55ms);
 }
 
-/* --- Calendar: calmed icon — dates always visible, one settle boop on hover -- */
+/* --- Calendar: the page turns and the month populates --------------------
+   On hover the full sheet flips down off its top hinge (the header rule) — a
+   page turning — while a fresh month's date dots pop in beneath it and the
+   binder rings hop. At rest the icon is a clean outlined calendar (leaf
+   transparent, dots hidden); the motion is the whole point ("it opens and the
+   events populate"). */
 .cicon--cal {
-  overflow: visible;
+  perspective: 60px;
+}
+.cicon--cal .cicon-cal__leaf {
+  transform-origin: 50% 0%; /* hinge along the header rule (top of the sheet) */
+  /* Transparent at rest so the icon is just a clean outlined calendar on ANY
+     surface; a faint paper face only shows while the page is mid-turn. */
+  fill: currentColor;
+  fill-opacity: 0;
+  stroke: none;
 }
 .cicon--cal .cicon-cal__dots {
   fill: currentColor;
   stroke: none;
 }
-/* Fire the boop only on non-active buttons. On the active nav item the `:hover`
-   state can stick after click (focus bleed, browser quirk) making the mid-animation
-   pose appear frozen — suppress it there since active tabs don't need hover feedback. */
-:where(button, a, summary, label, [role="button"]):not(.is-active):hover .cicon--cal {
-  animation: cicon-settle 0.3s var(--ease);
+.cicon--cal .cicon-cal__dots circle {
+  transform-origin: 50% 50%;
+  transform: scale(0);
+  opacity: 0;
 }
-/* A tiny one-shot boop — up a hair and back. Shared by the calmed nav icons. */
-@keyframes cicon-settle {
-  50% {
-    transform: translateY(-1.8px);
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__leaf {
+  animation: cicon-cal-flip 0.7s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover
+  .cicon--cal
+  .cicon-cal__dots
+  circle {
+  animation: cicon-cal-dot 0.4s var(--ease) calc(0.2s + var(--i) * 45ms) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__rings {
+  animation: cicon-cal-rings 0.7s var(--ease) both;
+}
+@keyframes cicon-cal-flip {
+  0% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+  15% {
+    fill-opacity: 0.16;
+  }
+  /* the page peels down and forward off the top hinge, revealing the grid */
+  55% {
+    transform: rotateX(85deg);
+    fill-opacity: 0.16;
+  }
+  70% {
+    transform: rotateX(92deg);
+    fill-opacity: 0;
+  }
+  /* a fresh page swings back and settles flat, fading out to the clean outline */
+  88% {
+    transform: rotateX(64deg);
+    fill-opacity: 0.12;
+  }
+  100% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+}
+@keyframes cicon-cal-dot {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cicon-cal-rings {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-2px);
   }
 }
 
@@ -6331,17 +6399,36 @@ body {
 .cicon--print .cicon-print__page {
   fill: none;
 }
+/* The print lines draw in from the left as the page emerges. Hidden (scaled to
+   nothing) at rest; `both` holds them collapsed through the feed's lead-in, then
+   they stroke on left→right, staggered by --i — text being laid down. */
+.cicon--print .cicon-print__line {
+  transform-origin: left center;
+}
 :where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
   .cicon--print
   .cicon-print__sheet {
-  animation: cicon-print-feed 0.46s var(--ease-overlay) both;
+  animation: cicon-print-feed 0.5s var(--ease-overlay) both;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
+  .cicon--print
+  .cicon-print__line {
+  animation: cicon-print-ink 0.26s var(--ease) calc(0.24s + var(--i) * 0.1s) both;
 }
 @keyframes cicon-print-feed {
   from {
     transform: translateY(0);
   }
   to {
-    transform: translateY(7.2px);
+    transform: translateY(7.5px);
+  }
+}
+@keyframes cicon-print-ink {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 
@@ -6389,6 +6476,16 @@ body {
      printer at rest (the !important beats the hover rule). */
   .cicon--print .cicon-print__sheet {
     transform: translateY(0) !important;
+  }
+  /* Calendar: no page-turn; show a normal static calendar with its dates
+     visible (the animated version hides dots until hover, which would leave a
+     reduced-motion user with a permanently bare icon). */
+  .cicon--cal .cicon-cal__leaf {
+    fill-opacity: 0 !important;
+  }
+  .cicon--cal .cicon-cal__dots circle {
+    transform: scale(1) !important;
+    opacity: 1 !important;
   }
 }
 
