@@ -985,7 +985,9 @@ body.is-cal-copy .cal-dragfollow::after {
   align-items: center;
   height: var(--control-sm);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  /* A full pill so it matches the MiniSeg sharing this ledger row (also --r-pill)
+     instead of carrying a stray --r-md on the same line. */
+  border-radius: var(--r-pill);
   background: var(--card);
   padding: var(--s-1);
   gap: var(--s-1);
@@ -998,13 +1000,16 @@ body.is-cal-copy .cal-dragfollow::after {
   height: 100%;
   border: 0;
   background: transparent;
-  border-radius: var(--r-sm);
+  /* Round to a pill so the hover wash follows the container pill, matching the
+     MiniSeg's pill-on-pill buttons on the same ledger row. */
+  border-radius: var(--r-pill);
   color: var(--ink-soft);
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 .daysstepper__btn:hover:not(:disabled) {
-  background: var(--paper-2);
+  /* Canonical flat-hover fill (semantic role), not the raw --paper-2 it aliases. */
+  background: var(--chrome-well);
   color: var(--ink);
 }
 .daysstepper__btn:disabled {
@@ -1070,7 +1075,9 @@ body.is-cal-copy .cal-dragfollow::after {
   margin-right: var(--s-1);
   border: 0;
   background: transparent;
-  border-radius: var(--r-sm);
+  /* It's described as a pill and its hover is a wash — round it to a true pill so
+     the widget stops mixing a stray --r-sm into its rounded vocabulary. */
+  border-radius: var(--r-pill);
   font-family: var(--hand-sc);
   font-size: var(--fs-label);
   color: var(--ink-soft);
@@ -1157,7 +1164,7 @@ body.is-cal-copy .cal-dragfollow::after {
   content: "";
   position: absolute;
   inset: 2px 0;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--indicator-band);
 }
 .cal-mini__day.is-band-start::before {
   left: 3px;
@@ -1196,8 +1203,8 @@ body.is-cal-copy .cal-dragfollow::after {
   transform: translateX(-50%);
   width: 3px;
   height: 3px;
-  border-radius: 50%;
-  background: var(--ink-soft);
+  border-radius: var(--r-round);
+  background: var(--indicator-dot);
 }
 .cal-mini__day.is-out .cal-mini__dot {
   background: var(--ink-faint);
