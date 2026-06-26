@@ -24,7 +24,7 @@ import { addDays, fromDateKey, todayKey } from "@/lib/calendar/dates";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { DEFAULT_PRINT_FORMAT, printFormatStorage, type PrintFormat, type PrintOptions } from "@/lib/print/options";
-import { selectEvents } from "@/lib/print/schedule";
+import { buildScheduleDays, selectEvents } from "@/lib/print/schedule";
 import { exportFilename } from "@/lib/print/filename";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
@@ -45,6 +45,11 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "pageBreakPerDay",
   "materialsRollup",
   "showThemes",
+  "showCover",
+  "fontScale",
+  "density",
+  "pageNumbers",
+  "sectionOrder",
 ];
 
 // Letter-page width in CSS px (8.5in × 96dpi) — drives zoom-to-fit so the page
@@ -92,13 +97,17 @@ export function PrintTab({
   const [title, setTitle] = useState("");
   // Individually-picked run sheets (additive to "Full run sheets"). Ephemeral.
   const [runSheetIds, setRunSheetIds] = useState<string[]>([]);
+  // Per-print content trims: days / individual events to leave OUT. Ephemeral —
+  // a persisted exclusion would silently drop content from a later range.
+  const [excludedDays, setExcludedDays] = useState<string[]>([]);
+  const [excludedEventIds, setExcludedEventIds] = useState<string[]>([]);
   // Mobile only: the controls open in a sheet (the sidebar rail is desktop-only,
   // mirroring the Calendar's view-settings sheet).
   const [optionsOpen, setOptionsOpen] = useState(false);
 
   const options: PrintOptions = useMemo(
-    () => ({ ...format, start, end, campId, title, runSheetIds }),
-    [format, start, end, campId, title, runSheetIds]
+    () => ({ ...format, start, end, campId, title, runSheetIds, excludedDays, excludedEventIds }),
+    [format, start, end, campId, title, runSheetIds, excludedDays, excludedEventIds]
   );
 
   const onChange = useCallback(
@@ -108,6 +117,8 @@ export function PrintTab({
       if (patch.campId !== undefined) setCampId(patch.campId);
       if (patch.title !== undefined) setTitle(patch.title);
       if (patch.runSheetIds !== undefined) setRunSheetIds(patch.runSheetIds);
+      if (patch.excludedDays !== undefined) setExcludedDays(patch.excludedDays);
+      if (patch.excludedEventIds !== undefined) setExcludedEventIds(patch.excludedEventIds);
       const formatPatch: Partial<PrintFormat> = {};
       for (const key of FORMAT_KEYS) {
         if (patch[key] !== undefined) (formatPatch as Record<string, unknown>)[key] = patch[key];
@@ -163,6 +174,20 @@ export function PrintTab({
     }
     return out;
   }, [data.events, data.byId, start, end, campId, campIds, options.includeAllDay]);
+
+  // The full day-by-day list (events sorted), BEFORE the per-print exclusion sets
+  // — so the content picker can show every day/event as a toggle. Mirrors the
+  // selection the document builds, minus exclusions.
+  const scheduleDays = useMemo(() => {
+    const selected = selectEvents(data.events, {
+      start,
+      end,
+      campId,
+      campIds,
+      includeAllDay: options.includeAllDay,
+    });
+    return buildScheduleDays(selected, start, end, options.includeEmptyDays);
+  }, [data.events, start, end, campId, campIds, options.includeAllDay, options.includeEmptyDays]);
 
   const campName = campId ? data.camps.find((c) => c.id === campId)?.name ?? null : null;
 
@@ -220,6 +245,8 @@ export function PrintTab({
       onChange={onChange}
       camps={data.camps}
       scheduledActivities={scheduledActivities}
+      scheduleDays={scheduleDays}
+      byId={data.byId}
     />
   );
   const breakSheetPdf = BREAK_SHEET_PDFS[options.color];

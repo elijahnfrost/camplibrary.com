@@ -117,6 +117,13 @@ function hasAllowedUnitEscape(value, inPrint) {
   if (/\b(?:calc|clamp|env)\(/i.test(value)) return true;
   if (/(^|[\s,(])-?\d*\.?\d+(%|fr|in)\b/i.test(value)) return true;
   if (inPrint && /(^|[\s,(])-?\d*\.?\d+pt\b/i.test(value)) return true;
+  // The print document (`.print-doc` / `pd-*`) is sized off a small set of
+  // PRINT-SCOPED custom props (`--pd-fs-*`, `--pd-pad`, `--pd-radius`, …) defined
+  // once on `.print-doc` and derived from the app scale via calc(pt). Referencing
+  // those vars is the intended, de-duplicated way to size print type/spacing/
+  // radius — bless it the same way --r-*/--s-*/--fs- tokens are blessed, so the
+  // pd- rules read as variables instead of scattered calc(pt)/in literals.
+  if (/\bvar\(--pd-[\w-]+\b/i.test(value)) return true;
   return false;
 }
 

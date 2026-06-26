@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { MAX_PRINT_DAYS, buildScheduleDays, enumerateDates, selectEvents, sortDayEvents } from "./schedule";
+import {
+  MAX_PRINT_DAYS,
+  applyExclusions,
+  buildScheduleDays,
+  enumerateDates,
+  selectEvents,
+  sortDayEvents,
+} from "./schedule";
 
 function ev(partial: Partial<CalendarEvent> & { id: string; date: string }): CalendarEvent {
   return {
@@ -126,5 +133,33 @@ describe("buildScheduleDays", () => {
     const days = buildScheduleDays(selected, "2026-01-16", "2026-01-18", true);
     expect(days.map((d) => d.date)).toEqual(["2026-01-16", "2026-01-17", "2026-01-18"]);
     expect(days[1].events).toEqual([]);
+  });
+});
+
+describe("applyExclusions", () => {
+  const days = [
+    { date: "2026-01-16", events: [ev({ id: "a", date: "2026-01-16" }), ev({ id: "b", date: "2026-01-16" })] },
+    { date: "2026-01-17", events: [ev({ id: "c", date: "2026-01-17" })] },
+  ];
+
+  it("returns the same list (identity) when nothing is excluded", () => {
+    expect(applyExclusions(days, [], [])).toBe(days);
+  });
+
+  it("drops a whole excluded day", () => {
+    const out = applyExclusions(days, ["2026-01-16"], []);
+    expect(out.map((d) => d.date)).toEqual(["2026-01-17"]);
+  });
+
+  it("drops only the excluded events from days that stay", () => {
+    const out = applyExclusions(days, [], ["a"]);
+    expect(out.map((d) => d.date)).toEqual(["2026-01-16", "2026-01-17"]);
+    expect(out[0].events.map((e) => e.id)).toEqual(["b"]);
+  });
+
+  it("applies day and event exclusions together", () => {
+    const out = applyExclusions(days, ["2026-01-17"], ["a"]);
+    expect(out.map((d) => d.date)).toEqual(["2026-01-16"]);
+    expect(out[0].events.map((e) => e.id)).toEqual(["b"]);
   });
 });

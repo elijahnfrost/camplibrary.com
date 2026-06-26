@@ -6078,232 +6078,11 @@ body {
   .app:has(.print-root) .print-root {
     display: block !important;
   }
-  .print-sheet {
-    display: block;
-    width: 100%;
-    color: #000;
-    background: #fff;
-    font-family: var(--text);
-    font-size: 10.5pt;
-    line-height: 1.32;
-  }
-  .print-header {
-    padding-bottom: 0.16in;
-    margin-bottom: 0.16in;
-    border-bottom: 1.5pt solid #000;
-    break-after: avoid;
-  }
-  .print-kicker {
-    display: block;
-    margin-bottom: 0.04in;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .print-header h1 {
-    margin: 0;
-    font-family: var(--script);
-    font-size: 30pt;
-    line-height: 0.9;
-  }
-  .print-header p {
-    margin: 0.08in 0 0;
-    max-width: 7in;
-    font-size: 10.5pt;
-  }
-  .print-facts {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1pt solid #000;
-    break-inside: avoid;
-  }
-  .print-fact {
-    min-height: 0.52in;
-    padding: 0.07in 0.09in;
-    border-right: 0.7pt solid #aaa;
-    border-bottom: 0.7pt solid #aaa;
-  }
-  .print-fact:nth-child(4n) {
-    border-right: 0;
-  }
-  .print-fact span {
-    display: block;
-    font-family: var(--hand-sc);
-    font-size: 7.4pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-fact strong {
-    display: block;
-    margin-top: 0.02in;
-    font-family: var(--hand);
-    font-size: 12pt;
-    line-height: 1;
-  }
-  .print-section {
-    margin-top: 0.18in;
-    break-inside: avoid;
-  }
-  .print-section h2 {
-    margin: 0 0 0.07in;
-    padding-top: 0.08in;
-    border-top: 0.8pt dashed #999;
-    font-family: var(--hand-sc);
-    font-size: 9pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .print-section p {
-    margin: 0;
-  }
-  .print-run-list {
-    display: grid;
-    gap: 0.12in;
-    margin-top: 0.18in;
-    counter-reset: print-step;
-  }
-  .print-run-heading {
-    margin: 0.12in 0 0.02in;
-    padding-top: 0.08in;
-    border-top: 0.8pt dashed #999;
-    font-family: var(--hand-sc);
-    font-size: 9pt;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    break-after: avoid;
-  }
-  .print-run-details {
-    margin-top: 0;
-  }
-  .print-run-step,
-  .print-run-note {
-    break-inside: avoid;
-  }
-  .print-run-step {
-    display: grid;
-    gap: 0.08in;
-    padding: 0.1in 0;
-    border-bottom: 0.7pt solid #bbb;
-  }
-  .print-run-step__main {
-    display: grid;
-    grid-template-columns: 0.26in minmax(0, 1fr);
-    gap: 0.08in;
-  }
-  .print-run-step__main::before {
-    counter-increment: print-step;
-    content: counter(print-step);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 0.22in;
-    height: 0.22in;
-    border: 0.8pt solid #000;
-    border-radius: 999px;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    line-height: 1;
-  }
-  .print-run-step__main span {
-    grid-column: 2;
-    font-family: var(--hand-sc);
-    font-size: 7.4pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-run-step__main p {
-    grid-column: 2;
-    margin: 0;
-    font-size: 11pt;
-    font-weight: 600;
-  }
-  .print-run-child {
-    margin-left: 0.34in;
-    padding: 0.07in 0.09in;
-    border-left: 2pt solid #999;
-    background: #fff;
-    break-inside: avoid;
-  }
-  .print-run-child h3,
-  .print-run-note h2 {
-    margin: 0 0 0.04in;
-    font-family: var(--hand-sc);
-    font-size: 8pt;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-  }
-  .print-run-child p,
-  .print-run-note p {
-    margin: 0;
-  }
-  .print-run-child small {
-    display: block;
-    margin-top: 0.03in;
-    overflow-wrap: anywhere;
-    font-size: 7.5pt;
-  }
-  .print-run-note {
-    padding: 0.08in 0;
-    border-bottom: 0.7pt solid #bbb;
-  }
-  .print-chip-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.06in;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .print-chip-list li {
-    padding: 0.03in 0.07in;
-    border: 0.7pt solid #555;
-    border-radius: 2pt;
-    font-family: var(--hand-sc);
-    font-size: 7.6pt;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
-  .print-steps {
-    margin: 0;
-    padding-left: 0.22in;
-  }
-  .print-steps li {
-    margin-bottom: 0.07in;
-    break-inside: avoid;
-  }
-  .print-two-col {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.22in;
-  }
-  .print-playbook .playbook {
-    margin-top: 0;
-  }
-  .print-playbook .playbook__intro,
-  .print-playbook .playbook__legend {
-    break-inside: avoid;
-  }
-  .print-playbook .playbook__editcue {
-    display: none !important;
-  }
-  .print-playbook .playbook__frames {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.12in;
-  }
-  .print-playbook .playbook-frame {
-    break-inside: avoid;
-  }
-  .print-playbook .playbook-field {
-    min-height: 0; /* beat the screen min-height so max-height + aspect win */
-    max-height: 2.2in;
-  }
-  /* A step carrying a multi-frame diagram can exceed a page — let it flow
-     (individual frames still avoid splitting). */
-  .print-run-step:has(.print-playbook) {
-    break-inside: auto;
-  }
-                            }
+  /* The single-activity book + the schedule run sheets now share the .print-doc /
+     pd- system (see the Print tab block below); the old bespoke `.print-*` grey
+     CSS that lived here was removed when ActivityBookPrint folded onto
+     RunSheetBody. The pd- break rules are emitted with that block. */
+}
 
 /* ============================================================
  * Planner calendar
@@ -8955,6 +8734,131 @@ button.rl-node {
   padding: 0 var(--s-4);
 }
 
+/* Section order — a short ordered ledger: a numbered chip, the section name, and
+   the up/down nudges, each row a quiet bordered card the same family as the
+   run-sheet results list. */
+.prail__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.prail__section {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.prail__sectionidx {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.prail__sectionlabel {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__sectionmove {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.prail__sectionmove button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.prail__sectionmove button:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--ink);
+}
+.prail__sectionmove button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.prail__sectionmove svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Content picker — the days in range, each a checkbox row that reveals its
+   events (also checkboxes). A compact, scannable include list. */
+.prail__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.prail__cday {
+  display: flex;
+  flex-direction: column;
+}
+.prail__crow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  cursor: pointer;
+}
+.prail__crow input {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.prail__crow--day .prail__cname {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.prail__crow--event {
+  padding-left: var(--s-6);
+}
+.prail__cname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__ccount,
+.prail__ctime {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
 /* "More options" — the set-once / niche settings folded behind ONE ledger row,
    the Library "Available kit" pattern: a <summary> that IS a ledger row (label
    left, chevron right) expanding a sub-ledger. Keeps the resting rail short. */
@@ -9101,17 +9005,61 @@ button.rl-node {
   margin: 0.18in 0;
   padding: 0.12in 0.14in;
   border: 1pt dashed var(--accent-light);
-  border-radius: calc(4pt);
+  border-radius: var(--pd-radius);
   background: color-mix(in srgb, var(--accent-light) 12%, var(--card));
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
   color: var(--ink-soft);
 }
 
-/* ---- The document itself (screen + print) ---- */
+/* ---- The print scale (PRINT-SCOPED custom props) ----
+   The print document used to scatter calc(<n>pt) font sizes and `in` box metrics
+   inline — a parallel physical-unit scale decoupled from the app's --fs-/--s-/--r-
+   tokens, so print read as a different document. These vars de-duplicate those
+   magic numbers ONCE and make the print scale TRACK the design system: each step
+   echoes an app --fs-/--s-/--r- relationship, re-expressed in print's native pt/in
+   so the page is sized in physical units yet the rhythm matches the live cards.
+
+   --pd-scale is the user-facing font-scale knob (the Print tab's "Text size"
+   control, 0.9–1.15): every type token multiplies through it, so the whole sheet
+   grows/shrinks in lockstep without touching any rule. --pd-pad-scale does the
+   same for the density control, scaling the box paddings/gaps. The cover/title
+   sizes also ride --pd-scale so headings track body text. */
 .print-doc {
+  /* Font scale (echoes --fs-: meta→title). 10.5pt body == the app's --fs-body
+     reference; the rest hold the same ratios as the px ladder, ×--pd-scale. */
+  --pd-scale: 1;
+  --pd-fs-micro: calc(7pt * var(--pd-scale)); /* ↔ --fs-micro: fact/cue eyebrows */
+  --pd-fs-meta: calc(7.5pt * var(--pd-scale)); /* ↔ --fs-meta: badges, inline facts */
+  --pd-fs-label: calc(8pt * var(--pd-scale)); /* ↔ --fs-label: small-caps labels */
+  --pd-fs-kicker: calc(8pt * var(--pd-scale)); /* the --hand-sc kicker / facts caps */
+  --pd-fs-ui: calc(9pt * var(--pd-scale)); /* ↔ --fs-ui: TLDR, secondary lines */
+  --pd-fs-body: calc(10.5pt * var(--pd-scale)); /* ↔ --fs-body: running copy */
+  --pd-fs-lead: calc(11pt * var(--pd-scale)); /* ↔ --fs-body-lg: step/event titles */
+  --pd-fs-head: calc(12pt * var(--pd-scale)); /* event names + fact values */
+  --pd-fs-dayhead: calc(11pt * var(--pd-scale)); /* day-section small-caps head */
+  --pd-fs-runtitle: calc(26pt * var(--pd-scale)); /* ↔ --fs-title: run-sheet title */
+  --pd-fs-covertitle: calc(32pt * var(--pd-scale)); /* ↔ --fs-display: cover title */
+
+  /* Spacing (echoes --s-, in print inches). --pd-pad-scale is the density knob. */
+  --pd-pad-scale: 1;
+  --pd-gap-xs: calc(0.02in * var(--pd-pad-scale)); /* ↔ --s-1 hairline */
+  --pd-gap-sm: calc(0.04in * var(--pd-pad-scale)); /* ↔ --s-2 */
+  --pd-gap: calc(0.06in * var(--pd-pad-scale)); /* ↔ --s-3 default gap */
+  --pd-gap-md: calc(0.08in * var(--pd-pad-scale)); /* ↔ --s-4 */
+  --pd-gap-lg: calc(0.1in * var(--pd-pad-scale)); /* ↔ --s-5/event row gap */
+  --pd-pad-y: calc(0.06in * var(--pd-pad-scale)); /* row vertical padding */
+  --pd-pad-x: calc(0.08in * var(--pd-pad-scale)); /* row horizontal padding */
+  --pd-block-gap: calc(0.12in * var(--pd-pad-scale)); /* ↔ --s-6 between blocks */
+  --pd-section-gap: calc(0.2in * var(--pd-pad-scale)); /* ↔ --s-7 between sections */
+  --pd-indent: calc(0.28in * var(--pd-pad-scale)); /* child block left inset */
+
+  /* Radius (echoes --r-). Print stays crisp, so these are small. */
+  --pd-radius: calc(2pt); /* ↔ --r-xs chips/badges */
+  --pd-spine: 3pt; /* the category tint spine — matches the live 3px card spine */
+
   color: var(--ink);
   font-family: var(--text);
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
   line-height: 1.34;
 }
 .print-doc--mono {
@@ -9120,7 +9068,7 @@ button.rl-node {
 .pd-kicker {
   display: block;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-kicker);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -9139,13 +9087,13 @@ button.rl-node {
 .pd-cover__title {
   margin: 0.02in 0 0;
   font-family: var(--script);
-  font-size: calc(32pt);
+  font-size: var(--pd-fs-covertitle);
   line-height: 0.95;
   color: var(--accent-ink);
 }
 .pd-cover__sub {
   margin: 0.06in 0 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-ui);
   color: var(--ink-soft);
 }
 .print-doc--mono .pd-cover {
@@ -9163,11 +9111,13 @@ button.rl-node {
   border: 1pt solid var(--line);
   border-left: 3pt solid var(--accent-light);
 }
-/* Screen-only: read the roll-up + facts grid as warm inset wells (print keeps
-   them as plain bordered tables on white). Scoped to the preview surface, which
-   never contains the printable .print-root. */
-.paged-preview .pd-rollup,
-.paged-preview .pd-facts--grid {
+/* Read the roll-up + facts grid as warm inset wells, the way the live facts/kit
+   cards do. Emitted on screen AND print (color mode only — mono keeps plain
+   bordered tables on white) via print-color-adjust:exact, so the preview is a
+   true WYSIWYG of the printed page rather than a tinted preview that drops to
+   white on paper. */
+.print-doc--color .pd-rollup,
+.print-doc--color .pd-facts--grid {
   background: color-mix(in srgb, var(--paper-2) 55%, var(--card));
 }
 .print-doc--mono .pd-rollup {
@@ -9176,7 +9126,7 @@ button.rl-node {
 .pd-rollup__head {
   margin: 0 0 0.06in;
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -9186,8 +9136,8 @@ button.rl-node {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.04in 0.18in;
-  font-size: calc(9.5pt);
+  gap: var(--pd-gap-sm) 0.18in;
+  font-size: var(--pd-fs-ui);
 }
 .pd-rollup__list li {
   display: flex;
@@ -9202,21 +9152,21 @@ button.rl-node {
 }
 .pd-rollup__count {
   margin-left: auto;
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   color: var(--ink-faint);
 }
 
 /* Day sections + events */
 .pd-day {
-  margin-top: 0.2in;
+  margin-top: var(--pd-section-gap);
 }
 .pd-day__head {
-  margin: 0 0 0.08in;
+  margin: 0 0 var(--pd-gap-md);
   padding-top: 0.07in;
   border-top: 1.5pt solid var(--accent);
   color: var(--accent-ink);
   font-family: var(--hand-sc);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-dayhead);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -9229,28 +9179,35 @@ button.rl-node {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.1in;
+  gap: var(--pd-gap-lg);
 }
+/* An event row reads as the calendar's .cal-card translated to paper: a category
+   tint SPINE on the left (--pd-spine == the card's 3px border-left), a --hand-sc
+   time, and a --hand title — the same visual contract, so an activity looks the
+   same in print as on the calendar. */
 .pd-event {
   display: grid;
   grid-template-columns: 1.3in minmax(0, 1fr);
-  gap: 0.12in;
-  padding: 0.06in 0;
+  gap: var(--pd-block-gap);
+  padding: var(--pd-pad-y) 0;
   border-bottom: 0.75pt solid var(--line);
 }
 .print-doc--color .pd-event {
-  padding-left: 0.1in;
-  border-left: 3pt solid var(--pd-tint, var(--line));
+  padding-left: var(--pd-pad-x);
+  border-left: var(--pd-spine) solid var(--pd-tint, var(--line));
 }
-/* Screen-only: a whisper of the category tint behind each event so the preview
-   reads like the calendar's tinted cards. Print keeps the spine-on-white look. */
-.paged-preview .print-doc--color .pd-event {
+/* A whisper of the category tint behind each event so it reads like the
+   calendar's tinted cards. Emitted on screen AND print (print-color-adjust:exact
+   in the print block) so the preview is a true WYSIWYG — the wash no longer
+   drops when the page actually prints. */
+.print-doc--color .pd-event {
   background: color-mix(in srgb, var(--pd-tint, transparent) 7%, var(--card));
 }
 .pd-event__time {
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.03em;
+  color: var(--ink-soft);
 }
 .pd-event__head {
   display: flex;
@@ -9259,18 +9216,20 @@ button.rl-node {
   gap: var(--s-3);
 }
 .pd-event__name {
-  font-weight: 700;
-  font-size: calc(12pt);
+  font-family: var(--hand);
+  font-weight: 600;
+  font-size: var(--pd-fs-head);
+  color: var(--ink);
 }
 .pd-event__type,
 .pd-event__theme {
   font-family: var(--hand-sc);
-  font-size: calc(7.5pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 0 0.05in;
   border: 0.75pt solid var(--line);
-  border-radius: calc(2pt);
+  border-radius: var(--pd-radius);
 }
 .print-doc--color .pd-event__type {
   color: #fff;
@@ -9294,7 +9253,7 @@ button.rl-node {
 }
 .pd-event__blurb {
   margin: 0.04in 0 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-facts--inline {
   list-style: none;
@@ -9302,9 +9261,9 @@ button.rl-node {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.02in 0;
+  gap: var(--pd-gap-xs) 0;
   font-family: var(--hand-sc);
-  font-size: calc(7.8pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -9323,19 +9282,19 @@ button.rl-node {
 .pd-tldr__steps {
   margin: 0;
   padding-left: 0.2in;
-  font-size: calc(9.5pt);
+  font-size: var(--pd-fs-ui);
 }
 .pd-tldr__steps li {
-  margin-bottom: 0.02in;
+  margin-bottom: var(--pd-gap-xs);
 }
 .pd-tldr__line {
   margin: 0.04in 0 0;
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
 }
 .pd-tldr__line span {
   margin-right: 0.05in;
   font-family: var(--hand-sc);
-  font-size: calc(7pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -9348,7 +9307,7 @@ button.rl-node {
 /* Empty states */
 .pd-empty {
   margin: 0.04in 0 0;
-  font-size: calc(9.5pt);
+  font-size: var(--pd-fs-ui);
   font-style: italic;
   color: var(--ink-faint);
 }
@@ -9361,7 +9320,7 @@ button.rl-node {
 .pd-runsheets__head {
   margin: 0.3in 0 0.1in;
   font-family: var(--hand-sc);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-dayhead);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--accent-ink);
@@ -9370,13 +9329,13 @@ button.rl-node {
   margin-top: 0.24in;
 }
 .pd-runsheet__head {
-  padding-bottom: 0.1in;
+  padding-bottom: var(--pd-gap-lg);
   border-bottom: 1.5pt solid var(--accent);
 }
 .pd-runsheet__title {
   margin: 0.02in 0 0;
   font-family: var(--script);
-  font-size: calc(26pt);
+  font-size: var(--pd-fs-runtitle);
   line-height: 0.95;
   color: var(--accent-ink);
 }
@@ -9389,12 +9348,12 @@ button.rl-node {
 }
 .pd-runsheet__blurb {
   margin: 0.06in 0 0;
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
 }
 /* "Also called …" alias line on the printed run sheet — quiet, under the title. */
 .pd-runsheet__aka {
   margin: 0.05in 0 0;
-  font-size: calc(8.5pt);
+  font-size: var(--pd-fs-label);
   color: var(--ink-faint);
 }
 .pd-facts--grid {
@@ -9404,7 +9363,7 @@ button.rl-node {
   border: 1pt solid currentColor;
 }
 .pd-fact {
-  padding: 0.06in 0.08in;
+  padding: var(--pd-pad-y) var(--pd-pad-x);
   border-right: 0.7pt solid var(--line);
   border-bottom: 0.7pt solid var(--line);
 }
@@ -9414,7 +9373,7 @@ button.rl-node {
 .pd-fact span {
   display: block;
   font-family: var(--hand-sc);
-  font-size: calc(7pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -9422,12 +9381,12 @@ button.rl-node {
   display: block;
   margin-top: 0.02in;
   font-family: var(--hand);
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-lead);
   line-height: 1;
 }
 .pd-run-list {
   display: grid;
-  gap: 0.1in;
+  gap: var(--pd-gap-lg);
   margin-top: 0.14in;
 }
 .pd-run-heading {
@@ -9435,67 +9394,67 @@ button.rl-node {
   padding-top: 0.07in;
   border-top: 0.8pt dashed var(--ink-faint);
   font-family: var(--hand-sc);
-  font-size: calc(9pt);
+  font-size: var(--pd-fs-ui);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .pd-step {
   display: grid;
-  gap: 0.06in;
-  padding: 0.08in 0;
+  gap: var(--pd-gap);
+  padding: var(--pd-gap-md) 0;
   border-bottom: 0.7pt solid var(--line);
 }
 .pd-step__main {
   display: grid;
-  gap: 0.02in;
+  gap: var(--pd-gap-xs);
 }
 .pd-step__cue {
   font-family: var(--hand-sc);
-  font-size: calc(7.4pt);
+  font-size: var(--pd-fs-micro);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .pd-step__main p {
   margin: 0;
-  font-size: calc(11pt);
+  font-size: var(--pd-fs-lead);
   font-weight: 600;
 }
 .pd-child {
-  margin-left: 0.28in;
-  padding: 0.06in 0.08in;
+  margin-left: var(--pd-indent);
+  padding: var(--pd-pad-y) var(--pd-pad-x);
   border-left: 2pt solid var(--line);
 }
 .pd-child h4 {
   margin: 0 0 0.03in;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .pd-child p {
   margin: 0;
-  font-size: calc(10pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-child small {
   display: block;
   margin-top: 0.03in;
   overflow-wrap: anywhere;
-  font-size: calc(7.5pt);
+  font-size: var(--pd-fs-meta);
 }
 .pd-run-note {
-  padding: 0.06in 0;
+  padding: var(--pd-pad-y) 0;
   border-bottom: 0.7pt solid var(--line);
 }
 .pd-run-note h3 {
   margin: 0 0 0.03in;
   font-family: var(--hand-sc);
-  font-size: calc(8pt);
+  font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .pd-run-note p {
   margin: 0;
-  font-size: calc(10.5pt);
+  font-size: var(--pd-fs-body);
 }
 .pd-chips {
   list-style: none;
@@ -9503,14 +9462,14 @@ button.rl-node {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.06in;
+  gap: var(--pd-gap);
 }
 .pd-chips li {
   padding: 0.02in 0.06in;
   border: 0.7pt solid var(--ink-faint);
-  border-radius: calc(2pt);
+  border-radius: var(--pd-radius);
   font-family: var(--hand-sc);
-  font-size: calc(7.6pt);
+  font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -9540,10 +9499,10 @@ button.rl-node {
   font-weight: 800;
 }
 .print-doc--plain .pd-cover__title {
-  font-size: calc(20pt);
+  font-size: calc(20pt * var(--pd-scale));
 }
 .print-doc--plain .pd-runsheet__title {
-  font-size: calc(17pt);
+  font-size: calc(17pt * var(--pd-scale));
 }
 .print-doc--plain .pd-kicker,
 .print-doc--plain .pd-day__head,

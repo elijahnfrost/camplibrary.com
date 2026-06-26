@@ -10,6 +10,8 @@ function opts(partial: Partial<PrintOptions>): PrintOptions {
     campId: null,
     title: "",
     runSheetIds: [],
+    excludedDays: [],
+    excludedEventIds: [],
     ...partial,
   };
 }

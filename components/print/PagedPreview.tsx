@@ -23,8 +23,7 @@ import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDo
 // Page geometry + the same break rules the printed sheet uses, handed to Paged.js
 // so pages match print. The visual pd-* look comes from globals.css (it applies
 // to the rendered page boxes — they live in the same document).
-const PAGED_CSS = `
-@page { size: 8.5in 11in; margin: 0.45in; }
+const PAGED_BREAKS = `
 .pd-day, .pd-event, .pd-step, .pd-child, .pd-rollup, .pd-facts--grid, .pd-playbook .playbook-frame, .pd-runsheet__head { break-inside: avoid; }
 .print-doc--paged .pd-day { break-before: page; }
 .print-doc--paged .pd-day:first-of-type { break-before: auto; }
@@ -35,6 +34,18 @@ const PAGED_CSS = `
 .pd-runsheet + .pd-runsheet { break-before: page; }
 .pd-runsheet:has(.pd-playbook) { break-inside: auto; }
 `;
+
+// The "Page N of M" footer — a Paged.js @page margin box (browsers don't honor
+// margin boxes for window.print(), so the real-print footer is left to the print
+// dialog's own headers/footers; this makes the PREVIEW show the numbering the
+// toggle promises). Only emitted when the doc is numbered.
+const PAGED_FOOTER = `
+@page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: var(--hand-sc); font-size: 8pt; color: #8a7f6a; } }
+`;
+
+function pagedCss(numbered: boolean): string {
+  return `@page { size: 8.5in 11in; margin: 0.45in; }\n${PAGED_BREAKS}${numbered ? PAGED_FOOTER : ""}`;
+}
 
 type Status = "loading" | "paged" | "fallback";
 
@@ -97,7 +108,11 @@ export function PagedPreview({
 
         const previewer = new Previewer();
         // Clone: Paged.js's parser mutates the nodes it's handed.
-        const flow = await previewer.preview(doc.cloneNode(true), [{ "paged-doc": PAGED_CSS }], holder);
+        const flow = await previewer.preview(
+          doc.cloneNode(true),
+          [{ "paged-doc": pagedCss(options.pageNumbers) }],
+          holder
+        );
 
         if (cancelled || runId !== runIdRef.current) {
           holder.remove();

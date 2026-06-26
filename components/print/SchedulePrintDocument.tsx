@@ -9,7 +9,7 @@
 // Modularity lives in `options`: the date range + camp pick what's printed; the
 // color / style / detail / append-run-sheets / rollup flags shape how.
 
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { fromDateKey } from "@/lib/calendar/dates";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
@@ -20,10 +20,15 @@ import type { Camp } from "@/lib/camps";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
-import { buildScheduleDays, selectEvents, type ScheduleDay } from "@/lib/print/schedule";
+import { applyExclusions, buildScheduleDays, selectEvents, type ScheduleDay } from "@/lib/print/schedule";
 import { hasSummaryContent, summarizeRunDoc, type RunSummary } from "@/lib/print/runSummary";
 import { buildTimelineDays, timelineFit, timelineWindow } from "@/lib/print/timeline";
-import type { PrintOptions } from "@/lib/print/options";
+import {
+  DOC_DENSITY_VALUE,
+  FONT_SCALE_VALUE,
+  type DocSection,
+  type PrintOptions,
+} from "@/lib/print/options";
 import { PrintRunSheet } from "./PrintRunSheet";
 import { CalendarTimeline } from "./CalendarTimeline";
 
@@ -203,8 +208,19 @@ export function SchedulePrintDocument({
       campIds,
       includeAllDay: options.includeAllDay,
     });
-    return buildScheduleDays(selected, options.start, options.end, options.includeEmptyDays);
-  }, [events, campIds, options.start, options.end, options.campId, options.includeAllDay, options.includeEmptyDays]);
+    const built = buildScheduleDays(selected, options.start, options.end, options.includeEmptyDays);
+    return applyExclusions(built, options.excludedDays, options.excludedEventIds);
+  }, [
+    events,
+    campIds,
+    options.start,
+    options.end,
+    options.campId,
+    options.includeAllDay,
+    options.includeEmptyDays,
+    options.excludedDays,
+    options.excludedEventIds,
+  ]);
 
   const resolve = useMemo(() => {
     return (event: CalendarEvent): ResolvedEvent => {
@@ -304,29 +320,81 @@ export function SchedulePrintDocument({
     options.style +
     " print-doc--" +
     options.layout +
-    (options.pageBreakPerDay ? " print-doc--paged" : "");
+    (options.pageBreakPerDay ? " print-doc--paged" : "") +
+    (options.pageNumbers ? " print-doc--numbered" : "");
+
+  // The print scale's two user-facing multipliers, set as CSS vars on the doc
+  // root so every pd- type/spacing token (which read --pd-scale / --pd-pad-scale)
+  // grows or tightens in lockstep — no per-rule edits.
+  const docStyle = {
+    "--pd-scale": FONT_SCALE_VALUE[options.fontScale],
+    "--pd-pad-scale": DOC_DENSITY_VALUE[options.density],
+  } as CSSProperties;
+
+  // The materials roll-up — one of the reorderable sections.
+  const rollupSection =
+    rollup.length > 0 ? (
+      <section className="pd-rollup" key="rollup">
+        <h2 className="pd-rollup__head">Materials for the range</h2>
+        <ul className="pd-rollup__list">
+          {rollup.map((item) => (
+            <li key={item.id}>
+              <span className="pd-rollup__box" aria-hidden="true" />
+              <span className="pd-rollup__label">{item.label}</span>
+              {item.count > 1 && <span className="pd-rollup__count">×{item.count}</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
+    ) : null;
+
+  // The day-by-day body (agenda or timeline) — the schedule section.
+  const scheduleSection =
+    eventCount === 0 && days.length === 0 ? (
+      <p className="pd-empty pd-empty--doc" key="schedule">
+        Nothing scheduled in this range.
+      </p>
+    ) : isTimeline ? (
+      <CalendarTimeline
+        key="schedule"
+        timelineDays={timelineDays}
+        win={timelineWin}
+        options={options}
+        resolve={timelineTint}
+      />
+    ) : (
+      <div className="pd-schedule" key="schedule">
+        {days.map((day) => (
+          <ScheduleDaySection key={day.date} day={day} resolve={resolve} options={options} summaries={summaries} />
+        ))}
+      </div>
+    );
+
+  // The appended full run sheets — the appendix section.
+  const appendixSection =
+    runSheetActivities.length > 0 ? (
+      <div className="pd-runsheets" key="appendix">
+        <h2 className="pd-runsheets__head">Run sheets</h2>
+        {runSheetActivities.map((activity) => (
+          <PrintRunSheet key={activity.id} activity={activity} runDoc={resolveRunDoc(activity)} />
+        ))}
+      </div>
+    ) : null;
+
+  const sectionNodes: Record<DocSection, ReactNode> = {
+    rollup: rollupSection,
+    schedule: scheduleSection,
+    appendix: appendixSection,
+  };
 
   const body = (
-    <div className={docClass}>
-      <header className="pd-cover">
-        <span className="pd-kicker">{campName || "Camp Library"}</span>
-        <h1 className="pd-cover__title">{heading}</h1>
-        {subtitleParts.length > 0 && <p className="pd-cover__sub">{subtitleParts.join(" · ")}</p>}
-      </header>
-
-      {rollup.length > 0 && (
-        <section className="pd-rollup">
-          <h2 className="pd-rollup__head">Materials for the range</h2>
-          <ul className="pd-rollup__list">
-            {rollup.map((item) => (
-              <li key={item.id}>
-                <span className="pd-rollup__box" aria-hidden="true" />
-                <span className="pd-rollup__label">{item.label}</span>
-                {item.count > 1 && <span className="pd-rollup__count">×{item.count}</span>}
-              </li>
-            ))}
-          </ul>
-        </section>
+    <div className={docClass} style={docStyle}>
+      {options.showCover && (
+        <header className="pd-cover">
+          <span className="pd-kicker">{campName || "Camp Library"}</span>
+          <h1 className="pd-cover__title">{heading}</h1>
+          {subtitleParts.length > 0 && <p className="pd-cover__sub">{subtitleParts.join(" · ")}</p>}
+        </header>
       )}
 
       {eventCount === 0 && wrap === "preview" && (
@@ -347,37 +415,7 @@ export function SchedulePrintDocument({
         </p>
       )}
 
-      {eventCount === 0 && days.length === 0 ? (
-        <p className="pd-empty pd-empty--doc">Nothing scheduled in this range.</p>
-      ) : isTimeline ? (
-        <CalendarTimeline
-          timelineDays={timelineDays}
-          win={timelineWin}
-          options={options}
-          resolve={timelineTint}
-        />
-      ) : (
-        <div className="pd-schedule">
-          {days.map((day) => (
-            <ScheduleDaySection
-              key={day.date}
-              day={day}
-              resolve={resolve}
-              options={options}
-              summaries={summaries}
-            />
-          ))}
-        </div>
-      )}
-
-      {runSheetActivities.length > 0 && (
-        <div className="pd-runsheets">
-          <h2 className="pd-runsheets__head">Run sheets</h2>
-          {runSheetActivities.map((activity) => (
-            <PrintRunSheet key={activity.id} activity={activity} runDoc={resolveRunDoc(activity)} />
-          ))}
-        </div>
-      )}
+      {options.sectionOrder.map((id) => sectionNodes[id])}
     </div>
   );
 
