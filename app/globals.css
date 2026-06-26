@@ -253,6 +253,7 @@ body {
   font-size: 15px;
 }
 .app__main {
+  position: relative; /* positioning context for the .app__veil loading cover */
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -8951,6 +8952,11 @@ button.rl-node {
   display: flex;
   justify-content: center;
   padding: var(--s-6);
+  /* Reserve height while status="loading" — the source is hidden and no pages
+     have rendered yet, so without a floor the box (and its absolute veil) would
+     collapse to nothing and the loading screen wouldn't be visible. Generalized
+     from the old mobile-only print preview floor so it holds at every width. */
+  min-height: 60vh;
 }
 /* The paginated view (Paged.js-owned). Parked off-screen until the first
    pagination lands so Paged.js can still measure it (display:none would zero its
@@ -9595,8 +9601,14 @@ button.rl-node {
   }
 }
 
-/* Tab-switch veil: a full-bleed paper cover over the main pane that fades out as
-   the new (often heavy) surface paints behind it, so the mount never flashes. */
+/* Loading veil: a full-bleed paper cover over the main pane while a heavy surface
+   mounts + settles. Dismissal is now READINESS-driven by the host (CampApp holds
+   it up until CalendarShell.onReady + cloud data load, or a print timer), so the
+   cover stays solid paper while mounted and simply unmounts when ready — the
+   surface's own fade-in (e.g. .calshell cal-enter) is the reveal. No auto-fade
+   here, so a slow mount can never let the veil melt off before the surface is up.
+   It paints over the main pane while a tab change is in flight, so it briefly
+   covers the OUTGOING surface too — accept that over a flash of an empty frame. */
 .loadveil.app__veil {
   position: absolute;
   inset: 0;
@@ -9604,15 +9616,13 @@ button.rl-node {
   justify-content: center;
   background: var(--paper);
   pointer-events: none;
-  animation: app-veil-out var(--t-slow) var(--ease) forwards;
 }
-@keyframes app-veil-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+/* Static variant — the dynamic-import `loading:` fallback uses the same solid
+   cover; kept as an explicit class so the chunk-download fallback reads clearly at
+   the call site, and it pins opacity in case any future .app__veil fade returns. */
+.loadveil.app__veil--static {
+  opacity: 1;
+  animation: none;
 }
 
 /* Print-preview veil: covers the canvas while Paged.js lays the first pages out,
@@ -9628,9 +9638,6 @@ button.rl-node {
 
 @media (prefers-reduced-motion: reduce) {
   .loadveil__bar {
-    animation: none;
-  }
-  .loadveil.app__veil {
     animation: none;
   }
 }

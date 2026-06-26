@@ -11,22 +11,21 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-  /* Gentle slide-up on first paint, so the calendar settles into place rather
-     than snapping in. Plays on mount (and on each return to the Calendar tab,
-     since the surface remounts). NO fill-mode: once it finishes the element
-     reverts to its base style with NO transform — a retained transform (even an
-     identity matrix from `both`) makes .calshell the containing block for
-     position:fixed, which offset overlays by a column. --ease-overlay curve. */
-  animation: cal-enter 360ms var(--ease-overlay);
+  /* The calendar mounts + lays out BEHIND the host's loading veil (CampApp holds
+     it until CalendarShell.onReady fires), so the grid is already settled when the
+     veil fades off — that fade IS the reveal. A short opacity-only fade-in covers
+     the seam if the veil clears a frame early; it is OPACITY ONLY (no transform).
+     A retained transform — even an identity matrix from animation-fill — would make
+     .calshell the containing block for the position:fixed overlays + the drag-follow
+     clone and offset them by a column, so no translate is used here. --ease curve. */
+  animation: cal-enter var(--t-slow) var(--ease);
 }
 @keyframes cal-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {

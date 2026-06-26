@@ -177,6 +177,7 @@ export function CalendarShell({
   dayWindow,
   headerActions,
   themeOf,
+  onReady,
 }: {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
@@ -215,6 +216,12 @@ export function CalendarShell({
   /** Resolves an activity's theme, for the per-event theme badge (events reflect
    *  their activity's theme). */
   themeOf: ThemeResolver;
+  /** Fired ONCE when the calendar has settled enough to reveal: after the
+   *  client-resolved view has mounted AND the first scroll-to-today realign has
+   *  run (the day-width effect's initial pass) — Month resolves on the same first
+   *  paint. Lets the host hold a loading veil over the mount/layout-settle gap
+   *  rather than dropping it on a blind timer. Idempotent on the caller's side. */
+  onReady?: () => void;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -264,6 +271,17 @@ export function CalendarShell({
   // The initial view resolves client-side (coarse pointer → Day); the grid
   // mounts only after resolution so phones never flash Week first.
   const [resolvedView, setResolvedView] = useState<ViewKey | null>(null);
+  // onReady fires exactly once, after the grid has mounted AND settled (Month: on
+  // first paint; strip: after the first scroll-to-today realign). The ref keeps
+  // the latest callback without re-arming the effect; the flag enforces once.
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const firedReadyRef = useRef(false);
+  const fireReady = useCallback(() => {
+    if (firedReadyRef.current) return;
+    firedReadyRef.current = true;
+    onReadyRef.current?.();
+  }, []);
   const [activeView, setActiveView] = useState<ViewKey>("timeGridWeek");
   // How many days the active timed view sizes to fit the viewport (the zoom).
   const targetDays = targetDaysFor(activeView);
@@ -1695,9 +1713,23 @@ export function CalendarShell({
     if (!didInitialScrollRef.current) {
       didInitialScrollRef.current = true;
       day = todayKey();
+      // The strip has measured and we're about to land on today — the grid is
+      // settled enough to reveal. Signal readiness so the host can drop the veil.
+      fireReady();
     }
     if (day) realignTo(day);
-  }, [dayWidth, realignTo]);
+  }, [dayWidth, realignTo, fireReady]);
+
+  // Month is laid out on its first paint (no horizontal day-width measure, so the
+  // strip's readiness path above never runs for it). Once the client-resolved view
+  // has mounted as Month, defer one frame past commit so the grid has painted,
+  // then signal readiness. fireReady is idempotent, so a later switch to the strip
+  // (which also calls it) is a no-op.
+  useEffect(() => {
+    if (resolvedView !== "dayGridMonth" || firedReadyRef.current) return;
+    const id = requestAnimationFrame(() => fireReady());
+    return () => cancelAnimationFrame(id);
+  }, [resolvedView, fireReady]);
 
   // When the strip re-anchors (or we re-enter it from Month), move FullCalendar's
   // rendered window and re-align the scroll so the view doesn't visibly jump.

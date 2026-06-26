@@ -13,6 +13,7 @@ import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
+import { LoadingVeil } from "./primitives";
 
 export function LibraryTab({
   view,
@@ -47,6 +48,7 @@ export function LibraryTab({
   onToggleFav,
   onContextMenu,
   onAdd,
+  hasLoaded = true,
 }: {
   view: LibraryView;
   onView: (view: LibraryView) => void;
@@ -80,6 +82,11 @@ export function LibraryTab({
   /** Right-click an activity card/row → context menu (pointer-fine only). */
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
   onAdd: () => void;
+  /** First-load readiness from the cloud store. The base catalog (the seed
+   *  library) is always present, so the list is rarely "loading" — but the
+   *  starred lens reads from synced favorites that arrive after a cold signed-in
+   *  bootstrap, so an empty starred view is shown as loading until then. */
+  hasLoaded?: boolean;
   /** Rendered at the right end of the toolbar (e.g. the auth pill). */
   actions?: ReactNode;
 }) {
@@ -202,6 +209,10 @@ export function LibraryTab({
                   Clear search
                 </button>
               </>
+            ) : starredOnly && !hasLoaded ? (
+              // Stars come from synced favorites that arrive after a cold signed-in
+              // bootstrap — show loading, not "no stars yet", until they land.
+              <LoadingVeil label="Loading your stars…" />
             ) : starredOnly ? (
               <>
                 <p className="library-empty__title">No starred activities yet.</p>

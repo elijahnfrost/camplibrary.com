@@ -45,11 +45,20 @@ import { useDeviceShape, DESKTOP_MIN } from "./useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the
-// loading veil. Client-only (both are "use client" components).
+// loading veil. Client-only (both are "use client" components). The `loading:`
+// fallback paints the SAME branded veil while the chunk downloads, so the gap
+// before the module arrives is never an empty `app__scroll` frame. It's a static
+// (non-auto-fade) variant — once the chunk lands, the host's own readiness veil
+// (calendar) or the PagedPreview veil (print) carries the rest of the settle.
+const ChunkVeil = () => <LoadingVeil className="app__veil app__veil--static" label="One moment…" decorative />;
 const CalendarShell = dynamic(() => import("./calendar/CalendarShell").then((m) => m.CalendarShell), {
   ssr: false,
+  loading: ChunkVeil,
 });
-const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab), { ssr: false });
+const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab), {
+  ssr: false,
+  loading: ChunkVeil,
+});
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
@@ -128,26 +137,65 @@ function StaffPromptModal({
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
-  // A brief, branded veil over the main pane while a new tab mounts — heavy
-  // surfaces (FullCalendar, the Paged.js preview) jank on first paint, so we
-  // fade them in behind a clean loading screen instead of flashing. The veil is
-  // started in the SAME render as the tab change (so it paints over the mount),
-  // then cleared on a short timer. Wrapping setTab means every nav path — the
-  // sidebar, the phone tabbar, and programmatic jumps — gets the transition.
-  const [tabLoading, setTabLoading] = useState(false);
+  // A branded veil over the main pane while a heavy surface mounts + settles —
+  // FullCalendar and the Paged.js preview jank on first paint, so we reveal them
+  // behind a clean loading screen instead of flashing an empty frame. The veil
+  // covers EVERY arrival at those surfaces (sidebar, phone tabbar, programmatic
+  // jumps, and the first land), so phone and desktop get the same treatment.
+  //
+  // `veil` holds which heavy tab is currently covered (null = no veil). The
+  // calendar's veil is dismissed by READINESS — CalendarShell.onReady fires once
+  // its view has mounted and the first scroll-to-today realign has run — with a
+  // generous max-timeout safety so a hang can never trap the user behind it.
+  // Print keeps a short timed cover for the chunk+mount gap; its real settle is
+  // carried by PagedPreview's own veil once the module is in.
+  const isHeavyTab = (id: TabId) => id === "calendar" || id === "print";
+  const [veil, setVeil] = useState<TabId | null>(() => (isHeavyTab(initialTab) ? initialTab : null));
+  // onReady has fired for the CURRENT calendar mount (grid laid out + landed on
+  // today). Half of the calendar veil's dismissal; the other half is the cloud
+  // data being loaded (the combined effect below). Reset SYNCHRONOUSLY the moment
+  // we raise the calendar veil — a fresh CalendarShell mount must re-earn its
+  // reveal, and resetting in an effect would leave a stale-true render that could
+  // dismiss the veil before the new mount paints.
+  const [calShellReady, setCalShellReady] = useState(false);
+  const onCalendarReady = useCallback(() => setCalShellReady(true), []);
+  // A fresh raise of the calendar veil arms a new max-timeout — bump this so the
+  // safety effect re-runs on every return, not just the first.
+  const [calVeilNonce, setCalVeilNonce] = useState(0);
   const setTab = useCallback((value: TabId | ((prev: TabId) => TabId)) => {
-    // Only the heavy surfaces (FullCalendar, the Paged.js preview) jank on first
-    // paint and need the veil; instant surfaces (Library/Home/Staff) switch with
-    // no veil. Functional updaters are programmatic jumps (the phone redirect) and
-    // skip it. The veil now also code-loads the dynamic chunk on first visit.
-    if (typeof value !== "function") setTabLoading(value === "calendar" || value === "print");
-    setTabRaw(value);
+    // Raise the veil in the SAME render as the tab change so it paints over the
+    // mount. Functional updaters (the phone redirect / activity deep-link) resolve
+    // the next tab so they get the same coverage as a direct tap. Switching AWAY
+    // from a heavy tab clears the veil immediately (instant surfaces never wait).
+    setTabRaw((prev) => {
+      const next = typeof value === "function" ? value(prev) : value;
+      if (isHeavyTab(next)) {
+        setVeil(next);
+        if (next === "calendar") {
+          setCalShellReady(false);
+          setCalVeilNonce((n) => n + 1);
+        }
+      } else {
+        setVeil(null);
+      }
+      return next;
+    });
   }, []);
+  // Print veil: a short timed cover for the chunk-download + mount gap. Once the
+  // module is in, PagedPreview's own veil carries the pagination settle.
   useEffect(() => {
-    if (!tabLoading) return;
-    const id = window.setTimeout(() => setTabLoading(false), 300);
+    if (veil !== "print") return;
+    const id = window.setTimeout(() => setVeil((v) => (v === "print" ? null : v)), 300);
     return () => window.clearTimeout(id);
-  }, [tabLoading, tab]);
+  }, [veil]);
+  // Calendar veil safety: a max-timeout so a layout hang (or a never-resolving
+  // bootstrap) can't trap the user behind the veil. Re-armed on each raise.
+  const CAL_VEIL_MAX_MS = 1500;
+  useEffect(() => {
+    if (veil !== "calendar") return;
+    const id = window.setTimeout(() => setVeil((v) => (v === "calendar" ? null : v)), CAL_VEIL_MAX_MS);
+    return () => window.clearTimeout(id);
+  }, [veil, calVeilNonce]);
   const auth = usePreviewAuth();
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
   const isSignedIn = signedInUserId != null;
@@ -241,6 +289,16 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   useEffect(() => {
     if (cloud.syncError) setLiveMsg(cloud.syncError);
   }, [cloud.syncError]);
+  // Dismiss the calendar veil once BOTH the grid has settled (calShellReady) AND
+  // the data is loaded (cloud.hasLoaded — true at once for anon/cached, held for a
+  // cold signed-in load until the bootstrap resolves). Revealing only when both
+  // are true means the calendar never flashes empty then pops events in. The
+  // max-timeout above is the backstop if either signal stalls.
+  useEffect(() => {
+    if (veil === "calendar" && calShellReady && cloud.hasLoaded) {
+      setVeil((v) => (v === "calendar" ? null : v));
+    }
+  }, [veil, calShellReady, cloud.hasLoaded]);
   const lib = useActivityLibrary({ cloud, requireStaff, announce: setLiveMsg });
   // Multiple camps: filters the calendar's event set + stamps new events. The
   // shared library and every other surface are camp-agnostic.
@@ -542,7 +600,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         </nav>
 
         <main className="app__main" id="main">
-          {tabLoading && <LoadingVeil className="app__veil" label="One moment…" decorative />}
+          {veil != null && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
           {tab === "library" && <h1 className="sr-only">Library</h1>}
 
@@ -565,6 +623,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onStaffSignIn={openSignInPrompt}
               onStaffSignUp={openSignUpPrompt}
               onOpenAccount={() => setTab("staff")}
+              hasLoaded={cloud.hasLoaded}
             />
           )}
 
@@ -601,6 +660,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onToggleFav={lib.toggleFav}
               onContextMenu={(activity, e) => libMenu.open(e, activity)}
               onAdd={openAddActivity}
+              hasLoaded={cloud.hasLoaded}
             />
           )}
 
@@ -623,6 +683,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 announce={setLiveMsg}
                 railSlot={calRail}
                 themeOf={lib.themeOf}
+                onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 dayWindow={calendarDayWindow}
                 headerActions={

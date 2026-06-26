@@ -44,6 +44,14 @@ type Docs = { [K in UserDocKey]: DocValueMap[K] };
 export interface CloudUserData {
   status: SyncStatus;
   pendingCount: number;
+  /** First-load readiness. False only for a signed-in user whose bootstrap GET
+   *  hasn't resolved yet AND who has no usable cached data — i.e. the window
+   *  where "empty" really means "still loading", not "genuinely empty". Goes true
+   *  once the bootstrap resolves (server truth, local-mode fallback, or an auth
+   *  block), once cached data is present, or immediately for anon visitors (their
+   *  localStorage hydrate is synchronous). Lets callers tell loading from empty
+   *  and gate cold-load empty-states / a loading veil. */
+  hasLoaded: boolean;
   /** Set when the server refused a write (a non-auth 4xx) so the change couldn't
    *  be saved — null when sync is healthy. Surfaced to the user, not silent. */
   syncError: string | null;
@@ -116,6 +124,10 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   const [status, setStatus] = useState<SyncStatus>(userId ? "syncing" : "local");
   const [pendingCount, setPendingCount] = useState(0);
   const [syncError, setSyncError] = useState<string | null>(null);
+  // First-load readiness (see CloudUserData.hasLoaded). Anon users are ready
+  // immediately (synchronous localStorage hydrate); a signed-in user starts
+  // unready and flips true once the bootstrap resolves or cached data is present.
+  const [hasLoaded, setHasLoaded] = useState(!userId);
 
   const docsRef = useRef(docs);
   const eventsRef = useRef(events);
@@ -307,9 +319,12 @@ export function useCloudUserData(userId: string | null): CloudUserData {
       return;
     }
     if (response.status === 401 || response.status === 403 || response.status === 503) {
-      // Not invite-accepted, or backend unconfigured: run in local mode.
+      // Not invite-accepted, or backend unconfigured: run in local mode. The
+      // cached data (if any) is all there is, so this is a terminal first-load
+      // state — mark ready so the veil/empty-state gate releases.
       authBlockedRef.current = response.status !== 503;
       setStatus("local");
+      setHasLoaded(true);
       return;
     }
     if (!response.ok) {
@@ -407,6 +422,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     persistEvents(nextEvents);
 
     bootstrappedRef.current = true;
+    setHasLoaded(true);
     attemptRef.current = 0;
     if (outboxRef.current.length) {
       scheduleFlush(0);
@@ -434,6 +450,16 @@ export function useCloudUserData(userId: string | null): CloudUserData {
 
     outboxRef.current = userId ? parseOutbox(readRaw(scopedStorageKey(scope, OUTBOX_LOCAL_KEY))) : [];
     setPendingCount(outboxRef.current.length);
+
+    // Readiness: anon hydrates synchronously above (ready now). A signed-in user
+    // with cached data (events OR a prior migration marker) can render that cache
+    // immediately while the bootstrap refreshes in the background — don't trap
+    // them behind the veil. A cold signed-in scope starts unready until bootstrap
+    // resolves, so callers can hold a loading treatment instead of flashing empty.
+    const hasCache =
+      Object.keys(cachedEvents).length > 0 ||
+      readRaw(scopedStorageKey(scope, MIGRATION_MARKER_KEY)) != null;
+    setHasLoaded(!userId || hasCache);
 
     bootstrappedRef.current = false;
     authBlockedRef.current = false;
@@ -593,6 +619,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   return {
     status,
     pendingCount,
+    hasLoaded,
     syncError,
     docs,
     setDoc,
