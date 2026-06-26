@@ -52,7 +52,7 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import { isColorMode, type ColorMode } from "@/lib/data";
+import { categoryTint, isColorMode, type ColorMode } from "@/lib/data";
 import { EVENT_LOCATION_OPTIONS, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import {
   applyMoveDelta,
@@ -76,13 +76,15 @@ import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
 import { ContextMenu } from "../floating/ContextMenu";
+import { FloatingLayer } from "../floating/FloatingLayer";
+import { ColorPickerBody } from "../floating/ColorField";
+import { LocationPickerList } from "../floating/LocationField";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { EventPopover } from "./EventPopover";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
-import { BulkEditPanel } from "./BulkEditPanel";
 
 // The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
 // "day"), so they list consecutive days from wherever you've scrolled and never
@@ -145,7 +147,18 @@ function targetDaysFor(view: ViewKey): number {
 }
 
 type PopoverState = { event: CalendarEvent; anchor: DOMRect };
-type MenuState = { event: CalendarEvent; point: { x: number; y: number } };
+// The right-click context menu opens over EITHER one event (the single-event
+// menu) or a whole multi-selection (the bulk menu) — chosen by onGridContextMenu
+// from whether the right-clicked event is part of a >1 selection. Both variants
+// render through the same ContextMenu at the cursor point.
+type MenuState =
+  | { kind: "single"; event: CalendarEvent; point: { x: number; y: number } }
+  | { kind: "bulk"; ids: string[]; point: { x: number; y: number } };
+// A bulk Color… / Location… menu item opens its picker cursor-anchored at the
+// same point (the floating-picker pattern), carrying the ids it acts on.
+type BulkPickerState =
+  | { kind: "color"; ids: string[]; point: { x: number; y: number } }
+  | { kind: "location"; ids: string[]; point: { x: number; y: number } };
 type ToastState = { message: string; onUndo?: () => void };
 // Editing or deleting one occurrence of a repeating event first asks the scope
 // (this / following / all). The pending action is held here until the user picks.
@@ -358,9 +371,10 @@ export function CalendarShell({
   // act on it. A plain click collapses it to one and opens the popover.
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
-  // The bulk-edit panel (shown when the bulk bar's Edit is pressed); holds the
-  // ids it opened over so a later selection change can't retarget mid-edit.
-  const [bulkEdit, setBulkEdit] = useState<{ ids: string[] } | null>(null);
+  // A cursor-anchored bulk Color / Location picker, opened from a bulk context-
+  // menu item. Holds the ids it acts on so a later selection change can't
+  // retarget it mid-pick.
+  const [bulkPicker, setBulkPicker] = useState<BulkPickerState | null>(null);
   // The pending repeating-event edit/delete awaiting a scope choice.
   const [scopePrompt, setScopePrompt] = useState<ScopePrompt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -903,7 +917,7 @@ export function CalendarShell({
       }
       if (!after.length) return;
       commitEvents(after, []);
-      setBulkEdit(null);
+      // Keep the touched set selected so a follow-up bulk action stays in scope.
       setSelection(new Set(after.map((ev) => ev.id)));
       const count = after.length;
       const label = "Updated " + count + (count === 1 ? " event" : " events");
@@ -1028,6 +1042,72 @@ export function CalendarShell({
       });
     },
     [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
+  );
+
+  // Duplicate the whole multi-selection as ONE undoable step: each member is
+  // cloned onto the next free slot of its own day (reusing the single-event
+  // placement rule), and the running per-day event list is grown with each clone
+  // so two copies on the same day don't stack on top of each other. Like the bulk
+  // delete/move, recurring members clone as plain standalone one-offs. The new
+  // copies become the live selection so a follow-up bulk action stays in scope.
+  const duplicateSelection = useCallback(
+    (ids: string[]) => {
+      if (!requireStaff("plan the calendar")) return;
+      // Seed a per-day working list from the live events so free-slot search sees
+      // the real day, then append each clone so later clones avoid earlier ones.
+      const dayLists = new Map<DateKey, CalendarEvent[]>();
+      const dayEventsFor = (date: DateKey) => {
+        let list = dayLists.get(date);
+        if (!list) {
+          list = healedEvents.filter((e) => e.date === date);
+          dayLists.set(date, list);
+        }
+        return list;
+      };
+      const copies: CalendarEvent[] = [];
+      for (const id of ids) {
+        const live = events[id];
+        if (!live) continue;
+        const event = healEvent(live, byId);
+        const duration = snapDurationMin(event.endMin - event.startMin);
+        let startMin = event.startMin;
+        if (!event.allDay) {
+          const free = nextFreeStartForDay(dayEventsFor(event.date), duration, event.startMin, window_);
+          if (free != null) startMin = free;
+        }
+        const copy: CalendarEvent = {
+          ...event,
+          id: crypto.randomUUID(),
+          startMin: event.allDay ? 0 : startMin,
+          endMin: event.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + duration),
+          updatedAt: Date.now(),
+        };
+        delete copy.seriesId;
+        delete copy.recurrence;
+        copies.push(copy);
+        dayEventsFor(copy.date).push(copy);
+      }
+      if (!copies.length) return;
+      commitEvents(copies, []);
+      const copyIds = copies.map((c) => c.id);
+      setSelection(new Set(copyIds));
+      const count = copies.length;
+      const label = "Duplicated " + count + (count === 1 ? " event" : " events");
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => removeEvents(copyIds),
+      });
+    },
+    [announce, byId, commitEvents, events, healedEvents, removeEvents, requireStaff, showToast, window_]
+  );
+
+  // Toggle all-day on/off across the whole selection in one undoable commit (the
+  // bulk menu's "All day" / "Timed"). Delegates to applyBulkEdit so it shares the
+  // all-day clamp (seed a default timed span when turning OFF) + the toast/undo.
+  const setSelectionAllDay = useCallback(
+    (ids: string[], allDay: boolean) => applyBulkEdit(ids, { allDay }),
+    [applyBulkEdit]
   );
 
   // The Add button (header on desktop, FAB on mobile): the event composer with
@@ -1252,7 +1332,13 @@ export function CalendarShell({
   // Right-click an event → themed context menu at the cursor. Delegated on the
   // grid (FullCalendar's event DOM isn't React-owned), resolving the event from
   // the id stamped in onEventDidMount. Pointer-fine only; touch users get the
-  // same actions via the tap-opened popover.
+  // same actions via the tap-opened popover (and the coarse-pointer selection
+  // bar for bulk).
+  //
+  // When the right-clicked event is part of a multi-selection (>1), open the BULK
+  // menu over the whole selection instead of the single-event menu. Right-
+  // clicking an event OUTSIDE the selection opens the plain single-event menu (it
+  // doesn't silently retarget the selection) — same as the popover's plain-click.
   const onGridContextMenu = useCallback(
     (e: React.MouseEvent) => {
       if (typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches) return;
@@ -1263,7 +1349,13 @@ export function CalendarShell({
       if (!event) return;
       e.preventDefault();
       setPopover(null);
-      setMenu({ event: healEvent(event, byId), point: { x: e.clientX, y: e.clientY } });
+      const point = { x: e.clientX, y: e.clientY };
+      const sel = selectionRef.current;
+      if (sel.has(id) && sel.size > 1) {
+        setMenu({ kind: "bulk", ids: [...sel], point });
+        return;
+      }
+      setMenu({ kind: "single", event: healEvent(event, byId), point });
     },
     [byId, events]
   );
@@ -1414,9 +1506,13 @@ export function CalendarShell({
     follow.style.left = pointerRef.current.x - grabOffsetRef.current.dx + "px";
     follow.style.top = pointerRef.current.y - grabOffsetRef.current.dy + "px";
     follow.style.opacity = "1";
-    // A group move carries a "N" count badge on the follower (a CSS ::after off
-    // data-group-count) — it survives the per-frame innerHTML swap above because
-    // it's an attribute, not a child node. Cleared for a single-event move.
+    // A group move dresses the follower with two restrained cues (calendar.css):
+    // a "stacked cards" hint behind it and a count PILL pinned to the top-right
+    // corner (a CSS ::after off data-group-count), clear of the title/time. The
+    // count rides the attribute so it survives the per-frame innerHTML swap above
+    // (a child node wouldn't). Cleared for a single-event move. The count is the
+    // size of the selection captured at drag start (groupMoveRef) — the same set
+    // the drop moves; we keep the visuals on the ref so they don't churn React.
     const groupCount = groupMoveRef.current.length;
     if (groupCount > 1) {
       follow.setAttribute("data-group-count", String(groupCount));
@@ -1558,14 +1654,22 @@ export function CalendarShell({
         return;
       }
       const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
-      // GROUP MOVE: the grabbed event was part of a multi-selection (captured at
-      // drag start). FullCalendar moved only the grabbed one — so compute its
-      // delta and apply the SAME date+time shift to every OTHER selected event,
-      // committing them all (grabbed + shifted others) as ONE undoable step.
-      // Recurring occurrences in the group are treated as predictable single-day
-      // moves (no this/following/all dialog — a bulk gesture must be predictable),
-      // matching the bulk-delete contract. Copy-drag is single-event only.
-      const groupIds = groupMoveRef.current;
+      // GROUP MOVE: the grabbed event was part of a multi-selection. FullCalendar
+      // moved only the grabbed one — so compute its delta and apply the SAME
+      // date+time shift to every OTHER selected event, committing them all
+      // (grabbed + shifted others) as ONE undoable step. Recurring occurrences in
+      // the group are treated as predictable single-day moves (no this/following/
+      // all dialog — a bulk gesture must be predictable), matching the bulk-delete
+      // contract. Copy-drag is single-event only.
+      //
+      // We read the LIVE selection here, NOT groupMoveRef: FullCalendar fires
+      // eventDragStop (→ stopDragAffordance, which clears groupMoveRef) BEFORE
+      // eventDrop, so the ref is already empty by the time we run. The selection
+      // set is only cleared by a view change / background click / drag-create /
+      // Escape — never by a drag-move — so it still holds the multi-selection at
+      // drop time, making the group move independent of the affordance's lifecycle.
+      const sel = selectionRef.current;
+      const groupIds = sel.has(existing.id) && sel.size > 1 ? [...sel] : [];
       if (groupIds.length > 1 && !(info.jsEvent?.altKey || altDragRef.current)) {
         // Revert FC's optimistic single move; we re-commit the whole group from
         // the store so every member (incl. the grabbed one) lands consistently.
@@ -2289,14 +2393,14 @@ export function CalendarShell({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
-      // Delete / Backspace. Two paths, both suppressed while an editor sheet, the
-      // bulk-edit panel, or the scope prompt is up:
+      // Delete / Backspace. Two paths, both suppressed while an editor sheet, an
+      // open bulk picker, or the scope prompt is up:
       //   · a multi-selection (shift/cmd-click, no popover) → delete them ALL in
       //     one undoable step ("Deleted N events");
       //   · otherwise the single event whose popover is open (a plain click both
       //     selects and opens it) → the existing per-event delete (which still
       //     routes a recurring event through the this/following/all scope dialog).
-      if ((event.key === "Backspace" || event.key === "Delete") && !sheet && !scopePrompt && !bulkEdit) {
+      if ((event.key === "Backspace" || event.key === "Delete") && !sheet && !scopePrompt && !bulkPicker) {
         if (!popover && selection.size) {
           event.preventDefault();
           deleteSelection();
@@ -2366,17 +2470,17 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, bulkEdit, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, bulkPicker, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
 
   // Escape clears the multi-selection. We honour the app's capture-phase Escape
   // contract (see FloatingLayer/useDialogFocus): a capture listener that runs
   // FIRST but BAILS on defaultPrevented, then preventDefault()s itself so any
   // bubble-phase dialog underneath stays untouched. Only armed when there's a
   // real selection AND nothing is open over it — a popover/menu/sheet/scope
-  // prompt/bulk panel owns its own Escape (close the layer first), and a plain
+  // prompt/bulk picker owns its own Escape (close the layer first), and a plain
   // click leaves a 1-item selection beneath an open popover this must NOT swallow.
   useEffect(() => {
-    if (!selection.size || popover || menu || sheet || scopePrompt || settingsOpen || bulkEdit) return;
+    if (!selection.size || popover || menu || sheet || scopePrompt || settingsOpen || bulkPicker) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== "Escape") return;
       event.preventDefault();
@@ -2384,7 +2488,7 @@ export function CalendarShell({
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [selection, popover, menu, sheet, scopePrompt, settingsOpen, bulkEdit, clearSelection]);
+  }, [selection, popover, menu, sheet, scopePrompt, settingsOpen, bulkPicker, clearSelection]);
 
   const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
 
@@ -2649,7 +2753,8 @@ export function CalendarShell({
         />
       )}
 
-      {menu && (
+      {/* Single-event context menu — unchanged. */}
+      {menu?.kind === "single" && (
         <ContextMenu
           point={menu.point}
           ariaLabel={menu.event.title || "Event"}
@@ -2701,6 +2806,113 @@ export function CalendarShell({
         />
       )}
 
+      {/* Bulk context menu — the SAME ContextMenu/style as the single-event one,
+          opened (by onGridContextMenu) when the right-clicked event is part of a
+          multi-selection. Move-by-drag now handles shifting the group, so this
+          carries only the cross-cutting property edits + duplicate/delete. Color…
+          and Location… open their pickers cursor-anchored at the menu point (the
+          app's floating-picker pattern); All day / Timed and the rest apply
+          directly. Staffing is enforced by the underlying mutations. */}
+      {menu?.kind === "bulk" &&
+        (() => {
+          const ids = menu.ids;
+          const point = menu.point;
+          const count = ids.length;
+          const noun = count === 1 ? "event" : "events";
+          // If EVERY selected event is already all-day, the toggle offers "Timed";
+          // otherwise it offers "All day" (so a mixed set lands all-day first).
+          const allAreAllDay = ids.every((id) => events[id]?.allDay);
+          return (
+            <ContextMenu
+              point={point}
+              ariaLabel={count + " selected " + noun}
+              onClose={() => setMenu(null)}
+              items={[
+                {
+                  label: "Color…",
+                  icon: <CampIcon.Palette />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setBulkPicker({ kind: "color", ids, point });
+                  },
+                },
+                {
+                  label: "Location…",
+                  icon: <CampIcon.Pin />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setBulkPicker({ kind: "location", ids, point });
+                  },
+                },
+                {
+                  label: allAreAllDay ? "Make timed" : "Make all day",
+                  icon: <CampIcon.Clock />,
+                  onSelect: () => setSelectionAllDay(ids, !allAreAllDay),
+                },
+                {
+                  label: "Duplicate " + count + " " + noun,
+                  icon: <CampIcon.Copy />,
+                  onSelect: () => duplicateSelection(ids),
+                },
+                {
+                  label: "Delete " + count + " " + noun,
+                  icon: <CampIcon.Trash />,
+                  danger: true,
+                  separatorBefore: true,
+                  onSelect: () => deleteSelection(),
+                },
+              ]}
+            />
+          );
+        })()}
+
+      {/* Cursor-anchored bulk pickers, opened from the bulk menu. Both reuse the
+          exact picker bodies the QuickAdd fields use (one picker, two entry
+          points), hosted directly in a FloatingLayer at the menu point. Each pick
+          applies across the selection as one undoable commit via applyBulkEdit
+          (which re-asserts the moved set as the live selection). */}
+      {bulkPicker?.kind === "color" && (
+        <FloatingLayer
+          anchor={{ kind: "point", x: bulkPicker.point.x, y: bulkPicker.point.y }}
+          onClose={() => setBulkPicker(null)}
+          className="ccolor__pop"
+          role="dialog"
+          ariaLabel="Color for selected events"
+        >
+          <ColorPickerBody
+            value={undefined}
+            fallback={categoryTint(undefined)}
+            onCommit={(hex) => {
+              applyBulkEdit(bulkPicker.ids, { color: hex });
+              setBulkPicker(null);
+            }}
+            onReset={() => {
+              applyBulkEdit(bulkPicker.ids, { color: undefined });
+              setBulkPicker(null);
+            }}
+          />
+        </FloatingLayer>
+      )}
+      {bulkPicker?.kind === "location" && (
+        <FloatingLayer
+          anchor={{ kind: "point", x: bulkPicker.point.x, y: bulkPicker.point.y }}
+          onClose={() => setBulkPicker(null)}
+          className="typepick__menu cselect__menu"
+          role="listbox"
+          ariaLabel="Location for selected events"
+          initialFocus={false}
+        >
+          {/* A bulk location set is a REPLACE across the selection: the picker
+              owns its own working set (so the toggled rows stay checked while the
+              menu is open) and re-applies it to every selected event on each
+              toggle, all as one undoable commit. */}
+          <BulkLocationPicker
+            options={EVENT_LOCATION_OPTIONS}
+            onApply={(locations) => applyBulkEdit(bulkPicker.ids, { locations })}
+          />
+        </FloatingLayer>
+      )}
+
       {scopePrompt && (
         <SeriesScopeDialog
           action={scopePrompt.mode}
@@ -2714,43 +2926,24 @@ export function CalendarShell({
         />
       )}
 
-      {/* Bulk action bar — shown the moment a multi-selection exists (the touch
-          entry point for bulk actions too, since the context menu is pointer-fine
-          only). "N events" plus Edit / Delete / Clear. Hidden while the bulk-edit
-          panel is open (the panel takes over) so the two don't stack. Staffing is
-          enforced by the underlying mutations (deleteSelection / applyBulkEdit). */}
-      {selection.size > 1 && !bulkEdit && (
-        <div className="calshell__bulkbar" role="toolbar" aria-label="Selected events">
-          <span className="calshell__bulkcount">
+      {/* Touch selection bar — the bulk-action surface for COARSE pointers only.
+          Right-click (the desktop bulk entry) doesn't fire on a touch tap, so
+          phones/tablets reach the same bulk mutations here: Delete the selection
+          and Clear it. Pointer-fine devices use the right-click bulk menu instead,
+          so this stays hidden there (CSS gates it to (pointer: coarse)). Staffing
+          is enforced by deleteSelection. */}
+      {selection.size > 1 && (
+        <div className="calshell__selbar" role="toolbar" aria-label="Selected events">
+          <span className="calshell__selcount">
             {selection.size} {selection.size === 1 ? "event" : "events"}
           </span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => {
-              if (!requireStaff("change the calendar")) return;
-              setPopover(null);
-              setBulkEdit({ ids: [...selection] });
-            }}
-          >
-            Edit
-          </button>
-          <button type="button" className="btn btn--ghost calshell__bulkdanger" onClick={deleteSelection}>
+          <button type="button" className="btn btn--ghost calshell__seldanger" onClick={deleteSelection}>
             Delete
           </button>
           <button type="button" className="btn btn--ghost" onClick={clearSelection}>
             Clear
           </button>
         </div>
-      )}
-
-      {bulkEdit && (
-        <BulkEditPanel
-          count={bulkEdit.ids.length}
-          options={EVENT_LOCATION_OPTIONS}
-          onApply={(changes) => applyBulkEdit(bulkEdit.ids, changes)}
-          onClose={() => setBulkEdit(null)}
-        />
       )}
 
       {toast && (
@@ -2770,5 +2963,31 @@ export function CalendarShell({
         </div>
       )}
     </div>
+  );
+}
+
+// The bulk Location… picker body: owns a working set so the toggled rows stay
+// checked while the menu is open (the popover doesn't unmount between toggles),
+// and re-applies the whole set across the selection on each toggle — a REPLACE,
+// matching the merged multi-location model. Starts empty (a bulk apply has no
+// single "current" value across a heterogeneous set; the first pick is the
+// authoritative new set).
+function BulkLocationPicker({
+  options,
+  onApply,
+}: {
+  options: readonly string[];
+  onApply: (locations: string[]) => void;
+}) {
+  const [working, setWorking] = useState<string[]>([]);
+  return (
+    <LocationPickerList
+      value={working}
+      options={options}
+      onChange={(locations) => {
+        setWorking(locations);
+        onApply(locations);
+      }}
+    />
   );
 }

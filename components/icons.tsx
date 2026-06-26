@@ -185,6 +185,16 @@ export const CampIcon = {
       <circle cx="12" cy="10" r="2.3" />
     </>
   ),
+  // Artist's palette: the rounded blob with a thumb-hole, dotted with a couple of
+  // paint wells — the colour-picker affordance for the bulk "Color…" action.
+  Palette: svg(
+    <>
+      <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 2-2 0-1.4 1-2 2-2h1.5a3 3 0 0 0 3-3.5A8.6 8.6 0 0 0 12 3.5z" />
+      <circle cx="8" cy="9.5" r="1" />
+      <circle cx="12" cy="7.5" r="1" />
+      <circle cx="15.5" cy="9.5" r="1" />
+    </>
+  ),
   // Wrench; on hover it gives a couple of quick tightening wiggles.
   Tool: svg(
     <path d="M14.5 6a3.5 3.5 0 0 0-4.7 4.2L4 16v4h4l5.8-5.8A3.5 3.5 0 0 0 18 9.5L15.5 12 12 8.5 14.5 6z" />,
