@@ -6385,50 +6385,30 @@ body {
   }
 }
 
-/* --- Print: a page feeds DOWN and OUT of the bottom output mouth -------------
-   ONE clean gesture — at rest the printed page is parked INSIDE the body (clipped
-   above the mouth lip, so the icon reads as a plain printer). On hover it slides
-   DOWN through the output mouth and SETTLES just below the printer's front lip — a
-   printed page in the output tray, not paper retracting up into the body. The page
-   is clipped to the output window (see icons.tsx) so its body never shows through
-   the printer body. The printer body / input / status dot stay put. `both` holds
-   it emerged while hovered; removing :hover returns it to the parked rest pose. */
+/* --- Print: an outlined page rests in the output tray; it ejects on hover -----
+   The printed sheet (outline only — never a filled slab) sits in the output tray
+   under the body front AT REST, so the icon reads as a complete printer with paper
+   in the tray, not a bare body. On hover the whole sheet bobs down a hair and
+   back, as if a fresh page just printed. Body / input / status dot stay put. */
 .cicon--print {
   overflow: visible;
 }
-.cicon--print .cicon-print__page {
-  fill: none;
-}
-/* The print lines draw in from the left as the page emerges. Hidden (scaled to
-   nothing) at rest; `both` holds them collapsed through the feed's lead-in, then
-   they stroke on left→right, staggered by --i — text being laid down. */
+.cicon--print .cicon-print__page,
 .cicon--print .cicon-print__line {
-  transform-origin: left center;
+  fill: none;
 }
 :where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
   .cicon--print
   .cicon-print__sheet {
-  animation: cicon-print-feed 0.5s var(--ease-overlay) both;
+  animation: cicon-print-eject 0.46s var(--ease) both;
 }
-:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
-  .cicon--print
-  .cicon-print__line {
-  animation: cicon-print-ink 0.26s var(--ease) calc(0.24s + var(--i) * 0.1s) both;
-}
-@keyframes cicon-print-feed {
-  from {
+@keyframes cicon-print-eject {
+  0%,
+  100% {
     transform: translateY(0);
   }
-  to {
-    transform: translateY(7.5px);
-  }
-}
-@keyframes cicon-print-ink {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
+  50% {
+    transform: translateY(1.7px);
   }
 }
 
@@ -6472,8 +6452,8 @@ body {
     transform: scaleX(0) !important;
     opacity: 0 !important;
   }
-  /* Print: hold the sheet hidden inside the printer so it reads as a plain
-     printer at rest (the !important beats the hover rule). */
+  /* Print: no eject bob — the outlined page just rests in the tray (the
+     !important beats the hover rule). */
   .cicon--print .cicon-print__sheet {
     transform: translateY(0) !important;
   }

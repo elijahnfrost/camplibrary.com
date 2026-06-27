@@ -219,38 +219,25 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer: input paper on top, closed body, status dot, and a printed page that
-  // feeds DOWN and OUT through the output mouth at the bottom-front of the body on
-  // hover. At rest the page is parked INSIDE the body (clipped away above the
-  // mouth lip), so the icon reads as a plain printer. On hover it slides down and
-  // settles just below the front lip — a printed page in the output tray (see
-  // globals.css §Print). clipPath id is unique per icon set.
+  // Printer: input paper on top, the body, a status dot, and an OUTLINED printed
+  // page resting in the output tray under the front — shown AT REST so the printer
+  // reads as complete (not a bare body) and the page is a clean outline (never a
+  // filled slab). On hover the page ejects with a gentle bob, as if a fresh sheet
+  // just printed (see globals.css §cicon--print).
   Print: svg(
     <>
-      <defs>
-        {/* Output window: the page is only visible from the mouth lip (y≈14) on
-            DOWN to just below the printer's front, so it reads as emerging out the
-            bottom. Anything above the lip is clipped (parked inside the body). */}
-        <clipPath id="cicon-print-slot" clipPathUnits="userSpaceOnUse">
-          <rect x="6.5" y="14" width="11" height="9" />
-        </clipPath>
-      </defs>
-      {/* input paper — open bottom blends into body top */}
-      <path d="M7 8V4h10v4" />
-      {/* printer body — closed, consistent 2px corners, notch for the output mouth */}
-      <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
+      {/* input paper — feeds in over the body top */}
+      <path d="M7.5 8V4.5h9V8" />
+      {/* printer body — flat-bottomed; the printed sheet rests in the tray below */}
+      <path d="M6 8h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z" />
       {/* status dot */}
-      <path d="M17.5 11.5h.01" />
-      {/* output page — a clean (unfilled) page. Parked inside the body at rest
-          (above the lip, clipped away) so the icon reads as a plain printer. On
-          hover it feeds DOWN to emerge below the front lip, and the print lines
-          DRAW IN (left→right, staggered) as it comes out — "the page prints and
-          the text populates." Clipped to the output window so its body never
-          shows through the printer body. (see globals.css §cicon--print) */}
-      <g className="cicon-print__sheet" clipPath="url(#cicon-print-slot)">
-        <rect className="cicon-print__page" x="8" y="6.4" width="8" height="7.2" rx="0.6" />
-        <path className="cicon-print__line" style={{ "--i": 0 } as React.CSSProperties} d="M9.8 9.6h4.4" />
-        <path className="cicon-print__line" style={{ "--i": 1 } as React.CSSProperties} d="M9.8 11.4h2.9" />
+      <path d="M16.4 11h.01" />
+      {/* output page — an OUTLINED sheet sitting in the output tray under the body
+          front (open top, so it reads as paper just out of the printer). Visible
+          at rest; on hover the whole sheet bobs down a hair (eject). */}
+      <g className="cicon-print__sheet">
+        <path className="cicon-print__page" d="M8 16v3.3a0.7 0.7 0 0 0 0.7 0.7h6.6a0.7 0.7 0 0 0 0.7-0.7V16" />
+        <path className="cicon-print__line" d="M9.9 17.7h4.2" />
       </g>
     </>,
     "print"
