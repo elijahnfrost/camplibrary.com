@@ -669,9 +669,9 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
     });
 
   return (
-    <div className="rldetail">
-      <div className="rldetail__row">
-        <span className="rldetail__label">Type</span>
+    <div className="ledger rldetail">
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Type</span>
         <LedgerMenu
           value={f.type}
           options={CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) }))}
@@ -680,8 +680,8 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           swatch
         />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Where</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Where</span>
         <Seg
           options={["Inside", "Outside", "Both"] as const}
           value={f.place}
@@ -689,8 +689,8 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           ariaLabel="Where"
         />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Energy</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Energy</span>
         <Seg
           options={["Calm", "Lively", "Rowdy"] as const}
           value={f.energy}
@@ -698,8 +698,8 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           ariaLabel="Energy"
         />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Prep</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Prep</span>
         <Seg
           options={["None", "Low", "Medium", "High"] as const}
           value={f.prep}
@@ -707,20 +707,20 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           ariaLabel="Prep effort"
         />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Minutes</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Minutes</span>
         <DurationControl
           value={f.durationMin}
           onChange={(value) => set("durationMin", value)}
           invalid={v.durationInvalid}
         />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Ages</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Ages</span>
         <AgeGroupsMenu ages={f.ages} onToggle={toggleAge} ageUnit={ageUnit} onAgeUnit={onAgeUnit} />
       </div>
-      <div className="rldetail__row">
-        <span className="rldetail__label">Group size</span>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Group size</span>
         <GroupSizeMenu
           groupMin={f.groupMin}
           groupMax={f.groupMax}
@@ -730,8 +730,8 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
         />
       </div>
       {themeKit && (
-        <div className="rldetail__row">
-          <span className="rldetail__label">Theme</span>
+        <div className="ledger__row rldetail__row">
+          <span className="ledger__label">Theme</span>
           <ThemeField
             value={f.themeId}
             themes={themeKit.themes}
@@ -741,13 +741,22 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           />
         </div>
       )}
+      <div className="ledger__row rldetail__row rldetail__row--rating">
+        <span className="ledger__label">Rating</span>
+        <RatingDots value={f.rating} onChange={(value) => set("rating", value)} />
+      </div>
     </div>
   );
 }
 
-// The Materials block, in EDIT mode — add/remove kit items inline (the same
-// comma-separated `materials` the form owns, edited as removable chips + an
-// add field). Kept minimal: a list of chips with an × and one "add item" input.
+// The Materials block, in EDIT mode — a PROPER editable list of the kit items
+// (the same comma-separated `materials` string the form owns, surfaced one item
+// per row). Each row is honest about what it does: a drag grip + an inline
+// editable name + move up/down + remove, in the run-sheet sub-step vocabulary.
+// Reorder is local to this list (it never touches the run-doc drag model), via
+// HTML5 drag on the row OR the up/down buttons (touch/keyboard parity). An
+// "Add item" row at the foot grows the list. Clearing a row's text removes it,
+// the same "empty = gone" feel as a step.
 function MaterialsEditor({
   value,
   onChange,
@@ -757,33 +766,151 @@ function MaterialsEditor({
 }) {
   const items = splitList(value);
   const [draft, setDraft] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<{ index: number; pos: "before" | "after" } | null>(null);
+  const dragIndexRef = useRef<number | null>(null);
+
+  const write = (next: string[]) => onChange(next.map((s) => s.trim()).filter(Boolean).join(", "));
+
   const commitDraft = () => {
     const next = draft.trim();
     if (!next) return;
-    onChange([...items, next].join(", "));
+    write([...items, next]);
     setDraft("");
   };
-  const removeAt = (index: number) =>
-    onChange(items.filter((_, i) => i !== index).join(", "));
+  const removeAt = (index: number) => write(items.filter((_, i) => i !== index));
+  const renameAt = (index: number, text: string) => {
+    const trimmed = text.trim();
+    // Emptying a row removes it (mirrors clearing a step's text).
+    if (!trimmed) return removeAt(index);
+    write(items.map((item, i) => (i === index ? trimmed : item)));
+  };
+  const moveBy = (index: number, dir: -1 | 1) => {
+    const swap = index + dir;
+    if (swap < 0 || swap >= items.length) return;
+    const next = [...items];
+    [next[index], next[swap]] = [next[swap], next[index]];
+    write(next);
+  };
+
+  // ---- HTML5 row drag (self-contained to this list) ----
+  const onRowDrop = (toIndex: number, pos: "before" | "after") => {
+    const from = dragIndexRef.current;
+    dragIndexRef.current = null;
+    setDragIndex(null);
+    setOverIndex(null);
+    if (from == null) return;
+    let dest = pos === "after" ? toIndex + 1 : toIndex;
+    if (from < dest) dest -= 1; // account for the removed source slot
+    if (dest === from) return;
+    const next = [...items];
+    const [moved] = next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(next.length, dest)), 0, moved);
+    write(next);
+  };
+
   return (
     <div className="rlmat">
-      <div className="rlmat__chips">
-        {items.map((item, i) => (
-          <span className="rlmat__chip" key={item + i}>
-            {item}
-            <button
-              type="button"
-              className="rlmat__x"
-              onClick={() => removeAt(i)}
-              aria-label={"Remove " + item}
-            >
-              <CampIcon.Close />
-            </button>
-          </span>
-        ))}
+      {items.length > 0 && (
+        <ul className="rlmat__list">
+          {items.map((item, i) => {
+            const overState =
+              overIndex && overIndex.index === i && dragIndex !== i
+                ? " is-over-" + overIndex.pos
+                : "";
+            return (
+              <li
+                key={i}
+                className={"rlmat__item" + (dragIndex === i ? " is-dragging" : "") + overState}
+                draggable
+                onDragStart={(e) => {
+                  // Don't hijack drags that start on the inline text/buttons.
+                  if ((e.target as HTMLElement).closest("button, .rl-ed")) {
+                    e.preventDefault();
+                    return;
+                  }
+                  dragIndexRef.current = i;
+                  setDragIndex(i);
+                  e.dataTransfer.effectAllowed = "move";
+                  try {
+                    e.dataTransfer.setData("text/plain", String(i));
+                  } catch {
+                    /* some browsers reject setData outside a user gesture */
+                  }
+                }}
+                onDragOver={(e) => {
+                  if (dragIndexRef.current == null) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  if (!overIndex || overIndex.index !== i || overIndex.pos !== pos) {
+                    setOverIndex({ index: i, pos });
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  onRowDrop(i, pos);
+                }}
+                onDragEnd={() => {
+                  dragIndexRef.current = null;
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+              >
+                <span className="rlmat__grip" title="Drag to reorder" aria-hidden="true">
+                  <CampIcon.Grip />
+                </span>
+                <Editable
+                  className="rlmat__name"
+                  value={item}
+                  editable
+                  placeholder="Material"
+                  ariaLabel={"Material " + (i + 1)}
+                  onCommit={(v) => renameAt(i, v)}
+                />
+                <div className="rlmat__tools">
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => moveBy(i, -1)}
+                    disabled={i <= 0}
+                    aria-label="Move material up"
+                  >
+                    <CampIcon.ChevronUp />
+                  </button>
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => moveBy(i, 1)}
+                    disabled={i >= items.length - 1}
+                    aria-label="Move material down"
+                  >
+                    <CampIcon.ChevronDown />
+                  </button>
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => removeAt(i)}
+                    aria-label={"Remove " + item}
+                  >
+                    <CampIcon.Trash />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="rlmat__addrow">
+        <span className="rlmat__addmark" aria-hidden="true">
+          <CampIcon.Plus />
+        </span>
         <input
           className="input rlmat__add"
-          placeholder={items.length ? "Add item…" : "flags, cones, pinnies"}
+          placeholder={items.length ? "Add a material…" : "flags, cones, pinnies"}
           value={draft}
           aria-label="Add a material"
           onChange={(e) => setDraft(e.target.value)}
@@ -1779,9 +1906,6 @@ export function ActivityRunList({
                         ageUnit={editAgeUnit}
                         onAgeUnit={onEditAgeUnit}
                       />
-                      <div className="rl-detailrating">
-                        <RatingDots value={editForm.rating} onChange={(value) => onEditFormChange({ ...editForm, rating: value })} />
-                      </div>
                     </div>
                   </div>
                 </div>

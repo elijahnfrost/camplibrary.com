@@ -7283,29 +7283,21 @@ button.rl-node {
 }
 
 /* ---------- inline Details editor (edit/create) ---------------------------
-   The activity's scalar facts edited as structured dropdowns on the run sheet,
-   one ledger row each (small-caps label left, a compact control right) — the
-   same switch-ledger vocabulary as the sidebar filters, hosted inside the
-   Details block so the run sheet IS the editor (no form above it). */
-.rldetail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
+   The activity's scalar facts edited as structured controls on the run sheet —
+   the SAME switch ledger the sidebar filters use (`.ledger` / `.ledger__row` /
+   `.ledger__label`): small-caps label left, a compact control right, dashed
+   `--line-soft` rules between rows. `.rldetail` only sizes the controls; the
+   ledger classes carry the row chrome so it reads as one property ledger across
+   the app. */
 .rldetail__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
+  /* The ledger row's stock 38px is pointer-tuned for the narrow rail; the
+     editor sits in a roomier sheet, so give each row a touch more height. */
   min-height: var(--tap);
 }
-.rldetail__label {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  flex: 0 0 auto;
+/* The last row drops the dashed rule — the Details card border already closes
+   the ledger off, so a trailing line would read as a stray underline. */
+.rldetail__row:last-child {
+  border-bottom: 0;
 }
 /* Each row's control sits to the right; segmented controls grow to a comfortable
    width, menu triggers hug their label. */
@@ -7315,6 +7307,11 @@ button.rl-node {
 .rldetail__row .themefield {
   flex: 0 1 260px;
   width: auto;
+}
+/* Rating sits in the ledger like any other property — push the dots to the
+   right edge so they line up with the controls above. */
+.rldetail__row--rating .ratingdots {
+  justify-content: flex-end;
 }
 .rldetail__pick {
   position: relative;
@@ -7411,52 +7408,129 @@ button.rl-node {
   }
 }
 
-/* ---------- inline Materials editor (edit/create) ---------- */
-.rlmat__chips {
+/* ---------- inline Materials editor (edit/create) ----------------------------
+   A PROPER editable list: one item per row, each honest about its affordances —
+   a drag grip, an inline-editable name, and move/remove tools that appear on
+   hover (always shown on touch). Reorder via row drag OR the up/down buttons.
+   An "add a material" row sits at the foot. Built on the run-sheet sub-step
+   vocabulary (grip + .rl-iconbtn) so it reads as the same list machinery. */
+.rlmat {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--s-3);
-  align-items: center;
 }
-.rlmat__chip {
-  display: inline-flex;
+.rlmat__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rlmat__item {
+  display: flex;
   align-items: center;
-  gap: var(--s-2);
-  min-height: 30px;
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-5);
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
   border: 1.4px solid var(--line);
   border-radius: var(--r-sm);
   background: color-mix(in srgb, var(--card) 82%, var(--paper));
-  color: var(--ink);
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
+  position: relative;
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
 }
-.rlmat__x {
+.rlmat__item:active {
+  cursor: grabbing;
+}
+.rlmat__item.is-dragging {
+  opacity: 0.45;
+}
+/* Drop indicator — a sage bar at the row edge the source will land at. */
+.rlmat__item.is-over-before::before,
+.rlmat__item.is-over-after::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+}
+.rlmat__item.is-over-before::before {
+  top: -4px;
+}
+.rlmat__item.is-over-after::before {
+  bottom: -4px;
+}
+.rlmat__grip {
+  flex: none;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-xs);
-  background: transparent;
   color: var(--ink-faint);
-  cursor: pointer;
+  cursor: grab;
 }
-.rlmat__x:hover {
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
+.rlmat__grip svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.rlmat__name {
+  flex: 1 1 auto;
+  min-width: 1ch;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
   color: var(--ink);
+  cursor: text;
 }
-.rlmat__x svg {
-  width: 11px;
-  height: 11px;
-  stroke-width: 2;
+/* The per-row tools mirror the run-sheet rowtools: quiet by default, lit on
+   hover/focus (always shown on touch via the run-sheet @media rule). */
+.rlmat__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rlmat__item:hover .rlmat__tools,
+.rlmat__item:focus-within .rlmat__tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rlmat__addrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rlmat__addmark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+}
+.rlmat__addmark svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .rlmat__add {
-  width: auto;
-  min-width: 150px;
-  flex: 1 1 150px;
+  flex: 1 1 auto;
+  min-width: 0;
   /* font-size inherits the .input base (16px) — kept >=16px so iOS doesn't zoom. */
 }
 
@@ -7701,6 +7775,25 @@ button.rl-node {
 }
 .rl-row:hover .rl-rowtools,
 .rl-row:focus-within .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* In the editor the run sheet IS the editor, so drag must be discoverable at a
+   glance — keep the rowtools (grip first) standing by on every block, the way
+   the old add/edit form always showed them. The icon buttons still lift on
+   hover/focus via the rule above; the grip carries the always-there drag cue.
+   Read mode (`.rl.is-readonly`) keeps them hidden — nothing there drags. */
+.rl:not(.is-readonly) .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rl:not(.is-readonly) .rl-row:hover .rl-iconbtn,
+.rl:not(.is-readonly) .rl-row:focus-within .rl-iconbtn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -8633,6 +8726,12 @@ button.rl-node {
     opacity: 1;
     pointer-events: auto;
   }
+  /* On touch there's no hover to reveal the icon buttons — keep them shown
+     (overrides the pointer-mode "buttons fade in on hover" rule). */
+  .rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+    opacity: 1;
+    pointer-events: auto;
+  }
   .rl .rl-iconbtn {
     width: 38px;
     height: 38px;
@@ -8644,6 +8743,11 @@ button.rl-node {
   }
   .rl.is-readonly .rl-rowtools {
     display: none;
+  }
+  /* Materials list rows: tools always shown on touch, same as the run rows. */
+  .rl .rlmat__tools {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
