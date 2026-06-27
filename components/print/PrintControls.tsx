@@ -109,16 +109,33 @@ const PRESETS: { id: string; label: string; range: () => { start: DateKey; end: 
 
 // ---- Rail primitives (the shared ledger vocabulary) ------------------------
 
-/** A titled, always-visible group: a small-caps header (the "Filter"/"View"
- *  section treatment) over a switch ledger. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
+/** A COLLAPSIBLE titled group — the same `<details>`/`<summary>` disclosure the
+ *  "More options" row used, but the summary IS the group header (small-caps title
+ *  left, a chevron right that rotates open). Generalizes the old `MoreOptions`
+ *  so every section can fold: frequently-changed groups lead `defaultOpen`, the
+ *  rest rest closed. Native `<summary>` is keyboard-operable and the chevron
+ *  signals state; the panel fade is reduced-motion-guarded in CSS. */
+function CollapsibleGroup({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <section className="prail__group">
-      <div className="prail__grouphead">
+    <details className="prail__group prail__group--collapsible" open={defaultOpen}>
+      <summary className="prail__grouphead prail__groupsum">
         <span className="prail__grouptitle">{title}</span>
+        <span className="prail__morestate" aria-hidden="true">
+          <CampIcon.ChevronDown />
+        </span>
+      </summary>
+      <div className="prail__grouppanel">
+        <div className="ledger">{children}</div>
       </div>
-      <div className="ledger">{children}</div>
-    </section>
+    </details>
   );
 }
 
@@ -130,26 +147,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <span className="ledger__label">{label}</span>
       {children}
     </div>
-  );
-}
-
-/** The secondary settings, folded behind ONE ledger row — the Library "Available
- *  kit" pattern: a `<summary>` that IS a ledger row (label left, chevron right),
- *  expanding a sub-ledger. Keeps the resting rail to its essentials. */
-function MoreOptions({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <details className="prail__more" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="prail__moresum ledger__row">
-        <span className="ledger__label">More options</span>
-        <span className="prail__morestate" aria-hidden="true">
-          <CampIcon.ChevronDown />
-        </span>
-      </summary>
-      <div className="prail__morepanel">
-        <div className="ledger">{children}</div>
-      </div>
-    </details>
   );
 }
 
@@ -493,10 +490,10 @@ export function PrintControls({
         </div>
       </div>
 
-      {/* Format — only the choices you actually make per print: the day's shape
-          (Layout + Detail), color, and the two appendix toggles. Everything else
-          folds into "More options" below, so the rail stays short. */}
-      <Group title="Format">
+      {/* Layout — the choices you actually make per print: the day's shape
+          (Layout + its context-sensitive Spacing/Detail), color, and text size.
+          Leads OPEN, since it's the most-changed group. */}
+      <CollapsibleGroup title="Layout" defaultOpen>
         <Row label="Layout">
           <MiniSeg
             options={LAYOUT_OPTIONS}
@@ -505,6 +502,8 @@ export function PrintControls({
             onChange={(layout) => onChange({ layout })}
           />
         </Row>
+        {/* Context-sensitive: a timeline has Spacing (grid height); an agenda has
+            Detail (per-event richness). Only the one that applies shows. */}
         {options.layout === "timeline" ? (
           <MenuPicker
             label="Spacing"
@@ -541,93 +540,95 @@ export function PrintControls({
             onChange={(fontScale) => onChange({ fontScale })}
           />
         </Row>
+      </CollapsibleGroup>
 
-        {/* The set-once / niche knobs — out of sight until needed. */}
-        <MoreOptions>
-          <Row label="Paper">
-            <MiniSeg
-              options={[
-                { id: "styled", label: "Designed" },
-                { id: "plain", label: "Plain" },
-              ]}
-              value={options.style}
-              ariaLabel="Designed or plain formatting"
-              onChange={(style) => onChange({ style })}
-            />
-          </Row>
-          <MenuPicker
-            label="Density"
-            options={DOC_DENSITY_OPTIONS}
-            value={options.density}
-            ariaLabel="Spacing density of the printed page"
-            onChange={(density) => onChange({ density })}
+      {/* Page setup — the paper itself: stock, density, pagination, and the cover.
+          Set-once for most prints, so it rests CLOSED. */}
+      <CollapsibleGroup title="Page setup">
+        <Row label="Paper">
+          <MiniSeg
+            options={[
+              { id: "styled", label: "Designed" },
+              { id: "plain", label: "Plain" },
+            ]}
+            value={options.style}
+            ariaLabel="Designed or plain formatting"
+            onChange={(style) => onChange({ style })}
           />
-          <Row label="Title cover">
-            <ToggleSwitch
-              on={options.showCover}
-              ariaLabel="Print the title cover header"
-              onChange={(showCover) => onChange({ showCover })}
-            />
-          </Row>
-          <Row label="A page per day">
-            <ToggleSwitch
-              on={options.pageBreakPerDay}
-              ariaLabel="Start each day on a new page"
-              onChange={(pageBreakPerDay) => onChange({ pageBreakPerDay })}
-            />
-          </Row>
-          <Row label="Page numbers">
-            <ToggleSwitch
-              on={options.pageNumbers}
-              ariaLabel="Show a page-number footer"
-              onChange={(pageNumbers) => onChange({ pageNumbers })}
-            />
-          </Row>
-          <Row label="Show themes">
-            <ToggleSwitch
-              on={options.showThemes}
-              ariaLabel="Show themes"
-              onChange={(showThemes) => onChange({ showThemes })}
-            />
-          </Row>
-          <Row label="All-day events">
-            <ToggleSwitch
-              on={options.includeAllDay}
-              ariaLabel="Include all-day events"
-              onChange={(includeAllDay) => onChange({ includeAllDay })}
-            />
-          </Row>
-          <Row label="Empty days">
-            <ToggleSwitch
-              on={options.includeEmptyDays}
-              ariaLabel="Include empty days"
-              onChange={(includeEmptyDays) => onChange({ includeEmptyDays })}
-            />
-          </Row>
-          {camps.length > 0 && (
-            <MenuPicker
-              label="Camp"
-              options={campOptions}
-              value={options.campId ?? ""}
-              ariaLabel="Which camp to print"
-              onChange={(value) => onChange({ campId: value ? value : null })}
-            />
-          )}
+        </Row>
+        <MenuPicker
+          label="Density"
+          options={DOC_DENSITY_OPTIONS}
+          value={options.density}
+          ariaLabel="Spacing density of the printed page"
+          onChange={(density) => onChange({ density })}
+        />
+        <Row label="A page per day">
+          <ToggleSwitch
+            on={options.pageBreakPerDay}
+            ariaLabel="Start each day on a new page"
+            onChange={(pageBreakPerDay) => onChange({ pageBreakPerDay })}
+          />
+        </Row>
+        <Row label="Page numbers">
+          <ToggleSwitch
+            on={options.pageNumbers}
+            ariaLabel="Show a page-number footer"
+            onChange={(pageNumbers) => onChange({ pageNumbers })}
+          />
+        </Row>
+        <Row label="Title cover">
+          <ToggleSwitch
+            on={options.showCover}
+            ariaLabel="Print the title cover header"
+            onChange={(showCover) => onChange({ showCover })}
+          />
+        </Row>
+        {/* Context-sensitive: the cover title only matters when the cover prints. */}
+        {options.showCover && (
           <Row label="Cover title">
             <TitleField value={options.title} onCommit={(title) => onChange({ title })} />
           </Row>
-        </MoreOptions>
-      </Group>
+        )}
+      </CollapsibleGroup>
 
-      {/* Sections — reorder the document's parts (the cover always leads, toggled
-          above). A short, ordered ledger with up/down nudges. */}
-      <Group title="Sections">
-        <SectionOrder order={options.sectionOrder} onChange={(sectionOrder) => onChange({ sectionOrder })} />
-      </Group>
-
-      {/* Content — pick exactly which days and events print. Defaults to all in;
-          unchecking adds to the ephemeral exclusion sets. */}
-      <Group title="Content">
+      {/* Content — what appears in the schedule: the optional camp scope, the
+          all-day / empty-day / theme display gates, then the per-day/per-event
+          include picker. Defaults to all in; unchecking adds to the ephemeral
+          exclusion sets. Set-once, so CLOSED. */}
+      <CollapsibleGroup title="Content">
+        {/* Context-sensitive: the camp scope only appears when there's more than
+            one camp to choose between. */}
+        {camps.length > 0 && (
+          <MenuPicker
+            label="Camp"
+            options={campOptions}
+            value={options.campId ?? ""}
+            ariaLabel="Which camp to print"
+            onChange={(value) => onChange({ campId: value ? value : null })}
+          />
+        )}
+        <Row label="All-day events">
+          <ToggleSwitch
+            on={options.includeAllDay}
+            ariaLabel="Include all-day events"
+            onChange={(includeAllDay) => onChange({ includeAllDay })}
+          />
+        </Row>
+        <Row label="Empty days">
+          <ToggleSwitch
+            on={options.includeEmptyDays}
+            ariaLabel="Include empty days"
+            onChange={(includeEmptyDays) => onChange({ includeEmptyDays })}
+          />
+        </Row>
+        <Row label="Show themes">
+          <ToggleSwitch
+            on={options.showThemes}
+            ariaLabel="Show themes"
+            onChange={(showThemes) => onChange({ showThemes })}
+          />
+        </Row>
         <ContentPicker
           days={scheduleDays}
           byId={byId}
@@ -635,13 +636,21 @@ export function PrintControls({
           excludedEventIds={options.excludedEventIds}
           onChange={onChange}
         />
-      </Group>
+      </CollapsibleGroup>
+
+      {/* Document sections — reorder the document's parts (the cover always leads,
+          toggled in Page setup). A short, ordered ledger with up/down nudges.
+          Leads OPEN: a frequently-tweaked, high-signal control. */}
+      <CollapsibleGroup title="Document sections" defaultOpen>
+        <SectionOrder order={options.sectionOrder} onChange={(sectionOrder) => onChange({ sectionOrder })} />
+      </CollapsibleGroup>
 
       {/* Appendix — what gets stapled on AFTER the schedule. Distinct from the
-          inline "Run TLDR" detail (a per-event summary in the schedule itself). */}
-      <Group title="Appendix">
+          inline "Run TLDR" detail (a per-event summary in the schedule itself).
+          Niche, so CLOSED. */}
+      <CollapsibleGroup title="Appendix">
         <p className="prail__grouphint">
-          Added after the schedule — separate from the inline &ldquo;Run TLDR&rdquo; detail above.
+          Added after the schedule — separate from the inline &ldquo;Run TLDR&rdquo; detail in Layout.
         </p>
         <Row label="Full run sheets">
           <ToggleSwitch
@@ -650,6 +659,15 @@ export function PrintControls({
             onChange={(appendRunSheets) => onChange({ appendRunSheets })}
           />
         </Row>
+        {/* Context-sensitive: the per-activity sheet picker only matters once
+            run sheets are turned on AND there's something scheduled to pick. */}
+        {options.appendRunSheets && scheduledActivities.length > 0 && (
+          <RunSheetPicker
+            activities={scheduledActivities}
+            selected={options.runSheetIds}
+            onChange={(runSheetIds) => onChange({ runSheetIds })}
+          />
+        )}
         <Row label="Shopping list (combined)">
           <ToggleSwitch
             on={options.materialsRollup}
@@ -657,12 +675,7 @@ export function PrintControls({
             onChange={(materialsRollup) => onChange({ materialsRollup })}
           />
         </Row>
-        <RunSheetPicker
-          activities={scheduledActivities}
-          selected={options.runSheetIds}
-          onChange={(runSheetIds) => onChange({ runSheetIds })}
-        />
-      </Group>
+      </CollapsibleGroup>
     </div>
   );
 }

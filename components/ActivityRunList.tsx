@@ -26,11 +26,20 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import type { Activity } from "@/lib/types";
+import type { Activity, AgeGroupId } from "@/lib/types";
+import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
 import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
+import {
+  lines as splitList,
+  validateForm,
+  type FormState,
+} from "@/lib/activityForm";
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
-import { RatingDots } from "./primitives";
+import { FloatingLayer } from "./floating/FloatingLayer";
+import { MiniSeg, RatingDots, Seg } from "./primitives";
+import { ColorField } from "./floating/ColorField";
+import { ThemeField, type ThemeKit } from "./ThemeField";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 import {
   RUN_CHILD_META,
@@ -356,6 +365,568 @@ function MaterialChecklist({
   );
 }
 
+// ----------------------------------------------------------------------------
+// The Details block, in EDIT mode — the activity's scalar facts edited inline as
+// structured dropdowns on the run sheet (no separate form above it). Each fact
+// is a ledger row (small-caps label left, a compact control right) bound to the
+// same FormState the old AddView form drove, so save derives the Activity
+// unchanged. STRUCTURED controls (Seg / Select-style menus / chip menu / number
+// stepper) — never free text — so a value can't be typed that breaks downstream.
+// ----------------------------------------------------------------------------
+type DetailFormProps = {
+  form: FormState;
+  onFormChange: (next: FormState) => void;
+  themeKit?: ThemeKit;
+  ageUnit?: AgeUnit;
+  onAgeUnit?: (v: AgeUnit) => void;
+};
+
+// A label-only inline menu picker bound to the run sheet (mirrors the sidebar
+// MenuPicker, but hosted in the FloatingLayer so it shares the Escape/scrim
+// contract). Used for Type / duration where a long option list beats segments.
+function LedgerMenu<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  swatch,
+}: {
+  value: T;
+  options: { id: T; label: string; tint?: string }[];
+  onChange: (v: T) => void;
+  ariaLabel: string;
+  swatch?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const current = options.find((o) => o.id === value) ?? options[0];
+  return (
+    <div className={"typepick rldetail__pick" + (open ? " is-open" : "")}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="typepick__trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {swatch && (
+          <span
+            className="typepick__swatch"
+            style={current?.tint ? { background: current.tint } : undefined}
+            aria-hidden="true"
+          />
+        )}
+        {current?.label}
+        <CampIcon.ChevronDown />
+      </button>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect(), matchWidth: true }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu rldetail__menu"
+          role="listbox"
+          ariaLabel={ariaLabel}
+        >
+          {options.map((o) => (
+            <button
+              type="button"
+              key={o.id}
+              role="option"
+              aria-selected={o.id === value}
+              className={"typepick__option" + (o.id === value ? " is-on" : "")}
+              data-floating-first={o.id === value ? "" : undefined}
+              onClick={() => {
+                onChange(o.id);
+                setOpen(false);
+              }}
+            >
+              {swatch && (
+                <span
+                  className="typepick__swatch"
+                  style={o.tint ? { background: o.tint } : undefined}
+                  aria-hidden="true"
+                />
+              )}
+              {o.label}
+            </button>
+          ))}
+        </FloatingLayer>
+      )}
+    </div>
+  );
+}
+
+// The multi-select age-group picker — a popover of toggle chips (ages is a list,
+// unlike the single-value sidebar AgePicker). The trigger summarizes the picks.
+function AgeGroupsMenu({
+  ages,
+  onToggle,
+  ageUnit = "grades",
+  onAgeUnit,
+}: {
+  ages: AgeGroupId[];
+  onToggle: (id: AgeGroupId) => void;
+  ageUnit?: AgeUnit;
+  onAgeUnit?: (v: AgeUnit) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
+  const summary = picked.length
+    ? picked.map((g) => bandShort(g, ageUnit)).join(", ")
+    : "Any age";
+  return (
+    <div className={"typepick rldetail__pick" + (open ? " is-open" : "")}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="typepick__trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label="Age groups"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {summary}
+        <CampIcon.ChevronDown />
+      </button>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect() }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu rldetail__agemenu"
+          role="dialog"
+          ariaLabel="Age groups"
+        >
+          {onAgeUnit && (
+            <div className="rldetail__ageunit">
+              <MiniSeg
+                ariaLabel="Show ages as"
+                value={ageUnit}
+                onChange={(value) => onAgeUnit(value as AgeUnit)}
+                options={[
+                  { id: "grades", label: "Grades" },
+                  { id: "ages", label: "Ages" },
+                ]}
+              />
+            </div>
+          )}
+          <div className="rldetail__agechips" role="group" aria-label="Age groups">
+            {AGE_GROUPS.map((g, i) => {
+              const on = ages.indexOf(g.id) >= 0;
+              return (
+                <button
+                  type="button"
+                  key={g.id}
+                  className={"chip" + (on ? " is-on" : "")}
+                  aria-pressed={on}
+                  data-floating-first={i === 0 ? "" : undefined}
+                  onClick={() => onToggle(g.id)}
+                >
+                  {bandShort(g, ageUnit)}
+                </button>
+              );
+            })}
+          </div>
+        </FloatingLayer>
+      )}
+    </div>
+  );
+}
+
+// The group-size min/max popover (two small inputs, "blank = any").
+function GroupSizeMenu({
+  groupMin,
+  groupMax,
+  onChange,
+  invalid,
+  rangeInvalid,
+}: {
+  groupMin: string;
+  groupMax: string;
+  onChange: (patch: { groupMin?: string; groupMax?: string }) => void;
+  invalid: boolean;
+  rangeInvalid: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const summary =
+    !groupMin.trim() && !groupMax.trim()
+      ? "Any size"
+      : groupMax.trim()
+        ? (groupMin.trim() || "1") + "–" + groupMax.trim()
+        : groupMin.trim() + "+";
+  return (
+    <div className={"typepick rldetail__pick" + (open ? " is-open" : "")}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={"typepick__trigger" + (invalid || rangeInvalid ? " is-invalid" : "")}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label="Group size"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {summary} kids
+        <CampIcon.ChevronDown />
+      </button>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect() }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu rldetail__groupmenu"
+          role="dialog"
+          ariaLabel="Group size"
+        >
+          <div className="rldetail__grouprow">
+            <label className="sr-only" htmlFor="rldetail-group-min">Minimum group size</label>
+            <input
+              id="rldetail-group-min"
+              className="input rldetail__numin"
+              inputMode="numeric"
+              placeholder="min"
+              value={groupMin}
+              data-floating-first
+              aria-invalid={invalid || rangeInvalid}
+              onChange={(e) => onChange({ groupMin: e.target.value })}
+            />
+            <span className="rldetail__groupdash" aria-hidden="true">–</span>
+            <label className="sr-only" htmlFor="rldetail-group-max">Maximum group size</label>
+            <input
+              id="rldetail-group-max"
+              className="input rldetail__numin"
+              inputMode="numeric"
+              placeholder="max"
+              value={groupMax}
+              aria-invalid={invalid || rangeInvalid}
+              onChange={(e) => onChange({ groupMax: e.target.value })}
+            />
+          </div>
+          {(invalid || rangeInvalid) && (
+            <span className="rldetail__grouperr" role="alert">
+              {rangeInvalid ? "Min can't exceed max." : "Use positive whole numbers."}
+            </span>
+          )}
+        </FloatingLayer>
+      )}
+    </div>
+  );
+}
+
+// A small minutes stepper + menu: ± buttons around a value, with a menu of common
+// durations. Stays a structured number — never free text.
+const DURATION_CHOICES = [5, 10, 15, 20, 30, 45, 60, 90];
+function DurationControl({
+  value,
+  onChange,
+  invalid,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  invalid: boolean;
+}) {
+  const num = Number.parseInt(value, 10);
+  const safe = Number.isFinite(num) && num > 0 ? num : 20;
+  const step = (delta: number) => onChange(String(Math.max(5, safe + delta)));
+  return (
+    <div className="rldetail__dur">
+      <button
+        type="button"
+        className="rldetail__durbtn"
+        onClick={() => step(-5)}
+        aria-label="Decrease minutes"
+      >
+        <CampIcon.Minus />
+      </button>
+      <LedgerMenu
+        value={String(safe)}
+        options={DURATION_CHOICES.map((n) => ({ id: String(n), label: n + " min" }))}
+        onChange={onChange}
+        ariaLabel="Minutes"
+      />
+      <button
+        type="button"
+        className="rldetail__durbtn"
+        onClick={() => step(5)}
+        aria-label="Increase minutes"
+      >
+        <CampIcon.Plus />
+      </button>
+      {invalid && <span className="sr-only" role="alert">Duration must fit the camp day.</span>}
+    </div>
+  );
+}
+
+function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }: DetailFormProps) {
+  const f = form;
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => onFormChange({ ...f, [k]: v });
+  const v = validateForm(f);
+  const toggleAge = (id: AgeGroupId) =>
+    onFormChange({
+      ...f,
+      ages: f.ages.indexOf(id) >= 0 ? f.ages.filter((x) => x !== id) : [...f.ages, id],
+    });
+
+  return (
+    <div className="ledger rldetail">
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Type</span>
+        <LedgerMenu
+          value={f.type}
+          options={CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) }))}
+          onChange={(id) => set("type", id)}
+          ariaLabel="Category"
+          swatch
+        />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Where</span>
+        <Seg
+          options={["Inside", "Outside", "Both"] as const}
+          value={f.place}
+          onChange={(value) => set("place", value)}
+          ariaLabel="Where"
+        />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Energy</span>
+        <Seg
+          options={["Calm", "Lively", "Rowdy"] as const}
+          value={f.energy}
+          onChange={(value) => set("energy", value)}
+          ariaLabel="Energy"
+        />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Prep</span>
+        <Seg
+          options={["None", "Low", "Medium", "High"] as const}
+          value={f.prep}
+          onChange={(value) => set("prep", value)}
+          ariaLabel="Prep effort"
+        />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Minutes</span>
+        <DurationControl
+          value={f.durationMin}
+          onChange={(value) => set("durationMin", value)}
+          invalid={v.durationInvalid}
+        />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Ages</span>
+        <AgeGroupsMenu ages={f.ages} onToggle={toggleAge} ageUnit={ageUnit} onAgeUnit={onAgeUnit} />
+      </div>
+      <div className="ledger__row rldetail__row">
+        <span className="ledger__label">Group size</span>
+        <GroupSizeMenu
+          groupMin={f.groupMin}
+          groupMax={f.groupMax}
+          onChange={(patch) => onFormChange({ ...f, ...patch })}
+          invalid={v.groupMinInvalid || v.groupMaxInvalid}
+          rangeInvalid={v.groupRangeInvalid}
+        />
+      </div>
+      {themeKit && (
+        <div className="ledger__row rldetail__row">
+          <span className="ledger__label">Theme</span>
+          <ThemeField
+            value={f.themeId}
+            themes={themeKit.themes}
+            onChange={(themeId) => set("themeId", themeId ?? "")}
+            onCreate={themeKit.onCreate}
+            ariaLabel="Activity theme"
+          />
+        </div>
+      )}
+      <div className="ledger__row rldetail__row rldetail__row--rating">
+        <span className="ledger__label">Rating</span>
+        <RatingDots value={f.rating} onChange={(value) => set("rating", value)} />
+      </div>
+    </div>
+  );
+}
+
+// The Materials block, in EDIT mode — a PROPER editable list of the kit items
+// (the same comma-separated `materials` string the form owns, surfaced one item
+// per row). Each row is honest about what it does: a drag grip + an inline
+// editable name + move up/down + remove, in the run-sheet sub-step vocabulary.
+// Reorder is local to this list (it never touches the run-doc drag model), via
+// HTML5 drag on the row OR the up/down buttons (touch/keyboard parity). An
+// "Add item" row at the foot grows the list. Clearing a row's text removes it,
+// the same "empty = gone" feel as a step.
+function MaterialsEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const items = splitList(value);
+  const [draft, setDraft] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<{ index: number; pos: "before" | "after" } | null>(null);
+  const dragIndexRef = useRef<number | null>(null);
+
+  const write = (next: string[]) => onChange(next.map((s) => s.trim()).filter(Boolean).join(", "));
+
+  const commitDraft = () => {
+    const next = draft.trim();
+    if (!next) return;
+    write([...items, next]);
+    setDraft("");
+  };
+  const removeAt = (index: number) => write(items.filter((_, i) => i !== index));
+  const renameAt = (index: number, text: string) => {
+    const trimmed = text.trim();
+    // Emptying a row removes it (mirrors clearing a step's text).
+    if (!trimmed) return removeAt(index);
+    write(items.map((item, i) => (i === index ? trimmed : item)));
+  };
+  const moveBy = (index: number, dir: -1 | 1) => {
+    const swap = index + dir;
+    if (swap < 0 || swap >= items.length) return;
+    const next = [...items];
+    [next[index], next[swap]] = [next[swap], next[index]];
+    write(next);
+  };
+
+  // ---- HTML5 row drag (self-contained to this list) ----
+  const onRowDrop = (toIndex: number, pos: "before" | "after") => {
+    const from = dragIndexRef.current;
+    dragIndexRef.current = null;
+    setDragIndex(null);
+    setOverIndex(null);
+    if (from == null) return;
+    let dest = pos === "after" ? toIndex + 1 : toIndex;
+    if (from < dest) dest -= 1; // account for the removed source slot
+    if (dest === from) return;
+    const next = [...items];
+    const [moved] = next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(next.length, dest)), 0, moved);
+    write(next);
+  };
+
+  return (
+    <div className="rlmat">
+      {items.length > 0 && (
+        <ul className="rlmat__list">
+          {items.map((item, i) => {
+            const overState =
+              overIndex && overIndex.index === i && dragIndex !== i
+                ? " is-over-" + overIndex.pos
+                : "";
+            return (
+              <li
+                key={i}
+                className={"rlmat__item" + (dragIndex === i ? " is-dragging" : "") + overState}
+                draggable
+                onDragStart={(e) => {
+                  // Don't hijack drags that start on the inline text/buttons.
+                  if ((e.target as HTMLElement).closest("button, .rl-ed")) {
+                    e.preventDefault();
+                    return;
+                  }
+                  dragIndexRef.current = i;
+                  setDragIndex(i);
+                  e.dataTransfer.effectAllowed = "move";
+                  try {
+                    e.dataTransfer.setData("text/plain", String(i));
+                  } catch {
+                    /* some browsers reject setData outside a user gesture */
+                  }
+                }}
+                onDragOver={(e) => {
+                  if (dragIndexRef.current == null) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  if (!overIndex || overIndex.index !== i || overIndex.pos !== pos) {
+                    setOverIndex({ index: i, pos });
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pos = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  onRowDrop(i, pos);
+                }}
+                onDragEnd={() => {
+                  dragIndexRef.current = null;
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+              >
+                <span className="rlmat__grip" title="Drag to reorder" aria-hidden="true">
+                  <CampIcon.Grip />
+                </span>
+                <Editable
+                  className="rlmat__name"
+                  value={item}
+                  editable
+                  placeholder="Material"
+                  ariaLabel={"Material " + (i + 1)}
+                  onCommit={(v) => renameAt(i, v)}
+                />
+                <div className="rlmat__tools">
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => moveBy(i, -1)}
+                    disabled={i <= 0}
+                    aria-label="Move material up"
+                  >
+                    <CampIcon.ChevronUp />
+                  </button>
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => moveBy(i, 1)}
+                    disabled={i >= items.length - 1}
+                    aria-label="Move material down"
+                  >
+                    <CampIcon.ChevronDown />
+                  </button>
+                  <button
+                    type="button"
+                    className="rl-iconbtn"
+                    onClick={() => removeAt(i)}
+                    aria-label={"Remove " + item}
+                  >
+                    <CampIcon.Trash />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="rlmat__addrow">
+        <span className="rlmat__addmark" aria-hidden="true">
+          <CampIcon.Plus />
+        </span>
+        <input
+          className="input rlmat__add"
+          placeholder={items.length ? "Add a material…" : "flags, cones, pinnies"}
+          value={draft}
+          aria-label="Add a material"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commitDraft();
+            }
+          }}
+          onBlur={commitDraft}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function ActivityRunList({
   doc,
   editable,
@@ -366,6 +937,11 @@ export function ActivityRunList({
   onSetRating,
   hideAddBlocks,
   canCapture = false,
+  editForm,
+  onEditFormChange,
+  editThemeKit,
+  editAgeUnit,
+  onEditAgeUnit,
 }: {
   doc: RunDoc;
   editable: boolean;
@@ -374,6 +950,16 @@ export function ActivityRunList({
   availableMaterials: string[];
   onToggleMaterial: (id: string) => void;
   onSetRating?: (value: number) => void;
+  /** When provided (edit/create), the Details block renders as structured
+   *  dropdowns bound to this form, and the Materials block becomes an inline
+   *  editor — the run sheet IS the editor, with no separate form above it. The
+   *  details/materials FACTS live here (single source); the run-doc still derives
+   *  its scaffold from them on save (stripScaffold), so there's no dual-write. */
+  editForm?: FormState;
+  onEditFormChange?: (next: FormState) => void;
+  editThemeKit?: ThemeKit;
+  editAgeUnit?: AgeUnit;
+  onEditAgeUnit?: (v: AgeUnit) => void;
   /** Block types kept out of the "Add a block" palettes. In the unified editor
    *  the scalar Activity-card controls own details/materials as plain form
    *  fields, so those scaffold blocks are stripped from the editable play-doc
@@ -389,6 +975,11 @@ export function ActivityRunList({
   const addableBlocks = hideAddBlocks?.length
     ? ADD_BLOCKS.filter((block) => !hideAddBlocks.includes(block.type))
     : ADD_BLOCKS;
+
+  // Form-bound edit: the run sheet hosts the scalar facts inline (Details +
+  // Materials) instead of a separate form above it. Requires the draft form +
+  // its onChange; absent in browse/read.
+  const isFormEdit = editable && Boolean(editForm && onEditFormChange);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState<Record<string, boolean>>({});
@@ -1283,6 +1874,71 @@ export function ActivityRunList({
               />
             ))}
           </li>
+          {/* ---- FORM-BOUND DETAILS + MATERIALS (edit/create) ----
+              The scalar facts live inline as the top of the run sheet, the same
+              positions browse shows them as static tags. These render OUTSIDE
+              doc.blocks (they bind to editForm, not the run-doc) so the play
+              content stays the single editable run-doc; on save the scaffold is
+              re-derived from these facts (no dual-write). */}
+          {isFormEdit && editForm && onEditFormChange && (
+            <>
+              <li className="rl-block rl-block--heading rl-block--formhead" aria-hidden="false">
+                <div className="rl-block__main">
+                  <div className="rl-row rl-row--heading">
+                    <div className="rl-body">
+                      <span className="rl-heading__t">Details</span>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li className="rl-block rl-block--details rl-block--formdetails">
+                <span className="rl-node rl-node--type rl-node--details" contentEditable={false}>
+                  <CampIcon.Card />
+                </span>
+                <div className="rl-block__main">
+                  <div className="rl-row rl-row--details">
+                    <div className="rl-body">
+                      <div className="rl-time">{RUN_TOP_LABEL.details}</div>
+                      <DetailFormControls
+                        form={editForm}
+                        onFormChange={onEditFormChange}
+                        themeKit={editThemeKit}
+                        ageUnit={editAgeUnit}
+                        onAgeUnit={onEditAgeUnit}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li className="rl-block rl-block--materials rl-block--formmaterials">
+                <span className="rl-node rl-node--type rl-node--materials" contentEditable={false}>
+                  <CampIcon.Card />
+                </span>
+                <div className="rl-block__main">
+                  <div className="rl-row rl-row--materials">
+                    <div className="rl-body">
+                      <div className="rl-time">{RUN_TOP_LABEL.materials}</div>
+                      <MaterialsEditor
+                        value={editForm.materials}
+                        onChange={(value) => onEditFormChange({ ...editForm, materials: value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </li>
+              {hasSteps && (
+                <li className="rl-block rl-block--heading rl-block--formhead" aria-hidden="false">
+                  <div className="rl-block__main">
+                    <div className="rl-row rl-row--heading">
+                      <div className="rl-body">
+                        <span className="rl-heading__t">How to play</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              )}
+            </>
+          )}
           {doc.blocks.map((b, blockIndex) => (
             <Fragment key={"wrap-" + b.id}>
               {renderInsertZone(blockIndex)}

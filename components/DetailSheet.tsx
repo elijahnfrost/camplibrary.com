@@ -4,18 +4,25 @@
 //
 //   · browse (read)  — the item detail view: header + the full resolved run-doc,
 //                      read-only. A stray tap never pops the keyboard.
-//   · edit (in place)— the SAME surface flips editable: the scalar Activity-card
-//                      controls (ActivityFields) at the top + the run-doc editor
-//                      (scaffold-stripped play content) below + a Save button.
-//   · create         — the same edit surface, opened blank, with no read view to
-//                      fall back to (Cancel returns to where you came from).
+//   · edit (in place)— the SAME surface flips editable: the RUN SHEET becomes the
+//                      editor. Title/blurb/also-called are inline-editable in the
+//                      header (with the color swatch); the detail FACTS are
+//                      structured dropdowns inside the run sheet's Details block;
+//                      Materials are edited inline in the Materials block; the
+//                      play content (steps/notes/safety/…) edits in place; a Save
+//                      button commits. There is NO separate form above the doc.
+//   · create         — the same edit surface, opened blank (a clean slate): an
+//                      empty title placeholder, default tags as dropdowns, one
+//                      empty step, empty materials. Cancel returns to where you
+//                      came from (there is no read view to fall back to).
 //
 // Every property editable on an existing activity is editable at creation in the
-// same positions, because both go through ONE form. The Details/Materials FACTS
-// live ONLY in the scalar controls; in edit mode the play-doc has its details/
-// materials scaffold stripped (so there's no second editable copy — no dual-
-// write). On save, buildSaveDoc re-derives the full scaffold, so saved Activity
-// + runLists overrides keep exactly the same shape as before (old data loads).
+// same positions, because both go through ONE FormState draft. The Details/
+// Materials FACTS live ONLY in the inline dropdown controls (single source); in
+// edit mode the play-doc has its details/materials scaffold stripped (so there's
+// no second editable copy — no dual-write). On save, buildSaveDoc re-derives the
+// full scaffold from the form, so saved Activity + runLists overrides keep
+// exactly the same shape as before (old data loads).
 
 import { useMemo, useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
@@ -33,14 +40,16 @@ import {
   validateForm,
   type FormState,
 } from "@/lib/activityForm";
+import { categoryTint } from "@/lib/data";
 import { CampIcon } from "./icons";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
-import { ActivityFields, type ThemeKit } from "./ActivityFields";
+import { ColorField } from "./floating/ColorField";
 import { ActivityRunList } from "./ActivityRunList";
+import { type ThemeKit } from "./ThemeField";
 import { DESKTOP_MIN } from "./useDeviceShape";
 
-export type { ThemeKit } from "./ActivityFields";
+export type { ThemeKit } from "./ThemeField";
 
 export function DetailSheet({
   activity: a,
@@ -212,69 +221,95 @@ export function DetailSheet({
         onTouchCancel={onBodyTouchCancel}
       >
         {editing ? (
-          // ---- CREATE / EDIT: the one form, in place ----
-          <>
-            {/* Always-visible escape hatch — on a phone the sheet covers the
-                whole screen and a scrim tap shouldn't be the only way out.
-                Owner actions (Duplicate/Delete) live here in edit mode, where
-                the old viewer kept them, so the browse header stays minimal. */}
-            <div className="rlv-head__row sheet-head">
-              <button
-                type="button"
-                className="rlv-back"
-                onClick={cancelEdit}
-                aria-label={isCreate ? "Back to " + backLabel : "Cancel editing"}
-              >
-                <CampIcon.ChevronLeft />
-                {isCreate ? backLabel : "Cancel"}
-              </button>
-              <span className="rlv-head__sp" />
-              <span className="sheet-head__title">{isCreate ? "New activity" : "Editing"}</span>
-              {showOwnerActions && !isCreate && (
-                <>
-                  {/* Duplicate works for built-ins too (it forks a custom copy). */}
-                  <button
-                    type="button"
-                    className="rlv-headbtn"
-                    onClick={() => onDuplicate(a)}
-                    aria-label="Duplicate activity"
-                    title="Duplicate activity"
-                  >
-                    <CampIcon.Copy />
-                  </button>
-                  <button
-                    type="button"
-                    className="rlv-headbtn rlv-headbtn--danger"
-                    onClick={() => onDelete(a)}
-                    aria-label="Delete activity"
-                  >
-                    <CampIcon.Trash />
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="form form--activity fadein">
-              <ActivityFields
-                form={form}
-                onChange={setForm}
-                themeKit={themeKit}
-                ageUnit={ageUnit}
-                onAgeUnit={onAgeUnit}
-              />
-
-              <div className="form__section">How to play</div>
-              <div className="form__runlist">
-                <ActivityRunList
-                  doc={playDoc}
-                  editable
-                  onChange={setPlayDoc}
-                  activity={draftActivity}
-                  availableMaterials={[]}
-                  onToggleMaterial={() => {}}
-                  hideAddBlocks={["details", "materials"]}
+          // ---- CREATE / EDIT: the run sheet IS the editor, in place ----
+          // No separate form above the doc: the title/blurb/aka are inline-
+          // editable in the header (with the color swatch), and the detail FACTS
+          // are structured dropdowns inside the run sheet's Details block.
+          <article className="rlv rlv--edit fadein">
+            <header className="rlv-head">
+              {/* Always-visible escape hatch — on a phone the sheet covers the
+                  whole screen and a scrim tap shouldn't be the only way out.
+                  Owner actions (Duplicate/Delete) live here in edit mode. */}
+              <div className="rlv-head__row">
+                <button
+                  type="button"
+                  className="rlv-back"
+                  onClick={cancelEdit}
+                  aria-label={isCreate ? "Back to " + backLabel : "Cancel editing"}
+                >
+                  <CampIcon.ChevronLeft />
+                  {isCreate ? backLabel : "Cancel"}
+                </button>
+                <span className="rlv-head__sp" />
+                <ColorField
+                  value={form.color || undefined}
+                  fallback={categoryTint(form.type)}
+                  onChange={(color) => setForm((f) => ({ ...f, color: color ?? "" }))}
+                  ariaLabel="Activity color"
                 />
+                {showOwnerActions && !isCreate && (
+                  <>
+                    {/* Duplicate works for built-ins too (it forks a custom copy). */}
+                    <button
+                      type="button"
+                      className="rlv-headbtn"
+                      onClick={() => onDuplicate(a)}
+                      aria-label="Duplicate activity"
+                      title="Duplicate activity"
+                    >
+                      <CampIcon.Copy />
+                    </button>
+                    <button
+                      type="button"
+                      className="rlv-headbtn rlv-headbtn--danger"
+                      onClick={() => onDelete(a)}
+                      aria-label="Delete activity"
+                    >
+                      <CampIcon.Trash />
+                    </button>
+                  </>
+                )}
               </div>
 
+              <input
+                className="rlv-title rlv-title--edit"
+                value={form.title}
+                placeholder="Name this activity"
+                aria-label="Activity name"
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              />
+              <input
+                className="rlv-blurb rlv-blurb--edit"
+                value={form.blurb}
+                placeholder="The hook, in a sentence."
+                aria-label="One-line description"
+                onChange={(e) => setForm((f) => ({ ...f, blurb: e.target.value }))}
+              />
+              <input
+                className="rlv-aka rlv-aka--edit"
+                value={form.altNames}
+                placeholder="Also called… (comma-separated, searchable)"
+                aria-label="Also known as"
+                onChange={(e) => setForm((f) => ({ ...f, altNames: e.target.value }))}
+              />
+            </header>
+
+            <ActivityRunList
+              doc={playDoc}
+              editable
+              onChange={setPlayDoc}
+              activity={draftActivity}
+              availableMaterials={[]}
+              onToggleMaterial={() => {}}
+              hideAddBlocks={["details", "materials"]}
+              editForm={form}
+              onEditFormChange={setForm}
+              editThemeKit={themeKit}
+              editAgeUnit={ageUnit}
+              onEditAgeUnit={onAgeUnit}
+            />
+
+            <div className="rlv-save">
               <button
                 type="button"
                 className="btn btn--primary btn--block"
@@ -284,9 +319,8 @@ export function DetailSheet({
                 {isCreate ? <CampIcon.Plus /> : <CampIcon.Check />}
                 {isCreate ? "Add to library" : "Save changes"}
               </button>
-              <div style={{ height: 8 }} />
             </div>
-          </>
+          </article>
         ) : (
           // ---- BROWSE: the item detail view, read-only ----
           <article className="rlv">

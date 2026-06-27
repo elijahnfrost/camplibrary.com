@@ -108,16 +108,18 @@ export const CampIcon = {
     <>
       <rect x="4" y="5.5" width="16" height="15" />
       <path d="M4 9.5h16" />
-      {/* Date dots — shown at rest (a calendar always has its dates). The old
-          page-fold + staggered dot cascade was the "wiggle"; the icon now just
-          gives one calm settle on hover (see globals.css §cicon--cal). */}
+      {/* New-month date dots — pop in (populate) as the page settles on hover. */}
       <g className="cicon-cal__dots">
-        <circle cx="8" cy="13" r="0.9" />
-        <circle cx="12" cy="13" r="0.9" />
-        <circle cx="16" cy="13" r="0.9" />
-        <circle cx="8" cy="16.5" r="0.9" />
-        <circle cx="12" cy="16.5" r="0.9" />
+        <circle cx="8" cy="13" r="0.9" style={{ "--i": 0 } as React.CSSProperties} />
+        <circle cx="12" cy="13" r="0.9" style={{ "--i": 1 } as React.CSSProperties} />
+        <circle cx="16" cy="13" r="0.9" style={{ "--i": 2 } as React.CSSProperties} />
+        <circle cx="8" cy="16.5" r="0.9" style={{ "--i": 3 } as React.CSSProperties} />
+        <circle cx="12" cy="16.5" r="0.9" style={{ "--i": 4 } as React.CSSProperties} />
       </g>
+      {/* The turning page: a full sheet hinged at the header rule that flips down
+          on hover to reveal the grid — "the calendar opens and the events
+          populate" beneath it (see globals.css §cicon--cal). */}
+      <path className="cicon-cal__leaf" d="M4 9.5h16V20H4z" />
       <path className="cicon-cal__rings" d="M8.5 3.5v4M15.5 3.5v4" />
     </>,
     "cal"
@@ -183,6 +185,16 @@ export const CampIcon = {
       <circle cx="12" cy="10" r="2.3" />
     </>
   ),
+  // Artist's palette: the rounded blob with a thumb-hole, dotted with a couple of
+  // paint wells — the colour-picker affordance for the bulk "Color…" action.
+  Palette: svg(
+    <>
+      <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 2-2 0-1.4 1-2 2-2h1.5a3 3 0 0 0 3-3.5A8.6 8.6 0 0 0 12 3.5z" />
+      <circle cx="8" cy="9.5" r="1" />
+      <circle cx="12" cy="7.5" r="1" />
+      <circle cx="15.5" cy="9.5" r="1" />
+    </>
+  ),
   // Wrench; on hover it gives a couple of quick tightening wiggles.
   Tool: svg(
     <path d="M14.5 6a3.5 3.5 0 0 0-4.7 4.2L4 16v4h4l5.8-5.8A3.5 3.5 0 0 0 18 9.5L15.5 12 12 8.5 14.5 6z" />,
@@ -207,36 +219,25 @@ export const CampIcon = {
   ChevronDown: svg(<path d="M5 9l7 7 7-7" />),
   Trash: svg(<path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" />),
   Check: svg(<path d="M5 12.5 10 17l9-10" />),
-  // Printer: input paper on top, closed body, status dot, and a printed page that
-  // feeds DOWN and OUT through the output mouth at the bottom-front of the body on
-  // hover. At rest the page is parked INSIDE the body (clipped away above the
-  // mouth lip), so the icon reads as a plain printer. On hover it slides down and
-  // settles just below the front lip — a printed page in the output tray (see
-  // globals.css §Print). clipPath id is unique per icon set.
+  // Printer: input paper on top, the body, a status dot, and an OUTLINED printed
+  // page resting in the output tray under the front — shown AT REST so the printer
+  // reads as complete (not a bare body) and the page is a clean outline (never a
+  // filled slab). On hover the page ejects with a gentle bob, as if a fresh sheet
+  // just printed (see globals.css §cicon--print).
   Print: svg(
     <>
-      <defs>
-        {/* Output window: the page is only visible from the mouth lip (y≈14) on
-            DOWN to just below the printer's front, so it reads as emerging out the
-            bottom. Anything above the lip is clipped (parked inside the body). */}
-        <clipPath id="cicon-print-slot" clipPathUnits="userSpaceOnUse">
-          <rect x="6.5" y="14" width="11" height="9" />
-        </clipPath>
-      </defs>
-      {/* input paper — open bottom blends into body top */}
-      <path d="M7 8V4h10v4" />
-      {/* printer body — closed, consistent 2px corners, notch for the output mouth */}
-      <path d="M6 8h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v-3H7v3H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
+      {/* input paper — feeds in over the body top */}
+      <path d="M7.5 8V4.5h9V8" />
+      {/* printer body — flat-bottomed; the printed sheet rests in the tray below */}
+      <path d="M6 8h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z" />
       {/* status dot */}
-      <path d="M17.5 11.5h.01" />
-      {/* output page — a clean (unfilled) page with one short print line so it
-          reads as a printed sheet, not a heavy slab. Parked inside the body at
-          rest (above the lip, clipped away); feeds DOWN on hover to emerge below
-          the front lip. Clipped to the output window so its body never shows
-          through the printer body. */}
-      <g className="cicon-print__sheet" clipPath="url(#cicon-print-slot)">
-        <rect className="cicon-print__page" x="8" y="7" width="8" height="6.6" rx="0.6" />
-        <path className="cicon-print__line" d="M9.8 10.6h4.4" />
+      <path d="M16.4 11h.01" />
+      {/* output page — an OUTLINED sheet sitting in the output tray under the body
+          front (open top, so it reads as paper just out of the printer). Visible
+          at rest; on hover the whole sheet bobs down a hair (eject). */}
+      <g className="cicon-print__sheet">
+        <path className="cicon-print__page" d="M8 16v3.3a0.7 0.7 0 0 0 0.7 0.7h6.6a0.7 0.7 0 0 0 0.7-0.7V16" />
+        <path className="cicon-print__line" d="M9.9 17.7h4.2" />
       </g>
     </>,
     "print"

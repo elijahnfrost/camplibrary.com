@@ -646,28 +646,58 @@ body.is-cal-copy .cal-dragfollow::after {
   /* A paper halo separates the badge from the card's own tint. */
   box-shadow: 0 0 0 1.5px var(--card);
 }
-/* GROUP MOVE: dragging a multi-selection carries a count badge ("3") on the
-   follower so it reads as "all of these are moving". The number rides a
-   data-group-count attribute (set per frame in JS), so it survives the
-   follower's innerHTML swap — a child node wouldn't. Same badge anatomy as the
-   copy "+", anchored top-left so it can't collide with it. */
+/* GROUP MOVE: dragging a multi-selection carries the whole group. The follower
+   stays ONE tidy card (the grabbed event), with two restrained cues so it reads
+   as "carrying several":
+     · ::before — a subtle "stacked cards" hint: a second card edge peeking out
+       behind the top-right corner, so the card looks like the top of a small
+       deck. Drawn as a tinted, paper-edged slab nudged up-and-right, BEHIND the
+       card (negative z), clipped by nothing (the follower's overflow:hidden is
+       overridden for the group case so the stack can show).
+     · ::after — a clean count PILL pinned to the TOP-RIGHT corner (a badge, like
+       the app's count pills), showing N. It sits OUTSIDE the card's title/time
+       flow so it never overlaps them. The count rides a data-group-count
+       attribute (set per frame in JS) so it survives the follower's innerHTML
+       swap — a child node wouldn't. */
+.cal-dragfollow.is-group {
+  /* Let the stacked-card hint + corner badge spill past the card edge. */
+  overflow: visible;
+}
 .cal-dragfollow.is-group::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--r-sm);
+  border-left: 3px solid var(--cal-tint, var(--accent));
+  background: color-mix(in srgb, var(--cal-tint, var(--card)) 16%, var(--card));
+  box-shadow: var(--e2);
+  /* Nudge the deck card up-and-right so just its top-right corner shows. */
+  transform: translate(5px, -5px);
+}
+/* Excluded under copy mode: an Alt+group drag drops a single COPY (the group
+   branch bails on altKey), so the copy "+" badge (body.is-cal-copy …::after,
+   same pseudo) should take over rather than the count pill. */
+body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   content: attr(data-group-count);
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: -8px;
+  right: -8px;
   z-index: 2;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 12px;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.02em;
+  /* A paper halo lifts the badge off the card's own tint and the deck behind. */
   box-shadow: 0 0 0 1.5px var(--card);
 }
 /* Multi-selection (shift/cmd-click, touch long-press): a DEDICATED class toggled
@@ -1654,70 +1684,46 @@ body.is-cal-copy .cal-dragfollow::after {
   outline-color: var(--paper); /* accent vanishes on the ink toast */
 }
 
-/* Bulk action bar — the floating toolbar shown while a multi-selection exists
-   (the touch entry point for bulk actions, where the pointer-only context menu
-   isn't reachable). A card surface (distinct from the ink toast) centred above
+/* Touch selection bar — the COARSE-POINTER bulk-action surface. Desktop bulk
+   actions live in the right-click context menu (which never fires on a touch
+   tap), so phones/tablets get this slim floating bar to Delete or Clear a touch
+   selection instead. Gated to (pointer: coarse) so it never shows on the desktop
+   that has the menu. A card surface (distinct from the ink toast) centred above
    the toast slot so the two can coexist (a bulk op shows its own undo toast). */
-.calshell__bulkbar {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--s-2) var(--s-3);
-  box-shadow: var(--e3);
-  z-index: 30; /* above the undo toast, under open overlays/editors */
+.calshell__selbar {
+  display: none;
 }
-.calshell__bulkcount {
+@media (pointer: coarse) {
+  .calshell__selbar {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: var(--s-2) var(--s-3);
+    box-shadow: var(--e3);
+    z-index: 30; /* above the undo toast, under open overlays/editors */
+  }
+}
+.calshell__selcount {
   font-family: var(--hand-sc);
   font-size: var(--fs-ui);
   color: var(--ink);
   padding: 0 var(--s-2) 0 var(--s-3);
   white-space: nowrap;
 }
-.calshell__bulkbar .btn {
+.calshell__selbar .btn {
   min-height: var(--s-8);
 }
 /* The Delete action reads as destructive (warm red ink) without leaving the
    ghost-button shape the bar's other actions use. */
-.calshell__bulkdanger {
+.calshell__seldanger {
   color: var(--danger);
-}
-
-/* Bulk-edit panel — reuses the View-settings card shell (overlay--card) + the
-   shared ledger rows, so it reads as the same compact vocabulary as QuickAdd
-   without retrofitting it. A field's control only appears once its row's "change"
-   switch is on (the leave-unchanged model). */
-.bulkedit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.bulkedit__hint {
-  margin: 0;
-  font-size: var(--fs-ui);
-  color: var(--ink-faint);
-}
-.bulkedit__field {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
-  flex: 1 1 auto;
-  justify-content: flex-end;
-}
-.bulkedit__foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--s-3);
-  padding: var(--s-4) var(--s-5);
-  border-top: 1px solid var(--line);
 }
 
 /* ============================================================

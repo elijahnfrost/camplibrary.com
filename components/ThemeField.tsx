@@ -9,6 +9,15 @@ import { FloatingLayer } from "./floating/FloatingLayer";
 // one inline while assigning. Renaming/deleting the vocabulary lives in the
 // Themes manager (ListManagerModal), so this stays a clean select + create.
 
+/** The theme vocabulary + quick-create, supplied by the library hook. Optional
+ *  so the inline theme control still renders where themes aren't wired. Rename/
+ *  delete live in the Themes manager, so the field stays a clean select + create. */
+export interface ThemeKit {
+  themes: Theme[];
+  initialThemeId: string;
+  onCreate: (label: string) => Theme | null;
+}
+
 export function ThemeField({
   id,
   value,

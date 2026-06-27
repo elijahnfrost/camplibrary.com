@@ -5,6 +5,10 @@
 // a custom hue/sat area (react-colorful — the battle-tested, ~2.8kB library) and
 // a hex field, plus "Reset to tag color". value === undefined means "inherit the
 // tag color"; the trigger shows that resolved fallback so it's never blank.
+//
+// The popover BODY is split out as ColorPickerBody so the same UI can be hosted
+// either off this field's trigger OR cursor-anchored from the calendar's bulk
+// context menu (CalendarShell) — one picker, two entry points.
 
 import { useRef, useState } from "react";
 import { HexColorInput, HexColorPicker } from "react-colorful";
@@ -32,6 +36,71 @@ const SWATCHES = [
   "#8f8470", // taupe (the neutral default)
 ];
 
+// The picker UI itself (swatches + hue/sat area + hex field + reset). Shared by
+// the trigger-based ColorField popover and the cursor-anchored bulk picker so the
+// two read identically. Owns only the live `draft` hue; the chosen value flows
+// out through onCommit / onReset.
+export function ColorPickerBody({
+  value,
+  fallback,
+  onCommit,
+  onReset,
+}: {
+  /** The chosen hex, or undefined to inherit the tag color. */
+  value: string | undefined;
+  /** The resolved tag color, shown when no explicit color is set. */
+  fallback: string;
+  /** A concrete hex was picked. */
+  onCommit: (hex: string) => void;
+  /** Clear the override ("reset to tag color"). */
+  onReset: () => void;
+}) {
+  const current = normalizeHexColor(value);
+  // react-colorful needs a concrete hex; seed from the override or the fallback.
+  const [draft, setDraft] = useState(current ?? normalizeHexColor(fallback) ?? "#8f8470");
+
+  function commit(hex: string) {
+    const norm = normalizeHexColor(hex);
+    if (!norm) return;
+    setDraft(norm);
+    onCommit(norm);
+  }
+
+  return (
+    <>
+      <div className="ccolor__swatches" role="group" aria-label="Quick colors">
+        {SWATCHES.map((swatch, i) => (
+          <button
+            key={swatch}
+            type="button"
+            className={"ccolor__chip" + (current === swatch ? " is-on" : "")}
+            style={{ background: swatch }}
+            aria-label={"Color " + swatch}
+            aria-pressed={current === swatch}
+            onClick={() => commit(swatch)}
+            data-floating-first={i === 0 ? "" : undefined}
+          />
+        ))}
+      </div>
+      <HexColorPicker color={draft} onChange={commit} className="ccolor__picker" />
+      <div className="ccolor__row">
+        <span className="ccolor__hash" aria-hidden="true">
+          #
+        </span>
+        <HexColorInput
+          color={draft}
+          onChange={(hex) => commit("#" + hex)}
+          className="input ccolor__hex"
+          aria-label="Hex color value"
+        />
+        <button type="button" className="btn btn--ghost ccolor__reset" onClick={onReset}>
+          Reset to tag
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function ColorField({
   id,
   value,
@@ -51,20 +120,6 @@ export function ColorField({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const current = normalizeHexColor(value);
-  // react-colorful needs a concrete hex; seed from the override or the fallback.
-  const [draft, setDraft] = useState(current ?? normalizeHexColor(fallback) ?? "#8f8470");
-
-  function openPicker() {
-    setDraft(current ?? normalizeHexColor(fallback) ?? "#8f8470");
-    setOpen(true);
-  }
-
-  function commit(hex: string) {
-    const norm = normalizeHexColor(hex);
-    if (!norm) return;
-    setDraft(norm);
-    onChange(norm);
-  }
 
   function reset() {
     onChange(undefined);
@@ -82,7 +137,7 @@ export function ColorField({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => (open ? setOpen(false) : openPicker())}
+        onClick={() => setOpen((o) => !o)}
       >
         <span className="ccolor__swatch" style={{ background: current ?? fallback }} aria-hidden="true" />
         <span className="cselect__value">{current ? current : "Tag color"}</span>
@@ -95,35 +150,7 @@ export function ColorField({
           role="dialog"
           ariaLabel={ariaLabel}
         >
-          <div className="ccolor__swatches" role="group" aria-label="Quick colors">
-            {SWATCHES.map((swatch, i) => (
-              <button
-                key={swatch}
-                type="button"
-                className={"ccolor__chip" + (current === swatch ? " is-on" : "")}
-                style={{ background: swatch }}
-                aria-label={"Color " + swatch}
-                aria-pressed={current === swatch}
-                onClick={() => commit(swatch)}
-                data-floating-first={i === 0 ? "" : undefined}
-              />
-            ))}
-          </div>
-          <HexColorPicker color={draft} onChange={commit} className="ccolor__picker" />
-          <div className="ccolor__row">
-            <span className="ccolor__hash" aria-hidden="true">
-              #
-            </span>
-            <HexColorInput
-              color={draft}
-              onChange={(hex) => commit("#" + hex)}
-              className="input ccolor__hex"
-              aria-label="Hex color value"
-            />
-            <button type="button" className="btn btn--ghost ccolor__reset" onClick={reset}>
-              Reset to tag
-            </button>
-          </div>
+          <ColorPickerBody value={value} fallback={fallback} onCommit={onChange} onReset={reset} />
         </FloatingLayer>
       )}
     </div>

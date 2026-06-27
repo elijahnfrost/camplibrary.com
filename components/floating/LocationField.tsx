@@ -8,30 +8,28 @@
 // several places can be chosen in one pass. An empty array means "no location
 // set". Any already-saved value outside the fixed set rides along as an extra
 // toggleable row, so older free-text locations aren't lost.
+//
+// The toggling list BODY is split out as LocationPickerList so the same UI can be
+// hosted either off this field's trigger OR cursor-anchored from the calendar's
+// bulk context menu (CalendarShell) — one picker, two entry points.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CampIcon } from "../icons";
 import { FloatingLayer } from "./FloatingLayer";
 
-export function LocationField({
-  id,
+// The roving, multi-toggle list of places. Shared by the trigger-based field and
+// the cursor-anchored bulk picker so the two read identically. Self-focuses its
+// list so keyboard roving works the instant it mounts.
+export function LocationPickerList({
   value,
   options,
   onChange,
-  ariaLabel,
 }: {
-  id?: string;
-  /** The chosen places; empty when none is set. */
   value: string[];
-  /** The fixed set of places offered. */
   options: readonly string[];
-  /** Receives the next selection (kept in row order). */
   onChange: (value: string[]) => void;
-  ariaLabel: string;
 }) {
-  const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const typeahead = useRef<{ buffer: string; at: number }>({ buffer: "", at: 0 });
 
   const selected = useMemo(() => new Set(value), [value]);
@@ -51,18 +49,6 @@ export function LocationField({
     if (nextSet.has(place)) nextSet.delete(place);
     else nextSet.add(place);
     onChange(rows.filter((r) => nextSet.has(r)));
-  }
-
-  function openMenu() {
-    setActive(0);
-    setOpen(true);
-  }
-
-  function onTriggerKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openMenu();
-    }
   }
 
   function onMenuKeyDown(event: React.KeyboardEvent) {
@@ -101,7 +87,64 @@ export function LocationField({
     }
   }
 
+  return (
+    <div
+      className="cselect__list"
+      tabIndex={-1}
+      data-floating-first
+      ref={(node) => {
+        // Keep keyboard focus on the list so roving works.
+        node?.focus({ preventScroll: true });
+      }}
+      onKeyDown={onMenuKeyDown}
+    >
+      {rows.map((place, i) => (
+        <LocationRow
+          key={place}
+          label={place}
+          selected={selected.has(place)}
+          active={i === active}
+          onMouseEnter={() => setActive(i)}
+          onClick={() => toggle(place)}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function LocationField({
+  id,
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  id?: string;
+  /** The chosen places; empty when none is set. */
+  value: string[];
+  /** The fixed set of places offered. */
+  options: readonly string[];
+  /** Receives the next selection (kept in row order). */
+  onChange: (value: string[]) => void;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const selected = useMemo(() => new Set(value), [value]);
+  const rows = useMemo(() => {
+    const out = [...options];
+    for (const place of value) if (!out.includes(place)) out.push(place);
+    return out;
+  }, [options, value]);
   const summary = rows.filter((r) => selected.has(r)).join(", ");
+
+  function onTriggerKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen(true);
+    }
+  }
 
   return (
     <div className="cselect">
@@ -113,7 +156,7 @@ export function LocationField({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => (open ? setOpen(false) : openMenu())}
+        onClick={() => setOpen((o) => !o)}
         onKeyDown={onTriggerKeyDown}
       >
         <span className={"cselect__value" + (summary ? "" : " is-empty")}>
@@ -130,27 +173,7 @@ export function LocationField({
           ariaLabel={ariaLabel}
           initialFocus={false}
         >
-          <div
-            className="cselect__list"
-            tabIndex={-1}
-            data-floating-first
-            ref={(node) => {
-              // Keep keyboard focus on the list so roving works.
-              node?.focus({ preventScroll: true });
-            }}
-            onKeyDown={onMenuKeyDown}
-          >
-            {rows.map((place, i) => (
-              <LocationRow
-                key={place}
-                label={place}
-                selected={selected.has(place)}
-                active={i === active}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => toggle(place)}
-              />
-            ))}
-          </div>
+          <LocationPickerList value={value} options={options} onChange={onChange} />
         </FloatingLayer>
       )}
     </div>

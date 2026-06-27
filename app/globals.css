@@ -6054,24 +6054,92 @@ body {
   transition-delay: calc(0.12s + var(--i) * 55ms);
 }
 
-/* --- Calendar: calmed icon — dates always visible, one settle boop on hover -- */
+/* --- Calendar: the page turns and the month populates --------------------
+   On hover the full sheet flips down off its top hinge (the header rule) — a
+   page turning — while a fresh month's date dots pop in beneath it and the
+   binder rings hop. At rest the icon is a clean outlined calendar (leaf
+   transparent, dots hidden); the motion is the whole point ("it opens and the
+   events populate"). */
 .cicon--cal {
-  overflow: visible;
+  perspective: 60px;
+}
+.cicon--cal .cicon-cal__leaf {
+  transform-origin: 50% 0%; /* hinge along the header rule (top of the sheet) */
+  /* Transparent at rest so the icon is just a clean outlined calendar on ANY
+     surface; a faint paper face only shows while the page is mid-turn. */
+  fill: currentColor;
+  fill-opacity: 0;
+  stroke: none;
 }
 .cicon--cal .cicon-cal__dots {
   fill: currentColor;
   stroke: none;
 }
-/* Fire the boop only on non-active buttons. On the active nav item the `:hover`
-   state can stick after click (focus bleed, browser quirk) making the mid-animation
-   pose appear frozen — suppress it there since active tabs don't need hover feedback. */
-:where(button, a, summary, label, [role="button"]):not(.is-active):hover .cicon--cal {
-  animation: cicon-settle 0.3s var(--ease);
+.cicon--cal .cicon-cal__dots circle {
+  transform-origin: 50% 50%;
+  transform: scale(0);
+  opacity: 0;
 }
-/* A tiny one-shot boop — up a hair and back. Shared by the calmed nav icons. */
-@keyframes cicon-settle {
-  50% {
-    transform: translateY(-1.8px);
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__leaf {
+  animation: cicon-cal-flip 0.7s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover
+  .cicon--cal
+  .cicon-cal__dots
+  circle {
+  animation: cicon-cal-dot 0.4s var(--ease) calc(0.2s + var(--i) * 45ms) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__rings {
+  animation: cicon-cal-rings 0.7s var(--ease) both;
+}
+@keyframes cicon-cal-flip {
+  0% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+  15% {
+    fill-opacity: 0.16;
+  }
+  /* the page peels down and forward off the top hinge, revealing the grid */
+  55% {
+    transform: rotateX(85deg);
+    fill-opacity: 0.16;
+  }
+  70% {
+    transform: rotateX(92deg);
+    fill-opacity: 0;
+  }
+  /* a fresh page swings back and settles flat, fading out to the clean outline */
+  88% {
+    transform: rotateX(64deg);
+    fill-opacity: 0.12;
+  }
+  100% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+}
+@keyframes cicon-cal-dot {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cicon-cal-rings {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-2px);
   }
 }
 
@@ -6317,31 +6385,30 @@ body {
   }
 }
 
-/* --- Print: a page feeds DOWN and OUT of the bottom output mouth -------------
-   ONE clean gesture — at rest the printed page is parked INSIDE the body (clipped
-   above the mouth lip, so the icon reads as a plain printer). On hover it slides
-   DOWN through the output mouth and SETTLES just below the printer's front lip — a
-   printed page in the output tray, not paper retracting up into the body. The page
-   is clipped to the output window (see icons.tsx) so its body never shows through
-   the printer body. The printer body / input / status dot stay put. `both` holds
-   it emerged while hovered; removing :hover returns it to the parked rest pose. */
+/* --- Print: an outlined page rests in the output tray; it ejects on hover -----
+   The printed sheet (outline only — never a filled slab) sits in the output tray
+   under the body front AT REST, so the icon reads as a complete printer with paper
+   in the tray, not a bare body. On hover the whole sheet bobs down a hair and
+   back, as if a fresh page just printed. Body / input / status dot stay put. */
 .cicon--print {
   overflow: visible;
 }
-.cicon--print .cicon-print__page {
+.cicon--print .cicon-print__page,
+.cicon--print .cicon-print__line {
   fill: none;
 }
 :where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
   .cicon--print
   .cicon-print__sheet {
-  animation: cicon-print-feed 0.46s var(--ease-overlay) both;
+  animation: cicon-print-eject 0.46s var(--ease) both;
 }
-@keyframes cicon-print-feed {
-  from {
+@keyframes cicon-print-eject {
+  0%,
+  100% {
     transform: translateY(0);
   }
-  to {
-    transform: translateY(7.2px);
+  50% {
+    transform: translateY(1.7px);
   }
 }
 
@@ -6385,10 +6452,20 @@ body {
     transform: scaleX(0) !important;
     opacity: 0 !important;
   }
-  /* Print: hold the sheet hidden inside the printer so it reads as a plain
-     printer at rest (the !important beats the hover rule). */
+  /* Print: no eject bob — the outlined page just rests in the tray (the
+     !important beats the hover rule). */
   .cicon--print .cicon-print__sheet {
     transform: translateY(0) !important;
+  }
+  /* Calendar: no page-turn; show a normal static calendar with its dates
+     visible (the animated version hides dots until hover, which would leave a
+     reduced-motion user with a permanently bare icon). */
+  .cicon--cal .cicon-cal__leaf {
+    fill-opacity: 0 !important;
+  }
+  .cicon--cal .cicon-cal__dots circle {
+    transform: scale(1) !important;
+    opacity: 1 !important;
   }
 }
 
@@ -7184,6 +7261,310 @@ button.rl-node {
   padding-top: 10px;
   border-top: 1.3px dashed var(--line-soft);
 }
+
+/* ---------- inline Details editor (edit/create) ---------------------------
+   The activity's scalar facts edited as structured controls on the run sheet —
+   the SAME switch ledger the sidebar filters use (`.ledger` / `.ledger__row` /
+   `.ledger__label`): small-caps label left, a compact control right, dashed
+   `--line-soft` rules between rows. `.rldetail` only sizes the controls; the
+   ledger classes carry the row chrome so it reads as one property ledger across
+   the app. */
+.rldetail__row {
+  /* The ledger row's stock 38px is pointer-tuned for the narrow rail; the
+     editor sits in a roomier sheet, so give each row a touch more height. */
+  min-height: var(--tap);
+}
+/* The last row drops the dashed rule — the Details card border already closes
+   the ledger off, so a trailing line would read as a stray underline. */
+.rldetail__row:last-child {
+  border-bottom: 0;
+}
+/* Each row's control sits to the right; segmented controls grow to a comfortable
+   width, menu triggers hug their label. */
+.rldetail__row .seg {
+  flex: 0 1 260px;
+}
+.rldetail__row .themefield {
+  flex: 0 1 260px;
+  width: auto;
+}
+/* Rating sits in the ledger like any other property — push the dots to the
+   right edge so they line up with the controls above. */
+.rldetail__row--rating .ratingdots {
+  justify-content: flex-end;
+}
+.rldetail__pick {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+}
+.rldetail__menu,
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  min-width: 180px;
+}
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  padding: var(--s-4);
+}
+.rldetail__ageunit {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-4);
+}
+.rldetail__agechips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.rldetail__grouprow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__numin {
+  width: 72px;
+  text-align: center;
+}
+.rldetail__groupdash {
+  color: var(--ink-faint);
+}
+.rldetail__grouperr {
+  display: block;
+  margin-top: var(--s-3);
+  color: var(--danger-ink);
+  font-size: var(--fs-ui);
+}
+.typepick__trigger.is-invalid {
+  border-color: var(--danger);
+}
+/* Minutes: a ± stepper bracketing the value menu. */
+.rldetail__dur {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__durbtn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.rldetail__durbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rldetail__durbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* On a phone a 4-way segment + label won't fit one line — let the control drop
+   below its label and stretch full width. */
+@media (max-width: 640px) {
+  .rldetail__row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    min-height: 0;
+    gap: var(--s-3);
+  }
+  .rldetail__row .seg,
+  .rldetail__pick {
+    flex: 1 1 100%;
+  }
+  .rldetail__pick .typepick__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ---------- inline Materials editor (edit/create) ----------------------------
+   A PROPER editable list: one item per row, each honest about its affordances —
+   a drag grip, an inline-editable name, and move/remove tools that appear on
+   hover (always shown on touch). Reorder via row drag OR the up/down buttons.
+   An "add a material" row sits at the foot. Built on the run-sheet sub-step
+   vocabulary (grip + .rl-iconbtn) so it reads as the same list machinery. */
+.rlmat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rlmat__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rlmat__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
+  border: 1.4px solid var(--line);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--card) 82%, var(--paper));
+  position: relative;
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+.rlmat__item:active {
+  cursor: grabbing;
+}
+.rlmat__item.is-dragging {
+  opacity: 0.45;
+}
+/* Drop indicator — a sage bar at the row edge the source will land at. */
+.rlmat__item.is-over-before::before,
+.rlmat__item.is-over-after::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+}
+.rlmat__item.is-over-before::before {
+  top: -4px;
+}
+.rlmat__item.is-over-after::before {
+  bottom: -4px;
+}
+.rlmat__grip {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  cursor: grab;
+}
+.rlmat__grip svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.rlmat__name {
+  flex: 1 1 auto;
+  min-width: 1ch;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  cursor: text;
+}
+/* The per-row tools mirror the run-sheet rowtools: quiet by default, lit on
+   hover/focus (always shown on touch via the run-sheet @media rule). */
+.rlmat__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rlmat__item:hover .rlmat__tools,
+.rlmat__item:focus-within .rlmat__tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rlmat__addrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rlmat__addmark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+}
+.rlmat__addmark svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlmat__add {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* font-size inherits the .input base (16px) — kept >=16px so iOS doesn't zoom. */
+}
+
+/* The form-bound scaffold blocks reuse the run-sheet block chrome (heading,
+   Details/Materials labels) unchanged; they carry no drag handles because they
+   bind to the form, not the run-doc. */
+
+/* ---------- inline header fields (edit/create) ---------- */
+/* The color swatch in the edit header is a compact trigger (not a full-width
+   field) so it sits inline with the back/duplicate/delete cluster. */
+.rlv--edit .rlv-head__row .ccolor {
+  flex: 0 0 auto;
+  width: auto;
+}
+.rlv--edit .rlv-head__row .ccolor__trigger {
+  width: auto;
+  min-height: 36px;
+}
+.rlv-title--edit,
+.rlv-blurb--edit,
+.rlv-aka--edit {
+  width: 100%;
+  display: block;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: var(--s-1) 0;
+  outline: none;
+}
+.rlv-title--edit {
+  font-size: clamp(var(--fs-title), 5vw, var(--fs-display));
+}
+.rlv-title--edit:focus,
+.rlv-blurb--edit:focus,
+.rlv-aka--edit:focus {
+  border-bottom-color: var(--accent);
+}
+.rlv-title--edit::placeholder,
+.rlv-blurb--edit::placeholder,
+.rlv-aka--edit::placeholder {
+  color: var(--ink-faint);
+}
+.rlv-blurb--edit {
+  margin-top: var(--s-5);
+}
+.rlv-aka--edit {
+  margin-top: var(--s-3);
+}
+.rlv-save {
+  max-width: 880px;
+  margin: var(--s-7) auto 0;
+  padding: 0 var(--s-6);
+}
+
 /* ---------- collapsed summary pills ---------- */
 .rl-summary {
   display: flex;
@@ -7374,6 +7755,25 @@ button.rl-node {
 }
 .rl-row:hover .rl-rowtools,
 .rl-row:focus-within .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* In the editor the run sheet IS the editor, so drag must be discoverable at a
+   glance — keep the rowtools (grip first) standing by on every block, the way
+   the old add/edit form always showed them. The icon buttons still lift on
+   hover/focus via the rule above; the grip carries the always-there drag cue.
+   Read mode (`.rl.is-readonly`) keeps them hidden — nothing there drags. */
+.rl:not(.is-readonly) .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rl:not(.is-readonly) .rl-row:hover .rl-iconbtn,
+.rl:not(.is-readonly) .rl-row:focus-within .rl-iconbtn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -8306,6 +8706,12 @@ button.rl-node {
     opacity: 1;
     pointer-events: auto;
   }
+  /* On touch there's no hover to reveal the icon buttons — keep them shown
+     (overrides the pointer-mode "buttons fade in on hover" rule). */
+  .rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+    opacity: 1;
+    pointer-events: auto;
+  }
   .rl .rl-iconbtn {
     width: 38px;
     height: 38px;
@@ -8317,6 +8723,11 @@ button.rl-node {
   }
   .rl.is-readonly .rl-rowtools {
     display: none;
+  }
+  /* Materials list rows: tools always shown on touch, same as the run rows. */
+  .rl .rlmat__tools {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
@@ -8933,10 +9344,13 @@ button.rl-node {
 /* ---- The sidebar print rail (.prail) ----
    Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
    is built from the SAME pieces as the calendar rail so all three rails read as
-   one: a headerless range widget on top (the mini-month's role), then
-   always-visible, TITLED setting groups (the "View" section's role), each a flat
-   switch ledger. No bespoke disclosures — every group reads as a Library /
-   Calendar sidebar section, and every control is one inline label-left row. */
+   one: a headerless range widget on top (the mini-month's role), then TITLED
+   setting groups (the "View" section's role), each a switch ledger. Most groups
+   are COLLAPSIBLE (a <details> whose summary IS the group header) so a long list
+   of knobs rests as a short stack of section headers — frequently-changed groups
+   lead open, set-once groups fold closed, and controls only appear when they
+   apply. Every group reads as a Library / Calendar sidebar section, and every
+   control is one inline label-left row. */
 .prail {
   display: flex;
   flex-direction: column;
@@ -9017,9 +9431,10 @@ button.rl-node {
 }
 
 /* Setting groups — the shared section vocabulary (a small-caps title over a
-   switch ledger), always visible. A generous top margin (the .sidesection /
-   mini-month 26px rhythm) gives each group its breathing room and a clear break,
-   replacing the old fold-away disclosures. */
+   switch ledger). A generous top margin (the .sidesection / mini-month 26px
+   rhythm) gives each group its breathing room and a clear break. Most groups are
+   collapsible (see .prail__group--collapsible below); the title treatment is
+   shared whether the header is a static div or a clickable summary. */
 .prail__group {
   margin-top: 26px;
 }
@@ -9297,6 +9712,48 @@ button.rl-node {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Collapsible setting groups — the same <details>/<summary> disclosure as
+   "More options", but the summary IS the group header (small-caps title left,
+   chevron right) so a whole section folds away. Lets the rail rest short:
+   frequently-changed groups (Layout, Document sections) lead open; set-once
+   groups (Page setup, Content, Appendix) fold closed. Keyboard-operable for
+   free (native summary), and the chevron rotates to signal state. */
+.prail__group--collapsible {
+  /* A details element — strip its own box; the header carries the rhythm. */
+  display: block;
+}
+.prail__groupsum {
+  cursor: pointer;
+  list-style: none;
+  /* The header row already carries its own min-height + bottom margin. */
+}
+.prail__groupsum::-webkit-details-marker {
+  display: none;
+}
+/* When the header is a clickable summary, pull the chevron's color toward ink
+   on hover so the whole row reads as one affordance. */
+.prail__groupsum:hover .prail__grouptitle,
+.prail__groupsum:hover .prail__morestate {
+  color: var(--ink);
+}
+/* Collapsed: drop the header's bottom margin so a folded group is a tidy line. */
+.prail__group--collapsible:not([open]) > .prail__groupsum {
+  margin-bottom: 0;
+}
+.prail__group--collapsible[open] > .prail__groupsum .prail__morestate svg {
+  transform: rotate(180deg);
+}
+/* The revealed group body fades in like the More-options panel (reduced-motion
+   guarded by the shared rule below). */
+.prail__grouppanel {
+  animation: prail-reveal var(--t-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .prail__grouppanel {
+    animation: none;
   }
 }
 
