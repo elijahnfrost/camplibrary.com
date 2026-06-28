@@ -349,12 +349,13 @@ export const BrandMark: FC<IconProps> = ({ className }) => (
         height={196}
         fill="#aebf86"
       />
-      {/* The leaning gold book — its resting tilt is what "falls into place".
-          The lean lives in CSS (.bookmark__book--4) so the hover animation can
-          start from exactly the rendered angle with no jump. */}
+      {/* The leaning gold book. It sits a touch right of its neighbour so the
+          lean tips into open air, not over the green book. The lean lives in CSS
+          (.bookmark__book--4) so the hover "knock" can start from exactly the
+          rendered angle with no jump. */}
       <rect
         className="bookmark__book bookmark__book--4"
-        x={334}
+        x={352}
         y={150}
         width={52}
         height={224}
