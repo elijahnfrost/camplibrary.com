@@ -4,7 +4,7 @@
     <rect x="138" y="158" width="58" height="216" fill="#cda08a"/>
     <rect x="204" y="128" width="58" height="246" fill="#4f7a52"/>
     <rect x="270" y="178" width="58" height="196" fill="#aebf86"/>
-    <rect x="334" y="150" width="52" height="224" fill="#d9b152" transform="rotate(-7 360 262)"/>
+    <rect x="352" y="150" width="52" height="224" fill="#d9b152" transform="rotate(-3 378 374)"/>
   </g>
   <path d="M116 380 H410" stroke="#2c2824" stroke-width="16" stroke-linecap="round"/>
 </svg>

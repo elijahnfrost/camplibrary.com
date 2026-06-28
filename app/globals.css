@@ -6053,22 +6053,25 @@ body {
   transition: transform var(--t-med) var(--ease);
 }
 /* Resting lean of the gold book lives here (not as an SVG attribute) so the
-   book-fall hover animation starts from exactly this angle, hinged at the foot. */
+   book-knock hover animation starts from exactly this angle, hinged at the foot. */
 .bookmark__book--4 {
-  transform: rotate(-7deg);
+  transform: rotate(-3deg);
 }
 /* On hover the three upright books hop in a left→right ripple — each lifts off
-   the shelf, drops, and squashes into place — then the leaning gold book falls
-   upright last, "into place". --i (set per book in BrandMark) staggers the hop
-   left→right; the gold book follows on a short fixed beat so it lands the
-   sequence. Each book pivots on its own foot (base rule: fill-box + 50% 100%). */
+   the shelf, drops, and squashes into place. --i (set per book in BrandMark)
+   staggers the hop left→right. Each book pivots on its own foot (base rule:
+   fill-box + 50% 100%). */
 .sidenav__brand:hover .bookmark__book--1,
 .sidenav__brand:hover .bookmark__book--2,
 .sidenav__brand:hover .bookmark__book--3 {
   animation: book-settle 0.52s var(--ease) calc(var(--i) * 65ms) both;
 }
+/* The leaning gold book doesn't straighten "into place"; the green book to its
+   left hops and nudges it — so the gold book teeters: a small rock up toward
+   vertical, then it settles back into its lean. Lands just after the green
+   book's hop, on a gentle amplitude (a teeter, not a flip). */
 .sidenav__brand:hover .bookmark__book--4 {
-  animation: book-fall 0.55s var(--ease) 0.2s both;
+  animation: book-knock 0.62s var(--ease) 0.22s both;
 }
 @keyframes book-settle {
   0% {
@@ -6087,17 +6090,24 @@ body {
     transform: translateY(0) scaleY(1);
   }
 }
-/* The gold book is leaning (-7°) at rest; on hover it falls upright onto the
-   shelf with a small overshoot, then settles to vertical — "into place". */
-@keyframes book-fall {
+/* The gold book leans (-3°) at rest. On hover the book to its left nudges it: it
+   teeters up to roughly vertical, then rocks back with a small overshoot and
+   settles into the same resting lean — a gentle teeter, not a flip. */
+@keyframes book-knock {
   0% {
-    transform: rotate(-7deg);
+    transform: rotate(-3deg);
   }
-  65% {
-    transform: rotate(3deg);
+  30% {
+    transform: rotate(0.5deg);
+  }
+  62% {
+    transform: rotate(-4.5deg);
+  }
+  84% {
+    transform: rotate(-2.4deg);
   }
   100% {
-    transform: rotate(0deg);
+    transform: rotate(-3deg);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -6111,7 +6121,7 @@ body {
   }
   .sidenav__brand:hover .bookmark__book--4 {
     animation: none !important;
-    transform: rotate(-7deg) !important;
+    transform: rotate(-3deg) !important;
   }
 }
 /* ============================================================================
