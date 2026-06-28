@@ -173,18 +173,20 @@ export function ratingColor(r: number | undefined): string {
 // just not rated/placed yet."
 export const CUSTOM_NEUTRAL = "#9c9486";
 
-// Where-it-happens → an earthy tint, one per fixed EVENT_LOCATION_OPTIONS so the
-// "Color by → Location" mode reads each place at a glance. Kept clearly distinct
-// from one another and on-palette with CATEGORY_TINTS / THEME_PALETTE (greens,
-// clays, slates from the same warm family). Gym deliberately mirrors the pine
-// Game tint — the gym IS the green room. Keys must match EVENT_LOCATION_OPTIONS
-// exactly; a legacy free-text location not in the map falls back to the neutral.
+// Where-it-happens → an earthy tint, one per built-in place so the "Color by →
+// Location" mode reads each place at a glance. Kept clearly distinct from one
+// another and on-palette with CATEGORY_TINTS / THEME_PALETTE (greens, clays,
+// slates from the same warm family). Gym deliberately mirrors the pine Game
+// tint — the gym IS the green room. Keys are the SEED place labels (the starter
+// vocabulary); a user-added or legacy free-text place not in the map falls back
+// to the neutral stone.
 export const LOCATION_TINTS: Record<string, string> = {
   Gym: "#3f6b45", // pine — the indoor green
   Classroom: "#4a6b86", // slate blue — desks & paper
   Kitchen: "#9a5a4a", // clay — the warm kitchen
   Playground: "#c46b3f", // terracotta — the painted blacktop
   Fields: "#7a8c3f", // olive grass — the wide-open field
+  Pool: "#3a8ea3", // pool teal — the water, distinct from the classroom slate
   "Baseball pitch": "#b08a3c", // dirt amber — the infield
 };
 

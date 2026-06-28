@@ -40,15 +40,18 @@ export interface CalendarEvent {
   updatedAt: number; // epoch ms, last-write-wins
 }
 
-// The fixed set of places a block can happen, offered by the editor's location
-// picker. A short, shared taxonomy (not free text) so the same place reads the
-// same everywhere it's shown — the card, the popover, the feed.
+// The starter set of places a block can happen — the seed for the user-editable
+// location vocabulary (lib/locations + the synced `locations` doc). Staff add,
+// rename, and remove places from the location picker's "Manage locations…"
+// screen; this list is just what a fresh camp starts with. Kept as the seed so
+// the picker still has sensible places before anyone customizes it.
 export const EVENT_LOCATION_OPTIONS = [
   "Gym",
   "Classroom",
   "Kitchen",
   "Playground",
   "Fields",
+  "Pool",
   "Baseball pitch",
 ] as const;
 

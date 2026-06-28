@@ -24,10 +24,14 @@ export function LocationPickerList({
   value,
   options,
   onChange,
+  onManage,
 }: {
   value: string[];
   options: readonly string[];
   onChange: (value: string[]) => void;
+  /** When set, a "Manage locations…" footer opens the place-list editor (add,
+   *  rename, remove). Omit where management isn't wired (read-only contexts). */
+  onManage?: () => void;
 }) {
   const [active, setActive] = useState(0);
   const typeahead = useRef<{ buffer: string; at: number }>({ buffer: "", at: 0 });
@@ -108,6 +112,25 @@ export function LocationPickerList({
           onClick={() => toggle(place)}
         />
       ))}
+      {onManage && (
+        <>
+          <span className="typepick__div" role="separator" aria-hidden="true" />
+          <button
+            type="button"
+            className="typepick__option typepick__manage"
+            // Drop the roving highlight off the last place row when the pointer
+            // moves onto the footer, so it doesn't leave a stuck "ghost" hover
+            // behind the manage button.
+            onMouseEnter={() => setActive(-1)}
+            onClick={onManage}
+          >
+            <span className="typepick__swatch typepick__swatch--manage" aria-hidden="true">
+              <CampIcon.Pencil />
+            </span>
+            Manage locations…
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -117,15 +140,18 @@ export function LocationField({
   value,
   options,
   onChange,
+  onManage,
   ariaLabel,
 }: {
   id?: string;
   /** The chosen places; empty when none is set. */
   value: string[];
-  /** The fixed set of places offered. */
+  /** The current place vocabulary offered (the user-editable `locations` list). */
   options: readonly string[];
   /** Receives the next selection (kept in row order). */
   onChange: (value: string[]) => void;
+  /** Opens the place-list editor from the picker's footer (add/rename/remove). */
+  onManage?: () => void;
   ariaLabel: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -173,7 +199,19 @@ export function LocationField({
           ariaLabel={ariaLabel}
           initialFocus={false}
         >
-          <LocationPickerList value={value} options={options} onChange={onChange} />
+          <LocationPickerList
+            value={value}
+            options={options}
+            onChange={onChange}
+            onManage={
+              onManage
+                ? () => {
+                    setOpen(false);
+                    onManage();
+                  }
+                : undefined
+            }
+          />
         </FloatingLayer>
       )}
     </div>

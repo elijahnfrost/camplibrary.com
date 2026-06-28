@@ -15,6 +15,7 @@ import { normalizeRunDoc, type RunDoc } from "./runList";
 import type { StorageValidator } from "./store";
 import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes";
 import { normalizeCamps, type Camp } from "./camps";
+import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -27,6 +28,7 @@ export const USER_DOC_KEYS = [
   "themes",
   "themeAssignments",
   "camps",
+  "locations",
   "deletedActivityIds",
 ] as const;
 
@@ -43,6 +45,7 @@ export type DocValueMap = {
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
+  locations: string[];
   deletedActivityIds: string[];
 };
 
@@ -59,6 +62,7 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
+  locations: "locations",
   deletedActivityIds: "deletedActivityIds",
 };
 
@@ -73,6 +77,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
+  // A fresh camp starts with the standard places; once edited, the stored list
+  // (even an empty one) wins — see normalizeLocationVocab.
+  locations: () => [...DEFAULT_LOCATIONS],
   deletedActivityIds: () => [],
 };
 
@@ -149,6 +156,11 @@ export const themeAssignmentsDoc: StorageValidator<Record<string, string>> = (va
 // The user's camps (separate scheduling containers; the catalog stays shared).
 export const campsDoc: StorageValidator<Camp[]> = (value, fallback) => normalizeCamps(value, fallback);
 
+// The user-editable location vocabulary (places a block can happen). Events
+// store the label directly, so this is a plain ordered list of unique strings.
+export const locationsDoc: StorageValidator<string[]> = (value, fallback) =>
+  normalizeLocationVocab(value, fallback);
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -160,6 +172,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,
+  locations: locationsDoc,
   deletedActivityIds: stringArrayDoc,
 };
 
