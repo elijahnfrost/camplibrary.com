@@ -11,7 +11,7 @@ import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
-import type { AgeUnit } from "@/lib/data";
+import { locationColor, type AgeUnit } from "@/lib/data";
 import { useLocalStorage } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
@@ -351,6 +351,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [themesManagerOpen, setThemesManagerOpen] = useState(false);
   const openThemesManager = useCallback(() => {
     if (requireStaff("manage themes")) setThemesManagerOpen(true);
+  }, [requireStaff]);
+
+  // The Locations manager (add/rename/remove the place vocabulary), reached from
+  // the calendar Location picker's "Manage locations…" footer.
+  const [locationsManagerOpen, setLocationsManagerOpen] = useState(false);
+  const openLocationsManager = useCallback(() => {
+    if (requireStaff("manage locations")) setLocationsManagerOpen(true);
   }, [requireStaff]);
 
   // The search query persists across tab switches — a quick Calendar
@@ -735,6 +742,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 themeOf={lib.themeOf}
                 onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
+                locationOptions={lib.locations}
+                onManageLocations={openLocationsManager}
                 dayWindow={calendarDayWindow}
                 headerActions={
                   <SubscribeFeedButton
@@ -883,6 +892,37 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               }
             }}
             onClose={() => setCampsManagerOpen(false)}
+          />
+        )}
+        {locationsManagerOpen && (
+          <ListManagerModal
+            title="Locations"
+            intro="Locations are the places a block happens — like the Gym, the Pool, or a classroom. Pick one or more on any event from its Location field; here you can add, rename, and remove them."
+            items={lib.locations.map((place) => ({
+              id: place,
+              label: place,
+              tint: locationColor([place]),
+            }))}
+            createPlaceholder="e.g. Pool"
+            createLabel="Add place"
+            emptyHint="No places yet. Add one, then set it on an event from its Location field."
+            onCreate={(name) => {
+              if (requireStaff("manage locations")) lib.createLocation(name);
+            }}
+            onRename={(id, name) => {
+              if (requireStaff("manage locations")) lib.renameLocation(id, name);
+            }}
+            onDelete={(item) => {
+              if (!requireStaff("manage locations")) return;
+              if (
+                window.confirm(
+                  "Remove the “" + item.label + "” location? Events that already use it keep it; it just won’t be offered as a choice."
+                )
+              ) {
+                lib.deleteLocation(item.id);
+              }
+            }}
+            onClose={() => setLocationsManagerOpen(false)}
           />
         )}
         {detailActivity && (

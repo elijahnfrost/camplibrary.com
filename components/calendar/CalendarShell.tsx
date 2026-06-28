@@ -53,7 +53,7 @@ import {
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { categoryTint, isColorMode, type ColorMode } from "@/lib/data";
-import { EVENT_LOCATION_OPTIONS, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import {
   applyMoveDelta,
   moveDelta,
@@ -212,6 +212,8 @@ export function CalendarShell({
   announce,
   railSlot,
   onOpenCamps,
+  locationOptions,
+  onManageLocations,
   dayWindow,
   headerActions,
   themeOf,
@@ -243,6 +245,12 @@ export function CalendarShell({
   /** Opens the camp manager (add / switch / rename / delete + per-camp hours).
    *  Lives in the sidebar's View settings, so the header has no camp pill. */
   onOpenCamps: () => void;
+  /** The user-editable place vocabulary offered by every Location picker (the
+   *  event editor and the bulk context-menu picker share this list). */
+  locationOptions: readonly string[];
+  /** Opens the location manager (add / rename / remove places) from a picker's
+   *  "Manage locations…" footer. */
+  onManageLocations: () => void;
   /** The base visible window (drop-off → pickup) of the active camp, or the
    *  classic 8:00–18:00 band when no camp is active. effectiveWindow only ever
    *  stretches this outward around events. Computed by CampApp from the active
@@ -2686,6 +2694,8 @@ export function CalendarShell({
           pickTime={sheet.pickTime}
           activities={activities}
           window={window_}
+          locationOptions={locationOptions}
+          onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
           onCustom={quickAddCustom}
           onSave={saveDraft}
@@ -2907,8 +2917,12 @@ export function CalendarShell({
               menu is open) and re-applies it to every selected event on each
               toggle, all as one undoable commit. */}
           <BulkLocationPicker
-            options={EVENT_LOCATION_OPTIONS}
+            options={locationOptions}
             onApply={(locations) => applyBulkEdit(bulkPicker.ids, { locations })}
+            onManage={() => {
+              setBulkPicker(null);
+              onManageLocations();
+            }}
           />
         </FloatingLayer>
       )}
@@ -2975,9 +2989,11 @@ export function CalendarShell({
 function BulkLocationPicker({
   options,
   onApply,
+  onManage,
 }: {
   options: readonly string[];
   onApply: (locations: string[]) => void;
+  onManage: () => void;
 }) {
   const [working, setWorking] = useState<string[]>([]);
   return (
@@ -2988,6 +3004,7 @@ function BulkLocationPicker({
         setWorking(locations);
         onApply(locations);
       }}
+      onManage={onManage}
     />
   );
 }

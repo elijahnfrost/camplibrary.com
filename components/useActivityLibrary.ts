@@ -21,6 +21,7 @@ import {
   resolveRunDoc as resolveRunDocFor,
 } from "@/lib/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
+import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/locations";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";
 
@@ -36,7 +37,7 @@ export function useActivityLibrary({
   const { docs, setDoc, events, commitEvents } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view, deletedActivityIds } = docs;
   const availableMaterials = docs.availableMaterials;
-  const { themes, themeAssignments } = docs;
+  const { themes, themeAssignments, locations } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
 
@@ -169,6 +170,63 @@ export function useActivityLibrary({
       });
     },
     [setDoc]
+  );
+
+  // ---- Locations: the user-editable place vocabulary (Gym, Pool, Classroom…).
+  // The list lives in the `locations` doc; each calendar event stores the place
+  // LABEL directly (no id), so rename rewrites the label across every event that
+  // carries it, and delete just stops OFFERING a place (events keep their own
+  // label, which still rides along in the picker). ----
+  const createLocation = useCallback(
+    (label: string): string | null => {
+      const result = addLocation(locations, label);
+      if (!result) return null;
+      setDoc("locations", () => result.next);
+      announce("Added the " + result.label + " location");
+      return result.label;
+    },
+    [announce, locations, setDoc]
+  );
+
+  const renameLocation = useCallback(
+    (from: string, to: string) => {
+      const result = renameInVocab(locations, from, to);
+      if (!result) return;
+      setDoc("locations", () => result.next);
+      // Keep events in step: rewrite the old label to the new one wherever it's
+      // stored, de-duplicating in case an event already carried the new label.
+      // One commit so it's a single undo step alongside the vocabulary change.
+      const touched: CalendarEvent[] = [];
+      for (const event of Object.values(events)) {
+        if (!event.locations || !event.locations.includes(from)) continue;
+        const seen = new Set<string>();
+        const nextPlaces: string[] = [];
+        for (const place of event.locations) {
+          const label = place === from ? result.label : place;
+          const key = label.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          nextPlaces.push(label);
+        }
+        touched.push({ ...event, locations: nextPlaces });
+      }
+      if (touched.length) commitEvents(touched, []);
+      announce("Renamed the location to " + result.label);
+    },
+    [announce, commitEvents, events, locations, setDoc]
+  );
+
+  // Removing a place drops it from the vocabulary only. Events that used it keep
+  // their stored label (the picker carries any saved value along as a removable
+  // row), so deleting a place never silently edits the schedule.
+  const deleteLocation = useCallback(
+    (label: string) => {
+      const next = removeLocation(locations, label);
+      if (!next) return;
+      setDoc("locations", () => next);
+      announce("Removed the " + label + " location");
+    },
+    [announce, locations, setDoc]
   );
 
   // A custom book carries its own diagram; built-in books fall back to an
@@ -344,6 +402,10 @@ export function useActivityLibrary({
     createTheme,
     renameTheme,
     deleteTheme,
+    locations,
+    createLocation,
+    renameLocation,
+    deleteLocation,
   };
 }
 

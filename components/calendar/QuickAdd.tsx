@@ -12,7 +12,7 @@ import {
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor } from "@/lib/data";
-import { EVENT_LOCATION_OPTIONS, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
@@ -76,6 +76,8 @@ export function QuickAdd({
   pickTime,
   activities,
   window: dayWindow,
+  locationOptions,
+  onManageLocations,
   onPickActivity,
   onCustom,
   onSave,
@@ -87,6 +89,10 @@ export function QuickAdd({
   pickTime: boolean;
   activities: Activity[];
   window: DayWindow;
+  /** The user-editable place vocabulary for the Location picker. */
+  locationOptions: readonly string[];
+  /** Opens the place-list editor from the Location picker's footer. */
+  onManageLocations?: () => void;
   onPickActivity: (activity: Activity) => void;
   onCustom: (title: string) => void;
   onSave: (draft: EditorDraft) => void;
@@ -491,8 +497,9 @@ export function QuickAdd({
                 <LocationField
                   id="quickadd-location"
                   value={locations}
-                  options={EVENT_LOCATION_OPTIONS}
+                  options={locationOptions}
                   onChange={setLocations}
+                  onManage={onManageLocations}
                   ariaLabel="Event location"
                 />
               </div>
