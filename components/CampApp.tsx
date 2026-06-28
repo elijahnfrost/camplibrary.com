@@ -335,6 +335,43 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
   const [query, setQuery] = useState("");
+  // Duration filter. The slider spans the actual range of lengths in the
+  // library (snapped out to a 5-minute grid), so the handles never sit past
+  // the shortest/longest activity. `minutesRange` is null until the user
+  // narrows it — the effective value then falls back to the full span, and the
+  // filter only counts as active once it's tighter than that span.
+  const MINUTES_STEP = 5;
+  const minutesBounds = useMemo(() => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const a of lib.all) {
+      const d = a.durationMin;
+      if (typeof d === "number" && Number.isFinite(d)) {
+        if (d < lo) lo = d;
+        if (d > hi) hi = d;
+      }
+    }
+    if (lo === Infinity) return { min: 0, max: 0 };
+    return {
+      min: Math.floor(lo / MINUTES_STEP) * MINUTES_STEP,
+      max: Math.ceil(hi / MINUTES_STEP) * MINUTES_STEP,
+    };
+  }, [lib.all]);
+  const [minutesRange, setMinutesRange] = useState<[number, number] | null>(null);
+  const minutesValue = useMemo<[number, number]>(() => {
+    if (!minutesRange) return [minutesBounds.min, minutesBounds.max];
+    return [
+      Math.max(minutesBounds.min, Math.min(minutesRange[0], minutesBounds.max)),
+      Math.min(minutesBounds.max, Math.max(minutesRange[1], minutesBounds.min)),
+    ];
+  }, [minutesRange, minutesBounds]);
+  const minutesActive = minutesValue[0] > minutesBounds.min || minutesValue[1] < minutesBounds.max;
+  // Collapse a full-span selection back to null so it reads as "no filter".
+  const handleMinutes = useCallback(
+    (v: [number, number]) =>
+      setMinutesRange(v[0] <= minutesBounds.min && v[1] >= minutesBounds.max ? null : v),
+    [minutesBounds]
+  );
   // How the library list is ordered — a per-device preference, like ageUnit.
   const [sort, setSort] = useLocalStorage<LibrarySort>("librarySort", "az", (v, fallback) =>
     isLibrarySort(v) ? v : fallback
@@ -367,9 +404,21 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           themeAssignments: lib.themeAssignments,
           query,
           availableMaterialTags: lib.activeAvailableMaterials,
+          minutes: minutesActive ? minutesValue : undefined,
         })
       ),
-    [lib.all, lib.activeAvailableMaterials, lib.themeAssignments, cat, place, age, theme, query]
+    [
+      lib.all,
+      lib.activeAvailableMaterials,
+      lib.themeAssignments,
+      cat,
+      place,
+      age,
+      theme,
+      query,
+      minutesActive,
+      minutesValue,
+    ]
   );
   // Starred is a library-only lens; matchesActivityFilters stays fav-agnostic.
   const libraryItems = useMemo(() => {
@@ -635,12 +684,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               starredOnly={starredOnly}
               materialOptions={lib.materialOptions}
               availableMaterials={lib.activeAvailableMaterials}
+              minutes={minutesValue}
+              minutesBounds={minutesBounds}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
               onTheme={setTheme}
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
+              onMinutes={handleMinutes}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
             />
@@ -697,12 +749,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               starredOnly={starredOnly}
               materialOptions={lib.materialOptions}
               availableMaterials={lib.activeAvailableMaterials}
+              minutes={minutesValue}
+              minutesBounds={minutesBounds}
               onCat={setCat}
               onPlace={setPlace}
               onAge={setAge}
               onTheme={setTheme}
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
+              onMinutes={handleMinutes}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
               onOpen={openDetail}

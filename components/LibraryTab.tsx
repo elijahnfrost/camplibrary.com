@@ -11,7 +11,7 @@ import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
-import { ActiveFilters, Filters } from "./Filters";
+import { ActiveFilters, Filters, type MinutesBounds, type MinutesRange } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
 import { LoadingVeil } from "./primitives";
 
@@ -33,6 +33,8 @@ export function LibraryTab({
   starredOnly,
   materialOptions,
   availableMaterials,
+  minutes,
+  minutesBounds,
   ageUnit,
   onAgeUnit,
   onCat,
@@ -41,6 +43,7 @@ export function LibraryTab({
   onTheme,
   onManageThemes,
   onStarredOnly,
+  onMinutes,
   onToggleMaterial,
   onClearMaterials,
   onOpen,
@@ -68,12 +71,15 @@ export function LibraryTab({
   starredOnly: boolean;
   materialOptions: MaterialOption[];
   availableMaterials: string[];
+  minutes: MinutesRange;
+  minutesBounds: MinutesBounds;
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
   onTheme: (v: ThemeFilter) => void;
   onManageThemes: () => void;
   onStarredOnly: (v: boolean) => void;
+  onMinutes: (v: MinutesRange) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
   onOpen: (activity: Activity) => void;
@@ -188,6 +194,8 @@ export function LibraryTab({
         starredOnly={starredOnly}
         materialOptions={materialOptions}
         availableMaterials={availableMaterials}
+        minutes={minutes}
+        minutesBounds={minutesBounds}
         resultCount={items.length}
         onCat={onCat}
         onPlace={onPlace}
@@ -195,6 +203,7 @@ export function LibraryTab({
         onTheme={onTheme}
         onManageThemes={onManageThemes}
         onStarredOnly={onStarredOnly}
+        onMinutes={onMinutes}
         onToggleMaterial={onToggleMaterial}
         onClearMaterials={onClearMaterials}
       />
@@ -235,10 +244,13 @@ export function LibraryTab({
                   theme={theme}
                   themes={themes}
                   availableMaterials={availableMaterials}
+                  minutes={minutes}
+                  minutesBounds={minutesBounds}
                   onCat={onCat}
                   onPlace={onPlace}
                   onAge={onAge}
                   onTheme={onTheme}
+                  onMinutes={onMinutes}
                   onClearMaterials={onClearMaterials}
                 />
                 <button
@@ -250,6 +262,7 @@ export function LibraryTab({
                     onAge("All");
                     onTheme("All");
                     onStarredOnly(false);
+                    onMinutes([minutesBounds.min, minutesBounds.max]);
                     onClearMaterials();
                   }}
                 >

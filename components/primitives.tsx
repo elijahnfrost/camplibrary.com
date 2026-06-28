@@ -349,6 +349,70 @@ export function ToggleSwitch({
   );
 }
 
+/** A dual-handle range slider (min…max) for a numeric window like duration.
+ *  Two native range inputs overlap; pointer-events are limited to each thumb
+ *  (see .rangeslider__input in globals) so either handle stays grabbable. The
+ *  filled segment and thumb positions are driven by the --lo/--hi percentages.
+ *  The handles never cross — the low input is capped at the high value and
+ *  vice-versa. */
+export function RangeSlider({
+  min,
+  max,
+  step = 1,
+  value,
+  onChange,
+  ariaLabelMin,
+  ariaLabelMax,
+  format,
+}: {
+  min: number;
+  max: number;
+  step?: number;
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
+  ariaLabelMin: string;
+  ariaLabelMax: string;
+  /** Render a value as its accessible text (e.g. "30 min"). */
+  format?: (v: number) => string;
+}) {
+  const span = Math.max(1, max - min);
+  const [lo, hi] = value;
+  const loPct = ((Math.min(lo, hi) - min) / span) * 100;
+  const hiPct = ((Math.max(lo, hi) - min) / span) * 100;
+  const fmt = (v: number) => (format ? format(v) : String(v));
+  return (
+    <span
+      className="rangeslider"
+      style={{ "--lo": loPct + "%", "--hi": hiPct + "%" } as CSSProperties}
+    >
+      <span className="rangeslider__track" aria-hidden="true" />
+      <span className="rangeslider__fill" aria-hidden="true" />
+      <input
+        type="range"
+        className="rangeslider__input rangeslider__input--lo"
+        min={min}
+        max={max}
+        step={step}
+        value={lo}
+        aria-label={ariaLabelMin}
+        aria-valuetext={fmt(lo)}
+        onChange={(e) => onChange([Math.min(Number(e.target.value), hi), hi])}
+      />
+      <input
+        type="range"
+        className="rangeslider__input rangeslider__input--hi"
+        min={min}
+        max={max}
+        step={step}
+        value={hi}
+        aria-label={ariaLabelMax}
+        aria-valuetext={fmt(hi)}
+        onChange={(e) => onChange([lo, Math.max(Number(e.target.value), lo)])}
+      />
+    </span>
+  );
+}
+
 export function EnergyMeter({ level }: { level: number }) {
   return (
     <span className="meter" aria-label={ENERGY[level] + " energy"}>

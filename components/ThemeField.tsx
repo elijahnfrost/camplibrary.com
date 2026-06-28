@@ -62,12 +62,12 @@ export function ThemeField({
   }
 
   return (
-    <div className="themefield">
+    <div className={"themefield typepick" + (open ? " is-open" : "")}>
       <button
         id={id}
         ref={triggerRef}
         type="button"
-        className={"select themefield__trigger" + (open ? " is-open" : "")}
+        className="typepick__trigger themefield__trigger"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={ariaLabel}
@@ -88,7 +88,7 @@ export function ThemeField({
 
       {open && triggerRef.current && (
         <FloatingLayer
-          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect(), matchWidth: true }}
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect() }}
           onClose={close}
           className="typepick__menu themefield__menu"
           role="menu"

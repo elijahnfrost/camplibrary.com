@@ -8,8 +8,22 @@ import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { AgePicker, MiniSeg, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
+import { AgePicker, MiniSeg, RangeSlider, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+
+/** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
+export type MinutesRange = [number, number];
+/** The full span the slider can cover — the min/max durationMin in the library. */
+export interface MinutesBounds {
+  min: number;
+  max: number;
+}
+
+/** Is the duration window narrower than the full library span? Only then does
+ *  it count as an active filter (chip, clear-all, count). */
+function minutesNarrowed(value: MinutesRange, bounds: MinutesBounds): boolean {
+  return value[0] > bounds.min || value[1] < bounds.max;
+}
 
 /** The shared color hook: the removable active-filter chip carries its
  *  dimension's tint via --chip-on (the .chip.is-on recipe darkens it for AA).
@@ -33,11 +47,16 @@ interface ActiveFilterProps {
   themes?: Theme[];
   starredOnly?: boolean;
   availableMaterials: string[];
+  /** Current duration window + its full span, so the chip reads "15–45 min"
+   *  and removing it widens back to the full bounds. */
+  minutes: MinutesRange;
+  minutesBounds: MinutesBounds;
   onCat: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
   onTheme?: (v: ThemeFilter) => void;
   onStarredOnly?: (v: boolean) => void;
+  onMinutes: (v: MinutesRange) => void;
   onClearMaterials: () => void;
 }
 
@@ -69,6 +88,13 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
       key: "age",
       label: band ? bandShort(band, p.ageUnit ?? "grades") : p.age,
       onRemove: () => p.onAge("All"),
+    });
+  }
+  if (minutesNarrowed(p.minutes, p.minutesBounds)) {
+    chips.push({
+      key: "minutes",
+      label: p.minutes[0] + "–" + p.minutes[1] + " min",
+      onRemove: () => p.onMinutes([p.minutesBounds.min, p.minutesBounds.max]),
     });
   }
   if (p.availableMaterials.length > 0) {
@@ -120,6 +146,10 @@ interface FiltersProps {
   starredOnly?: boolean;
   materialOptions: MaterialOption[];
   availableMaterials: string[];
+  /** Duration window [lo, hi] in minutes + the full library span it slides over.
+   *  The row is hidden when the span is empty (bounds.max <= bounds.min). */
+  minutes: MinutesRange;
+  minutesBounds: MinutesBounds;
   /** Result count for the mobile sheet's "Show N" button (bar variant only). */
   resultCount?: number;
   onCat: (v: CatFilter) => void;
@@ -129,6 +159,7 @@ interface FiltersProps {
   /** Opens the Themes manager (create/rename/delete) — the menu's footer. */
   onManageThemes?: () => void;
   onStarredOnly?: (v: boolean) => void;
+  onMinutes: (v: MinutesRange) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
 }
@@ -243,6 +274,44 @@ function MaterialPicker({
   );
 }
 
+// The duration window — one ledger line like the others: a small-caps "Minutes"
+// label, then a compact dual-handle slider with a quiet readout on the right.
+// The readout reads "Any" at full span and "lo–hi" once narrowed. Hidden when
+// the library has no duration spread to slide over (every activity one length).
+function MinutesFilter({
+  value,
+  bounds,
+  onChange,
+}: {
+  value: MinutesRange;
+  bounds: MinutesBounds;
+  onChange: (v: MinutesRange) => void;
+}) {
+  if (bounds.max <= bounds.min) return null;
+  const narrowed = minutesNarrowed(value, bounds);
+  // The step matches the library's 15-minute grid where it can, but a 5-minute
+  // step keeps the handles reachable for any odd length the catalog carries.
+  const step = 5;
+  return (
+    <div className={"ledger__row minrange" + (narrowed ? " is-active" : "")}>
+      <span className="ledger__label">Minutes</span>
+      <div className="minrange__control">
+        <RangeSlider
+          min={bounds.min}
+          max={bounds.max}
+          step={step}
+          value={value}
+          onChange={onChange}
+          ariaLabelMin="Shortest length, minutes"
+          ariaLabelMax="Longest length, minutes"
+          format={(v) => v + " minutes"}
+        />
+        <span className="minrange__readout">{narrowed ? value[0] + "–" + value[1] : "Any"}</span>
+      </div>
+    </div>
+  );
+}
+
 // THE filter body, shared by the desktop rail AND the mobile sheet so both
 // surfaces read as the same form: every dimension is one ledger line — a
 // small-caps label on the left, a compact control on the right. Type opens an
@@ -261,12 +330,15 @@ function LedgerFilters({
   starredOnly,
   materialOptions,
   availableMaterials,
+  minutes,
+  minutesBounds,
   onCat,
   onPlace,
   onAge,
   onTheme,
   onManageThemes,
   onStarredOnly,
+  onMinutes,
   onToggleMaterial,
   onClearMaterials,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
@@ -324,6 +396,7 @@ function LedgerFilters({
           ]}
         />
       </div>
+      <MinutesFilter value={minutes} bounds={minutesBounds} onChange={onMinutes} />
       {onStarredOnly && (
         <div className="ledger__row">
           <span className="ledger__label">Starred only</span>
@@ -358,6 +431,8 @@ export function Filters({
   starredOnly,
   materialOptions,
   availableMaterials,
+  minutes,
+  minutesBounds,
   resultCount,
   onCat,
   onPlace,
@@ -365,10 +440,12 @@ export function Filters({
   onTheme,
   onManageThemes,
   onStarredOnly,
+  onMinutes,
   onToggleMaterial,
   onClearMaterials,
 }: FiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const minutesOn = minutesNarrowed(minutes, minutesBounds);
   const activeProps: ActiveFilterProps = {
     cat,
     place,
@@ -378,11 +455,14 @@ export function Filters({
     themes,
     starredOnly,
     availableMaterials,
+    minutes,
+    minutesBounds,
     onCat,
     onPlace,
     onAge,
     onTheme,
     onStarredOnly,
+    onMinutes,
     onClearMaterials,
   };
   const activeCount =
@@ -390,6 +470,7 @@ export function Filters({
     (theme !== "All" ? 1 : 0) +
     (place !== "All" ? 1 : 0) +
     (age !== "All" ? 1 : 0) +
+    (minutesOn ? 1 : 0) +
     (starredOnly ? 1 : 0) +
     (availableMaterials.length > 0 ? 1 : 0);
   const anyOn = activeCount > 0;
@@ -399,6 +480,7 @@ export function Filters({
     onAge("All");
     onTheme("All");
     onStarredOnly?.(false);
+    onMinutes([minutesBounds.min, minutesBounds.max]);
     onClearMaterials();
   };
 
@@ -416,12 +498,15 @@ export function Filters({
       starredOnly={starredOnly}
       materialOptions={materialOptions}
       availableMaterials={availableMaterials}
+      minutes={minutes}
+      minutesBounds={minutesBounds}
       onCat={onCat}
       onPlace={onPlace}
       onAge={onAge}
       onTheme={onTheme}
       onManageThemes={onManageThemes}
       onStarredOnly={onStarredOnly}
+      onMinutes={onMinutes}
       onToggleMaterial={onToggleMaterial}
       onClearMaterials={onClearMaterials}
     />
