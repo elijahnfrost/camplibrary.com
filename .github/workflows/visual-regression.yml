@@ -32,17 +32,15 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
 
-      # TEMP: regenerate darwin baselines on the runner + upload them as an
-      # artifact (reverted in the next commit once the baselines are committed).
-      - name: Regenerate visual baselines
-        run: npm run test:visual:update
+      - name: Visual regression
+        run: npm run test:visual
         env:
           CI: "true"
 
-      - name: Upload regenerated baselines
-        if: always()
+      - name: Upload diff report on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-baselines
-          path: tests/visual/surfaces.spec.ts-snapshots/
-          retention-days: 7
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
