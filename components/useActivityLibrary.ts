@@ -22,6 +22,7 @@ import {
 } from "@/lib/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
 import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/locations";
+import { normalizeHexColor } from "@/lib/color";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";
 
@@ -37,7 +38,7 @@ export function useActivityLibrary({
   const { docs, setDoc, events, commitEvents } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view, deletedActivityIds } = docs;
   const availableMaterials = docs.availableMaterials;
-  const { themes, themeAssignments, locations } = docs;
+  const { themes, themeAssignments, locations, locationColors } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
 
@@ -193,6 +194,17 @@ export function useActivityLibrary({
       const result = renameInVocab(locations, from, to);
       if (!result) return;
       setDoc("locations", () => result.next);
+      // Carry any color override onto the new label (the override is keyed by
+      // label, like everything else in the location model). On a merge-rename
+      // the surviving place keeps its own color, matching the vocab merge.
+      setDoc("locationColors", (prev) => {
+        if (prev[from] == null) return prev;
+        const next = { ...prev };
+        const color = next[from];
+        delete next[from];
+        if (next[result.label] == null) next[result.label] = color;
+        return next;
+      });
       // Keep events in step: rewrite the old label to the new one wherever it's
       // stored, de-duplicating in case an event already carried the new label.
       // One commit so it's a single undo step alongside the vocabulary change.
@@ -224,9 +236,37 @@ export function useActivityLibrary({
       const next = removeLocation(locations, label);
       if (!next) return;
       setDoc("locations", () => next);
+      // Drop any color override for the removed place so no dead key lingers
+      // (mirrors theme deletion purging its assignments).
+      setDoc("locationColors", (prev) => {
+        if (prev[label] == null) return prev;
+        const out = { ...prev };
+        delete out[label];
+        return out;
+      });
       announce("Removed the " + label + " location");
     },
     [announce, locations, setDoc]
+  );
+
+  // Set (or clear, with undefined) the color override for a place. Keyed by the
+  // place LABEL — the same key the vocabulary, events, and the .ics feed use. A
+  // non-hex value is ignored so the synced doc only ever holds clean hex.
+  const setLocationColor = useCallback(
+    (label: string, color: string | undefined) => {
+      setDoc("locationColors", (prev) => {
+        if (color === undefined) {
+          if (prev[label] == null) return prev;
+          const next = { ...prev };
+          delete next[label];
+          return next;
+        }
+        const hex = normalizeHexColor(color);
+        if (!hex || prev[label] === hex) return prev;
+        return { ...prev, [label]: hex };
+      });
+    },
+    [setDoc]
   );
 
   // A custom book carries its own diagram; built-in books fall back to an
@@ -403,9 +443,11 @@ export function useActivityLibrary({
     renameTheme,
     deleteTheme,
     locations,
+    locationColors,
     createLocation,
     renameLocation,
     deleteLocation,
+    setLocationColor,
   };
 }
 

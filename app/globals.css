@@ -9165,6 +9165,30 @@ button.rl-node {
   border-radius: var(--r-xs);
   border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
 }
+/* The compact swatch-only trigger (ColorSwatchField) used in tight rows like the
+   Locations manager — the colored square IS the button, opening the same popover. */
+.ccolor--swatch {
+  display: inline-flex;
+  flex: none;
+}
+.ccolor__swatchbtn {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  padding: 0;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+.ccolor__swatchbtn:hover {
+  transform: scale(1.08);
+}
+.ccolor__swatchbtn:focus-visible,
+.ccolor__swatchbtn.is-open {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .ccolor__pop {
   position: fixed;
   display: flex;

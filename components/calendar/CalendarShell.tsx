@@ -233,6 +233,7 @@ export function CalendarShell({
   railSlot,
   onOpenCamps,
   locationOptions,
+  locationColors,
   onManageLocations,
   dayWindow,
   headerActions,
@@ -268,6 +269,9 @@ export function CalendarShell({
   /** The user-editable place vocabulary offered by every Location picker (the
    *  event editor and the bulk context-menu picker share this list). */
   locationOptions: readonly string[];
+  /** Per-location color overrides (place label → hex). Used by the "Color by →
+   *  Location" mode so a recolored place (e.g. a yellow Gym) paints through. */
+  locationColors: Record<string, string>;
   /** Opens the location manager (add / rename / remove places) from a picker's
    *  "Manage locations…" footer. */
   onManageLocations: () => void;
@@ -628,8 +632,8 @@ export function CalendarShell({
   // repaint path a per-event recolor already uses — so picking a mode recolors
   // the visible cards immediately, no scroll/refresh needed.
   const fcEvents = useMemo(
-    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf, colorMode)),
-    [healedEvents, byId, themeOf, colorMode]
+    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors)),
+    [healedEvents, byId, themeOf, colorMode, locationColors]
   );
 
   const scrollTime = useMemo(() => {

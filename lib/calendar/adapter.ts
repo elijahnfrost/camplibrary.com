@@ -29,7 +29,8 @@ export function toFcEvent(
   event: CalendarEvent,
   byId: ActivityIndex,
   themeOf?: ThemeResolver,
-  colorMode: ColorMode = "custom"
+  colorMode: ColorMode = "custom",
+  locationColors?: Record<string, string>
 ): EventInput {
   const activity = event.activityId ? byId[event.activityId] : undefined;
   const title = activity?.title || event.title || "Untitled";
@@ -37,8 +38,9 @@ export function toFcEvent(
   // The tint is resolved by the active ColorMode (default "custom" = today's
   // per-event/activity override → category tint). The theme tint is already in
   // hand, so the "theme" mode is just a hand-off — every mode flows out through
-  // the same --cal-tint channel downstream, no per-mode wiring past here.
-  const tint = eventTint(colorMode, { event, activity, themeTint: theme?.tint });
+  // the same --cal-tint channel downstream, no per-mode wiring past here. The
+  // location overrides are consulted only by the "location" mode.
+  const tint = eventTint(colorMode, { event, activity, themeTint: theme?.tint, locationColors });
   const dayStart = fromDateKey(event.date);
 
   const base: EventInput = {

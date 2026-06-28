@@ -191,12 +191,18 @@ export const LOCATION_TINTS: Record<string, string> = {
 };
 
 // Resolve a location list to its tint: the FIRST place wins (row-order is the
-// editor's deterministic order), an in-taxonomy place maps via LOCATION_TINTS,
-// and anything missing/legacy/free-text falls back to the neutral stone — simple
-// and stable, no per-string hashing.
-export function locationColor(locations: readonly string[] | undefined): string {
+// editor's deterministic order). A user-chosen color override (keyed by the place
+// LABEL, like the rest of the location model) wins first; then the built-in
+// LOCATION_TINTS default; then the neutral stone for missing/legacy/free-text
+// places — simple and stable, no per-string hashing.
+export function locationColor(
+  locations: readonly string[] | undefined,
+  colors?: Record<string, string>
+): string {
   const first = locations && locations.length ? locations[0] : undefined;
-  return (first && LOCATION_TINTS[first]) || CUSTOM_NEUTRAL;
+  if (!first) return CUSTOM_NEUTRAL;
+  const override = colors && normalizeHexColor(colors[first]);
+  return override || LOCATION_TINTS[first] || CUSTOM_NEUTRAL;
 }
 
 // How every calendar event's color is resolved. "custom" is today's behavior
@@ -221,10 +227,14 @@ export function eventTint(
     event,
     activity,
     themeTint,
+    locationColors,
   }: {
     event: { color?: string; kind?: string; locations?: readonly string[] };
     activity?: Pick<Activity, "color" | "type" | "rating">;
     themeTint?: string;
+    /** The user's per-location color overrides (place label → hex). Consulted
+     *  only by the "location" mode; see locationColor. */
+    locationColors?: Record<string, string>;
   }
 ): string {
   switch (mode) {
@@ -237,8 +247,9 @@ export function eventTint(
       if (!activity) return CUSTOM_NEUTRAL;
       return ratingColor(activity.rating);
     case "location":
-      // By place: the event's first location maps to its earthy tint.
-      return locationColor(event.locations);
+      // By place: the event's first location maps to its earthy tint (a user
+      // override wins over the built-in default — see locationColor).
+      return locationColor(event.locations, locationColors);
     case "theme":
       // By theme: the activity's theme color, else the neutral stone.
       return themeTint || CUSTOM_NEUTRAL;

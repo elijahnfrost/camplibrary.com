@@ -4,16 +4,24 @@ import { useState } from "react";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { Select } from "./floating/Select";
+import { ColorSwatchField } from "./floating/ColorField";
 
-// A clean management screen for a user-definable list (camps, themes). Create at
-// the top, then a list of rows — switch (camps), rename, delete, and (camps
-// only) edit per-camp viewing hours. One surface so both features get the same
-// clear, discoverable "screen" instead of a cramped inline dropdown.
+// A clean management screen for a user-definable list (camps, themes, locations).
+// Create at the top, then a list of rows — switch (camps), rename, delete, and
+// (camps only) edit per-camp viewing hours. One surface so each feature gets the
+// same clear, discoverable "screen" instead of a cramped inline dropdown.
 
 export type ManagedItem = {
   id: string;
   label: string;
   tint?: string;
+  /** The explicit color override for this item, or undefined when it inherits
+   *  its default. With onChangeTint + tintFallback, the row's swatch becomes a
+   *  color PICKER seeded from this value (locations). */
+  tintValue?: string;
+  /** The inherited default color, shown by the picker when no override is set
+   *  and used as its "reset to default" target. */
+  tintFallback?: string;
   /** Camps carry per-camp viewing hours; present both to render the Open–Close
    *  editor on this row. Themes leave them undefined and get no hours sub-row. */
   openMin?: number;
@@ -31,6 +39,7 @@ export function ListManagerModal({
   onCreate,
   onRename,
   onDelete,
+  onChangeTint,
   onSelect,
   hourOptions,
   onChangeHours,
@@ -47,6 +56,10 @@ export function ListManagerModal({
   onCreate: (label: string) => void;
   onRename: (id: string, label: string) => void;
   onDelete: (item: ManagedItem) => void;
+  /** When set (with each item's tintValue/tintFallback), every row's swatch is a
+   *  color PICKER — pick a color or reset to the default (locations). Passing
+   *  undefined clears the override. Omit for read-only swatches (themes). */
+  onChangeTint?: (id: string, color: string | undefined) => void;
   /** Provide to make rows selectable (the camp switcher); omit for themes. */
   onSelect?: (id: string) => void;
   /** 15-min clock options for the per-camp hours editor. With onChangeHours and
@@ -70,6 +83,27 @@ export function ListManagerModal({
     const name = editDraft.trim();
     if (name) onRename(id, name);
     setEditingId(null);
+  }
+
+  // The leading color chip for a row. With onChangeTint (+ the item's fallback)
+  // it's an interactive picker; otherwise it's a static swatch. `interactive`
+  // is forced off where the chip would sit inside a <button> (the selectable
+  // camp row) — a button can't nest a button.
+  function renderSwatch(item: ManagedItem, interactive: boolean) {
+    if (interactive && onChangeTint && item.tintFallback) {
+      return (
+        <ColorSwatchField
+          value={item.tintValue}
+          fallback={item.tintFallback}
+          onChange={(color) => onChangeTint(item.id, color)}
+          ariaLabel={"Color for " + item.label}
+        />
+      );
+    }
+    if (item.tint) {
+      return <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />;
+    }
+    return null;
   }
 
   return (
@@ -119,9 +153,7 @@ export function ListManagerModal({
                       commitRename(item.id);
                     }}
                   >
-                    {item.tint && (
-                      <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
-                    )}
+                    {renderSwatch(item, true)}
                     {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
                     <input
                       className="input manager__editinput"
@@ -149,9 +181,7 @@ export function ListManagerModal({
                         aria-current={item.id === activeId ? "true" : undefined}
                         onClick={() => onSelect(item.id)}
                       >
-                        {item.tint && (
-                          <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
-                        )}
+                        {renderSwatch(item, false)}
                         <span className="manager__label">{item.label}</span>
                         {item.id === activeId && (
                           <span className="manager__active">
@@ -162,9 +192,7 @@ export function ListManagerModal({
                       </button>
                     ) : (
                       <span className="manager__pick manager__pick--static">
-                        {item.tint && (
-                          <span className="manager__swatch" style={{ background: item.tint }} aria-hidden="true" />
-                        )}
+                        {renderSwatch(item, true)}
                         <span className="manager__label">{item.label}</span>
                       </span>
                     )}

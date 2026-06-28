@@ -79,6 +79,14 @@ describe("user data docs", () => {
     expect(out.ctf.frames).toHaveLength(1);
   });
 
+  it("normalizes location colors: keeps valid hex, lowercases, drops junk", () => {
+    expect(
+      normalizeDoc("locationColors", { Gym: "#E0B15A", Pool: "not-a-color", "": "#fff", Fields: 7 })
+    ).toEqual({ Gym: "#e0b15a" });
+    expect(normalizeDoc("locationColors", "nope")).toEqual({});
+    expect(docDefault("locationColors")).toEqual({});
+  });
+
   it("normalizes custom activities through the shared activity validator", () => {
     const activity = {
       id: "custom-1",

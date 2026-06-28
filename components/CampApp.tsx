@@ -838,6 +838,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 locationOptions={lib.locations}
+                locationColors={lib.locationColors}
                 onManageLocations={openLocationsManager}
                 dayWindow={calendarDayWindow}
                 headerActions={
@@ -992,11 +993,15 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         {locationsManagerOpen && (
           <ListManagerModal
             title="Locations"
-            intro="Locations are the places a block happens — like the Gym, the Pool, or a classroom. Pick one or more on any event from its Location field; here you can add, rename, and remove them."
+            intro="Locations are the places a block happens — like the Gym, the Pool, or a classroom. Pick one or more on any event from its Location field; here you can add, rename, remove, and recolor them (the color shows when the calendar is set to Color by → Location)."
             items={lib.locations.map((place) => ({
               id: place,
               label: place,
-              tint: locationColor([place]),
+              // The resolved color (override → built-in default) for the static
+              // swatch shown while renaming; the picker reads value/fallback.
+              tint: locationColor([place], lib.locationColors),
+              tintValue: lib.locationColors[place],
+              tintFallback: locationColor([place]),
             }))}
             createPlaceholder="e.g. Pool"
             createLabel="Add place"
@@ -1006,6 +1011,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             }}
             onRename={(id, name) => {
               if (requireStaff("manage locations")) lib.renameLocation(id, name);
+            }}
+            onChangeTint={(id, color) => {
+              if (requireStaff("manage locations")) lib.setLocationColor(id, color);
             }}
             onDelete={(item) => {
               if (!requireStaff("manage locations")) return;

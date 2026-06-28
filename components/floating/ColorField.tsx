@@ -156,3 +156,59 @@ export function ColorField({
     </div>
   );
 }
+
+// A compact, swatch-only entry point onto the SAME ColorPickerBody — for tight
+// rows like the Locations manager where a full `.select`-styled trigger would be
+// too wide. The colored square IS the trigger; it opens the identical popover
+// (palette + hue/sat + hex + reset). value === undefined means "inherit the
+// fallback color", which the swatch then shows so it's never blank.
+export function ColorSwatchField({
+  value,
+  fallback,
+  onChange,
+  ariaLabel,
+}: {
+  /** The chosen hex, or undefined to inherit the fallback color. */
+  value: string | undefined;
+  /** The resolved default color, shown when no explicit color is set. */
+  fallback: string;
+  /** undefined clears the override ("reset to tag color"). */
+  onChange: (value: string | undefined) => void;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const current = normalizeHexColor(value);
+
+  function reset() {
+    onChange(undefined);
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }
+
+  return (
+    <span className="ccolor ccolor--swatch">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={"ccolor__swatchbtn" + (open ? " is-open" : "")}
+        style={{ background: current ?? fallback }}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((o) => !o)}
+      />
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect() }}
+          onClose={() => setOpen(false)}
+          className="ccolor__pop"
+          role="dialog"
+          ariaLabel={ariaLabel}
+        >
+          <ColorPickerBody value={value} fallback={fallback} onCommit={onChange} onReset={reset} />
+        </FloatingLayer>
+      )}
+    </span>
+  );
+}
