@@ -897,6 +897,47 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   padding-inline: 0;
 }
 
+/* The "View" header is a toggle (folds the whole settings ledger away to keep the
+   rail clean). It still reads as the section head — title left, chevron right. */
+.cal-view__head {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.cal-view__chev {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-soft);
+  transition:
+    transform var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.cal-view.is-open .cal-view__chev {
+  transform: rotate(180deg);
+}
+.cal-view__head:hover .sidesection__title,
+.cal-view__head:hover .cal-view__chev {
+  color: var(--ink);
+}
+/* Collapsed: drop the head's trailing margin so the rail closes up tight. */
+.cal-view:not(.is-open) .cal-view__head {
+  margin-bottom: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-view__chev {
+    transition: none;
+  }
+}
+
 /* ---------- view settings ledger (sidebar "View" + mobile sheet) ----------
    The view settings as a switch ledger — the Library filter vocabulary, so
    calendar and library sidebars read as one. Persistently visible (no
@@ -905,6 +946,29 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .calset > :last-child {
   border-bottom: 0;
 }
+
+/* The forecast coverage line under the weather controls. */
+.calset__wxnote {
+  margin: 0;
+  padding: var(--s-3) 0 var(--s-4);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* Mobile settings sheet: a small-caps group title above each ledger (View /
+   Weather), since the sheet has no rail toggles to label them. */
+.calset__sheettitle {
+  margin: var(--s-6) 0 var(--s-3);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.calset__sheettitle:first-child {
+  margin-top: 0;
+}
+
 /* Camp hours / Manage camps are full-row buttons that still read as ledger rows
    (label left, a quiet glyph right). */
 .calset__rowbtn {
@@ -2186,4 +2250,393 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   .overlay--scope {
     width: var(--scope-w);
   }
+}
+
+/* ============================================================
+ * Weather — a quiet forecast glance over the calendar (lib/weather).
+ * A 3-way View setting (Off / Day / Hour). "Day" drops a small summary into each
+ * column header; "Hour" tucks a chip into the top-right of every hour block. Both
+ * open the same anchored detail card on click. Earthy-restrained: line-art glyphs
+ * in the app's ink, with only the SUN warmed a touch so a bright day reads at a
+ * glance without turning the grid into a weather app. */
+.calshell {
+  /* The one accent the weather glyphs carry: a warm clay-gold for sun/partly, so
+     a sunny hour stands out from the neutral overcast/rain marks. Everything else
+     stays in the ink family — no out-of-palette blues. */
+  --wx-sun: color-mix(in srgb, var(--clay) 34%, var(--hl));
+}
+.cal-wx-glyph {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- "Hour" mode: a chip in each hour block ----------
+   The chips live INSIDE FullCalendar's own day columns (.fc-timegrid-col-frame),
+   placed by a top percentage of the drawn day — so they ride the horizontal
+   scroll and the vertical hour-zoom for free (CalendarShell only rebuilds them
+   when the date or forecast changes). The layer is click-through; only the chips
+   themselves take the pointer. */
+.cal-wx-col {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.cal-wx-chip {
+  position: absolute;
+  right: 2px;
+  /* `top` is set inline (the hour's fraction of the day); nudge down off the hour
+     gridline so the chip reads as belonging to the block below it. */
+  transform: translateY(2px);
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  pointer-events: auto;
+  border: 0;
+  /* A faint paper backdrop so the mark stays legible over a coloured event card,
+     without becoming a hard pill. */
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  border-radius: var(--r-sm);
+  padding: 0 3px 0 2px;
+  height: 15px;
+  color: var(--ink-faint);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+.cal-wx-chip .cal-wx-glyph {
+  font-size: 12px;
+}
+.cal-wx-chip__temp {
+  font-variant-numeric: tabular-nums;
+}
+.cal-wx-chip[data-wx-cond="clear"] .cal-wx-glyph,
+.cal-wx-chip[data-wx-cond="partly"] .cal-wx-glyph {
+  color: var(--wx-sun);
+}
+.cal-wx-chip:hover {
+  color: var(--ink);
+  background: var(--card);
+  transform: translateY(2px) scale(1.08);
+}
+.cal-wx-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+/* ---------- "Day" mode: a summary under each column's date ----------
+   Rendered by renderDayHeader (React) inside .cal-dayhead, so it flows under the
+   weekday + date and grows the header naturally (CalendarShell re-measures the
+   --cal-headh offset when it appears/clears). */
+.cal-wx-day {
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: 1px 4px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  line-height: 1;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.cal-wx-day .cal-wx-glyph {
+  font-size: 14px;
+}
+.cal-wx-day__temps {
+  display: inline-flex;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.cal-wx-day__hi {
+  color: var(--ink);
+}
+.cal-wx-day__lo {
+  color: var(--ink-faint);
+}
+.cal-wx-day[data-wx-cond="clear"] .cal-wx-glyph,
+.cal-wx-day[data-wx-cond="partly"] .cal-wx-glyph {
+  color: var(--wx-sun);
+}
+.cal-wx-day:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cal-wx-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Day-mode summary pins to the TOP-RIGHT corner of the column header (mirroring
+   the hour-mode chip's corner): the weekday + numeral stay centred as normal and
+   the forecast tucks into the corner. The chip is compact — a small glyph with
+   the high/low STACKED — so it fits the corner of a narrow week column without
+   crowding the day name, and the header never grows a row. */
+/* FC's header cushion is shrink-to-fit (centred in the cell), so a corner-pinned
+   chip would land mid-cell. Stretch the cushion to the full cell width when it
+   carries day weather, so the chip reaches the real right edge while the centred
+   weekday/numeral stay put. */
+.fc-col-header-cell-cushion:has(.cal-dayhead--wx) {
+  display: block;
+}
+.cal-dayhead--wx {
+  position: relative;
+  width: 100%;
+}
+.cal-dayhead--wx .cal-wx-day {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  margin-top: 0;
+  gap: 2px;
+  padding: 0;
+  font-size: var(--fs-micro);
+}
+.cal-dayhead--wx .cal-wx-day .cal-wx-glyph {
+  font-size: 13px;
+}
+.cal-dayhead--wx .cal-wx-day__temps {
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.12;
+}
+
+/* ---------- detail card (reuses .cal-popover surface) ---------- */
+.cal-wx-pop__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+.cal-wx-pop__glyph {
+  flex: none;
+  font-size: 34px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.cal-wx-pop__heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cal-wx-pop__temp {
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1.05;
+  color: var(--ink);
+}
+.cal-wx-pop__lo {
+  margin-left: var(--s-3);
+  color: var(--ink-faint);
+}
+.cal-wx-pop__cond {
+  margin-top: var(--s-1);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.cal-wx-pop__when {
+  margin-top: var(--s-1);
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.cal-wx-pop__rows {
+  margin: var(--s-5) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.cal-wx-pop__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+.cal-wx-pop__row dt {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.cal-wx-pop__row dd {
+  margin: 0;
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.cal-wx-pop__loc {
+  margin: var(--s-5) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1.5px dashed var(--line-soft);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* ---------- location field (View ledger row + search popover) ---------- */
+.cal-wx-loc__trigger {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  padding: var(--s-1) var(--s-3) var(--s-1) var(--s-5);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.cal-wx-loc__trigger:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.cal-wx-loc__trigger.is-open {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border-color: var(--line);
+}
+.cal-wx-loc__trigger.is-empty {
+  color: var(--ink-faint);
+}
+.cal-wx-loc__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cal-wx-loc__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-wx-loc__chev {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+.cal-wx-loc__menu {
+  position: fixed;
+  width: 264px;
+  max-width: calc(100vw - 24px);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.cal-wx-loc__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  background: var(--content);
+}
+.cal-wx-loc__field:focus-within {
+  border-color: var(--accent);
+}
+.cal-wx-loc__searchicon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: var(--ink-faint);
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-wx-loc__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: var(--hand);
+  font-size: 16px; /* >=16px keeps iOS from zooming the field on focus */
+  color: var(--ink);
+}
+.cal-wx-loc__input::placeholder {
+  color: var(--ink-faint);
+}
+.cal-wx-loc__hint {
+  margin: var(--s-3) 0 0;
+  padding: 0 var(--s-2);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.cal-wx-loc__results {
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.cal-wx-loc__result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.cal-wx-loc__result:hover,
+.cal-wx-loc__result:focus-visible {
+  background: var(--chrome-well);
+  outline: none;
+}
+.cal-wx-loc__result.is-current {
+  background: var(--accent-tint);
+}
+.cal-wx-loc__resultname {
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.cal-wx-loc__resultmeta {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
 }

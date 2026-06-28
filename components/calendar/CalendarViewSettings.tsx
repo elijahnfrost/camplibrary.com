@@ -17,10 +17,11 @@ const COLOR_BY_OPTIONS: { value: ColorMode; label: string }[] = [
   { value: "theme", label: "Theme" },
 ];
 
-// The calendar's view settings, persistently visible in the sidebar "View"
-// section (and the mobile settings sheet) — a switch ledger in the Library
-// filter vocabulary, so the two views' sidebars read as one. Every value lives
-// in CalendarShell, so the two mounts share one source of truth and never drift.
+// The calendar's view settings — a switch ledger in the Library filter vocabulary,
+// so the two views' sidebars read as one. Weather is a SEPARATE settings group
+// (see WeatherSettings), folded under its own sibling toggle, not nested here.
+// Every value lives in CalendarShell, so the desktop rail and the mobile sheet
+// share one source of truth and never drift.
 
 export function CalendarViewSettings({
   view,
@@ -50,6 +51,7 @@ export function CalendarViewSettings({
   // for any N-day count, so what's active is never ambiguous.
   const isMultiDay = view === "timeGridWeek" || isNDaysView(view);
   const dayCount = isNDaysView(view) ? view.n : 7;
+
   return (
     <div className="ledger calset">
       <div className="ledger__row">

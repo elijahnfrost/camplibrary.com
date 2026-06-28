@@ -81,7 +81,27 @@ import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
+import { WeatherSettings } from "./WeatherSettings";
 import { EventPopover } from "./EventPopover";
+import { WeatherPopover, type WeatherPopoverTarget } from "./WeatherPopover";
+import { WeatherGlyph } from "./WeatherGlyph";
+import { useWeatherForecast } from "./useWeatherForecast";
+import {
+  conditionLabel,
+  forecastCoverage,
+  formatTemp,
+  parseTempUnit,
+  parseWeatherLocation,
+  parseWeatherMode,
+  parseWeatherRange,
+  weatherGlyphSvg,
+  HISTORY_PAST_DAYS,
+  WEATHER_RANGE_DAYS,
+  type TempUnit,
+  type WeatherLocation,
+  type WeatherMode,
+  type WeatherRange,
+} from "@/lib/weather";
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
@@ -307,6 +327,69 @@ export function CalendarShell({
   );
   const slotZoomRef = useRef(slotZoom);
   const slotZoomPersistRef = useRef<number | null>(null);
+  // Hourly weather, a quiet glance over the day for planning (see lib/weather).
+  // A 3-way view pref: "off" (default) / "day" (one summary per column header) /
+  // "hour" (a chip in each hour block). The location + unit are device-local view
+  // prefs too (never synced) — weather is a viewing aid, not camp data.
+  const [weatherMode, setWeatherMode] = useLocalStorage<WeatherMode>(
+    "calendarWeatherMode",
+    "off",
+    parseWeatherMode
+  );
+  const [weatherUnit, setWeatherUnit] = useLocalStorage<TempUnit>(
+    "calendarWeatherUnit",
+    "f",
+    parseTempUnit
+  );
+  const [weatherLocation, setWeatherLocation] = useLocalStorage<WeatherLocation | null>(
+    "calendarWeatherLocation",
+    null,
+    parseWeatherLocation
+  );
+  // How far ahead the forecast reaches (Today / 3 / 5 / 7 / 14 / 16 days) and
+  // whether to also pull measured history so past camp days show their weather.
+  const [weatherRange, setWeatherRange] = useLocalStorage<WeatherRange>(
+    "calendarWeatherRange",
+    "7d",
+    parseWeatherRange
+  );
+  const [weatherHistory, setWeatherHistory] = useLocalStorage<boolean>(
+    "calendarWeatherHistory",
+    false,
+    boolStorage
+  );
+  // The desktop rail folds its settings under toggles so the resting sidebar stays
+  // clean (mini-month + the section headers). "View" and "Weather" are SEPARATE
+  // sibling toggles — not nested — each collapsed by default and persisted.
+  // Mobile keeps its own settings sheet, so these only govern the desk rail.
+  const [viewRailOpen, setViewRailOpen] = useLocalStorage<boolean>(
+    "calendarViewRailOpen",
+    false,
+    boolStorage
+  );
+  const [weatherRailOpen, setWeatherRailOpen] = useLocalStorage<boolean>(
+    "calendarWeatherRailOpen",
+    false,
+    boolStorage
+  );
+  const weatherEnabled = weatherMode !== "off";
+  const { data: weatherData, status: weatherStatus } = useWeatherForecast(
+    weatherLocation,
+    weatherUnit,
+    weatherEnabled,
+    WEATHER_RANGE_DAYS[weatherRange],
+    weatherHistory ? HISTORY_PAST_DAYS : 0
+  );
+  // The injected hour chips + the delegated click read the latest forecast through
+  // a ref so they don't re-arm the sync effect on every refresh.
+  const weatherDataRef = useRef(weatherData);
+  weatherDataRef.current = weatherData;
+  // The forecast coverage span (earliest → latest day with data), shown in the
+  // settings so it's clear how far the weather reaches.
+  const weatherCoverage = useMemo(
+    () => (weatherData ? forecastCoverage(weatherData) : null),
+    [weatherData]
+  );
   // The canonical strip width (px) last set by recomputeDayWidth, plus a 0/1 px
   // parity toggle. A vertical pinch needs FullCalendar to re-measure its slat
   // coordinates so events follow the new hour height — but FC only re-measures
@@ -324,11 +407,43 @@ export function CalendarShell({
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   const firedReadyRef = useRef(false);
+  // Weather joins the reveal: when it's on, hold onReady (and thus the host's
+  // loading veil) until the first forecast lands — so the calendar populates its
+  // weather behind the loading screen, the same way it waits on event data,
+  // instead of popping chips in after the reveal. weatherGateRef = "ok to reveal",
+  // readyPendingRef = "the grid settled while we were still waiting". A fallback
+  // timeout (below) opens the gate so a slow/dead forecast can't trap the reveal.
+  const weatherGateRef = useRef(true);
+  const readyPendingRef = useRef(false);
   const fireReady = useCallback(() => {
     if (firedReadyRef.current) return;
+    if (!weatherGateRef.current) {
+      readyPendingRef.current = true;
+      return;
+    }
     firedReadyRef.current = true;
     onReadyRef.current?.();
   }, []);
+  // Open/close the weather reveal gate as the forecast settles. Off → open at
+  // once; enabled → wait for the first ready/error, with a 2.2s safety so a hung
+  // request still reveals (the host's own veil backstop is the outer cap).
+  useEffect(() => {
+    const settled = !weatherEnabled || weatherStatus === "ready" || weatherStatus === "error";
+    const open = () => {
+      weatherGateRef.current = true;
+      if (readyPendingRef.current) {
+        readyPendingRef.current = false;
+        fireReady();
+      }
+    };
+    if (settled) {
+      open();
+      return;
+    }
+    weatherGateRef.current = false;
+    const id = window.setTimeout(open, 2200);
+    return () => window.clearTimeout(id);
+  }, [weatherEnabled, weatherStatus, fireReady]);
   const [activeView, setActiveView] = useState<ViewKey>("timeGridWeek");
   // How many days the active timed view sizes to fit the viewport (the zoom).
   const targetDays = targetDaysFor(activeView);
@@ -364,6 +479,16 @@ export function CalendarShell({
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  // The weather detail card (click an hour chip or a day-header summary). Mutually
+  // exclusive with the event popover/menu (an effect below closes it whenever one
+  // of those opens). openWxRef gives the imperative hour-chip click + the React
+  // day-header button a stable opener that first clears the event surfaces.
+  const [wxPopover, setWxPopover] = useState<{ target: WeatherPopoverTarget; anchor: DOMRect } | null>(null);
+  const openWxRef = useRef((target: WeatherPopoverTarget, anchor: DOMRect) => {
+    setPopover(null);
+    setMenu(null);
+    setWxPopover({ target, anchor });
+  });
   // Shift/Cmd-click (and touch long-press) multi-selection, Finder/Notion
   // semantics: the SET of selected event ids, plus a FIXED anchor that a
   // shift-click re-extends the range from. Selection is purely a view affordance
@@ -1909,28 +2034,72 @@ export function CalendarShell({
     return () => window.cancelAnimationFrame(frame);
   }, [selection, fcEvents, activeView]);
 
-  // Google-style day headers: "MON" over the date numeral, today circled.
-  const renderDayHeader = useCallback((arg: DayHeaderContentArg) => {
-    const weekday = arg.date.toLocaleDateString(undefined, { weekday: "short" });
-    if (arg.view.type === "dayGridMonth") {
-      // Month headers are days-of-week, not real dates. FullCalendar's arg.date
-      // there is a fixed Sunday-based reference week, so recomputing the weekday
-      // from it lands one column behind once firstDay rotates the columns (the
-      // pre-existing "Sun-month" label bug). arg.dow is the column's true
-      // day-of-week — the same basis as its fc-day-* class — so label from that
-      // off a known Sunday (Jan 7 2024) to stay locale-correct and firstDay-safe.
-      const dowName = new Date(2024, 0, 7 + arg.dow).toLocaleDateString(undefined, {
-        weekday: "short",
-      });
-      return <span className="cal-dayhead__dow">{dowName}</span>;
-    }
-    return (
-      <div className={"cal-dayhead" + (arg.isToday ? " is-today" : "")}>
-        <span className="cal-dayhead__dow">{weekday}</span>
-        <span className="cal-dayhead__num">{arg.date.getDate()}</span>
-      </div>
-    );
-  }, []);
+  // "Day" weather rides in the column header; bump renderDayHeader's identity only
+  // when the daily forecast changes AND we're in day mode (so a Month view or the
+  // hourly mode never re-renders the grid for weather). The map + units are read
+  // fresh from the ref so the value itself isn't a memo dep.
+  const dayWxVersion = weatherMode === "day" ? weatherData?.version ?? 0 : 0;
+
+  // Google-style day headers: "MON" over the date numeral, today circled — plus,
+  // in "Day" weather mode, a small forecast summary (glyph + high/low) that opens
+  // the detail card on click.
+  const renderDayHeader = useCallback(
+    (arg: DayHeaderContentArg) => {
+      const weekday = arg.date.toLocaleDateString(undefined, { weekday: "short" });
+      if (arg.view.type === "dayGridMonth") {
+        // Month headers are days-of-week, not real dates. FullCalendar's arg.date
+        // there is a fixed Sunday-based reference week, so recomputing the weekday
+        // from it lands one column behind once firstDay rotates the columns (the
+        // pre-existing "Sun-month" label bug). arg.dow is the column's true
+        // day-of-week — the same basis as its fc-day-* class — so label from that
+        // off a known Sunday (Jan 7 2024) to stay locale-correct and firstDay-safe.
+        const dowName = new Date(2024, 0, 7 + arg.dow).toLocaleDateString(undefined, {
+          weekday: "short",
+        });
+        return <span className="cal-dayhead__dow">{dowName}</span>;
+      }
+      const dateKey = `${arg.date.getFullYear()}-${String(arg.date.getMonth() + 1).padStart(2, "0")}-${String(
+        arg.date.getDate()
+      ).padStart(2, "0")}`;
+      const dayWx = weatherMode === "day" ? weatherDataRef.current?.daily.get(dateKey) : undefined;
+      return (
+        <div
+          className={
+            "cal-dayhead" + (arg.isToday ? " is-today" : "") + (dayWx ? " cal-dayhead--wx" : "")
+          }
+        >
+          <span className="cal-dayhead__dow">{weekday}</span>
+          <span className="cal-dayhead__num">{arg.date.getDate()}</span>
+          {dayWx && (
+            <button
+              type="button"
+              className="cal-wx-day"
+              data-wx-cond={dayWx.condition}
+              aria-label={`${conditionLabel(dayWx.condition)} — high ${formatTemp(dayWx.tempMax)}, low ${formatTemp(
+                dayWx.tempMin
+              )}. View detail`}
+              onClick={(e) => {
+                e.stopPropagation();
+                openWxRef.current(
+                  { kind: "day", date: dateKey, weather: dayWx },
+                  e.currentTarget.getBoundingClientRect()
+                );
+              }}
+            >
+              <WeatherGlyph condition={dayWx.condition} className="cal-wx-day__glyph" />
+              <span className="cal-wx-day__temps">
+                <span className="cal-wx-day__hi">{formatTemp(dayWx.tempMax)}</span>
+                <span className="cal-wx-day__lo">{formatTemp(dayWx.tempMin)}</span>
+              </span>
+            </button>
+          )}
+        </div>
+      );
+    },
+    // weatherDataRef is read live; dayWxVersion re-arms only on a day-mode refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [weatherMode, dayWxVersion]
+  );
 
   // Size the day columns so the active zoom (1 / 7 / N days) fits the viewport:
   // day width = (grid width − padding − time gutter) / target days. We set the
@@ -2388,6 +2557,129 @@ export function CalendarShell({
     };
   }, [activeView]);
 
+  // The weather card is mutually exclusive with the event popover / context menu /
+  // editor — opening one dismisses the weather card so two anchored layers never
+  // stack. (openWxRef already clears the event surfaces when going the other way.)
+  useEffect(() => {
+    if (popover || menu || sheet || scopePrompt) setWxPopover(null);
+  }, [popover, menu, sheet, scopePrompt]);
+
+  // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
+  // each hour block. The chips live INSIDE FullCalendar's own day columns
+  // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
+  // so they ride the horizontal scroll AND the vertical hour-zoom for free, with
+  // no per-frame geometry sync (unlike the now-line). We only (re)build a column's
+  // chips when its date or the forecast version changes; an unchanged column is
+  // skipped, which keeps the MutationObserver from thrashing (a no-op sync writes
+  // no DOM, so it can't re-trigger itself). FC may wipe the overlay when it
+  // re-renders a column, so every pass re-asserts it (the now-line does the same).
+  //   Clicks are caught in the CAPTURE phase on the grid and stopped there, so a
+  // chip tap never reaches FC's date-click/drag-select underneath.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const active = weatherMode === "hour";
+    const span = gridEnd - gridStart; // minutes across the drawn day
+
+    const clearChips = () => grid.querySelectorAll(".cal-wx-col").forEach((n) => n.remove());
+
+    const sync = () => {
+      const data = weatherDataRef.current;
+      if (!active || !data || span <= 0) {
+        clearChips();
+        return;
+      }
+      grid.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]").forEach((col) => {
+        const dateKey = col.getAttribute("data-date");
+        const frame = col.querySelector<HTMLElement>(".fc-timegrid-col-frame");
+        if (!dateKey || !frame) return;
+        const key = dateKey + "|" + data.version;
+        const existing = frame.querySelector<HTMLElement>(":scope > .cal-wx-col");
+        if (existing && existing.dataset.wxKey === key) return; // already current
+        existing?.remove();
+        const overlay = document.createElement("div");
+        overlay.className = "cal-wx-col";
+        overlay.setAttribute("aria-hidden", "true");
+        overlay.dataset.wxKey = key;
+        for (let m = gridStart; m < gridEnd; m += 60) {
+          const hour = m / 60;
+          const w = data.hourly.get(dateKey + "@" + hour);
+          if (!w) continue;
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "cal-wx-chip";
+          chip.dataset.wxDate = dateKey;
+          chip.dataset.wxHour = String(hour);
+          chip.dataset.wxCond = w.condition;
+          chip.style.top = ((m - gridStart) / span) * 100 + "%";
+          chip.setAttribute(
+            "aria-label",
+            conditionLabel(w.condition, w.isDay) + " " + formatTemp(w.temp) + ". View detail"
+          );
+          chip.innerHTML =
+            weatherGlyphSvg(w.condition, w.isDay) +
+            '<span class="cal-wx-chip__temp">' +
+            formatTemp(w.temp) +
+            "</span>";
+          overlay.appendChild(chip);
+        }
+        // Keep the keyed (possibly empty) overlay so out-of-forecast days aren't
+        // rebuilt every pass — an empty overlay is inert (pointer-events: none).
+        frame.appendChild(overlay);
+      });
+    };
+
+    // A chip click/press is handled here and stopped before FC sees it.
+    const onCapture = (e: Event) => {
+      const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".cal-wx-chip") : null;
+      if (!target) return;
+      e.stopPropagation();
+      if (e.type !== "click") return;
+      const data = weatherDataRef.current;
+      const dateKey = target.dataset.wxDate;
+      const hour = Number(target.dataset.wxHour);
+      const w = data && dateKey ? data.hourly.get(dateKey + "@" + hour) : undefined;
+      if (w && dateKey) {
+        openWxRef.current({ kind: "hour", date: dateKey, hour, weather: w }, target.getBoundingClientRect());
+      }
+    };
+
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(sync);
+    };
+
+    schedule();
+    grid.addEventListener("click", onCapture, true);
+    grid.addEventListener("pointerdown", onCapture, true);
+    grid.addEventListener("mousedown", onCapture, true);
+    // FC re-renders columns on event/date changes; re-assert the chips after.
+    const mo = new MutationObserver(schedule);
+    mo.observe(grid, { childList: true, subtree: true });
+    const ro = new ResizeObserver(schedule);
+    ro.observe(grid);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      grid.removeEventListener("click", onCapture, true);
+      grid.removeEventListener("pointerdown", onCapture, true);
+      grid.removeEventListener("mousedown", onCapture, true);
+      mo.disconnect();
+      ro.disconnect();
+      clearChips();
+    };
+  }, [weatherMode, weatherData, gridStart, gridEnd, activeView]);
+
+  // "Day" weather adds a glyph + high/low under each column's date, growing the
+  // header. The all-day row pins below the header via --cal-headh (set in
+  // recomputeDayWidth), so re-measure whenever day weather appears, updates, or
+  // clears — otherwise the all-day lane would sit at a stale offset.
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => recomputeDayWidth());
+    return () => window.cancelAnimationFrame(id);
+  }, [weatherMode, weatherData, recomputeDayWidth]);
+
   // Keyboard shortcuts, matching Notion Calendar: t today; d/1 Day, w/0 Week,
   // m Month, 2–9 an N-day window; j/→ next, k/← previous (slide-and-snap).
   useEffect(() => {
@@ -2643,27 +2935,63 @@ export function CalendarShell({
                 onPick={gotoMiniDate}
                 onToday={goToday}
               />
-              {/* The view settings sit under the mini-month as a persistently
-                  visible switch ledger (the Library filter vocabulary) — no
-                  disclosure, matching the Library's always-open filter rail.
-                  Fixed height; nothing here scrolls. */}
-              <div className="sidesection sidesection--fixed cal-view">
-                <div className="sidesection__head">
+              {/* The view + weather settings sit under the mini-month as TWO
+                  separate sibling toggles (not nested), each collapsed by default
+                  so the resting rail stays clean. Fixed height; nothing scrolls. */}
+              <div className={"sidesection sidesection--fixed cal-view" + (viewRailOpen ? " is-open" : "")}>
+                <button
+                  type="button"
+                  className="sidesection__head cal-view__head"
+                  onClick={() => setViewRailOpen((o) => !o)}
+                  aria-expanded={viewRailOpen}
+                >
                   <span className="sidesection__title">View</span>
-                </div>
-                <div className="sidesection__body cal-view__body">
-                  <CalendarViewSettings
-                    view={activeView}
-                    colorMode={colorMode}
-                    onColorMode={setColorMode}
-                    shadeWeekendsOn={shadeWeekends}
-                    onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
-                    weekStart={weekStart}
-                    onWeekStart={setWeekStart}
-                    onChangeView={changeView}
-                    onOpenCamps={onOpenCamps}
-                  />
-                </div>
+                  <CampIcon.ChevronDown className="cal-view__chev" />
+                </button>
+                {viewRailOpen && (
+                  <div className="sidesection__body cal-view__body">
+                    <CalendarViewSettings
+                      view={activeView}
+                      colorMode={colorMode}
+                      onColorMode={setColorMode}
+                      shadeWeekendsOn={shadeWeekends}
+                      onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
+                      weekStart={weekStart}
+                      onWeekStart={setWeekStart}
+                      onChangeView={changeView}
+                      onOpenCamps={onOpenCamps}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className={"sidesection sidesection--fixed cal-view" + (weatherRailOpen ? " is-open" : "")}>
+                <button
+                  type="button"
+                  className="sidesection__head cal-view__head"
+                  onClick={() => setWeatherRailOpen((o) => !o)}
+                  aria-expanded={weatherRailOpen}
+                >
+                  <span className="sidesection__title">Weather</span>
+                  <CampIcon.ChevronDown className="cal-view__chev" />
+                </button>
+                {weatherRailOpen && (
+                  <div className="sidesection__body cal-view__body">
+                    <WeatherSettings
+                      weatherMode={weatherMode}
+                      onWeatherMode={setWeatherMode}
+                      weatherUnit={weatherUnit}
+                      onWeatherUnit={setWeatherUnit}
+                      weatherLocation={weatherLocation}
+                      onWeatherLocation={setWeatherLocation}
+                      weatherRange={weatherRange}
+                      onWeatherRange={setWeatherRange}
+                      weatherHistory={weatherHistory}
+                      onWeatherHistory={setWeatherHistory}
+                      weatherStatus={weatherStatus}
+                      weatherCoverage={weatherCoverage}
+                    />
+                  </div>
+                )}
               </div>
             </>,
             railSlot
@@ -2701,19 +3029,21 @@ export function CalendarShell({
         />
       )}
 
-      {/* Mobile's home for the view settings (desktop puts them in the sidebar).
-          One CalendarViewSettings, shared state — opening Manage camps dismisses
+      {/* Mobile's home for the settings (desktop puts them in the sidebar). The
+          sheet is the disclosure, so View and Weather show as two labelled groups
+          (mirroring the desk rail's two toggles) — opening Manage camps dismisses
           this sheet first so the next modal isn't stacked behind. */}
       {settingsOpen && (
         <Modal
-          label="View settings"
+          label="Calendar settings"
           onClose={() => setSettingsOpen(false)}
           overlayProps={{ className: "overlay--card" }}
         >
           <div className="overlay__bar">
-            <h2 className="filtersheet__title">View</h2>
+            <h2 className="filtersheet__title">Settings</h2>
           </div>
           <div className="overlay__body filtersheet">
+            <h3 className="calset__sheettitle">View</h3>
             <CalendarViewSettings
               view={activeView}
               colorMode={colorMode}
@@ -2727,6 +3057,21 @@ export function CalendarShell({
                 setSettingsOpen(false);
                 onOpenCamps();
               }}
+            />
+            <h3 className="calset__sheettitle">Weather</h3>
+            <WeatherSettings
+              weatherMode={weatherMode}
+              onWeatherMode={setWeatherMode}
+              weatherUnit={weatherUnit}
+              onWeatherUnit={setWeatherUnit}
+              weatherLocation={weatherLocation}
+              onWeatherLocation={setWeatherLocation}
+              weatherRange={weatherRange}
+              onWeatherRange={setWeatherRange}
+              weatherHistory={weatherHistory}
+              onWeatherHistory={setWeatherHistory}
+              weatherStatus={weatherStatus}
+              weatherCoverage={weatherCoverage}
             />
           </div>
         </Modal>
@@ -2750,6 +3095,16 @@ export function CalendarShell({
           onDuplicate={() => duplicateEvent(popover.event)}
           onDelete={() => deleteEvent(popover.event)}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {wxPopover && weatherData && (
+        <WeatherPopover
+          target={wxPopover.target}
+          units={weatherData.units}
+          locationName={weatherData.location.name}
+          anchor={wxPopover.anchor}
+          onClose={() => setWxPopover(null)}
         />
       )}
 
