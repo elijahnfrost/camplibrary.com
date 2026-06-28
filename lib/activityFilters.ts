@@ -38,6 +38,9 @@ export interface ActivityFilterState {
    *  since the theme lives in a side map, not on the activity itself. */
   theme?: ThemeFilter;
   themeAssignments?: Record<string, string>;
+  /** Inclusive duration window [lo, hi] in minutes. Omit (or pass the full
+   *  bounds) to match any length. */
+  minutes?: [number, number];
 }
 
 function searchableArray(values: unknown): string[] {
@@ -104,6 +107,9 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.place === "Outside" && !(a.place === "Outside" || a.place === "Both")) return false;
   if (filters.age !== "All" && (a.ages || []).indexOf(filters.age) < 0) return false;
   if (filters.theme && filters.theme !== "All" && (filters.themeAssignments?.[a.id] ?? "") !== filters.theme) {
+    return false;
+  }
+  if (filters.minutes && (a.durationMin < filters.minutes[0] || a.durationMin > filters.minutes[1])) {
     return false;
   }
   if (!usesAnyMaterialTag(a, filters.availableMaterialTags || [])) return false;

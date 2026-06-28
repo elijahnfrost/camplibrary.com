@@ -37,7 +37,7 @@ import {
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { FloatingLayer } from "./floating/FloatingLayer";
-import { MiniSeg, RatingDots, Seg } from "./primitives";
+import { MiniSeg, RatingDots } from "./primitives";
 import { ColorField } from "./floating/ColorField";
 import { ThemeField, type ThemeKit } from "./ThemeField";
 import { ActivityPlaybook } from "./ActivityPlaybook";
@@ -614,50 +614,6 @@ function GroupSizeMenu({
   );
 }
 
-// A small minutes stepper + menu: ± buttons around a value, with a menu of common
-// durations. Stays a structured number — never free text.
-const DURATION_CHOICES = [5, 10, 15, 20, 30, 45, 60, 90];
-function DurationControl({
-  value,
-  onChange,
-  invalid,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  invalid: boolean;
-}) {
-  const num = Number.parseInt(value, 10);
-  const safe = Number.isFinite(num) && num > 0 ? num : 20;
-  const step = (delta: number) => onChange(String(Math.max(5, safe + delta)));
-  return (
-    <div className="rldetail__dur">
-      <button
-        type="button"
-        className="rldetail__durbtn"
-        onClick={() => step(-5)}
-        aria-label="Decrease minutes"
-      >
-        <CampIcon.Minus />
-      </button>
-      <LedgerMenu
-        value={String(safe)}
-        options={DURATION_CHOICES.map((n) => ({ id: String(n), label: n + " min" }))}
-        onChange={onChange}
-        ariaLabel="Minutes"
-      />
-      <button
-        type="button"
-        className="rldetail__durbtn"
-        onClick={() => step(5)}
-        aria-label="Increase minutes"
-      >
-        <CampIcon.Plus />
-      </button>
-      {invalid && <span className="sr-only" role="alert">Duration must fit the camp day.</span>}
-    </div>
-  );
-}
-
 function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }: DetailFormProps) {
   const f = form;
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => onFormChange({ ...f, [k]: v });
@@ -682,8 +638,12 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Where</span>
-        <Seg
-          options={["Inside", "Outside", "Both"] as const}
+        <MiniSeg
+          options={[
+            { id: "Inside", label: "Inside" },
+            { id: "Outside", label: "Outside" },
+            { id: "Both", label: "Both" },
+          ]}
           value={f.place}
           onChange={(value) => set("place", value)}
           ariaLabel="Where"
@@ -691,8 +651,12 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Energy</span>
-        <Seg
-          options={["Calm", "Lively", "Rowdy"] as const}
+        <MiniSeg
+          options={[
+            { id: "Calm", label: "Calm" },
+            { id: "Lively", label: "Lively" },
+            { id: "Rowdy", label: "Rowdy" },
+          ]}
           value={f.energy}
           onChange={(value) => set("energy", value)}
           ariaLabel="Energy"
@@ -700,8 +664,13 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Prep</span>
-        <Seg
-          options={["None", "Low", "Medium", "High"] as const}
+        <MiniSeg
+          options={[
+            { id: "None", label: "None" },
+            { id: "Low", label: "Low" },
+            { id: "Medium", label: "Medium" },
+            { id: "High", label: "High" },
+          ]}
           value={f.prep}
           onChange={(value) => set("prep", value)}
           ariaLabel="Prep effort"
@@ -709,11 +678,17 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Minutes</span>
-        <DurationControl
-          value={f.durationMin}
-          onChange={(value) => set("durationMin", value)}
-          invalid={v.durationInvalid}
-        />
+        <div className="rldetail__minutes">
+          <input
+            className="input rldetail__minin"
+            inputMode="numeric"
+            value={f.durationMin}
+            aria-label="Minutes"
+            aria-invalid={v.durationInvalid || undefined}
+            onChange={(e) => set("durationMin", e.target.value)}
+          />
+          <span className="rldetail__minunit" aria-hidden="true">min</span>
+        </div>
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Ages</span>

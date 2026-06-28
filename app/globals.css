@@ -804,19 +804,17 @@ body {
   margin-top: var(--s-2);
 }
 
-/* The editor's theme control: a .select-styled trigger + a floating menu that
+/* The editor's theme control: a pill trigger (the sidebar `.typepick` look, so it
+   reads as the same family as the Type/Ages pickers) + a floating menu that
    selects a theme AND creates/renames/deletes the vocabulary inline. */
 .themefield {
   position: relative;
   width: 100%;
 }
+/* The trigger is `.typepick__trigger .themefield__trigger`; typepick carries the
+   pill chrome, so this only nudges the value layout. */
 .themefield__trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
   text-align: left;
-  cursor: pointer;
 }
 .themefield__value {
   display: inline-flex;
@@ -828,12 +826,6 @@ body {
   white-space: nowrap;
 }
 .themefield__none {
-  color: var(--ink-faint);
-}
-.themefield__trigger > svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
   color: var(--ink-faint);
 }
 .themefield__swatch {
@@ -865,6 +857,7 @@ body {
   top: auto;
   left: auto;
   right: auto;
+  min-width: 208px;
   max-height: min(340px, 60vh);
   overflow-y: auto;
 }
@@ -1373,6 +1366,132 @@ body {
 .lswitch.is-on .lswitch__knob {
   left: 15.5px;
   border-color: var(--accent-ink);
+}
+
+/* ---------- duration window: a quiet ledger row ----------
+   "Minutes" reads as one ledger line like every other filter: small-caps label
+   left, a compact dual-handle slider + readout on the right. Deliberately
+   neutral — line/ink tones, no accent fill — so it sits quietly among the rows
+   instead of pulling the eye. The readout says "Any" at full span and "lo–hi"
+   once narrowed. */
+.minrange__control {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.minrange__readout {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--t-fast) var(--ease);
+}
+.minrange.is-active .minrange__readout {
+  color: var(--ink-soft);
+}
+/* Dual-handle slider: two native range inputs over a shared track. The inputs
+   are pointer-transparent except for their thumbs (so either handle is grabbable
+   even when they meet); the filled segment + thumb positions ride the --lo/--hi
+   percentages on the wrapper. Thumbs are the same paper discs as the toggle
+   knob, the fill a faint ink tone — quiet on purpose. */
+.rangeslider {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 92px;
+  height: 18px;
+}
+.rangeslider__track,
+.rangeslider__fill {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  border-radius: var(--r-pill);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.rangeslider__track {
+  left: 0;
+  right: 0;
+  background: var(--line);
+}
+.rangeslider__fill {
+  left: var(--lo);
+  right: calc(100% - var(--hi));
+  background: var(--ink-faint);
+}
+.rangeslider__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+}
+.rangeslider__input:focus {
+  outline: none;
+}
+.rangeslider__input::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.rangeslider__input::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+.rangeslider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 2.5px;
+  border-radius: var(--r-round);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.rangeslider__input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-round);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.rangeslider__input:hover::-webkit-slider-thumb {
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:hover::-moz-range-thumb {
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:active::-moz-range-thumb {
+  cursor: grabbing;
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ink-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rangeslider__input:focus-visible::-moz-range-thumb {
+  border-color: var(--ink-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- kit disclosure: the ledger's last row ----------
@@ -7279,14 +7398,36 @@ button.rl-node {
 .rldetail__row:last-child {
   border-bottom: 0;
 }
-/* Each row's control sits to the right; segmented controls grow to a comfortable
-   width, menu triggers hug their label. */
-.rldetail__row .seg {
-  flex: 0 1 260px;
+/* Each row's control sits to the right; the compact MiniSegs (Where/Energy/Prep),
+   the pill triggers, and the minutes field all hug their content so the editor
+   ledger reads at the same compact height as the sidebar. */
+.rldetail__row .miniseg {
+  flex: 0 0 auto;
 }
 .rldetail__row .themefield {
-  flex: 0 1 260px;
+  flex: 0 0 auto;
   width: auto;
+}
+/* Minutes is a plain number field + unit, right-aligned like the other controls. */
+.rldetail__minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__minin {
+  /* Trim the stock 44px-tall .input padding so the field sits at the same compact
+     height as the row's pills/MiniSegs (the 16px font stays, to avoid iOS focus
+     zoom). */
+  width: 64px;
+  padding: var(--s-1) var(--s-3);
+  text-align: center;
+}
+.rldetail__minunit {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
 }
 /* Rating sits in the ledger like any other property — push the dots to the
    right edge so they line up with the controls above. */
@@ -7338,37 +7479,6 @@ button.rl-node {
 .typepick__trigger.is-invalid {
   border-color: var(--danger);
 }
-/* Minutes: a ± stepper bracketing the value menu. */
-.rldetail__dur {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
-.rldetail__durbtn {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.rldetail__durbtn:hover {
-  border-color: var(--ink-soft);
-  color: var(--ink);
-}
-.rldetail__durbtn svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 /* On a phone a 4-way segment + label won't fit one line — let the control drop
    below its label and stretch full width. */
 @media (max-width: 640px) {
@@ -7378,7 +7488,7 @@ button.rl-node {
     min-height: 0;
     gap: var(--s-3);
   }
-  .rldetail__row .seg,
+  .rldetail__row .miniseg,
   .rldetail__pick {
     flex: 1 1 100%;
   }

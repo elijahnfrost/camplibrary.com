@@ -95,6 +95,27 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ cat: "Craft", availableMaterialTags: ["cones"] }))).toBe(false);
   });
 
+  it("filters by an inclusive duration window (endpoints included)", () => {
+    const short = activity({ id: "a-short", durationMin: 15 });
+    const mid = activity({ id: "a-mid", durationMin: 30 });
+    const long = activity({ id: "a-long", durationMin: 60 });
+
+    // Omitting `minutes` matches any length.
+    expect(matchesActivityFilters(long, filters())).toBe(true);
+
+    // A [20, 45] window keeps only the mid activity; both endpoints are inclusive.
+    expect(matchesActivityFilters(short, filters({ minutes: [20, 45] }))).toBe(false);
+    expect(matchesActivityFilters(mid, filters({ minutes: [20, 45] }))).toBe(true);
+    expect(matchesActivityFilters(long, filters({ minutes: [20, 45] }))).toBe(false);
+    expect(matchesActivityFilters(short, filters({ minutes: [15, 30] }))).toBe(true);
+    expect(matchesActivityFilters(mid, filters({ minutes: [15, 30] }))).toBe(true);
+
+    // The window still ANDs with the other dimensions.
+    expect(
+      matchesActivityFilters(activity({ type: "Craft", durationMin: 30 }), filters({ cat: "Game", minutes: [15, 45] }))
+    ).toBe(false);
+  });
+
   it("searches visible activity text case-insensitively", () => {
     const base = activity({
       title: "River Relay",
