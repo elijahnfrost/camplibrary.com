@@ -5730,6 +5730,7 @@ body {
     align-items: center;
     gap: 16px;
     padding: 12px 32px 14px;
+    width: 100%;
     max-width: var(--lib-col-max);
     margin-inline: auto;
   }
