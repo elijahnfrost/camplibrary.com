@@ -82,7 +82,6 @@ import { LocationPickerList } from "../floating/LocationField";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
-import { EventPopover } from "./EventPopover";
 import { WeatherPopover, type WeatherPopoverTarget } from "./WeatherPopover";
 import { WeatherGlyph } from "./WeatherGlyph";
 import { useWeatherForecast } from "./useWeatherForecast";
@@ -166,7 +165,6 @@ function targetDaysFor(view: ViewKey): number {
   return 7; // Week (Month doesn't use the strip)
 }
 
-type PopoverState = { event: CalendarEvent; anchor: DOMRect };
 // The right-click context menu opens over EITHER one event (the single-event
 // menu) or a whole multi-selection (the bulk menu) — chosen by onGridContextMenu
 // from whether the right-clicked event is part of a >1 selection. Both variants
@@ -485,15 +483,13 @@ export function CalendarShell({
   // the when-row + commit button; without it, the slot gesture chose the when
   // and picking creates instantly.
   const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
-  const [popover, setPopover] = useState<PopoverState | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   // The weather detail card (click an hour chip or a day-header summary). Mutually
-  // exclusive with the event popover/menu (an effect below closes it whenever one
+  // exclusive with the event menu (an effect below closes it whenever one
   // of those opens). openWxRef gives the imperative hour-chip click + the React
   // day-header button a stable opener that first clears the event surfaces.
   const [wxPopover, setWxPopover] = useState<{ target: WeatherPopoverTarget; anchor: DOMRect } | null>(null);
   const openWxRef = useRef((target: WeatherPopoverTarget, anchor: DOMRect) => {
-    setPopover(null);
     setMenu(null);
     setWxPopover({ target, anchor });
   });
@@ -831,7 +827,6 @@ export function CalendarShell({
     // Navigation/view changes re-render the grid, so a cursor-anchored menu or
     // a rect-anchored popover would detach — dismiss them.
     setMenu(null);
-    setPopover(null);
     // The strip's visible window + title are driven by scroll position
     // (syncVisible), NOT by the full rendered range — so the strip ignores this.
     // Only Month, with its own grid, reads its window straight from FullCalendar.
@@ -949,12 +944,10 @@ export function CalendarShell({
       if (!requireStaff("change the calendar")) return;
       // A repeating event asks the scope (this / following / all) before deleting.
       if (event.seriesId) {
-        setPopover(null);
         setScopePrompt({ mode: "delete", event });
         return;
       }
       removeEvent(event.id);
-      setPopover(null);
       setSheet(null);
       showToast(
         {
@@ -985,7 +978,6 @@ export function CalendarShell({
     const ids = before.map((event) => event.id);
     removeEvents(ids);
     clearSelection();
-    setPopover(null);
     setSheet(null);
     const count = ids.length;
     const label = "Deleted " + count + (count === 1 ? " event" : " events");
@@ -1115,7 +1107,6 @@ export function CalendarShell({
         const plan = planSeriesSkip(series, event);
         commitEvents(plan.upserts, plan.removes);
         setScopePrompt(null);
-        setPopover(null);
         setSheet(null);
         announce("Skipped " + (event.title || "event"));
         showToast(
@@ -1128,7 +1119,6 @@ export function CalendarShell({
       const before = series.filter((occurrence) => ids.includes(occurrence.id));
       removeEvents(ids);
       setScopePrompt(null);
-      setPopover(null);
       setSheet(null);
       announce("Deleted " + (event.title || "event"));
       showToast(
@@ -1167,7 +1157,6 @@ export function CalendarShell({
       delete copy.seriesId;
       delete copy.recurrence;
       upsertEvent(copy);
-      setPopover(null);
       announce("Duplicated " + (event.title || "event"));
       showToast({
         message: "Duplicated " + (event.title || "event"),
@@ -1410,7 +1399,6 @@ export function CalendarShell({
       // With no anchor yet, this just selects + anchors here. Never opens the
       // popover. Reads order/anchor via refs to keep this callback memo-stable.
       if (shift) {
-        setPopover(null);
         const order = orderedEventIdsRef.current;
         const anchor = selectionAnchorRef.current;
         if (!anchor || anchor === id) {
@@ -1425,7 +1413,6 @@ export function CalendarShell({
       // CMD/CTRL — toggle just this event in/out of the selection and make it the
       // new anchor (so a following shift-click extends from here). No popover.
       if (toggle) {
-        setPopover(null);
         setSelection((prev) => {
           const next = new Set(prev);
           if (next.has(id)) next.delete(id);
@@ -1440,7 +1427,6 @@ export function CalendarShell({
       // TOGGLES this event (the touch twin of cmd-click) instead of opening the
       // popover, so phones can build a selection with no modifier keys.
       if (touchMultiRef.current) {
-        setPopover(null);
         setSelection((prev) => {
           const next = new Set(prev);
           if (next.has(id)) next.delete(id);
@@ -1454,12 +1440,17 @@ export function CalendarShell({
       }
 
       // PLAIN click — collapse any multi-selection to just this event (it becomes
-      // the new anchor) and open its popover, the unchanged default behaviour.
+      // the new anchor), then open the editor directly. The click popover was
+      // retired: clicking an event now routes straight into the edit sheet, and
+      // the quick actions (Open Run List, Duplicate, Delete, Repeat) live on the
+      // right-click menu (desktop) and inside the editor itself (touch parity).
+      // Viewers (no canEdit) just select — we don't wall a plain view-click with
+      // a sign-in prompt, so the editor only opens for staff.
       setSelection(new Set([id]));
       setSelectionAnchor(id);
-      setPopover({ event: healEvent(event, byId), anchor: info.el.getBoundingClientRect() });
+      if (canEdit) setSheet({ draft: draftFromEvent(healEvent(event, byId)), pickTime: true });
     },
-    [byId, events]
+    [byId, canEdit, events]
   );
 
   // Right-click an event → themed context menu at the cursor. Delegated on the
@@ -1481,7 +1472,6 @@ export function CalendarShell({
       const event = events[id];
       if (!event) return;
       e.preventDefault();
-      setPopover(null);
       const point = { x: e.clientX, y: e.clientY };
       const sel = selectionRef.current;
       if (sel.has(id) && sel.size > 1) {
@@ -1533,7 +1523,6 @@ export function CalendarShell({
         // touchend's tap so it doesn't toggle the just-selected event back off.
         touchMultiRef.current = true;
         suppressNextTapRef.current = true;
-        setPopover(null);
         setMenu(null);
         setSelection((prev) => {
           const next = new Set(prev);
@@ -2576,12 +2565,12 @@ export function CalendarShell({
     };
   }, [activeView]);
 
-  // The weather card is mutually exclusive with the event popover / context menu /
-  // editor — opening one dismisses the weather card so two anchored layers never
-  // stack. (openWxRef already clears the event surfaces when going the other way.)
+  // The weather card is mutually exclusive with the event context menu / editor —
+  // opening one dismisses the weather card so two anchored layers never stack.
+  // (openWxRef already clears the event surfaces when going the other way.)
   useEffect(() => {
-    if (popover || menu || sheet || scopePrompt) setWxPopover(null);
-  }, [popover, menu, sheet, scopePrompt]);
+    if (menu || sheet || scopePrompt) setWxPopover(null);
+  }, [menu, sheet, scopePrompt]);
 
   // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
   // each hour block. The chips live INSIDE FullCalendar's own day columns
@@ -2704,22 +2693,24 @@ export function CalendarShell({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
-      // Delete / Backspace. Two paths, both suppressed while an editor sheet, an
+      // Delete / Backspace deletes the current selection (a plain click leaves a
+      // 1-item selection beneath the editor), suppressed while an editor sheet, an
       // open bulk picker, or the scope prompt is up:
-      //   · a multi-selection (shift/cmd-click, no popover) → delete them ALL in
-      //     one undoable step ("Deleted N events");
-      //   · otherwise the single event whose popover is open (a plain click both
-      //     selects and opens it) → the existing per-event delete (which still
-      //     routes a recurring event through the this/following/all scope dialog).
+      //   · a single selected event → the per-event delete, so a recurring one
+      //     still routes through the this/following/all scope dialog;
+      //   · a multi-selection → delete them ALL in one undoable step.
       if ((event.key === "Backspace" || event.key === "Delete") && !sheet && !scopePrompt && !bulkPicker) {
-        if (!popover && selection.size) {
+        if (selection.size === 1) {
+          const only = events[[...selection][0]];
+          if (only) {
+            event.preventDefault();
+            deleteEvent(only);
+            return;
+          }
+        }
+        if (selection.size) {
           event.preventDefault();
           deleteSelection();
-          return;
-        }
-        if (popover) {
-          event.preventDefault();
-          deleteEvent(popover.event);
           return;
         }
       }
@@ -2728,7 +2719,7 @@ export function CalendarShell({
       // editing surface is open so the sheet's own fields keep native undo (and
       // a stray Cmd+Z doesn't rewrite the calendar out from under an open editor).
       if ((event.metaKey || event.ctrlKey) && (event.key === "z" || event.key === "Z")) {
-        if (sheet || popover || settingsOpen || scopePrompt) return;
+        if (sheet || settingsOpen || scopePrompt) return;
         event.preventDefault();
         if (event.shiftKey) {
           if (redo()) announce("Redid the last change");
@@ -2738,7 +2729,7 @@ export function CalendarShell({
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (sheet || popover || settingsOpen || scopePrompt) return;
+      if (sheet || settingsOpen || scopePrompt) return;
       const api = calendarRef.current?.getApi();
       if (!api) return;
       switch (event.key) {
@@ -2781,17 +2772,17 @@ export function CalendarShell({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, bulkPicker, undo, redo, announce, sheet, popover, settingsOpen, scopePrompt]);
+  }, [changeView, goToday, nudge, deleteEvent, deleteSelection, selection, events, bulkPicker, undo, redo, announce, sheet, settingsOpen, scopePrompt]);
 
   // Escape clears the multi-selection. We honour the app's capture-phase Escape
   // contract (see FloatingLayer/useDialogFocus): a capture listener that runs
   // FIRST but BAILS on defaultPrevented, then preventDefault()s itself so any
   // bubble-phase dialog underneath stays untouched. Only armed when there's a
-  // real selection AND nothing is open over it — a popover/menu/sheet/scope
-  // prompt/bulk picker owns its own Escape (close the layer first), and a plain
-  // click leaves a 1-item selection beneath an open popover this must NOT swallow.
+  // real selection AND nothing is open over it — a menu/sheet/scope prompt/bulk
+  // picker owns its own Escape (close the layer first), and a plain click leaves
+  // a 1-item selection beneath the editor this must NOT swallow.
   useEffect(() => {
-    if (!selection.size || popover || menu || sheet || scopePrompt || settingsOpen || bulkPicker) return;
+    if (!selection.size || menu || sheet || scopePrompt || settingsOpen || bulkPicker) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== "Escape") return;
       event.preventDefault();
@@ -2799,9 +2790,7 @@ export function CalendarShell({
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [selection, popover, menu, sheet, scopePrompt, settingsOpen, bulkPicker, clearSelection]);
-
-  const popoverActivity = popover?.event.activityId ? byId[popover.event.activityId] ?? null : null;
+  }, [selection, menu, sheet, scopePrompt, settingsOpen, bulkPicker, clearSelection]);
 
   const isMonthView = activeView === "dayGridMonth";
 
@@ -3046,6 +3035,25 @@ export function CalendarShell({
                 }
               : undefined
           }
+          onDuplicate={
+            sheet.draft.id
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing) duplicateEvent(existing);
+                  setSheet(null);
+                }
+              : undefined
+          }
+          onOpenActivity={
+            sheet.draft.id && sheet.draft.activityId && byId[sheet.draft.activityId]
+              ? () => {
+                  const activity = byId[sheet.draft.activityId as string];
+                  const existing = events[sheet.draft.id as string];
+                  setSheet(null);
+                  if (activity && existing) onOpenActivity(activity, existing);
+                }
+              : undefined
+          }
           onClose={() => setSheet(null)}
         />
       )}
@@ -3096,27 +3104,6 @@ export function CalendarShell({
             />
           </div>
         </Modal>
-      )}
-
-      {popover && (
-        <EventPopover
-          event={popover.event}
-          activity={popoverActivity}
-          theme={popoverActivity ? themeOf(popoverActivity.id) : null}
-          anchor={popover.anchor}
-          onOpenActivity={(activity) => {
-            setPopover(null);
-            onOpenActivity(activity, popover.event);
-          }}
-          onEdit={() => {
-            if (!requireStaff("change the calendar")) return;
-            setSheet({ draft: draftFromEvent(popover.event), pickTime: true });
-            setPopover(null);
-          }}
-          onDuplicate={() => duplicateEvent(popover.event)}
-          onDelete={() => deleteEvent(popover.event)}
-          onClose={() => setPopover(null)}
-        />
       )}
 
       {wxPopover && weatherData && (

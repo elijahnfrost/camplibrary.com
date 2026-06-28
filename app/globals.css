@@ -3718,7 +3718,11 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--paper);
+  /* Sheets/modals ride a LIFTED card surface — the same lightened paper the
+     run-sheet viewer uses — not the flat --paper page canvas, so a popup reads as
+     a card floating over the app (and its bordered --card controls still stand
+     out against it). This is the "popups should match the rest of the UI" fix. */
+  background: color-mix(in srgb, var(--card) 72%, var(--paper));
   animation: cl-rise 260ms var(--ease-overlay) both;
 }
 .overlay--sheet {
@@ -9059,15 +9063,45 @@ button.rl-node {
   position: relative;
   width: 100%;
 }
-/* The trigger reuses the .select look but is a button laying out a value +
-   chevron. (.select already sets surface/border/radius/font/padding.) */
+/* In a ledger row (label left / control right) the dropdown wrappers hug their
+   content and sit right — the pill silhouette, not a full-width field — so the
+   calendar editor, the run-sheet Details, and the View/Weather settings all read
+   as one property ledger. A long value (a date, a multi-location summary) caps
+   and ellipsizes instead of crowding the label. Covers every dropdown family:
+   .cselect (Select/Location), .cdate (DatePopover), .ccolor (ColorField). */
+.ledger__row > .cselect,
+.ledger__row > .cdate,
+.ledger__row > .ccolor {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 64%;
+}
+/* The trigger wears the PILL silhouette shared with .typepick__trigger (the
+   run-sheet / sidebar dropdown look) — so every dropdown in the app (Select,
+   DatePopover, ColorField, LocationField all render this class) reads as one
+   control vocabulary, not a mix of pills and input-style rectangles. It still
+   inherits .select's surface/border; these rules override the rectangle bits. */
 .cselect__trigger {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
+  width: auto;
+  /* Sizing is content-driven — NO min-height — so it lands at the EXACT same
+     height as .typepick__trigger (the Library/sidebar pills): same padding, font,
+     chevron. Every pill in the app is then one size. */
+  padding: var(--s-1) var(--s-5);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   cursor: pointer;
   text-align: left;
+}
+.cselect__trigger:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
 }
 .cselect__trigger .cselect__value {
   flex: 1;
@@ -9083,8 +9117,9 @@ button.rl-node {
 }
 .cselect__trigger svg {
   flex: none;
-  width: 16px;
-  height: 16px;
+  /* Match .typepick__trigger's 13px chevron so the pill height is identical. */
+  width: 13px;
+  height: 13px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.8;
@@ -9093,10 +9128,15 @@ button.rl-node {
   color: var(--ink-faint);
   transition: transform var(--t-fast) var(--ease);
 }
+/* Open state mirrors .typepick: the sage tint fill IS the connector to the
+   floating menu (the border stays put, like every other control). */
 .cselect__trigger.is-open {
-  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border-color: var(--line);
 }
 .cselect__trigger.is-open svg {
+  color: var(--accent-ink);
   transform: rotate(180deg);
 }
 /* The open menu reuses .typepick__menu (card/border/shadow). Position is
@@ -9121,6 +9161,13 @@ button.rl-node {
 .cselect__option {
   justify-content: space-between;
   font-size: var(--fs-label);
+}
+/* The chosen row carries the same sage tint as a .typepick selected option, so
+   Select/Location menus and the run-sheet pill menus read identically (the
+   checkmark stays as the extra "this is the current value" confirmation). */
+.cselect__option.is-on {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
 }
 .cselect__option.is-active:not(.is-on) {
   background: var(--chrome-well);
@@ -9160,8 +9207,10 @@ button.rl-node {
 /* ---------- per-item color picker (ColorField) ---------- */
 .ccolor__trigger .ccolor__swatch {
   flex: none;
-  width: 16px;
-  height: 16px;
+  /* Keep the swatch within the text cap-height so the color pill is the SAME
+     height as every other pill (a 16px swatch nudged it 1px taller). */
+  width: 13px;
+  height: 13px;
   border-radius: var(--r-xs);
   border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
 }
