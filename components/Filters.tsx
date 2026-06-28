@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type CSSProperties } from "react";
+import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
 import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
@@ -8,7 +8,7 @@ import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { AgePicker, MiniSeg, RangeSlider, SidebarSection, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
+import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
@@ -312,11 +312,43 @@ function MinutesFilter({
   );
 }
 
+// A COLLAPSIBLE filter group — the same `<details>`/`<summary>` disclosure the
+// Print rail uses (shares the `.prail__group--collapsible` vocabulary): the
+// summary IS the group header (small-caps title left, a chevron right that
+// rotates open). Lets the filter rail rest short — the everyday axes lead open,
+// the finer narrowing and the list controls fold away one tap from reach.
+function FilterGroup({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details className="prail__group prail__group--collapsible" open={defaultOpen}>
+      <summary className="prail__grouphead prail__groupsum">
+        <span className="prail__grouptitle">{title}</span>
+        <span className="prail__morestate" aria-hidden="true">
+          <CampIcon.ChevronDown />
+        </span>
+      </summary>
+      <div className="prail__grouppanel">
+        <div className="ledger">{children}</div>
+      </div>
+    </details>
+  );
+}
+
 // THE filter body, shared by the desktop rail AND the mobile sheet so both
 // surfaces read as the same form: every dimension is one ledger line — a
 // small-caps label on the left, a compact control on the right. Type opens an
 // inline menu, Where/Ages are mini segmented pills, Starred is a true switch,
-// and the kit row shows its picked count and expands in place.
+// and the kit row shows its picked count and expands in place. The rows are
+// grouped into two folding sections (the Print-rail pattern): "Activity" — every
+// way you narrow the catalog — leads open, while "Sort & display" (list order +
+// the age caption) rests closed, so the rail isn't a wall of equal-weight rows.
 function LedgerFilters({
   sort,
   onSort,
@@ -343,76 +375,87 @@ function LedgerFilters({
   onClearMaterials,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
-    <div className="ledger">
-      {/* Sort leads the ledger: it orders the whole list, then the rows below
-          narrow it. "Rating" sinks unrated activities to the bottom (see
-          sortActivities). */}
-      <div className="ledger__row">
-        <span className="ledger__label">Sort</span>
-        <MiniSeg
-          ariaLabel="Sort the library"
-          value={sort}
-          onChange={onSort}
-          options={[
-            { id: "az" as LibrarySort, label: "A–Z" },
-            { id: "rating" as LibrarySort, label: "Rating" },
-          ]}
+    <div className="filtergroups">
+      {/* Activity — every way you narrow the catalog, in one open group: the
+          everyday axes (type, theme, in/out, who it's for) followed by the finer
+          narrowing (length, saved only, kit on hand). Each finer row self-hides
+          when it doesn't apply (no duration spread / no favorites / no kit), so
+          the group is never padded with dead controls. */}
+      <FilterGroup title="Activity" defaultOpen>
+        <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
+        {/* Always shown so themes are discoverable — the menu footer creates the
+            first one when none exist yet. */}
+        <ThemePicker
+          value={theme}
+          onChange={onTheme}
+          themes={themes}
+          label="Theme"
+          ariaLabel="Filter by theme"
+          onManage={onManageThemes}
         />
-      </div>
-      <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
-      {/* Always shown so themes are discoverable — the menu footer creates the
-          first one when none exist yet. */}
-      <ThemePicker
-        value={theme}
-        onChange={onTheme}
-        themes={themes}
-        label="Theme"
-        ariaLabel="Filter by theme"
-        onManage={onManageThemes}
-      />
-      <div className="ledger__row">
-        <span className="ledger__label">Where</span>
-        <MiniSeg
-          ariaLabel="Filter by place"
-          value={place}
-          onChange={onPlace}
-          options={[
-            { id: "All" as PlaceFilter, label: "All" },
-            { id: "Inside" as PlaceFilter, label: "In", ariaLabel: "Inside" },
-            { id: "Outside" as PlaceFilter, label: "Out", ariaLabel: "Outside" },
-          ]}
-        />
-      </div>
-      <AgePicker value={age} onChange={onAge} unit={ageUnit} label="Ages" ariaLabel="Filter by age group" />
-      <div className="ledger__row">
-        <span className="ledger__label">Show ages as</span>
-        <MiniSeg
-          ariaLabel="Show ages as"
-          value={ageUnit}
-          onChange={(v) => onAgeUnit(v as AgeUnit)}
-          options={[
-            { id: "grades" as AgeUnit, label: "Grades" },
-            { id: "ages" as AgeUnit, label: "Ages" },
-          ]}
-        />
-      </div>
-      <MinutesFilter value={minutes} bounds={minutesBounds} onChange={onMinutes} />
-      {onStarredOnly && (
         <div className="ledger__row">
-          <span className="ledger__label">Starred only</span>
-          <ToggleSwitch
-            on={Boolean(starredOnly)}
-            onChange={onStarredOnly}
-            ariaLabel="Show starred activities only"
+          <span className="ledger__label">Where</span>
+          <MiniSeg
+            ariaLabel="Filter by place"
+            value={place}
+            onChange={onPlace}
+            options={[
+              { id: "All" as PlaceFilter, label: "All" },
+              { id: "Inside" as PlaceFilter, label: "In", ariaLabel: "Inside" },
+              { id: "Outside" as PlaceFilter, label: "Out", ariaLabel: "Outside" },
+            ]}
           />
         </div>
-      )}
-      <MaterialPicker
-        options={materialOptions}
-        selected={availableMaterials}
-        onToggle={onToggleMaterial}
-        onClear={onClearMaterials}
-      />
+        <AgePicker value={age} onChange={onAge} unit={ageUnit} label="Ages" ariaLabel="Filter by age group" />
+        <MinutesFilter value={minutes} bounds={minutesBounds} onChange={onMinutes} />
+        {onStarredOnly && (
+          <div className="ledger__row">
+            <span className="ledger__label">Starred only</span>
+            <ToggleSwitch
+              on={Boolean(starredOnly)}
+              onChange={onStarredOnly}
+              ariaLabel="Show starred activities only"
+            />
+          </div>
+        )}
+        <MaterialPicker
+          options={materialOptions}
+          selected={availableMaterials}
+          onToggle={onToggleMaterial}
+          onClear={onClearMaterials}
+        />
+      </FilterGroup>
+
+      {/* Sort & display — list presentation, not a filter: the whole-list order
+          and how age bands are captioned (Grades⇄Ages). CLOSED by default. */}
+      <FilterGroup title="Sort & display">
+        {/* Sort orders the whole list; "Rating" sinks unrated activities to the
+            bottom (see sortActivities). */}
+        <div className="ledger__row">
+          <span className="ledger__label">Sort</span>
+          <MiniSeg
+            ariaLabel="Sort the library"
+            value={sort}
+            onChange={onSort}
+            options={[
+              { id: "az" as LibrarySort, label: "A–Z" },
+              { id: "rating" as LibrarySort, label: "Rating" },
+            ]}
+          />
+        </div>
+        <div className="ledger__row">
+          <span className="ledger__label">Show ages as</span>
+          <MiniSeg
+            ariaLabel="Show ages as"
+            value={ageUnit}
+            onChange={(v) => onAgeUnit(v as AgeUnit)}
+            options={[
+              { id: "grades" as AgeUnit, label: "Grades" },
+              { id: "ages" as AgeUnit, label: "Ages" },
+            ]}
+          />
+        </div>
+      </FilterGroup>
     </div>
   );
 }
@@ -513,20 +556,20 @@ export function Filters({
   );
 
   if (variant === "rail") {
+    // No section heading — every dimension is now a self-labelling toggle group,
+    // so the "Filter" title was redundant. "Clear all" stands alone, pinned above
+    // the scrolling groups and shown only while a filter is active.
     return (
-      <SidebarSection
-        title="Filter"
-        bodyClassName="sidefilters"
-        action={
-          anyOn ? (
+      <div className="sidesection sidefilters-rail">
+        {anyOn && (
+          <div className="sidefilters__clear">
             <button type="button" className="sidesection__action" onClick={clearAll}>
               Clear all
             </button>
-          ) : undefined
-        }
-      >
-        {ledger}
-      </SidebarSection>
+          </div>
+        )}
+        <div className="sidesection__body sidefilters">{ledger}</div>
+      </div>
     );
   }
 

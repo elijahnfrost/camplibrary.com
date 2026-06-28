@@ -9866,6 +9866,33 @@ button.rl-node {
     animation: none;
   }
 }
+/* Each group's ledger drops its trailing dashed rule so a fold reads as one
+   tidy unit (the `.prail`-scoped rule below doesn't reach the Library rail). */
+.prail__grouppanel .ledger > :last-child {
+  border-bottom: 0;
+}
+
+/* Library filter groups — the Library rail and mobile sheet reuse the
+   collapsible setting group above (Activity / Sort & display) so their filters
+   fold like the Print rail. The wrapper just stacks the groups; the first sits
+   flush at the top of the rail (the "Filter" heading is gone) or under the sheet
+   title, while the 26px group rhythm separates the rest. */
+.filtergroups {
+  display: flex;
+  flex-direction: column;
+}
+.filtergroups .prail__group:first-child {
+  margin-top: 0;
+}
+/* With the "Filter" section heading gone, "Clear all" stands on its own — a
+   quiet right-aligned action pinned above the scrolling groups, shown only
+   while a filter is active. */
+.sidefilters__clear {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
 
 /* ---- Paged preview (screen only): real letter pages on the well ----
    PagedPreview keeps a hidden SOURCE (.print-doc) that Paged.js fragments into
