@@ -77,3 +77,16 @@ export function useLocalStorage<T>(key: string, initial: T, validate?: StorageVa
 
   return [value, set] as const;
 }
+
+/**
+ * One-shot reads/writes for state that is already managed elsewhere (e.g. a
+ * useState driven by a wrapper setter) but should still survive a reload. Same
+ * `"camp:"`-prefixed store and validator contract as {@link useLocalStorage}.
+ */
+export function readStored<T>(key: string, fallback: T, validate?: StorageValidator<T>): T {
+  return read(key, fallback, validate);
+}
+
+export function writeStored<T>(key: string, value: T): void {
+  write(key, value);
+}
