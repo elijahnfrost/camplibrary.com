@@ -82,6 +82,8 @@ export function QuickAdd({
   onCustom,
   onSave,
   onDelete,
+  onDuplicate,
+  onOpenActivity,
   onClose,
 }: {
   draft: EditorDraft;
@@ -97,6 +99,12 @@ export function QuickAdd({
   onCustom: (title: string) => void;
   onSave: (draft: EditorDraft) => void;
   onDelete?: () => void;
+  /** Copy this event (edit posture only) — the single-event action that used to
+   *  live on the now-retired click popover, so touch (no right-click) keeps it. */
+  onDuplicate?: () => void;
+  /** Jump to this activity event's run list (activity-backed edits only) — the
+   *  other action the click popover carried; now reachable from the editor. */
+  onOpenActivity?: () => void;
   onClose: () => void;
 }) {
   const isEdit = Boolean(draft.id);
@@ -294,9 +302,19 @@ export function QuickAdd({
                   {selectedActivity.type} · {durLabel(selectedActivity)}
                 </span>
               </span>
+              {onOpenActivity && (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm quickadd__editing-open"
+                  onClick={onOpenActivity}
+                >
+                  <CampIcon.BookOpen />
+                  Open Run List
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn--ghost quickadd__editing-change"
+                className="btn btn--ghost btn--sm quickadd__editing-change"
                 onClick={() => setChangingActivity(true)}
               >
                 Change activity
@@ -509,6 +527,12 @@ export function QuickAdd({
               <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
             </div>
             <div className="quickadd__foot">
+              {isEdit && onDuplicate && (
+                <button type="button" className="btn btn--ghost quickadd__dup" onClick={onDuplicate}>
+                  <CampIcon.Copy />
+                  Duplicate
+                </button>
+              )}
               {isEdit && onDelete && (
                 <button type="button" className="btn btn--ghost quickadd__delete" onClick={onDelete}>
                   <CampIcon.Trash />

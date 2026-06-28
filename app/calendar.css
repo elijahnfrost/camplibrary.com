@@ -1012,38 +1012,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* Restyle the Color-by select to match the pill pickers (TypePicker,
-   ThemePicker) in the Library filter rail — pill shape, hand-sc font,
-   accent-tint fill when open. Overrides the .select base sizing. */
-.calset .cselect {
-  flex: 0 0 auto;
-  width: auto;
-}
-.calset .cselect__trigger {
-  border-radius: var(--r-pill);
-  padding: var(--s-1) var(--s-5);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  height: auto;
-}
-.calset .cselect__trigger:hover {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-}
-.calset .cselect__trigger.is-open {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-  border-color: var(--line);
-}
-.calset .cselect__trigger.is-open svg {
-  color: var(--accent-ink);
-}
-.calset .cselect__trigger svg {
-  width: 13px;
-  height: 13px;
-}
+/* The Color-by select uses the shared pill look (base .cselect__trigger) and the
+   global .ledger__row hug rule — no .calset-specific override needed anymore. */
 /* The "Number of days" stepper: − n + in a bordered pill, the same control
    family as the search box and the header pager. */
 .daysstepper {
@@ -1400,6 +1370,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__editing {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-3);
   margin: var(--s-3) var(--qa-gx) 0;
   padding: var(--s-4);
@@ -1434,8 +1405,15 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
 }
+.quickadd__editing-open,
 .quickadd__editing-change {
   flex: none;
+}
+/* The activity-event editor's two inline actions (Open Run List · Change activity)
+   sit after the title, which ellipsizes to make room; on a narrow sheet they wrap
+   to their own line together rather than crushing the title. */
+.quickadd__editing-open {
+  margin-left: auto;
 }
 /* Library rows are activity blocks: the same 3px category spine as the rail
    row and the placed event card (--cal-tint inline per row), not a dot. */
@@ -1589,21 +1567,11 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__settings > :last-child {
   border-bottom: 0;
 }
-/* The right-column controls (date · start · length · color · repeat) share one
-   width so they line up into a single column on the right — the View-settings
-   ledger / PrintControls trick. The trigger sheds .select's full-width look for
-   a compact, row-sized control. */
-.quickadd__settings .ledger__row > .cdate,
-.quickadd__settings .ledger__row > .cselect,
-.quickadd__settings .ledger__row > .ccolor {
-  flex: 0 0 auto;
-  width: 172px;
-}
-.quickadd__settings .cselect__trigger {
-  height: var(--control-sm);
-  padding: 0 var(--s-4);
-  font-size: var(--fs-ui);
-}
+/* The date · start · length · color · location · repeat controls are the shared
+   PILL dropdowns (see .cselect__trigger + the .ledger__row hug rule in
+   globals.css): hug-content, right-aligned, sage-tint when open — the same
+   vocabulary as the run-sheet Details and the View/Weather settings. (No
+   width/typography override here anymore; the base pill rules own the look.) */
 .quickadd__foot {
   display: flex;
   align-items: center;
@@ -1653,7 +1621,11 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-width: 2;
 }
 
-/* ---------- event quick-view popover ---------- */
+/* ---------- anchored floating card surface ----------
+   The shared base for the calendar's small anchored cards. The click-to-edit
+   event popover was retired (clicking an event now opens the editor; quick
+   actions live on the right-click menu + inside the editor), but the WeatherPopover
+   detail card still rides this surface (.cal-popover.cal-wx-pop). */
 .cal-popover-root {
   position: fixed;
   inset: 0;
@@ -1671,56 +1643,13 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   width: 300px;
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-lg);
+  /* --r-md matches the floating-popover family (cdate__pop, ccolor__pop, the
+     menus) so every anchored card carries the same corner. */
+  border-radius: var(--r-md);
   box-shadow: var(--e3);
   padding: var(--s-5);
-  /* Pop in like the other anchored floating menus (the desktop event popover was
-     the only one that snapped in; the mobile variant already animates). */
+  /* Pop in like the other anchored floating menus. */
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
-}
-.cal-popover__head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-4);
-}
-.cal-popover__dot {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  margin-top: 6px;
-  border-radius: var(--r-xs);
-}
-.cal-popover__heading {
-  flex: 1;
-  min-width: 0;
-}
-.cal-popover__title {
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  line-height: 1.1;
-  color: var(--ink);
-}
-.cal-popover__when {
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-.cal-popover__meta {
-  margin: var(--s-1) 0 0;
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.cal-popover__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-top: var(--s-5);
-}
-.cal-popover__delete {
-  margin-left: auto;
 }
 
 /* ---------- toast ---------- */
@@ -1778,7 +1707,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     align-items: center;
     gap: var(--s-2);
     background: var(--card);
-    border: 1px solid var(--line);
+    border: 1.5px solid var(--line);
     border-radius: var(--r-md);
     padding: var(--s-2) var(--s-3);
     box-shadow: var(--e3);
@@ -2108,27 +2037,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   height: 11px;
 }
 
-/* The repeat summary line in the event popover (icon + "Repeats daily until…"). */
-.cal-popover__repeat,
-.cal-popover__loc {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: var(--s-2) 0 0;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  color: var(--ink-soft);
-}
-.cal-popover__repeat svg,
-.cal-popover__loc svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-}
-
 /* ---------- the Repeat control inside QuickAdd ----------
    RepeatField renders bare .ledger__row lines now (no wrapper element); the
    parent ledger frames them. The weekday toggles sit on their own ledger row,
@@ -2188,16 +2096,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__slotrepeat .ledger > :last-child {
   border-bottom: 0;
 }
-.quickadd__slotrepeat .ledger__row > .cdate,
-.quickadd__slotrepeat .ledger__row > .cselect {
-  flex: 0 0 auto;
-  width: 172px;
-}
-.quickadd__slotrepeat .cselect__trigger {
-  height: var(--control-sm);
-  padding: 0 var(--s-4);
-  font-size: var(--fs-ui);
-}
+/* The slot-posture Repeat dropdown is the shared pill too (base .cselect__trigger
+   + the global .ledger__row hug rule) — no width/height override here. */
 
 /* ---------- repeating edit/delete scope chooser ---------- */
 .overlay--scope {
