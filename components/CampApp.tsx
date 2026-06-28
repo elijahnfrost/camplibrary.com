@@ -12,7 +12,7 @@ import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { locationColor, type AgeUnit } from "@/lib/data";
-import { useLocalStorage } from "@/lib/store";
+import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
@@ -80,6 +80,19 @@ const ADMIN_TAB: NavTab = {
   icon: CampIcon.Tool,
 };
 
+// The active surface is remembered across a reload (so a refresh — e.g.
+// Conductor's preview reloading — lands you back where you were). Only the
+// everyday surfaces are restored; "admin" is intentionally absent because it is
+// reachable solely via the server-gated /admin route and must never be restored
+// onto the main app. Stored unscoped (a per-device UI choice, like the calendar
+// view prefs) under the shared "camp:" store.
+const STORED_TAB_KEY = "currentTab";
+const RESTORABLE_TABS = ["home", "library", "calendar", "print", "staff"] as const;
+const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) =>
+  typeof value === "string" && (RESTORABLE_TABS as readonly string[]).includes(value)
+    ? (value as TabId)
+    : fallback;
+
 type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
   mode: "sign-in" | "sign-up";
   returnTo: string;
@@ -137,6 +150,10 @@ function StaffPromptModal({
 
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
+  // Only the main app entry remembers/restores its tab. The /admin route mounts
+  // with initialTab "admin" — a deliberate, server-gated destination that must
+  // neither be hijacked by the remembered tab nor overwrite it.
+  const persistTab = initialTab === "home";
   // A branded veil over the main pane while a heavy surface mounts + settles —
   // FullCalendar and the Paged.js preview jank on first paint, so we reveal them
   // behind a clean loading screen instead of flashing an empty frame. The veil
@@ -198,6 +215,27 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     }, CAL_VEIL_MAX_MS);
     return () => window.clearTimeout(id);
   }, [veil, calVeilNonce]);
+  // Restore the remembered tab before paint, so a reload lands on the last
+  // surface with no flash of Home and the heavy-tab veil raised in the same
+  // render (setTab handles that). Deep links (?auth=, ?activity=) are explicit
+  // intents that win — their own effects set the tab, so skip restore for them.
+  useLayoutEffect(() => {
+    if (!persistTab) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth") || params.get("activity")) return;
+    const stored = readStored<TabId | null>(STORED_TAB_KEY, null, parseStoredTab);
+    if (stored) setTab(stored);
+    // Mount-only: restore once, then let normal navigation drive the tab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist every tab change (runs after the restore layout effect on mount, so
+  // it never clobbers the remembered value with the initial "home").
+  useEffect(() => {
+    if (!persistTab) return;
+    writeStored(STORED_TAB_KEY, tab);
+  }, [persistTab, tab]);
+
   const auth = usePreviewAuth();
   const signedInUserId = auth.session.status === "authenticated" ? auth.session.user?.id ?? null : null;
   const isSignedIn = signedInUserId != null;
