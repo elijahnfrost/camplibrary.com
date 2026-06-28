@@ -1510,8 +1510,19 @@ export function CalendarShell({
     follow.classList.toggle("cal-event--custom", mirror.classList.contains("cal-event--custom"));
     follow.style.width = r.width + "px";
     follow.style.height = r.height + "px";
-    // Free follow: top-left tracks the cursor minus where it was grabbed.
-    follow.style.left = pointerRef.current.x - grabOffsetRef.current.dx + "px";
+    // Free follow: top-left tracks the cursor minus where it was grabbed —
+    // but clamp the card HORIZONTALLY to the calendar grid so it can never spill
+    // onto the sidebar. Without this, grabbing the right half of a card in the
+    // leftmost day column pushes the card's left edge out under the cursor and
+    // over the rail, leaving the preview "stuck" on the sidebar's edge. Vertical
+    // stays free so the card still reads as lifting/lowering with the cursor.
+    let followLeft = pointerRef.current.x - grabOffsetRef.current.dx;
+    const grid = gridRef.current;
+    if (grid) {
+      const g = grid.getBoundingClientRect();
+      followLeft = Math.max(g.left, Math.min(followLeft, g.right - r.width));
+    }
+    follow.style.left = followLeft + "px";
     follow.style.top = pointerRef.current.y - grabOffsetRef.current.dy + "px";
     follow.style.opacity = "1";
     // A group move dresses the follower with two restrained cues (calendar.css):

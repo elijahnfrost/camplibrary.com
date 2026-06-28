@@ -574,6 +574,17 @@ body.is-cal-dragging .calshell .fc-event-mirror {
 body.is-cal-dragging .calshell .fc-event-mirror * {
   visibility: hidden;
 }
+/* FullCalendar ALSO floats its own clone of the dragged event (.fc-event-dragging,
+   position:fixed, z 9999) that tracks the cursor. While the pointer is over a valid
+   slot the same element carries .fc-event-mirror and the rule above re-skins it as
+   the dotted snap box. But over a NON-droppable area — the sidebar, the header —
+   FC drops the mirror class, so the clone reverts to a full-opacity card and drifts
+   out over the rail (the reported "preview stuck on the sidebar's edge"). We render
+   our own carried card (.cal-dragfollow), so suppress FC's stray clone whenever it
+   isn't the snap box. */
+body.is-cal-dragging .calshell .fc-event-dragging:not(.fc-event-mirror) {
+  opacity: 0 !important;
+}
 
 /* (2) The superposition: a full-opacity clone of the event, rendered into
    .cal-dragfollow and positioned at the raw cursor (un-snapped) by JS. Wears the
