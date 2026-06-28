@@ -206,8 +206,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     return () => window.clearTimeout(id);
   }, [veil]);
   // Calendar veil safety: a max-timeout so a layout hang (or a never-resolving
-  // bootstrap) can't trap the user behind the veil. Re-armed on each raise.
-  const CAL_VEIL_MAX_MS = 1500;
+  // bootstrap) can't trap the user behind the veil. Re-armed on each raise. Sized
+  // to give the weather forecast (folded into CalendarShell.onReady when weather
+  // is on) room to land behind the veil, while still capping a stalled signal.
+  const CAL_VEIL_MAX_MS = 2500;
   useEffect(() => {
     if (veil !== "calendar") return;
     const id = window.setTimeout(() => {
