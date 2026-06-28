@@ -167,6 +167,19 @@ describe("toFcEvent color modes", () => {
     );
   });
 
+  it("location mode honors a per-location color override (e.g. a yellow Gym)", () => {
+    const colors = { Gym: "#e0b15a" };
+    // The override wins over the built-in Gym tint, and only for the first place.
+    const inGym = toFcEvent(event({ locations: ["Gym", "Fields"] }), BY_ID, undefined, "location", colors);
+    expect(tintOf(inGym)).toBe("#e0b15a");
+    // A place with no override still reads its built-in default.
+    const inFields = toFcEvent(event({ locations: ["Fields"] }), BY_ID, undefined, "location", colors);
+    expect(tintOf(inFields)).toBe(LOCATION_TINTS.Fields);
+    // An override on a place the event isn't in changes nothing.
+    const stillGym = toFcEvent(event({ locations: ["Gym"] }), BY_ID, undefined, "location", { Pool: "#000000" });
+    expect(tintOf(stillGym)).toBe(LOCATION_TINTS.Gym);
+  });
+
   it("theme mode uses the activity's theme tint, else the neutral", () => {
     const theme: Theme = { id: "ocean", label: "Ocean Week", tint: "#4d7a86" };
     const themeOf = (id: string) => (id === ACTIVITY.id ? theme : null);

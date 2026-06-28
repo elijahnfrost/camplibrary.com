@@ -16,6 +16,7 @@ import type { StorageValidator } from "./store";
 import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes";
 import { normalizeCamps, type Camp } from "./camps";
 import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
+import { normalizeHexColor } from "./color";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -29,6 +30,7 @@ export const USER_DOC_KEYS = [
   "themeAssignments",
   "camps",
   "locations",
+  "locationColors",
   "deletedActivityIds",
 ] as const;
 
@@ -46,6 +48,7 @@ export type DocValueMap = {
   themeAssignments: Record<string, string>;
   camps: Camp[];
   locations: string[];
+  locationColors: Record<string, string>;
   deletedActivityIds: string[];
 };
 
@@ -63,6 +66,7 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   themeAssignments: "themeAssignments",
   camps: "camps",
   locations: "locations",
+  locationColors: "locationColors",
   deletedActivityIds: "deletedActivityIds",
 };
 
@@ -80,6 +84,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   // A fresh camp starts with the standard places; once edited, the stored list
   // (even an empty one) wins — see normalizeLocationVocab.
   locations: () => [...DEFAULT_LOCATIONS],
+  // Per-location color overrides default to none (every place reads its built-in
+  // LOCATION_TINTS color until the user recolors it).
+  locationColors: () => ({}),
   deletedActivityIds: () => [],
 };
 
@@ -161,6 +168,20 @@ export const campsDoc: StorageValidator<Camp[]> = (value, fallback) => normalize
 export const locationsDoc: StorageValidator<string[]> = (value, fallback) =>
   normalizeLocationVocab(value, fallback);
 
+// Per-location color overrides: place LABEL → validated hex. Mirrors the ratings
+// map (a sparse override layer over a fixed default), so it rides existing
+// zero-DDL round-trips. Non-hex values and non-string keys are dropped, so the
+// renderers and color resolvers only ever see clean hex strings.
+export const locationColorsDoc: StorageValidator<Record<string, string>> = (value, fallback) => {
+  if (!isRecord(value)) return fallback;
+  const out: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const hex = normalizeHexColor(raw);
+    if (key && hex) out[key] = hex;
+  }
+  return out;
+};
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -173,6 +194,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,
   locations: locationsDoc,
+  locationColors: locationColorsDoc,
   deletedActivityIds: stringArrayDoc,
 };
 
