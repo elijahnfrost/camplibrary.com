@@ -2297,7 +2297,9 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 6;
+  /* z-index 5: above event cards (~1-3) but below the sticky gutter labels (z6),
+     so chips never paint over the time-label column. */
+  z-index: 5;
 }
 .cal-wx-chip {
   position: absolute;
