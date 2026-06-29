@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SEED_ACTIVITIES } from "./index";
+import { durLabel } from "../data";
 
 // Guard: the built-in catalog must never ship a "search the game" URL. A generic
 // activity should carry a specific, verified link (a real video or how-to page)
@@ -48,6 +49,25 @@ describe("seed catalog link hygiene", () => {
       for (const m of a.media || []) {
         expect(m.url, `${a.id} media`).toMatch(/^https?:\/\//);
       }
+    }
+  });
+});
+
+describe("quick-reminder seed lane", () => {
+  const reminders = SEED_ACTIVITIES.filter((a) => a.id.startsWith("rm-"));
+
+  it("ships the everyday reminders, folded into the library", () => {
+    const titles = reminders.map((a) => a.title);
+    expect(titles).toEqual(
+      expect.arrayContaining(["Bathroom break", "Water break", "Pick up trash", "Pick a prize"])
+    );
+  });
+
+  it("are 0-minute Routine-bucket entries that read as a reminder", () => {
+    for (const a of reminders) {
+      expect(a.type, `${a.id} type`).toBe("Routine");
+      expect(a.durationMin, `${a.id} durationMin`).toBe(0);
+      expect(durLabel(a)).toBe("Reminder");
     }
   });
 });

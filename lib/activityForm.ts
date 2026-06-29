@@ -140,6 +140,40 @@ export function activityFromForm(f: FormState, id: string, extracted?: Extracted
   };
 }
 
+// Build a minimal library Activity from just a title + length — the path the
+// calendar's create bar takes when you name something new with "Save to library"
+// on. Lands in the "Routine" bucket (the home for on-the-fly adds), with broad
+// defaults the user can refine later in the library. Unlike activityFromForm it
+// ALLOWS a 0-minute duration (a reminder); the form path clamps that up to a
+// default, which would lose the reminder.
+export function quickActivity(title: string, id: string, durationMin: number): Activity {
+  const ages: AgeGroupId[] = ["g46"];
+  const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
+  const safeDuration = Number.isFinite(durationMin) ? Math.round(durationMin) : 0;
+  const duration = Math.max(0, Math.min(safeDuration, TOTAL_MIN));
+  return {
+    id,
+    title: title.trim() || "Untitled activity",
+    type: "Routine",
+    place: "Both",
+    ages,
+    ageMin: Math.min(...picked.map((g) => g.min)),
+    ageMax: Math.max(...picked.map((g) => g.max)),
+    durationMin: duration,
+    groupMin: null,
+    groupMax: null,
+    energy: 1,
+    prep: "None",
+    rating: 0,
+    blurb: duration === 0 ? "A quick reminder saved from the calendar." : "Added from the calendar.",
+    materials: [],
+    materialTags: [],
+    steps: [],
+    notes: "—",
+    safety: "—",
+  };
+}
+
 // The scaffold (Details heading + tags, Materials checklist, "How to play"
 // heading) is owned by the scalar controls — the step editor never shows or
 // stores it. Stripped on load, re-derived on save. Scaffold headings are

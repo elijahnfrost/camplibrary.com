@@ -44,6 +44,7 @@ import {
   SNAP_MIN,
   effectiveWindow,
   formatClock,
+  formatDuration,
   minutesToTimeString,
   nextFreeStartForDay,
   nowMinutes,
@@ -52,8 +53,10 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import { categoryTint, isColorMode, type ColorMode } from "@/lib/data";
+import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
+import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
 import {
   applyMoveDelta,
   moveDelta,
@@ -82,6 +85,7 @@ import { LocationPickerList } from "../floating/LocationField";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
+import { StopPopover } from "./StopPopover";
 import { WeatherPopover, type WeatherPopoverTarget } from "./WeatherPopover";
 import { WeatherGlyph } from "./WeatherGlyph";
 import { useWeatherForecast } from "./useWeatherForecast";
@@ -202,6 +206,15 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
+// The end minute for a draft: 0 for all-day; EQUAL to start for a 0-min reminder
+// (length 0, which renders as a dot marker, never a block); otherwise start + the
+// snapped length, clamped to the end of the day.
+function endMinForDraft(startMin: number, durationMin: number, allDay: boolean): number {
+  if (allDay) return 0;
+  if (durationMin <= 0) return startMin;
+  return Math.min(MINUTES_PER_DAY, startMin + snapDurationMin(durationMin));
+}
+
 const boolStorage = (value: unknown, fallback: boolean) =>
   typeof value === "boolean" ? value : fallback;
 
@@ -233,6 +246,7 @@ export function CalendarShell({
   locationOptions,
   locationColors,
   onManageLocations,
+  onCreateActivity,
   dayWindow,
   headerActions,
   themeOf,
@@ -273,6 +287,10 @@ export function CalendarShell({
   /** Opens the location manager (add / rename / remove places) from a picker's
    *  "Manage locations…" footer. */
   onManageLocations: () => void;
+  /** Create a brand-new library activity from a typed name + length (the create
+   *  bar's "Save to library" path) and return it so the new event links to it.
+   *  Lands in the Routine bucket; null if the staff gate blocks it. */
+  onCreateActivity: (title: string, durationMin: number) => Activity | null;
   /** The base visible window (drop-off → pickup) of the active camp, or the
    *  classic 8:00–18:00 band when no camp is active. effectiveWindow only ever
    *  stretches this outward around events. Computed by CampApp from the active
@@ -486,8 +504,22 @@ export function CalendarShell({
   // The ONE event window (QuickAdd) for every create and edit. pickTime adds
   // the when-row + commit button; without it, the slot gesture chose the when
   // and picking creates instantly.
-  const [sheet, setSheet] = useState<{ draft: EditorDraft; pickTime: boolean } | null>(null);
+  const [sheet, setSheet] = useState<{
+    draft: EditorDraft;
+    pickTime: boolean;
+  } | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  // The stop popover (click a stop's dot/card) — lists the event(s) at that exact
+  // time, each editable / deletable, plus "Add to this time". Anchored at the
+  // marker like the weather card. Holds plain event rows (stops aren't FC events).
+  const [stopPopover, setStopPopover] = useState<{ ids: string[]; anchor: DOMRect } | null>(null);
+  // A stable opener the imperative (capture-phase) marker-click handler calls,
+  // first clearing the other floating surfaces — mirrors openWxRef.
+  const openStopRef = useRef((ids: string[], anchor: DOMRect) => {
+    setMenu(null);
+    setWxPopover(null);
+    setStopPopover({ ids, anchor });
+  });
   // The weather detail card (click an hour chip or a day-header summary). Mutually
   // exclusive with the event menu (an effect below closes it whenever one
   // of those opens). openWxRef gives the imperative hour-chip click + the React
@@ -547,6 +579,53 @@ export function CalendarShell({
     return out;
   }, [events, byId]);
 
+  // "Stops": timed events grouped by exact (date, startMin) — a stop is drawn as
+  // ONE overlay marker rather than FC events when it holds more than one event OR
+  // any 0-minute event (a reminder). A SOLO non-zero event stays a native FC card
+  // with full drag/resize/select. Grouping is pure (lib/calendar/stops) so it's
+  // unit-tested in isolation. Stops never enter FC's block layout, so they don't
+  // split into cramped side-by-side columns and reminders get no drag for free.
+  const stops = useMemo(() => groupStops(healedEvents), [healedEvents]);
+  // Every event id that belongs to a stop — pulled out of FC + the selection
+  // spine and drawn by the stop-marker effect instead.
+  const idsInAStop = useMemo(() => stopEventIds(stops), [stops]);
+
+  // The marker color for one event in a stop, shared by the overlay dots/cards
+  // and the stop popover so they always agree. Reminders now follow the SAME
+  // coloring as any event (the active "Color by" mode via eventTint, honoring a
+  // per-event override) — no special reminder tint, so a reminder reads as part
+  // of the same color language as the blocks around it.
+  const stopDotColor = useCallback(
+    (event: CalendarEvent): string => {
+      const activity = event.activityId ? byId[event.activityId] : undefined;
+      const theme = activity ? themeOf(activity.id) : null;
+      return eventTint(colorMode, { event, activity, themeTint: theme?.tint, locationColors });
+    },
+    [byId, themeOf, colorMode, locationColors]
+  );
+
+  // Keep the marker-click opener fresh. A SOLO stop (a lone reminder, the common
+  // case — a bathroom break between blocks) opens the EDITOR directly, so a
+  // reminder clicks open and edits exactly like any event: its day note, color,
+  // time, repeat. Only a genuine multi-event stop opens the disambiguating
+  // popover. (Updated in an effect so it closes over the live event map.)
+  useEffect(() => {
+    openStopRef.current = (ids: string[], anchor: DOMRect) => {
+      setMenu(null);
+      setWxPopover(null);
+      if (ids.length === 1) {
+        const ev = events[ids[0]];
+        if (ev) {
+          setStopPopover(null);
+          if (!requireStaff("plan the calendar")) return;
+          setSheet({ draft: draftFromEvent(healEvent(ev, byId)), pickTime: true });
+          return;
+        }
+      }
+      setStopPopover({ ids, anchor });
+    };
+  }, [events, byId, requireStaff]);
+
   // Which days carry at least one event in the active camp — the mini-month
   // dots each of these so the sidebar previews where the schedule is busy.
   const eventDays = useMemo(() => {
@@ -562,7 +641,17 @@ export function CalendarShell({
   // Ordered from the in-memory event set, independent of what's scrolled in.
   // (orderEventIds is the same pure sort, extracted to lib/calendar/selection so
   // it's unit-tested in isolation alongside the group-move math.)
-  const orderedEventIds = useMemo(() => orderEventIds(healedEvents), [healedEvents]);
+  // Events inside a stop are excluded from the selection spine in the TIMED views
+  // (they aren't FC events there — they're overlay markers — so they can't be a
+  // range endpoint and shouldn't be swept into a shift-range). Month has no stop
+  // overlay, so there they ARE real FC chips and stay in the spine.
+  const orderedEventIds = useMemo(
+    () =>
+      orderEventIds(
+        healedEvents.filter((event) => activeView === "dayGridMonth" || !idsInAStop.has(event.id))
+      ),
+    [healedEvents, idsInAStop, activeView]
+  );
   // onEventClick reads the order + anchor through refs so it can stay a STABLE
   // callback: it's a dep of the heavy FullCalendar memo, and we don't want a
   // re-anchor (every click) or an event change to re-render the whole grid just
@@ -627,9 +716,15 @@ export function CalendarShell({
   // extendedProps.tint) flows through renderEventContent's paint() — the same
   // repaint path a per-event recolor already uses — so picking a mode recolors
   // the visible cards immediately, no scroll/refresh needed.
+  // Stop members are pulled out of FC in the TIMED views (the overlay draws them).
+  // Month has no stop overlay, so there they stay real FC chips — otherwise
+  // stacked same-start events and every 0-min reminder would vanish from Month.
   const fcEvents = useMemo(
-    () => healedEvents.map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors)),
-    [healedEvents, byId, themeOf, colorMode, locationColors]
+    () =>
+      healedEvents
+        .filter((event) => activeView === "dayGridMonth" || !idsInAStop.has(event.id))
+        .map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors)),
+    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView]
   );
 
   const scrollTime = useMemo(() => {
@@ -831,6 +926,7 @@ export function CalendarShell({
     // Navigation/view changes re-render the grid, so a cursor-anchored menu or
     // a rect-anchored popover would detach — dismiss them.
     setMenu(null);
+    setStopPopover(null);
     // The strip's visible window + title are driven by scroll position
     // (syncVisible), NOT by the full rendered range — so the strip ignores this.
     // Only Month, with its own grid, reads its window straight from FullCalendar.
@@ -851,10 +947,9 @@ export function CalendarShell({
   const buildTemplate = useCallback(
     (draft: EditorDraft, campId?: string): SeriesTemplate => {
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
-      const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + snapDurationMin(draft.durationMin));
       const template: SeriesTemplate = {
         startMin: draft.allDay ? 0 : draft.startMin,
-        endMin: draft.allDay ? 0 : endMin,
+        endMin: endMinForDraft(draft.startMin, draft.durationMin, draft.allDay),
         allDay: draft.allDay,
         kind: activity ? "activity" : "custom",
         title: activity?.title ?? draft.title ?? "Untitled",
@@ -863,6 +958,7 @@ export function CalendarShell({
       if (activity) template.activityId = activity.id;
       if (draft.color) template.color = draft.color;
       if (draft.locations?.length) template.locations = draft.locations;
+      if (draft.note) template.note = draft.note;
       return template;
     },
     [byId]
@@ -916,26 +1012,36 @@ export function CalendarShell({
         return;
       }
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
-      const endMin = Math.min(MINUTES_PER_DAY, draft.startMin + snapDurationMin(draft.durationMin));
+      const startMin = draft.allDay ? 0 : draft.startMin;
+      const endMin = endMinForDraft(draft.startMin, draft.durationMin, draft.allDay);
+      const isReminder = !draft.allDay && endMin === startMin; // 0-min marker
       const event: CalendarEvent = {
         id: draft.id ?? crypto.randomUUID(),
         date: draft.date,
-        startMin: draft.allDay ? 0 : draft.startMin,
-        endMin: draft.allDay ? 0 : endMin,
-        kind: activity ? "activity" : "custom",
+        startMin,
+        endMin,
+        // Trust the draft's activityId: a just-created library activity links
+        // here before byId catches up on the next render. A dangling ref still
+        // self-heals to "custom" at render time (healEvent + normalizers).
+        kind: draft.activityId ? "activity" : "custom",
         title: activity?.title ?? draft.title ?? "Untitled",
         updatedAt: Date.now(),
       };
-      if (activity) event.activityId = activity.id;
+      if (draft.activityId) event.activityId = draft.activityId;
       if (draft.allDay) event.allDay = true;
       if (draft.color) event.color = draft.color;
       if (draft.locations?.length) event.locations = draft.locations;
+      if (draft.note) event.note = draft.note;
       upsertEvent(event);
       setSheet(null);
-      announce((draft.id ? "Updated " : "Added ") + event.title);
+      announce((draft.id ? "Updated " : "Added ") + (isReminder ? "reminder " : "") + event.title);
       if (!draft.id) {
         showToast({
-          message: "Added " + event.title + (event.allDay ? " · all day" : " · " + formatClock(event.startMin)),
+          message:
+            "Added " +
+            (isReminder ? "reminder " : "") +
+            event.title +
+            (event.allDay ? " · all day" : " · " + formatClock(event.startMin)),
           onUndo: () => removeEvent(event.id),
         });
       }
@@ -1142,7 +1248,9 @@ export function CalendarShell({
   const duplicateEvent = useCallback(
     (event: CalendarEvent) => {
       if (!requireStaff("plan the calendar")) return;
-      const duration = snapDurationMin(event.endMin - event.startMin);
+      // Preserve a 0-min reminder as 0-min (snapDurationMin would floor it to 15).
+      const span = event.endMin - event.startMin;
+      const duration = span <= 0 ? 0 : snapDurationMin(span);
       let startMin = event.startMin;
       if (!event.allDay) {
         const dayEvents = healedEvents.filter((e) => e.date === event.date);
@@ -1195,7 +1303,8 @@ export function CalendarShell({
         const live = events[id];
         if (!live) continue;
         const event = healEvent(live, byId);
-        const duration = snapDurationMin(event.endMin - event.startMin);
+        const span = event.endMin - event.startMin;
+        const duration = span <= 0 ? 0 : snapDurationMin(span); // keep 0-min reminders 0-min
         let startMin = event.startMin;
         if (!event.allDay) {
           const free = nextFreeStartForDay(dayEventsFor(event.date), duration, event.startMin, window_);
@@ -1236,8 +1345,12 @@ export function CalendarShell({
     [applyBulkEdit]
   );
 
-  // The Add button (header on desktop, FAB on mobile): the event composer with
-  // nothing prechosen. Picking a library activity happens inside QuickAdd.
+  // The Add button (header on desktop, FAB on mobile): nothing prechosen and no
+  // slot to borrow a time from — so this is the ONE create surface that also
+  // shows the when-controls (date · all-day · start · length) + a commit button.
+  // pickTime=true. (A slot tap/drag already carries its time, so it stays the
+  // lean instant surface.) The richer details — color, location, repeat, day
+  // note — live on the edit surface you reach by clicking the placed event.
   const openAddSheet = useCallback(() => {
     if (!requireStaff("plan the calendar")) return;
     setSheet({
@@ -1308,20 +1421,29 @@ export function CalendarShell({
       }
       if (!requireStaff("plan the calendar")) return;
       const startMin = snapMinutes(minutesOfDay(info.date), SNAP_MIN);
-      // A single tap gives no span — the chosen activity's recommended length applies.
+      // Smart default: a tap that lands in a TIGHT gap squeezed between two timed
+      // events reads as "there's no room for a block here" → seed a 0-min reminder
+      // length. A tap in open space keeps the normal default block length. Only a
+      // default — the Length picker still switches freely.
+      const dateKey = toDateKey(info.date);
+      const tightGap = !info.allDay && isTightGapBetweenEvents(healedEvents, dateKey, startMin);
+      // A single tap gives no span — the chosen activity's recommended length applies
+      // (or 0 = reminder, in a tight gap).
       setSheet({
         draft: {
-          date: toDateKey(info.date),
+          date: dateKey,
           startMin,
-          durationMin: DEFAULT_DURATION_MIN,
+          durationMin: tightGap ? 0 : DEFAULT_DURATION_MIN,
           allDay: info.allDay,
           title: "",
+          // A typed name in the gap creates a 0-min reminder; picking a library
+          // activity still uses the activity's own length (a real block).
           explicitDuration: false,
         },
         pickTime: false,
       });
     },
-    [clearSelection, requireStaff, setStoredView]
+    [clearSelection, healedEvents, requireStaff, setStoredView]
   );
 
   // Slot posture: a picked activity (or a custom title) creates immediately,
@@ -1356,30 +1478,35 @@ export function CalendarShell({
     [announce, sheet, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
-  const quickAddCustom = useCallback(
-    (title: string) => {
-      const draft = sheet?.draft;
-      if (!draft || !requireStaff("plan the calendar")) return;
-      const startMin = draft.allDay ? 0 : draft.startMin;
-      const event: CalendarEvent = {
-        id: crypto.randomUUID(),
-        date: draft.date,
-        startMin,
-        endMin: draft.allDay ? 0 : Math.min(MINUTES_PER_DAY, startMin + snapDurationMin(draft.durationMin)),
-        kind: "custom",
-        title,
-        updatedAt: Date.now(),
-      };
-      if (draft.allDay) event.allDay = true;
-      upsertEvent(event);
-      setSheet(null);
-      announce("Added " + title);
-      showToast({
-        message: "Added " + title + (event.allDay ? " · all day" : " · " + formatClock(startMin)),
-        onUndo: () => removeEvent(event.id),
+  // Open the editor on one event of a stop (from the stop popover).
+  const openStopEdit = useCallback(
+    (event: CalendarEvent) => {
+      if (!requireStaff("plan the calendar")) return;
+      setStopPopover(null);
+      setSheet({ draft: draftFromEvent(event), pickTime: true });
+    },
+    [requireStaff]
+  );
+
+  // "Add to this time" from the stop popover — the lean create surface seeded at
+  // the stop's exact date + start, so the picked (or named) event joins the same
+  // stop the moment it's placed.
+  const openAddAtStop = useCallback(
+    (date: DateKey, startMin: number) => {
+      if (!requireStaff("plan the calendar")) return;
+      setStopPopover(null);
+      setSheet({
+        draft: {
+          date,
+          startMin,
+          durationMin: DEFAULT_DURATION_MIN,
+          allDay: false,
+          title: "",
+        },
+        pickTime: false,
       });
     },
-    [announce, sheet, removeEvent, requireStaff, showToast, upsertEvent]
+    [requireStaff]
   );
 
   const onEventClick = useCallback(
@@ -2576,6 +2703,18 @@ export function CalendarShell({
     if (menu || sheet || scopePrompt) setWxPopover(null);
   }, [menu, sheet, scopePrompt]);
 
+  // The reminder marker popover is mutually exclusive with the other anchored
+  // layers the same way, and (being rect-anchored) must drop on navigation.
+  useEffect(() => {
+    if (menu || sheet || scopePrompt || wxPopover) setStopPopover(null);
+  }, [menu, sheet, scopePrompt, wxPopover]);
+
+  // Close the reminder popover once every reminder it pointed at is gone (e.g.
+  // the last one deleted from inside it), so no empty card lingers.
+  useEffect(() => {
+    if (stopPopover && !stopPopover.ids.some((id) => events[id])) setStopPopover(null);
+  }, [events, stopPopover]);
+
   // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
   // each hour block. The chips live INSIDE FullCalendar's own day columns
   // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
@@ -2682,6 +2821,171 @@ export function CalendarShell({
       clearChips();
     };
   }, [weatherMode, weatherData, gridStart, gridEnd, activeView]);
+
+  // Stop markers: every "stop" (events sharing one exact start time) is painted
+  // into FullCalendar's own day columns (.fc-timegrid-col-frame), positioned by a
+  // top percentage of the day window — the exact mechanism the weather hour chips
+  // use, so stops ride the horizontal scroll AND the vertical hour-zoom for free
+  // and never enter FC's block-overlap layout. An all-0-min stop renders as a
+  // DOT + count; a stop with real events renders as a stacked "lined up" CARD
+  // listing them. A column is only rebuilt when that day's stops change (keyed),
+  // so the MutationObserver can't thrash. Clicks are caught in the CAPTURE phase
+  // and stopped before FC sees them.
+  const MAX_STOP_ROWS = 3;
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const span = gridEnd - gridStart;
+
+    const clearMarks = () => grid.querySelectorAll(".cal-stop-col").forEach((n) => n.remove());
+
+    // Group the stops by day once per pass.
+    const byDay = new Map<string, CalendarStop[]>();
+    for (const stop of stops) {
+      const list = byDay.get(stop.date);
+      if (list) list.push(stop);
+      else byDay.set(stop.date, [stop]);
+    }
+
+    const sync = () => {
+      if (span <= 0) {
+        clearMarks();
+        return;
+      }
+      grid.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]").forEach((col) => {
+        const dateKey = col.getAttribute("data-date");
+        const frame = col.querySelector<HTMLElement>(".fc-timegrid-col-frame");
+        if (!dateKey || !frame) return;
+        const dayStops = (byDay.get(dateKey) ?? []).slice().sort((a, b) => a.startMin - b.startMin);
+        const existing = frame.querySelector<HTMLElement>(":scope > .cal-stop-col");
+        // Delimiter-safe signature (JSON escapes the free-text title/note) that
+        // also folds in the RESOLVED dot color, so a "Color by" switch or an
+        // activity recolor reliably busts the keyed early-return below.
+        const key = JSON.stringify(
+          dayStops.map((s) => [
+            s.startMin,
+            s.allZero ? "z" : "c",
+            s.events.map((e) => [e.id, e.endMin - e.startMin, e.title, e.note ?? "", stopDotColor(e)]),
+          ])
+        );
+        if (existing && existing.dataset.stopKey === key) return; // already current
+        existing?.remove();
+        if (!dayStops.length) return; // nothing to draw — leave the column clean
+
+        const overlay = document.createElement("div");
+        overlay.className = "cal-stop-col";
+        overlay.dataset.stopKey = key;
+        for (const stop of dayStops) {
+          if (stop.startMin < gridStart || stop.startMin > gridEnd) continue; // out of drawn window
+          const count = stop.events.length;
+          const titles = stop.events.map((e) => e.title || "Reminder").join(", ");
+          const marker = document.createElement("button");
+          marker.type = "button";
+          marker.dataset.stopIds = stop.events.map((e) => e.id).join(",");
+          marker.style.top = ((stop.startMin - gridStart) / span) * 100 + "%";
+
+          if (stop.allZero) {
+            // Reminder stop → a quiet hairline across the column with the count
+            // dot anchored at the FAR RIGHT (in the lane events leave clear). A
+            // lone reminder is a small plain dot; several show a number.
+            marker.className = "cal-stop cal-stop--line";
+            // The hairline + dot wear the reminder's OWN event color (same
+            // coloring as any block), not a special reminder tint.
+            marker.style.setProperty("--rem-tint", stopDotColor(stop.events[0]));
+            marker.setAttribute(
+              "aria-label",
+              (count > 1 ? count + " reminders" : "Reminder") + " at " + formatClock(stop.startMin) + ": " + titles
+            );
+            marker.title = titles + " · " + formatClock(stop.startMin);
+            const hair = document.createElement("span");
+            hair.className = "cal-stop__hair";
+            hair.setAttribute("aria-hidden", "true");
+            const die = document.createElement("span");
+            die.className = count > 1 ? "cal-stop__count" : "cal-stop__count cal-stop__count--solo";
+            if (count > 1) die.textContent = String(count);
+            marker.append(hair, die);
+          } else {
+            // A stop with real events → a stacked card listing them (lined-up
+            // backups), capped at MAX_STOP_ROWS then "+N more".
+            marker.className = "cal-stop cal-stop--card";
+            marker.setAttribute(
+              "aria-label",
+              count + " events at " + formatClock(stop.startMin) + ": " + titles
+            );
+            marker.title = titles + " · " + formatClock(stop.startMin);
+            const list = document.createElement("span");
+            list.className = "cal-stop__list";
+            const shown = count > MAX_STOP_ROWS ? MAX_STOP_ROWS - 1 : count;
+            for (let i = 0; i < shown; i += 1) {
+              const event = stop.events[i];
+              const dur = event.endMin - event.startMin;
+              const row = document.createElement("span");
+              row.className = "cal-stop__row";
+              const dot = document.createElement("span");
+              dot.className = "cal-stop__dot";
+              dot.style.background = stopDotColor(event);
+              const title = document.createElement("span");
+              title.className = "cal-stop__title";
+              title.textContent = event.title || "Reminder";
+              row.append(dot, title);
+              if (dur > 0) {
+                const meta = document.createElement("span");
+                meta.className = "cal-stop__meta";
+                meta.textContent = formatDuration(dur);
+                row.appendChild(meta);
+              }
+              list.appendChild(row);
+            }
+            if (count > shown) {
+              const more = document.createElement("span");
+              more.className = "cal-stop__more";
+              more.textContent = "+" + (count - shown) + " more";
+              list.appendChild(more);
+            }
+            marker.appendChild(list);
+          }
+          overlay.appendChild(marker);
+        }
+        frame.appendChild(overlay);
+      });
+    };
+
+    // A marker click/press is handled here and stopped before FC sees it.
+    const onCapture = (e: Event) => {
+      const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".cal-stop") : null;
+      if (!target) return;
+      e.stopPropagation();
+      if (e.type !== "click") return;
+      const ids = (target.dataset.stopIds ?? "").split(",").filter(Boolean);
+      if (ids.length) openStopRef.current(ids, target.getBoundingClientRect());
+    };
+
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(sync);
+    };
+
+    schedule();
+    grid.addEventListener("click", onCapture, true);
+    grid.addEventListener("pointerdown", onCapture, true);
+    grid.addEventListener("mousedown", onCapture, true);
+    const mo = new MutationObserver(schedule);
+    mo.observe(grid, { childList: true, subtree: true });
+    const ro = new ResizeObserver(schedule);
+    ro.observe(grid);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      grid.removeEventListener("click", onCapture, true);
+      grid.removeEventListener("pointerdown", onCapture, true);
+      grid.removeEventListener("mousedown", onCapture, true);
+      mo.disconnect();
+      ro.disconnect();
+      clearMarks();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, gridStart, gridEnd, activeView, stopDotColor]);
 
   // "Day" weather adds a glyph + high/low under each column's date, growing the
   // header. The all-day row pins below the header via --cal-headh (set in
@@ -3029,7 +3333,7 @@ export function CalendarShell({
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
-          onCustom={quickAddCustom}
+          onCreateActivity={onCreateActivity}
           onSave={saveDraft}
           onDelete={
             sheet.draft.id
@@ -3119,6 +3423,25 @@ export function CalendarShell({
           onClose={() => setWxPopover(null)}
         />
       )}
+
+      {stopPopover &&
+        (() => {
+          // Resolve the live event rows for the clicked stop; if they've all since
+          // been removed, render nothing (the effect below closes it).
+          const list = stopPopover.ids.map((id) => events[id]).filter(Boolean) as CalendarEvent[];
+          if (!list.length) return null;
+          return (
+            <StopPopover
+              events={list}
+              colorOf={stopDotColor}
+              anchor={stopPopover.anchor}
+              onEdit={openStopEdit}
+              onDelete={(event) => deleteEvent(event)}
+              onAddAtTime={() => openAddAtStop(list[0].date, list[0].startMin)}
+              onClose={() => setStopPopover(null)}
+            />
+          );
+        })()}
 
       {/* Single-event context menu — unchanged. */}
       {menu?.kind === "single" && (

@@ -32,7 +32,7 @@ export function WeatherLocationField({
 
   return (
     <div className="ledger__row">
-      <span className="ledger__label">Location</span>
+      <span className="ledger__label"><CampIcon.Pin className="ledger__ic" />Location</span>
       <button
         ref={triggerRef}
         type="button"

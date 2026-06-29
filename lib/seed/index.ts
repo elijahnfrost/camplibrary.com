@@ -4,6 +4,7 @@ import { reservedActivities } from "./lanes/reserved";
 import { kgActivities } from "./lanes/kg";
 import { kcActivities } from "./lanes/kc";
 import { roActivities } from "./lanes/ro";
+import { rmActivities } from "./lanes/rm";
 import { pcActivities } from "./lanes/pc";
 import { cfActivities } from "./lanes/cf";
 import { pclActivities } from "./lanes/pcl";
@@ -46,6 +47,7 @@ export const SEED_ACTIVITIES: Activity[] = [
   ...kgActivities,
   ...kcActivities,
   ...roActivities,
+  ...rmActivities,
   ...pcActivities,
   ...cfActivities,
   ...pclActivities,

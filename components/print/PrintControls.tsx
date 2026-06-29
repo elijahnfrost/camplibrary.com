@@ -15,7 +15,7 @@
 // (a summary that IS a ledger row, expanding a sub-ledger). So the resting rail is
 // short, and the rest is one tap away — never a wall of equal-weight switches.
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
 import { addDays, fromDateKey, todayKey, toDateKey } from "@/lib/calendar/dates";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { formatRangeLabel } from "@/lib/calendar/time";
@@ -37,6 +37,7 @@ import { MenuPicker, MiniSeg, ToggleSwitch } from "../primitives";
 import { MiniRangeCalendar } from "./MiniRangeCalendar";
 
 type Patch = Partial<PrintOptions>;
+type IconCmp = FC<{ className?: string }>;
 
 // The cover title pushes upstream on a short debounce so each keystroke doesn't
 // reconcile the whole live preview. The local value stays responsive; it also
@@ -117,17 +118,22 @@ const PRESETS: { id: string; label: string; range: () => { start: DateKey; end: 
  *  signals state; the panel fade is reduced-motion-guarded in CSS. */
 function CollapsibleGroup({
   title,
+  icon: Icon,
   defaultOpen = false,
   children,
 }: {
   title: string;
+  icon?: IconCmp;
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
   return (
     <details className="prail__group prail__group--collapsible" open={defaultOpen}>
       <summary className="prail__grouphead prail__groupsum">
-        <span className="prail__grouptitle">{title}</span>
+        <span className="prail__grouptitle">
+          {Icon && <Icon className="ledger__ic" />}
+          {title}
+        </span>
         <span className="prail__morestate" aria-hidden="true">
           <CampIcon.ChevronDown />
         </span>
@@ -141,10 +147,13 @@ function CollapsibleGroup({
 
 /** An inline ledger row: small-caps label left, a compact control right — the
  *  library/calendar shape, shared by `MiniSeg`, `MenuPicker`, and `ToggleSwitch`. */
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, icon: Icon, children }: { label: string; icon?: IconCmp; children: ReactNode }) {
   return (
     <div className="ledger__row">
-      <span className="ledger__label">{label}</span>
+      <span className="ledger__label">
+        {Icon && <Icon className="ledger__ic" />}
+        {label}
+      </span>
       {children}
     </div>
   );
@@ -224,7 +233,7 @@ function RunSheetPicker({
 
   return (
     <div className="prail__runsheets">
-      <span className="ledger__label">Individual run sheets</span>
+      <span className="ledger__label"><CampIcon.Note className="ledger__ic" />Individual run sheets</span>
       {picked.length > 0 && (
         <div className="prail__rschips">
           {picked.map((a) => (
@@ -493,8 +502,8 @@ export function PrintControls({
       {/* Layout — the choices you actually make per print: the day's shape
           (Layout + its context-sensitive Spacing/Detail), color, and text size.
           Leads OPEN, since it's the most-changed group. */}
-      <CollapsibleGroup title="Layout" defaultOpen>
-        <Row label="Layout">
+      <CollapsibleGroup title="Layout" icon={CampIcon.List} defaultOpen>
+        <Row label="Layout" icon={CampIcon.List}>
           <MiniSeg
             options={LAYOUT_OPTIONS}
             value={options.layout}
@@ -507,6 +516,7 @@ export function PrintControls({
         {options.layout === "timeline" ? (
           <MenuPicker
             label="Spacing"
+            icon={CampIcon.Sort}
             options={DENSITY_OPTIONS}
             value={options.timelineDensity}
             ariaLabel="Timeline spacing"
@@ -515,13 +525,14 @@ export function PrintControls({
         ) : (
           <MenuPicker
             label="Detail"
+            icon={CampIcon.Heading}
             options={DETAIL_OPTIONS}
             value={options.scheduleDetail}
             ariaLabel="How much detail per activity"
             onChange={(scheduleDetail) => onChange({ scheduleDetail })}
           />
         )}
-        <Row label="Color">
+        <Row label="Color" icon={CampIcon.Palette}>
           <MiniSeg
             options={[
               { id: "color", label: "Color" },
@@ -532,7 +543,7 @@ export function PrintControls({
             onChange={(color) => onChange({ color })}
           />
         </Row>
-        <Row label="Text size">
+        <Row label="Text size" icon={CampIcon.Heading}>
           <MiniSeg
             options={FONT_SCALE_OPTIONS}
             value={options.fontScale}
@@ -544,8 +555,8 @@ export function PrintControls({
 
       {/* Page setup — the paper itself: stock, density, pagination, and the cover.
           Set-once for most prints, so it rests CLOSED. */}
-      <CollapsibleGroup title="Page setup">
-        <Row label="Paper">
+      <CollapsibleGroup title="Page setup" icon={CampIcon.Print}>
+        <Row label="Paper" icon={CampIcon.Card}>
           <MiniSeg
             options={[
               { id: "styled", label: "Designed" },
@@ -558,26 +569,27 @@ export function PrintControls({
         </Row>
         <MenuPicker
           label="Density"
+          icon={CampIcon.Sort}
           options={DOC_DENSITY_OPTIONS}
           value={options.density}
           ariaLabel="Spacing density of the printed page"
           onChange={(density) => onChange({ density })}
         />
-        <Row label="A page per day">
+        <Row label="A page per day" icon={CampIcon.Calendar}>
           <ToggleSwitch
             on={options.pageBreakPerDay}
             ariaLabel="Start each day on a new page"
             onChange={(pageBreakPerDay) => onChange({ pageBreakPerDay })}
           />
         </Row>
-        <Row label="Page numbers">
+        <Row label="Page numbers" icon={CampIcon.List}>
           <ToggleSwitch
             on={options.pageNumbers}
             ariaLabel="Show a page-number footer"
             onChange={(pageNumbers) => onChange({ pageNumbers })}
           />
         </Row>
-        <Row label="Title cover">
+        <Row label="Title cover" icon={CampIcon.BookOpen}>
           <ToggleSwitch
             on={options.showCover}
             ariaLabel="Print the title cover header"
@@ -586,7 +598,7 @@ export function PrintControls({
         </Row>
         {/* Context-sensitive: the cover title only matters when the cover prints. */}
         {options.showCover && (
-          <Row label="Cover title">
+          <Row label="Cover title" icon={CampIcon.Heading}>
             <TitleField value={options.title} onCommit={(title) => onChange({ title })} />
           </Row>
         )}
@@ -596,33 +608,34 @@ export function PrintControls({
           all-day / empty-day / theme display gates, then the per-day/per-event
           include picker. Defaults to all in; unchecking adds to the ephemeral
           exclusion sets. Set-once, so CLOSED. */}
-      <CollapsibleGroup title="Content">
+      <CollapsibleGroup title="Content" icon={CampIcon.Filter}>
         {/* Context-sensitive: the camp scope only appears when there's more than
             one camp to choose between. */}
         {camps.length > 0 && (
           <MenuPicker
             label="Camp"
+            icon={CampIcon.Home}
             options={campOptions}
             value={options.campId ?? ""}
             ariaLabel="Which camp to print"
             onChange={(value) => onChange({ campId: value ? value : null })}
           />
         )}
-        <Row label="All-day events">
+        <Row label="All-day events" icon={CampIcon.Sun}>
           <ToggleSwitch
             on={options.includeAllDay}
             ariaLabel="Include all-day events"
             onChange={(includeAllDay) => onChange({ includeAllDay })}
           />
         </Row>
-        <Row label="Empty days">
+        <Row label="Empty days" icon={CampIcon.Calendar}>
           <ToggleSwitch
             on={options.includeEmptyDays}
             ariaLabel="Include empty days"
             onChange={(includeEmptyDays) => onChange({ includeEmptyDays })}
           />
         </Row>
-        <Row label="Show themes">
+        <Row label="Show themes" icon={CampIcon.Palette}>
           <ToggleSwitch
             on={options.showThemes}
             ariaLabel="Show themes"
@@ -641,18 +654,18 @@ export function PrintControls({
       {/* Document sections — reorder the document's parts (the cover always leads,
           toggled in Page setup). A short, ordered ledger with up/down nudges.
           Leads OPEN: a frequently-tweaked, high-signal control. */}
-      <CollapsibleGroup title="Document sections" defaultOpen>
+      <CollapsibleGroup title="Document sections" icon={CampIcon.Sort} defaultOpen>
         <SectionOrder order={options.sectionOrder} onChange={(sectionOrder) => onChange({ sectionOrder })} />
       </CollapsibleGroup>
 
       {/* Appendix — what gets stapled on AFTER the schedule. Distinct from the
           inline "Run TLDR" detail (a per-event summary in the schedule itself).
           Niche, so CLOSED. */}
-      <CollapsibleGroup title="Appendix">
+      <CollapsibleGroup title="Appendix" icon={CampIcon.Clipboard}>
         <p className="prail__grouphint">
           Added after the schedule — separate from the inline &ldquo;Run TLDR&rdquo; detail in Layout.
         </p>
-        <Row label="Full run sheets">
+        <Row label="Full run sheets" icon={CampIcon.Note}>
           <ToggleSwitch
             on={options.appendRunSheets}
             ariaLabel="Append full run sheets for every scheduled activity"
@@ -668,7 +681,7 @@ export function PrintControls({
             onChange={(runSheetIds) => onChange({ runSheetIds })}
           />
         )}
-        <Row label="Shopping list (combined)">
+        <Row label="Shopping list (combined)" icon={CampIcon.Box}>
           <ToggleSwitch
             on={options.materialsRollup}
             ariaLabel="Include a combined shopping list"

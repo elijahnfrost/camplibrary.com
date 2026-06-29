@@ -1,7 +1,10 @@
 import type { Activity, AgeGroupId, CategoryId } from "./types";
 import { usesAnyMaterialTag } from "./materials";
 
-export type CatFilter = "All" | CategoryId;
+// The set of categories the library shows. A multi-select: every id = show all
+// (the default), a subset = show only those, [] = show none. Replaces the old
+// single "All" | CategoryId so staff can narrow to any combination of shelves.
+export type CatFilter = CategoryId[];
 export type PlaceFilter = "All" | "Inside" | "Outside";
 export type AgeFilter = "All" | AgeGroupId;
 // "All", or a themeId. Themes are user-definable, so this can't be a fixed union.
@@ -29,7 +32,7 @@ export function sortActivities(items: Activity[], sort: LibrarySort): Activity[]
 }
 
 export interface ActivityFilterState {
-  cat: CatFilter;
+  cats: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
   query: string;
@@ -102,7 +105,7 @@ export function matchesActivitySearch(a: Activity, query: string): boolean {
 }
 
 export function matchesActivityFilters(a: Activity, filters: ActivityFilterState): boolean {
-  if (filters.cat !== "All" && a.type !== filters.cat) return false;
+  if (!filters.cats.includes(a.type)) return false;
   if (filters.place === "Inside" && !(a.place === "Inside" || a.place === "Both")) return false;
   if (filters.place === "Outside" && !(a.place === "Outside" || a.place === "Both")) return false;
   if (filters.age !== "All" && (a.ages || []).indexOf(filters.age) < 0) return false;

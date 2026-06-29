@@ -6,7 +6,7 @@
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
-import type { AgeUnit } from "@/lib/data";
+import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -24,7 +24,7 @@ export function LibraryTab({
   sort,
   onSort,
   items,
-  cat,
+  cats,
   place,
   age,
   theme,
@@ -37,7 +37,7 @@ export function LibraryTab({
   minutesBounds,
   ageUnit,
   onAgeUnit,
-  onCat,
+  onCats,
   onPlace,
   onAge,
   onTheme,
@@ -60,7 +60,7 @@ export function LibraryTab({
   sort: LibrarySort;
   onSort: (sort: LibrarySort) => void;
   items: Activity[];
-  cat: CatFilter;
+  cats: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
   ageUnit: AgeUnit;
@@ -73,7 +73,7 @@ export function LibraryTab({
   availableMaterials: string[];
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
-  onCat: (v: CatFilter) => void;
+  onCats: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
   onTheme: (v: ThemeFilter) => void;
@@ -184,7 +184,7 @@ export function LibraryTab({
         variant="bar"
         sort={sort}
         onSort={onSort}
-        cat={cat}
+        cats={cats}
         place={place}
         age={age}
         ageUnit={ageUnit}
@@ -197,7 +197,7 @@ export function LibraryTab({
         minutes={minutes}
         minutesBounds={minutesBounds}
         resultCount={items.length}
-        onCat={onCat}
+        onCats={onCats}
         onPlace={onPlace}
         onAge={onAge}
         onTheme={onTheme}
@@ -237,7 +237,7 @@ export function LibraryTab({
                     doesn't mean starting over. */}
                 <ActiveFilters
                   className="library-empty__chips"
-                  cat={cat}
+                  cats={cats}
                   place={place}
                   age={age}
                   ageUnit={ageUnit}
@@ -246,7 +246,7 @@ export function LibraryTab({
                   availableMaterials={availableMaterials}
                   minutes={minutes}
                   minutesBounds={minutesBounds}
-                  onCat={onCat}
+                  onCats={onCats}
                   onPlace={onPlace}
                   onAge={onAge}
                   onTheme={onTheme}
@@ -257,7 +257,7 @@ export function LibraryTab({
                   type="button"
                   className="btn btn--quiet"
                   onClick={() => {
-                    onCat("All");
+                    onCats(ALL_CATEGORY_IDS);
                     onPlace("All");
                     onAge("All");
                     onTheme("All");

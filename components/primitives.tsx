@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
 import { AGE_GROUPS, bandLong, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
@@ -13,6 +13,7 @@ import { CampIcon } from "./icons";
 // mobile filter sheet keeps full chips — these controls are pointer-sized.
 
 type SwatchOption = { id: string; label: string; tint?: string };
+type IconCmp = FC<{ className?: string }>;
 
 /** The shared swatch-menu core: one pill trigger showing the current option
  *  (with its color swatch), expanding an inline menu. `label` wraps it in a
@@ -24,6 +25,7 @@ function SwatchPicker({
   onChange,
   options,
   label,
+  icon: Icon,
   ariaLabel,
   manageLabel,
   onManage,
@@ -32,6 +34,8 @@ function SwatchPicker({
   onChange: (v: string) => void;
   options: SwatchOption[];
   label?: string;
+  /** The axis glyph shown before the label (the property-row vocabulary). */
+  icon?: IconCmp;
   ariaLabel: string;
   /** Optional footer action in the menu (e.g. "Manage themes…"). */
   manageLabel?: string;
@@ -86,7 +90,10 @@ function SwatchPicker({
     <div className={"typepick" + (open ? " is-open" : "")} ref={rootRef}>
       {label ? (
         <div className="ledger__row">
-          <span className="ledger__label">{label}</span>
+          <span className="ledger__label">
+            {Icon && <Icon className="ledger__ic" />}
+            {label}
+          </span>
           {trigger}
         </div>
       ) : (
@@ -175,12 +182,14 @@ export function AgePicker<T extends string>({
   value,
   onChange,
   label,
+  icon,
   ariaLabel,
   unit = "grades",
 }: {
   value: T;
   onChange: (v: T) => void;
   label?: string;
+  icon?: IconCmp;
   ariaLabel: string;
   /** Caption unit: grade bands ("Grades 4–6") or plain ages ("9–12 yrs"). */
   unit?: AgeUnit;
@@ -195,6 +204,7 @@ export function AgePicker<T extends string>({
       onChange={(v) => onChange(v as T)}
       options={options}
       label={label}
+      icon={icon}
       ariaLabel={ariaLabel}
     />
   );
@@ -208,6 +218,7 @@ export function ThemePicker({
   onChange,
   themes,
   label,
+  icon,
   ariaLabel,
   onManage,
 }: {
@@ -215,6 +226,7 @@ export function ThemePicker({
   onChange: (v: string) => void;
   themes: Theme[];
   label?: string;
+  icon?: IconCmp;
   ariaLabel: string;
   /** Adds a "Manage themes…" footer to the menu (the library filter rail). */
   onManage?: () => void;
@@ -229,6 +241,7 @@ export function ThemePicker({
       onChange={onChange}
       options={options}
       label={label}
+      icon={icon}
       ariaLabel={ariaLabel}
       manageLabel="Manage themes…"
       onManage={onManage}
@@ -246,12 +259,15 @@ export function MenuPicker<T extends string>({
   onChange,
   options,
   label,
+  icon,
   ariaLabel,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { id: T; label: string }[];
   label?: string;
+  /** The axis glyph shown before the label (the property-row vocabulary). */
+  icon?: IconCmp;
   ariaLabel: string;
 }) {
   return (
@@ -260,6 +276,7 @@ export function MenuPicker<T extends string>({
       onChange={(v) => onChange(v as T)}
       options={options}
       label={label}
+      icon={icon}
       ariaLabel={ariaLabel}
     />
   );

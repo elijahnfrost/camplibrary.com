@@ -11,7 +11,7 @@ import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
-import { locationColor, type AgeUnit } from "@/lib/data";
+import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
@@ -21,7 +21,7 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
-import { activityFromForm, BLANK_FORM } from "@/lib/activityForm";
+import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activityForm";
 import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
@@ -345,6 +345,17 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // Multiple camps: filters the calendar's event set + stamps new events. The
   // shared library and every other surface are camp-agnostic.
   const campKit = useCamps({ cloud, announce: setLiveMsg });
+  // The calendar's create bar can save a typed name straight into the library as a
+  // reusable activity (the "Save to library" path). It lands in the Routine bucket
+  // with broad defaults; a 0-min length makes it a reminder. Returns the new
+  // activity so the placed event links to it (null if the staff gate blocks it).
+  const createCalendarActivity = useCallback(
+    (title: string, durationMin: number): Activity | null => {
+      const activity = quickActivity(title, newActivityId(title), durationMin);
+      return lib.addActivity(activity) ? activity : null;
+    },
+    [lib]
+  );
   // Depend on the stable filterEvents callback, not the whole campKit object
   // (rebuilt every render), so the calendar event set memo doesn't recompute on
   // every render.
@@ -369,7 +380,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
-  const [cat, setCat] = useState<CatFilter>("All");
+  const [cats, setCats] = useState<CatFilter>(ALL_CATEGORY_IDS);
   const [place, setPlace] = useState<PlaceFilter>("All");
   const [age, setAge] = useState<AgeFilter>("All");
   const [theme, setTheme] = useState<ThemeFilter>("All");
@@ -386,7 +397,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     let hi = -Infinity;
     for (const a of lib.all) {
       const d = a.durationMin;
-      if (typeof d === "number" && Number.isFinite(d)) {
+      // 0-min entries are reminders (no-time nudges), not timed blocks — they'd
+      // peg the slider floor to 0, so they sit out of the duration spread.
+      if (typeof d === "number" && Number.isFinite(d) && d > 0) {
         if (d < lo) lo = d;
         if (d > hi) hi = d;
       }
@@ -444,7 +457,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     () =>
       lib.all.filter((a) =>
         matchesActivityFilters(a, {
-          cat,
+          cats,
           place,
           age,
           theme,
@@ -458,7 +471,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       lib.all,
       lib.activeAvailableMaterials,
       lib.themeAssignments,
-      cat,
+      cats,
       place,
       age,
       theme,
@@ -508,9 +521,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // fresh — re-seeding its form/play-doc drafts — even when the same activity
   // is re-opened (e.g. context-menu "Edit" on the already-open activity).
   const [detailNonce, setDetailNonce] = useState(0);
-  const [detailEventContext, setDetailEventContext] = useState<{ dateLabel: string; timeLabel: string } | null>(
-    null
-  );
+  const [detailEventContext, setDetailEventContext] = useState<{
+    dateLabel: string;
+    timeLabel: string;
+    note?: string;
+  } | null>(null);
   // In create mode `detail` is a fresh draft not in the catalog, so it must
   // pass through verbatim; otherwise track the live catalog record by id.
   const detailActivity = detail
@@ -549,9 +564,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   }, []);
 
   // Home's "Browse by type" tiles jump into the Library pre-filtered to one
-  // category (or "All" for the catch-all links).
-  const goLibrary = useCallback((nextCat: CatFilter) => {
-    setCat(nextCat);
+  // category (or all categories for the catch-all links).
+  const goLibrary = useCallback((nextCats: CatFilter) => {
+    setCats(nextCats);
     setTab("library");
   }, []);
 
@@ -561,6 +576,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailEventContext({
       dateLabel: formatEventDateLabel(calEvent.date),
       timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
+      note: calEvent.note,
     });
     setDetailNonce((n) => n + 1);
     setDetail(activity);
@@ -611,7 +627,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       setDetailStartEdit(false);
       setDetail(activity);
     } else {
-      setCat("All");
+      setCats(ALL_CATEGORY_IDS);
       lib.setView("catalog");
       setTab("library");
       closeDetail();
@@ -627,7 +643,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     if (!copy) return;
     // Surface the copy where the user is looking: jump to the catalog so the
     // new "(copy)" row is visible at the top.
-    setCat("All");
+    setCats(ALL_CATEGORY_IDS);
     lib.setView("catalog");
     setTab("library");
   }
@@ -721,7 +737,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               variant="rail"
               sort={sort}
               onSort={setSort}
-              cat={cat}
+              cats={cats}
               place={place}
               age={age}
               ageUnit={ageUnit}
@@ -733,7 +749,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               availableMaterials={lib.activeAvailableMaterials}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
-              onCat={setCat}
+              onCats={setCats}
               onPlace={setPlace}
               onAge={setAge}
               onTheme={setTheme}
@@ -785,7 +801,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               sort={sort}
               onSort={setSort}
               items={libraryItems}
-              cat={cat}
+              cats={cats}
               place={place}
               age={age}
               ageUnit={ageUnit}
@@ -798,7 +814,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               availableMaterials={lib.activeAvailableMaterials}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
-              onCat={setCat}
+              onCats={setCats}
               onPlace={setPlace}
               onAge={setAge}
               onTheme={setTheme}
@@ -840,6 +856,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 locationOptions={lib.locations}
                 locationColors={lib.locationColors}
                 onManageLocations={openLocationsManager}
+                onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
                 headerActions={
                   <SubscribeFeedButton

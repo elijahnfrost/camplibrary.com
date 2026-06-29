@@ -1301,11 +1301,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   letter-spacing: 0.04em;
   color: var(--ink-soft);
 }
-/* Library | Custom — both ways to fill the slot, visible up front. */
-.quickadd__tabs {
-  flex: none;
-  padding: 0 var(--qa-gx) var(--s-4);
-}
 .quickadd__search {
   flex: none;
   display: flex;
@@ -1356,86 +1351,109 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   width: 14px;
   height: 14px;
 }
+/* Type-to-search results: a CAPPED dropdown-style region (not an always-open
+   catalog), so it never crams the schedule and dropdowns have room to open. */
 .quickadd__list {
-  flex: 1;
-  min-height: 96px; /* below this the window itself scrolls, never clips */
+  flex: 0 1 auto;
+  max-height: 264px;
+  min-height: 0;
   overflow-y: auto;
-  margin-top: var(--s-3);
+  margin-top: var(--s-2);
   /* Pull the rows in to the shared gutter (less a hair so the hover wash still
      reads as a lane), then the row's own padding gives the name real air. */
   padding: 0 calc(var(--qa-gx) - var(--s-2));
 }
-/* Edit mode: a compact "Editing: <activity>" summary stands in for the full
-   searchable list, with a category spine matching the placed event card. */
-.quickadd__editing {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin: var(--s-3) var(--qa-gx) 0;
-  padding: var(--s-4);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-}
-.quickadd__editing-spine {
-  flex: none;
-  align-self: stretch;
-  width: 3px;
-  border-radius: var(--r-round);
-  background: var(--cal-tint, var(--line));
-}
-.quickadd__editing-info {
+/* The library-backed event reads as a clean title block — category eyebrow +
+   name + quiet inline links — the run-sheet header vocabulary, NOT a boxed
+   summary card, so editing an event and opening its sheet feel like one surface. */
+.quickadd__act {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  flex: 1 1 auto;
-  min-width: 0;
+  gap: var(--s-1);
+  margin: var(--s-4) var(--qa-gx) 0;
 }
-.quickadd__editing-title {
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.quickadd__editing-meta {
+.quickadd__act-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
   font-family: var(--hand-sc);
   font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-faint);
 }
-.quickadd__editing-open,
-.quickadd__editing-change {
+.quickadd__act-dot {
   flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
 }
-/* The activity-event editor's two inline actions (Open Run List · Change activity)
-   sit after the title, which ellipsizes to make room; on a narrow sheet they wrap
-   to their own line together rather than crushing the title. */
-.quickadd__editing-open {
-  margin-left: auto;
+.quickadd__act-title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.05;
+  color: var(--ink);
 }
-/* Library rows are activity blocks: the same 3px category spine as the rail
-   row and the placed event card (--cal-tint inline per row), not a dot. */
+.quickadd__act-links {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  margin-top: var(--s-2);
+}
+.quickadd__act-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--accent-ink);
+}
+.quickadd__act-link svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.quickadd__act-link:hover {
+  text-decoration: underline;
+}
+.quickadd__act-link--quiet {
+  color: var(--ink-faint);
+}
+/* Picker rows: a LIGHT list — a small category dot, the name, a muted meta, and
+   a check when chosen. No heavy spine; the hover wash + dot carry the identity. */
 .quickadd__item {
   width: 100%;
   display: flex;
   align-items: center;
   gap: var(--s-4);
   border: 0;
-  border-left: 3px solid var(--cal-tint, var(--line));
   background: transparent;
   border-radius: var(--r-sm);
-  padding: var(--s-3) var(--s-5);
+  padding: var(--s-3) var(--s-4);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--t-fast) var(--ease);
 }
+.quickadd__itemdot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+  background: var(--cal-tint, var(--line));
+}
 .quickadd__item:hover {
-  background: color-mix(in srgb, var(--cal-tint, var(--ink)) 10%, var(--paper-2));
+  background: var(--paper-2);
 }
 .quickadd__item:active {
-  background: color-mix(in srgb, var(--cal-tint, var(--ink)) 16%, var(--paper-2));
+  background: color-mix(in srgb, var(--cal-tint, var(--ink)) 12%, var(--paper-2));
 }
 .quickadd__name {
   flex: 1;
@@ -1454,9 +1472,12 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   letter-spacing: 0.03em;
   color: var(--ink-soft);
 }
-.quickadd__empty {
-  padding: var(--s-5);
+.quickadd__empty,
+.quickadd__prompt {
+  margin: 0;
+  padding: var(--s-4) var(--qa-gx);
   color: var(--ink-faint);
+  font-family: var(--hand);
   font-size: var(--fs-ui);
 }
 .quickadd__searchform {
@@ -1504,27 +1525,72 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__custom-row .quickadd__name {
   color: var(--accent-ink);
 }
-/* The Custom tab: one named field — in the slot posture the when is already
-   chosen, so the button creates instantly; in the pick-a-time posture the
-   schedule block below carries the commit. */
-.quickadd__custom {
+/* "Add new" zone: the create-row affordance (the typed name lands as a new
+   event when nothing matches). Whether it's also saved to the library is the
+   persistent .quickadd__mode switch above — this row just commits + echoes it. */
+.quickadd__create {
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
-  padding: var(--s-3) var(--qa-gx) var(--s-6);
-  /* Slot posture only: the lone name + Add button would look stranded in a
-     short sheet, so reserve some presence. */
-  min-height: 168px;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
 }
-/* Pick-a-time / edit posture: the schedule block sits directly below, so drop
-   the reserved height and the deep bottom pad — that empty band between the
-   name and the date/time controls was the worst of the "funky spacing". */
-.quickadd__custom--inline {
-  min-height: 0;
-  padding-bottom: var(--s-3);
+/* The persistent "Save to library" switch — the one create control besides the
+   search. A calm label-left / switch-right row tucked under the search box,
+   inset to the shared gutter so it lines up with the search and the list rows. */
+.quickadd__mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: var(--s-3) var(--qa-gx) 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  cursor: pointer;
 }
-.quickadd__custom-add {
-  align-self: flex-start;
+.quickadd__mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.quickadd__mode-label {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.quickadd__mode-hint {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+/* The "day note" zone: prose, set apart from the pill ledger above it. A header
+   row (icon · title · where-it-goes hint) over a calm full-width textarea — so it
+   reads as one deliberate field, not a giant box crammed among the dropdowns. */
+/* The start–end Time row: a thin dash between the two time pills, then a faint
+   derived length — "important to have, not to see." */
+.quickadd__timedash {
+  color: var(--ink-faint);
+}
+.quickadd__timelen {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* The Day note property row: the prose field fills the value column. */
+.quickadd__noterow .quickadd__note {
+  width: 100%;
+}
+.quickadd__note {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.6em;
+  font: inherit;
+  line-height: 1.4;
 }
 /* The chosen library row in the pick-a-time posture: it wears the event
    card's own tinted wash — a preview of the block it's about to become. */
@@ -1650,6 +1716,30 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   padding: var(--s-5);
   /* Pop in like the other anchored floating menus. */
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+/* The header shared by the anchored cards on this surface (the StopPopover's
+   title + time, with a close button to the right). The retired event popover's
+   other sub-parts (dot / meta / actions) went with it. */
+.cal-popover__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+.cal-popover__heading {
+  flex: 1;
+  min-width: 0;
+}
+.cal-popover__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.cal-popover__when {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
 }
 
 /* ---------- toast ---------- */
@@ -1972,11 +2062,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   .quickadd__schedule {
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
   }
-  /* Only the slot-posture custom form sits at the sheet bottom; the inline
-     (edit) variant is followed by the schedule block, which owns the safe-area
-     pad — so keep its name→date gap tight. */
-  .quickadd__custom:not(.quickadd__custom--inline) {
-    padding-bottom: calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
+  /* Slot posture: the create-row zone sits at the sheet bottom, so it carries the
+     safe-area pad. */
+  .quickadd__create {
+    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
   }
   /* The controls ride the top row; the date title wraps below them. */
   .calhead__controls {
@@ -2082,22 +2171,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
 }
-
-/* Slot posture surfaces the repeat control between the tabs and the picker — a
-   hairline sets it apart from the activity list without a heavy box. Inset to
-   the shared gutter so the control lines up with the search box below it. The
-   inner .ledger frames RepeatField's rows; the last drops its dashed rule, and
-   the preset trigger shrinks to a row-sized control like the schedule ledger. */
-.quickadd__slotrepeat {
-  padding: 0 var(--qa-gx) var(--s-4);
-  margin-bottom: var(--s-2);
-  border-bottom: 1px solid var(--line);
-}
-.quickadd__slotrepeat .ledger > :last-child {
-  border-bottom: 0;
-}
-/* The slot-posture Repeat dropdown is the shared pill too (base .cselect__trigger
-   + the global .ledger__row hug rule) — no width/height override here. */
 
 /* ---------- repeating edit/delete scope chooser ---------- */
 .overlay--scope {
@@ -2249,6 +2322,240 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   outline-offset: 1px;
   background: var(--card);
   color: var(--ink);
+}
+
+/* The right lane a reminder's count dot sits in. Every timed event is inset by
+   this much on its right edge so the dot — anchored at the column's far right —
+   never overlaps an event block above or below the reminder line. A modest,
+   consistent breath on the right of each day column (see .cal-stop--line). */
+.calshell {
+  --cal-rem-lane: 16px;
+}
+.calshell .fc-timegrid-col-events {
+  right: var(--cal-rem-lane);
+}
+
+/* ---------- stop markers: a dot+count (reminders) or a stacked card ----------
+   A "stop" = events sharing one exact start time. Painted into each
+   .fc-timegrid-col-frame and placed by a top percentage of the drawn day (the
+   weather-chip mechanism), so a stop rides scroll + hour-zoom for free and never
+   enters FullCalendar's block-overlap layout. An all-0-min stop is a quiet
+   hairline + count DOT; a stop with real events is a stacked "lined up" CARD. */
+.cal-stop-col {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Above event cards (~1-3), below the weather layer (z5) + sticky gutter (z6). */
+  z-index: 4;
+}
+.cal-stop {
+  position: absolute;
+  pointer-events: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+/* Reminder stop → a quiet hairline spanning the day column with the count dot
+   anchored at the FAR RIGHT, sitting in the lane the events leave clear
+   (--cal-rem-lane). It reads as a light marker that belongs between blocks, not
+   an alarm. The line is purely decorative (pointer-events: none) so it never
+   swallows a grid click; only the dot is the handle. A lone reminder is a small
+   plain dot; several share one dot with a count. */
+.cal-stop--line {
+  left: 1px;
+  right: 1px;
+  height: 18px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.cal-stop__hair {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--rem-tint, #c2715a);
+}
+.cal-stop__count {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--rem-tint, #c2715a);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--card);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+/* A lone reminder needs no number — a small plain dot reads cleaner. */
+.cal-stop__count--solo {
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+}
+.cal-stop--line:hover .cal-stop__count {
+  transform: translateY(-50%) scale(1.12);
+}
+.cal-stop--line:focus-visible {
+  outline: none;
+}
+.cal-stop--line:focus-visible .cal-stop__count {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* A stop with real events → a compact card listing them top-to-bottom (lined-up
+   backups). Anchored with its TOP edge at the start time; reads as a deliberate
+   stack over the native cards via its border + left spine + near-opaque paper
+   fill — the app is flat (no drop shadows; --e* are all `none`), so separation
+   comes from the frame, not elevation. Shares the solo events' right edge (inset
+   by the reminder lane) so all event content lines up, leaving the right lane to
+   reminder dots. */
+.cal-stop--card {
+  left: 1px;
+  right: var(--cal-rem-lane);
+  display: block;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid color-mix(in srgb, var(--ink-faint) 40%, var(--line-soft));
+  border-radius: var(--r-sm);
+  box-shadow: var(--e2);
+  padding: 2px 4px;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.cal-stop--card:hover {
+  border-color: var(--accent);
+}
+.cal-stop--card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cal-stop__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cal-stop__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  line-height: 1.3;
+}
+.cal-stop__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.cal-stop__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-size: var(--fs-micro);
+}
+.cal-stop__meta {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+.cal-stop__more {
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  padding-left: calc(7px + var(--s-2));
+}
+
+/* Stop popover: the events at one time, each with its note + edit/delete, plus
+   "Add to this time". Reuses the .cal-popover surface. */
+.cal-popover--stop {
+  min-width: 240px;
+}
+.cal-stoplist {
+  list-style: none;
+  margin: var(--s-3) 0 var(--s-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.cal-stoplist__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-1) 0;
+}
+.cal-stoplist__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 999px;
+}
+.cal-stoplist__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cal-stoplist__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  color: var(--ink);
+}
+.cal-stoplist__meta {
+  flex: none;
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+.cal-stoplist__note {
+  margin-top: 1px;
+  color: var(--ink-soft);
+  font-size: var(--fs-micro);
+}
+.cal-stoplist__repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: 1px;
+  color: var(--ink-faint);
+  font-size: var(--fs-micro);
+}
+.cal-stoplist__repeat svg {
+  width: 11px;
+  height: 11px;
+}
+.cal-stoplist__btn {
+  flex: none;
+}
+.cal-stoplist__btn--danger:hover {
+  color: var(--clay);
+}
+.cal-stop__add {
+  align-self: flex-start;
 }
 
 /* ---------- "Day" mode: a summary under each column's date ----------

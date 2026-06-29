@@ -1,5 +1,6 @@
 "use client";
 
+import { CampIcon } from "../icons";
 import { MiniSeg, ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
 import {
@@ -71,7 +72,7 @@ export function WeatherSettings({
   return (
     <div className="ledger calset">
       <div className="ledger__row">
-        <span className="ledger__label">Show</span>
+        <span className="ledger__label"><CampIcon.Sun className="ledger__ic" />Show</span>
         <MiniSeg
           ariaLabel="Show weather"
           value={weatherMode}
@@ -99,7 +100,7 @@ export function WeatherSettings({
             />
           </div>
           <div className="ledger__row">
-            <span className="ledger__label">Forecast</span>
+            <span className="ledger__label"><CampIcon.Calendar className="ledger__ic" />Forecast</span>
             <Select
               value={weatherRange}
               options={WEATHER_RANGE_OPTIONS}
@@ -108,7 +109,7 @@ export function WeatherSettings({
             />
           </div>
           <div className="ledger__row">
-            <span className="ledger__label">History</span>
+            <span className="ledger__label"><CampIcon.Clock className="ledger__ic" />History</span>
             <ToggleSwitch
               on={weatherHistory}
               onChange={() => onWeatherHistory(!weatherHistory)}

@@ -1,5 +1,6 @@
 import { getSql } from "./db";
 import { cacheUntilFailure } from "./once";
+import { EVENT_NOTE_MAX_LENGTH } from "@/lib/calendar/types";
 import {
   isUserDocKey,
   normalizeDoc,
@@ -66,8 +67,20 @@ export const ensureUserDataSchema = cacheUntilFailure(async () => {
         updated_at timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT calendar_events_minutes_check CHECK (
           (start_min IS NULL AND end_min IS NULL)
-          OR (start_min >= 0 AND end_min <= 1440 AND start_min < end_min)
+          OR (start_min >= 0 AND end_min <= 1440 AND start_min <= end_min)
         )
+      )`;
+  // Relax the minutes CHECK on already-deployed tables: a 0-min event
+  // (start_min === end_min) is now valid — it's a reminder marker, drawn as a
+  // dot, never a zero-height block. Existing rows all satisfy start < end (a
+  // strict subset of <=), so the re-add validates instantly with no data
+  // migration. Idempotent: drop-if-exists then add. Runs once per process via
+  // the ensureUserDataSchema cache, BEFORE any insert (upsert calls it first),
+  // so no client can post a 0-min event ahead of the relaxation.
+  await sql`ALTER TABLE calendar_events DROP CONSTRAINT IF EXISTS calendar_events_minutes_check`;
+  await sql`ALTER TABLE calendar_events ADD CONSTRAINT calendar_events_minutes_check CHECK (
+        (start_min IS NULL AND end_min IS NULL)
+        OR (start_min >= 0 AND end_min <= 1440 AND start_min <= end_min)
       )`;
   await sql`
         CREATE INDEX IF NOT EXISTS calendar_events_user_date_idx
@@ -150,7 +163,9 @@ export function normalizeCalendarEventInput(
       !Number.isInteger(value.endMin) ||
       value.startMin < 0 ||
       value.endMin > MINUTES_PER_DAY ||
-      value.startMin >= value.endMin
+      // A 0-min event (reminder marker) is valid: start === end. Only a NEGATIVE
+      // span is malformed. Mirrors the relaxed DB CHECK (start_min <= end_min).
+      value.startMin > value.endMin
     ) {
       return { ok: false, reason: "invalid" };
     }
@@ -164,7 +179,20 @@ export function normalizeCalendarEventInput(
     typeof value.activityId === "string" && value.activityId
       ? value.activityId.slice(0, EVENT_ACTIVITY_ID_MAX_LENGTH)
       : null;
+  // "activity" needs a real activityId; everything else (incl. the retired
+  // "reminder" kind) falls back to "custom". Reminders are now just 0-min events.
   const kind = value.kind === "activity" && activityId ? "activity" : "custom";
+
+  // Bound the note at the boundary (it rides the JSONB payload); over-long or
+  // non-string notes are clamped/dropped so the stored payload stays clean.
+  const payload: Record<string, unknown> = { ...value };
+  if (typeof value.note === "string") {
+    const note = value.note.trim().slice(0, EVENT_NOTE_MAX_LENGTH);
+    if (note) payload.note = note;
+    else delete payload.note;
+  } else {
+    delete payload.note;
+  }
 
   return {
     ok: true,
@@ -176,7 +204,7 @@ export function normalizeCalendarEventInput(
       title,
       activityId,
       kind,
-      payload: value,
+      payload,
     },
   };
 }

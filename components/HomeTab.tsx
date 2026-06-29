@@ -10,7 +10,7 @@ import { useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "re
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { todayKey } from "@/lib/calendar/dates";
 import { formatClockCompact } from "@/lib/calendar/time";
-import { ageLabel, CATEGORIES, categoryTint, durLabel, effectiveEventColor, ENERGY, monogram, ratingColor } from "@/lib/data";
+import { ageLabel, ALL_CATEGORY_IDS, CATEGORIES, categoryTint, durLabel, effectiveEventColor, ENERGY, monogram, ratingColor } from "@/lib/data";
 import { useAgeUnit } from "./ageUnit";
 import type { Activity, CategoryId } from "@/lib/types";
 import type { CatFilter } from "@/lib/activityFilters";
@@ -163,8 +163,8 @@ export function HomeTab({
   /** Open the viewer from a today's-schedule row (carries event date/time). */
   onOpenEventActivity: (activity: Activity, event: CalendarEvent) => void;
   onGoCalendar: () => void;
-  /** Jump to the Library, optionally pre-filtered to one category. */
-  onGoLibrary: (cat: CatFilter) => void;
+  /** Jump to the Library, optionally pre-filtered to a set of categories. */
+  onGoLibrary: (cats: CatFilter) => void;
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
   /** Whether a staff account is currently signed in (drives the guide CTAs). */
   isSignedIn: boolean;
@@ -290,7 +290,7 @@ export function HomeTab({
                 <span className="home__sec-title" id="home-fav-title">
                   {favoritesLabel}
                 </span>
-                <button type="button" className="home__sec-link" onClick={() => onGoLibrary("All")}>
+                <button type="button" className="home__sec-link" onClick={() => onGoLibrary(ALL_CATEGORY_IDS)}>
                   All {activities.length} activities
                   <CampIcon.ChevronRight />
                 </button>
@@ -314,7 +314,7 @@ export function HomeTab({
                     <CampIcon.Library />
                   </span>
                   <p className="home-empty__title">The library is empty.</p>
-                  <button type="button" className="btn btn--quiet btn--sm" onClick={() => onGoLibrary("All")}>
+                  <button type="button" className="btn btn--quiet btn--sm" onClick={() => onGoLibrary(ALL_CATEGORY_IDS)}>
                     Browse the library
                   </button>
                 </div>
@@ -410,7 +410,7 @@ export function HomeTab({
                     type="button"
                     className="home-type"
                     style={{ "--cal-tint": categoryTint(c.id) } as CSSProperties}
-                    onClick={() => onGoLibrary(c.id)}
+                    onClick={() => onGoLibrary([c.id])}
                   >
                     <span className="home-type__dot" aria-hidden="true" />
                     <span className="home-type__label">{c.label}</span>

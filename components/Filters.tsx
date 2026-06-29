@@ -3,12 +3,13 @@
 import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
 import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { normalizeSearchText } from "@/lib/activityFilters";
-import { AGE_GROUPS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
+import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
+import type { CategoryId } from "@/lib/types";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
-import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch, TypePicker } from "./primitives";
+import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
 export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
@@ -37,7 +38,7 @@ function tintStyle(tint?: string): CSSProperties | undefined {
 // never means starting over. -----------------------------------------------
 
 interface ActiveFilterProps {
-  cat: CatFilter;
+  cats: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
   /** The age caption unit, so the removed-filter chip reads in the chosen unit. */
@@ -51,7 +52,7 @@ interface ActiveFilterProps {
    *  and removing it widens back to the full bounds. */
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
-  onCat: (v: CatFilter) => void;
+  onCats: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
   onTheme?: (v: ThemeFilter) => void;
@@ -64,13 +65,24 @@ type ActiveChip = { key: string; label: string; tint?: string; onRemove: () => v
 
 function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
   const chips: ActiveChip[] = [];
-  if (p.cat !== "All") {
-    chips.push({
-      key: "cat",
-      label: CATEGORIES.find((c) => c.id === p.cat)?.label ?? p.cat,
-      tint: categoryTint(p.cat),
-      onRemove: () => p.onCat("All"),
-    });
+  // The Type filter is a multi-select: a single chip stands in for the whole
+  // dimension whenever it's narrowed from "all categories". One category reads as
+  // its name + tint; several (or none) read as a count. Removing it restores all.
+  if (p.cats.length !== CATEGORIES.length) {
+    if (p.cats.length === 1) {
+      chips.push({
+        key: "cat",
+        label: CATEGORIES.find((c) => c.id === p.cats[0])?.label ?? p.cats[0],
+        tint: categoryTint(p.cats[0]),
+        onRemove: () => p.onCats(ALL_CATEGORY_IDS),
+      });
+    } else {
+      chips.push({
+        key: "cat",
+        label: p.cats.length === 0 ? "No types" : "Types · " + p.cats.length,
+        onRemove: () => p.onCats(ALL_CATEGORY_IDS),
+      });
+    }
   }
   if (p.theme && p.theme !== "All" && p.onTheme) {
     const match = p.themes?.find((t) => t.id === p.theme);
@@ -134,7 +146,7 @@ interface FiltersProps {
    *  filters so it reads as one sidebar control, not a row floating over the list. */
   sort: LibrarySort;
   onSort: (v: LibrarySort) => void;
-  cat: CatFilter;
+  cats: CatFilter;
   place: PlaceFilter;
   age: AgeFilter;
   /** Grades⇄Ages caption unit + its toggle — relabels the age band names. */
@@ -152,7 +164,7 @@ interface FiltersProps {
   minutesBounds: MinutesBounds;
   /** Result count for the mobile sheet's "Show N" button (bar variant only). */
   resultCount?: number;
-  onCat: (v: CatFilter) => void;
+  onCats: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
   onTheme: (v: ThemeFilter) => void;
@@ -204,7 +216,7 @@ function MaterialPicker({
         className={"material-filter__summary ledger__row" + (selectedCount ? " is-set" : "")}
         aria-label={"Available kit, " + selectedCount + " of " + options.length + " selected"}
       >
-        <span className="ledger__label">Available kit</span>
+        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Available kit</span>
         <span className="material-filter__state">
           {selectedCount ? selectedCount + " picked" : "Any"}
           <CampIcon.ChevronDown />
@@ -274,6 +286,99 @@ function MaterialPicker({
   );
 }
 
+// The Type filter — a multi-select checklist of categories (the same collapsible
+// `<details>` + ledger-summary shape as the kit picker, so the rail reads as one
+// family). Every category checked = "All" (the default); a subset shows only
+// those shelves; none = show nothing. "All"/"None" flip the whole set at once.
+// Selections are normalized back to shelf order so the active-chip + state read
+// consistently however they were toggled.
+function CategoryPicker({
+  value,
+  onChange,
+}: {
+  value: CategoryId[];
+  onChange: (value: CategoryId[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selected = new Set(value);
+  const allOn = value.length === CATEGORIES.length;
+  const noneOn = value.length === 0;
+  const stateLabel = allOn ? "All" : noneOn ? "None" : value.length + " of " + CATEGORIES.length;
+  const toggle = (id: CategoryId) => {
+    const next = selected.has(id) ? value.filter((v) => v !== id) : [...value, id];
+    // Keep the stored list in shelf order, deduped.
+    onChange(ALL_CATEGORY_IDS.filter((cid) => next.includes(cid)));
+  };
+  return (
+    <details
+      className="material-filter cat-filter"
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+    >
+      <summary
+        className={"material-filter__summary ledger__row" + (allOn ? "" : " is-set")}
+        aria-label={"Type, " + value.length + " of " + CATEGORIES.length + " categories shown"}
+      >
+        <span className="ledger__label"><CampIcon.Tag className="ledger__ic" />Type</span>
+        <span className="material-filter__state">
+          {stateLabel}
+          <CampIcon.ChevronDown />
+        </span>
+      </summary>
+      <div className="material-filter__panel">
+        <div className="matkit material-filter__kit">
+          <div className="matkit__bar material-filter__kitbar">
+            <span className="matkit__status">{stateLabel}</span>
+            <span className="cat-filter__acts">
+              <button
+                type="button"
+                className="material-filter__clear"
+                onClick={() => onChange(ALL_CATEGORY_IDS)}
+                disabled={allOn}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className="material-filter__clear"
+                onClick={() => onChange([])}
+                disabled={noneOn}
+              >
+                None
+              </button>
+            </span>
+          </div>
+          <div className="matkit__list material-filter__list" role="group" aria-label="Categories">
+            {CATEGORIES.map((category) => {
+              const has = selected.has(category.id);
+              return (
+                <button
+                  type="button"
+                  key={category.id}
+                  className={"matkit__item material-filter__item" + (has ? " is-have" : "")}
+                  onClick={() => toggle(category.id)}
+                  aria-pressed={has}
+                  aria-label={(has ? "Showing" : "Hidden") + ": " + category.label}
+                >
+                  <span className="matkit__check" aria-hidden="true">
+                    {has && <CampIcon.Check />}
+                  </span>
+                  <span
+                    className="cat-filter__swatch"
+                    style={{ background: categoryTint(category.id) }}
+                    aria-hidden="true"
+                  />
+                  <span className="matkit__name">{category.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 // The duration window — one ledger line like the others: a small-caps "Minutes"
 // label, then a compact dual-handle slider with a quiet readout on the right.
 // The readout reads "Any" at full span and "lo–hi" once narrowed. Hidden when
@@ -294,7 +399,7 @@ function MinutesFilter({
   const step = 5;
   return (
     <div className={"ledger__row minrange" + (narrowed ? " is-active" : "")}>
-      <span className="ledger__label">Minutes</span>
+      <span className="ledger__label"><CampIcon.Clock className="ledger__ic" />Minutes</span>
       <div className="minrange__control">
         <RangeSlider
           min={bounds.min}
@@ -352,7 +457,7 @@ function FilterGroup({
 function LedgerFilters({
   sort,
   onSort,
-  cat,
+  cats,
   place,
   age,
   ageUnit,
@@ -364,7 +469,7 @@ function LedgerFilters({
   availableMaterials,
   minutes,
   minutesBounds,
-  onCat,
+  onCats,
   onPlace,
   onAge,
   onTheme,
@@ -382,7 +487,7 @@ function LedgerFilters({
           when it doesn't apply (no duration spread / no favorites / no kit), so
           the group is never padded with dead controls. */}
       <FilterGroup title="Activity" defaultOpen>
-        <TypePicker value={cat} onChange={onCat} label="Type" ariaLabel="Filter by type" />
+        <CategoryPicker value={cats} onChange={onCats} />
         {/* Always shown so themes are discoverable — the menu footer creates the
             first one when none exist yet. */}
         <ThemePicker
@@ -390,11 +495,12 @@ function LedgerFilters({
           onChange={onTheme}
           themes={themes}
           label="Theme"
+          icon={CampIcon.Sparkles}
           ariaLabel="Filter by theme"
           onManage={onManageThemes}
         />
         <div className="ledger__row">
-          <span className="ledger__label">Where</span>
+          <span className="ledger__label"><CampIcon.Sun className="ledger__ic" />Where</span>
           <MiniSeg
             ariaLabel="Filter by place"
             value={place}
@@ -406,11 +512,11 @@ function LedgerFilters({
             ]}
           />
         </div>
-        <AgePicker value={age} onChange={onAge} unit={ageUnit} label="Ages" ariaLabel="Filter by age group" />
+        <AgePicker value={age} onChange={onAge} unit={ageUnit} label="Ages" icon={CampIcon.Users} ariaLabel="Filter by age group" />
         <MinutesFilter value={minutes} bounds={minutesBounds} onChange={onMinutes} />
         {onStarredOnly && (
           <div className="ledger__row">
-            <span className="ledger__label">Starred only</span>
+            <span className="ledger__label"><CampIcon.Bookmark className="ledger__ic" />Starred only</span>
             <ToggleSwitch
               on={Boolean(starredOnly)}
               onChange={onStarredOnly}
@@ -432,7 +538,7 @@ function LedgerFilters({
         {/* Sort orders the whole list; "Rating" sinks unrated activities to the
             bottom (see sortActivities). */}
         <div className="ledger__row">
-          <span className="ledger__label">Sort</span>
+          <span className="ledger__label"><CampIcon.Sort className="ledger__ic" />Sort</span>
           <MiniSeg
             ariaLabel="Sort the library"
             value={sort}
@@ -444,7 +550,7 @@ function LedgerFilters({
           />
         </div>
         <div className="ledger__row">
-          <span className="ledger__label">Show ages as</span>
+          <span className="ledger__label"><CampIcon.Users className="ledger__ic" />Show ages as</span>
           <MiniSeg
             ariaLabel="Show ages as"
             value={ageUnit}
@@ -464,7 +570,7 @@ export function Filters({
   variant,
   sort,
   onSort,
-  cat,
+  cats,
   place,
   age,
   ageUnit,
@@ -477,7 +583,7 @@ export function Filters({
   minutes,
   minutesBounds,
   resultCount,
-  onCat,
+  onCats,
   onPlace,
   onAge,
   onTheme,
@@ -490,7 +596,7 @@ export function Filters({
   const [sheetOpen, setSheetOpen] = useState(false);
   const minutesOn = minutesNarrowed(minutes, minutesBounds);
   const activeProps: ActiveFilterProps = {
-    cat,
+    cats,
     place,
     age,
     ageUnit,
@@ -500,7 +606,7 @@ export function Filters({
     availableMaterials,
     minutes,
     minutesBounds,
-    onCat,
+    onCats,
     onPlace,
     onAge,
     onTheme,
@@ -509,7 +615,7 @@ export function Filters({
     onClearMaterials,
   };
   const activeCount =
-    (cat !== "All" ? 1 : 0) +
+    (cats.length !== CATEGORIES.length ? 1 : 0) +
     (theme !== "All" ? 1 : 0) +
     (place !== "All" ? 1 : 0) +
     (age !== "All" ? 1 : 0) +
@@ -518,7 +624,7 @@ export function Filters({
     (availableMaterials.length > 0 ? 1 : 0);
   const anyOn = activeCount > 0;
   const clearAll = () => {
-    onCat("All");
+    onCats(ALL_CATEGORY_IDS);
     onPlace("All");
     onAge("All");
     onTheme("All");
@@ -531,7 +637,7 @@ export function Filters({
     <LedgerFilters
       sort={sort}
       onSort={onSort}
-      cat={cat}
+      cats={cats}
       place={place}
       age={age}
       ageUnit={ageUnit}
@@ -543,7 +649,7 @@ export function Filters({
       availableMaterials={availableMaterials}
       minutes={minutes}
       minutesBounds={minutesBounds}
-      onCat={onCat}
+      onCats={onCats}
       onPlace={onPlace}
       onAge={onAge}
       onTheme={onTheme}

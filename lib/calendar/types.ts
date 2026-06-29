@@ -9,18 +9,29 @@ import { normalizeRecurrence, type RecurrenceRule } from "./recurrence";
 
 export type DateKey = string;
 
+// Two real kinds. A "reminder" is no longer its own kind — it's any event with
+// ZERO duration (endMin === startMin), folded into activity/custom and derived
+// at render time. See the "stop" model in CalendarShell (events sharing a
+// start time group into one marker; an all-zero-duration stop is a dot + count).
 export type CalendarEventKind = "activity" | "custom";
+
+// Longest a per-event note may be (a short nudge / detail, not an essay).
+export const EVENT_NOTE_MAX_LENGTH = 280;
 
 export interface CalendarEvent {
   id: string; // crypto.randomUUID()
   date: DateKey;
   startMin: number; // minutes from local midnight; 0 when allDay
-  endMin: number; // exclusive; > startMin for timed events
+  endMin: number; // exclusive for timed events; EQUAL to startMin for a 0-min reminder
   kind: CalendarEventKind;
   title: string; // denormalized activity title for chips/cards
   activityId?: string;
   campId?: string; // which camp this event belongs to; undefined = unscoped
   allDay?: boolean;
+  // A short free-text note carried by any event (the nudge text for a reminder,
+  // or a detail line on a custom block like "check allergies"). Optional, trimmed
+  // and length-clamped at the boundary; rides the JSONB payload, so no DDL.
+  note?: string;
   // Recurring events are stored as materialized occurrences (see
   // lib/calendar/recurrence): every occurrence in a series shares one seriesId
   // and carries the same rule, so any one of them can describe and edit the
@@ -115,7 +126,9 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
       !Number.isInteger(value.endMin) ||
       value.startMin < 0 ||
       value.endMin > MINUTES_PER_DAY ||
-      value.startMin >= value.endMin
+      // A 0-min event (reminder) is allowed: start === end. Only a NEGATIVE span
+      // is malformed.
+      value.startMin > value.endMin
     ) {
       return null;
     }
@@ -125,12 +138,15 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
 
   const activityId = typeof value.activityId === "string" && value.activityId ? value.activityId : undefined;
   const campId = typeof value.campId === "string" && value.campId ? value.campId : undefined;
+  // An "activity" kind needs its activityId to be real; everything else (and a
+  // broken activity ref, or the retired "reminder" kind) falls back to "custom".
+  const kind: CalendarEventKind = value.kind === "activity" && activityId ? "activity" : "custom";
   const event: CalendarEvent = {
     id: value.id,
     date: value.date,
     startMin,
     endMin,
-    kind: value.kind === "activity" && activityId ? "activity" : "custom",
+    kind,
     title: typeof value.title === "string" ? value.title : "",
     updatedAt: typeof value.updatedAt === "number" && Number.isFinite(value.updatedAt) ? value.updatedAt : 0,
   };
@@ -146,6 +162,10 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   // clamp, dedupe and bound at this boundary (see normalizeLocations).
   const locations = normalizeLocations(value);
   if (locations.length) event.locations = locations;
+  // A short note rides in the payload too — same clean-rebuild rule: re-attach it
+  // (trimmed + length-clamped) or it's stripped on every read / optimistic write.
+  const note = typeof value.note === "string" ? value.note.trim().slice(0, EVENT_NOTE_MAX_LENGTH) : "";
+  if (note) event.note = note;
   // Recurrence rides in the payload; this normalizer rebuilds a clean object, so
   // the series fields must be re-attached or they'd be stripped on every read /
   // optimistic write. A seriesId only means something with a parseable rule.

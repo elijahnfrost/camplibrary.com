@@ -4,6 +4,7 @@ import type { CSSProperties, MouseEvent } from "react";
 import type { Activity } from "@/lib/types";
 import type { Theme } from "@/lib/themes";
 import { ageLabel, durLabel, effectiveActivityColor, ENERGY } from "@/lib/data";
+import { CampIcon } from "./icons";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { useAgeUnit } from "./ageUnit";
 
@@ -38,8 +39,26 @@ export function ActivityCell({
         <span className="cat-main">
           <span className="cat-title">{activity.title}</span>
           <span className="cat-row__meta">
-            {activity.type} · {activity.place} · {durLabel(activity)} · {ageLabel(activity, ageUnit)} ·{" "}
-            {ENERGY[activity.energy]}
+            <span className="cat-row__metaitem">
+              <CampIcon.Tag className="cat-row__metaic" />
+              {activity.type}
+            </span>
+            <span className="cat-row__metaitem">
+              <CampIcon.Pin className="cat-row__metaic" />
+              {activity.place}
+            </span>
+            <span className="cat-row__metaitem">
+              <CampIcon.Clock className="cat-row__metaic" />
+              {durLabel(activity)}
+            </span>
+            <span className="cat-row__metaitem">
+              <CampIcon.Users className="cat-row__metaic" />
+              {ageLabel(activity, ageUnit)}
+            </span>
+            <span className="cat-row__metaitem">
+              <CampIcon.Bolt className="cat-row__metaic" />
+              {ENERGY[activity.energy]}
+            </span>
           </span>
           {theme && <ThemeBadge theme={theme} className="cat-row__theme" />}
         </span>

@@ -315,6 +315,7 @@ export interface SeriesTemplate {
   campId?: string;
   color?: string;
   locations?: string[];
+  note?: string;
 }
 
 // One event from a template + date. With a seriesId/rule it's a series
@@ -344,6 +345,7 @@ function occurrence(
   if (template.campId) event.campId = template.campId;
   if (template.color) event.color = template.color;
   if (template.locations?.length) event.locations = [...template.locations];
+  if (template.note) event.note = template.note;
   if (template.allDay) event.allDay = true;
   return event;
 }
