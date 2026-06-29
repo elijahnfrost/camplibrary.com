@@ -11,6 +11,7 @@ import {
 } from "@/lib/data";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
+import { CampIcon } from "./icons";
 import { useAgeUnit } from "./ageUnit";
 import { EmptyResults, SaveButton, ThemeBadge } from "./primitives";
 import { BW, RADIUS, SCALE, SHELF_LINE, planShelf, titleFontPx, wrapShelf, type Placed } from "./shelfLayout";
@@ -159,9 +160,26 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, the
           <div className="deck-card__body">
             <div className="deck-card__title">{a.title}</div>
             <div className="deck-card__meta">
-              {durLabel(a)} · {a.place}
-              <br />
-              {ageLabel(a, ageUnit)} · {ENERGY[a.energy]}
+              <span className="deck-card__metaline">
+                <span className="deck-card__metaitem">
+                  <CampIcon.Clock className="deck-card__metaic" />
+                  {durLabel(a)}
+                </span>
+                <span className="deck-card__metaitem">
+                  <CampIcon.Pin className="deck-card__metaic" />
+                  {a.place}
+                </span>
+              </span>
+              <span className="deck-card__metaline">
+                <span className="deck-card__metaitem">
+                  <CampIcon.Users className="deck-card__metaic" />
+                  {ageLabel(a, ageUnit)}
+                </span>
+                <span className="deck-card__metaitem">
+                  <CampIcon.Bolt className="deck-card__metaic" />
+                  {ENERGY[a.energy]}
+                </span>
+              </span>
             </div>
             {theme && <ThemeBadge theme={theme} className="deck-card__theme" />}
           </div>

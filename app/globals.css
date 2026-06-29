@@ -618,12 +618,141 @@ body {
   min-height: 38px;
   border-bottom: 1.5px dashed var(--line-soft);
 }
+/* Control-row labels (filters · view/weather settings) read as SENTENCE-CASE
+   property labels — the same muted "Notion line" voice as .prop-row__lbl — NOT
+   the uppercase small-caps of the primary nav tabs. That contrast is what tells
+   the sidebar's dropdown items apart from its tabs at a glance. */
 .ledger__label {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ink-faint);
+}
+/* The axis glyph on a control row (filters / settings) — same vocabulary as the
+   property rows below, so every control row names its axis at a glance. The
+   className lands directly ON the <svg> (CampIcon.X className="ledger__ic"), so
+   the size/stroke live here; a wrapped-svg form is covered too. */
+.ledger__ic {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-faint);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.ledger__ic svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+
+/* ---------- property rows: the shared "Notion lines" anatomy ----------
+   [icon] · [muted label] · [inline value/control]. The display surfaces (event
+   window, run sheet) left-align the value; control surfaces add .prop-row--end
+   to push a control to the right edge. The icon makes each axis legible at a
+   glance — the one vocabulary behind properties, filters, and settings. */
+.proplist {
+  display: flex;
+  flex-direction: column;
+}
+.prop-row {
+  display: grid;
+  grid-template-columns: 20px var(--prop-lblw, 104px) 1fr;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 34px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+}
+.prop-row--top {
+  align-items: start;
+}
+.prop-row__ic {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-faint);
+}
+.prop-row__ic svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.prop-row__lbl {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
+  min-width: 0;
+}
+.prop-row__val {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.prop-row--end .prop-row__val {
+  justify-self: end;
+  justify-content: flex-end;
+}
+.prop-row--top .prop-row__ic,
+.prop-row--top .prop-row__lbl {
+  padding-top: var(--s-1);
+}
+/* Dropdown wrappers inside a property value hug their content (the pill
+   silhouette) and sit inline-left — the same control vocabulary as the ledger
+   rows, so the event editor's start–end times line up on one row. */
+.prop-row__val > .cselect,
+.prop-row__val > .cdate,
+.prop-row__val > .ccolor {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+/* ---- property-value controls read as light inline TEXT (the Notion feel) ----
+   Inside a property row the dropdown triggers shed the pill chrome: transparent
+   border + fill at rest, sentence-case hand text at value size, a quiet hover /
+   open wash, and a chevron that only whispers (full on hover/open). They read as
+   the VALUE, not a button — the lift appears only when you reach for them. The
+   border stays in the box (transparent) so nothing shifts on hover. */
+.prop-row__val .cselect__trigger {
+  border-color: transparent;
+  background: transparent;
+  text-transform: none;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  padding: var(--s-1) var(--s-3);
+  gap: var(--s-2);
+}
+.prop-row__val .cselect__trigger:hover {
+  background: var(--paper-2);
+  border-color: transparent;
+}
+.prop-row__val .cselect__trigger.is-open {
+  background: var(--accent-tint);
+  border-color: transparent;
+}
+.prop-row__val .cselect__trigger .cselect__value.is-empty {
+  color: var(--ink-faint);
+}
+.prop-row__val .cselect__trigger svg {
+  opacity: 0.4;
+}
+.prop-row__val .cselect__trigger:hover svg,
+.prop-row__val .cselect__trigger.is-open svg {
+  opacity: 0.85;
 }
 /* The type picker: a pill trigger carrying the current category's color
    swatch; the menu floats over the rows below (see .typepick__menu). */
@@ -1973,6 +2102,38 @@ body {
      dips below AA on the lighter card surfaces at this size). */
   color: var(--ink-soft);
   line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+/* Each meta line = a row of [icon][text] facts; wrap if a label runs long so a
+   narrow card never overflows. */
+.deck-card__metaline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+}
+/* One [icon][text] property pair — the "Notion property" treatment. */
+.deck-card__metaitem,
+.cat-row__metaitem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+/* Small muted axis glyph leading each fact. className lands on the <svg> (see
+   .ledger__ic for the same pattern); the deck label sits at 9px so the icon
+   trims to 13px to stay in proportion. */
+.deck-card__metaic,
+.cat-row__metaic {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-faint);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
 }
 
 /* ---------- catalog (list) ---------- */
@@ -2033,9 +2194,11 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ---------- stamps & meta ---------- */
@@ -3994,6 +4157,20 @@ body {
   background: var(--accent);
   border-color: var(--accent-ink);
 }
+/* The category checklist (Type filter) reuses the kit picker's shell; it adds a
+   color swatch per row so each category reads by its shelf tint, and pairs the
+   bar's "All / None" quick actions. */
+.cat-filter__swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-round);
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.cat-filter__acts {
+  display: inline-flex;
+  gap: var(--s-3);
+}
 /* The flat step list / notes prose / safety callout were retired when the
    instruction document moved to the Run List (.rl); see the Run List section. */
 .detail__actions {
@@ -5808,6 +5985,14 @@ body {
     border-radius: var(--r-xl);
     box-shadow: var(--e4);
     animation: cl-pop 220ms var(--ease-overlay) both;
+  }
+  /* The event window carries more than a five-field editor — a searchable
+     picker AND a schedule ledger AND a note — so it gets a touch more room than
+     the generic card, letting the activity list breathe instead of clipping at
+     ~3 rows. */
+  .overlay--quickadd.overlay--card {
+    width: min(540px, 92vw);
+    max-height: min(800px, 92vh);
   }
   .overlay--card .overlay__handle,
   .overlay--viewer .overlay__handle {
@@ -8642,6 +8827,45 @@ button.rl-node {
   fill: none;
   stroke-width: 1.8;
 }
+/* The per-placement "day note" callout: the heads-up the staffer wrote on the
+   calendar event, surfaced on the run sheet so the two reconcile. A soft amber
+   card — warmer than the neutral run-sheet body — so it reads as "for today,"
+   clearly apart from the evergreen Field-notes log. */
+.rlv-daynote {
+  align-self: stretch;
+  max-width: 760px;
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid color-mix(in srgb, var(--star-gold, #c79a3a) 45%, var(--line));
+  border-left: 3px solid var(--star-gold, #c79a3a);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--star-gold, #c79a3a) 12%, var(--card));
+}
+.rlv-daynote__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rlv-daynote__label svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.rlv-daynote__text {
+  margin: 2px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
 @media (prefers-reduced-motion: reduce) {
   .rl-insert__btn {
     transition: none;
@@ -9512,6 +9736,9 @@ button.rl-node {
   margin-bottom: var(--s-6);
 }
 .prail__grouptitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
   font-family: var(--hand-sc);
   font-size: var(--fs-label);
   letter-spacing: 0.16em;

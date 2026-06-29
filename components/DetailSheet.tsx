@@ -101,8 +101,11 @@ export function DetailSheet({
   themeKit?: ThemeKit;
   ageUnit?: AgeUnit;
   onAgeUnit?: (v: AgeUnit) => void;
-  /** Display-only strings from the calendar event this was opened from. */
-  eventContext?: { dateLabel: string; timeLabel: string };
+  /** Display-only strings from the calendar event this was opened from. `note`
+   *  is the per-placement "day note" — the heads-up the staffer wrote on THIS
+   *  event, surfaced here so it reconciles with the run sheet (it's distinct from
+   *  the evergreen Field-notes log in the body, which is per-activity). */
+  eventContext?: { dateLabel: string; timeLabel: string; note?: string };
   /** Where closing the viewer returns to (the surface it was opened from). */
   backLabel?: string;
   /** The activity's theme tag (null = untagged); display-only here. */
@@ -363,6 +366,20 @@ export function DetailSheet({
                   <span>
                     {eventContext.dateLabel} · {eventContext.timeLabel}
                   </span>
+                </div>
+              )}
+
+              {/* The per-placement "day note" rides up here with the date chip —
+                  the heads-up written on THIS calendar event, so it's reconciled
+                  with the run sheet instead of stranded on the calendar. Distinct
+                  from the evergreen Field-notes log further down the sheet. */}
+              {eventContext?.note && (
+                <div className="rlv-daynote">
+                  <span className="rlv-daynote__label">
+                    <CampIcon.Note />
+                    Day note · {eventContext.dateLabel}
+                  </span>
+                  <p className="rlv-daynote__text">{eventContext.note}</p>
                 </div>
               )}
 

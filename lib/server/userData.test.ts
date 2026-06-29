@@ -58,8 +58,32 @@ describe("normalizeCalendarEventInput", () => {
   it("enforces minute bounds and ordering", () => {
     expect(normalizeCalendarEventInput(validEvent({ startMin: -10 })).ok).toBe(false);
     expect(normalizeCalendarEventInput(validEvent({ endMin: 1441 })).ok).toBe(false);
-    expect(normalizeCalendarEventInput(validEvent({ startMin: 600, endMin: 600 })).ok).toBe(false);
+    // A negative span (start AFTER end) is still rejected.
+    expect(normalizeCalendarEventInput(validEvent({ startMin: 600, endMin: 540 })).ok).toBe(false);
     expect(normalizeCalendarEventInput(validEvent({ startMin: 9.5 })).ok).toBe(false);
+  });
+
+  it("accepts a 0-minute event (a reminder: start === end)", () => {
+    const result = normalizeCalendarEventInput(validEvent({ startMin: 600, endMin: 600 }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.event.startMin).toBe(600);
+    expect(result.event.endMin).toBe(600);
+  });
+
+  it("trims, bounds, and round-trips the note in the payload", () => {
+    const ok = normalizeCalendarEventInput(validEvent({ note: "  check allergies  " }));
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) return;
+    expect(ok.event.payload.note).toBe("check allergies");
+    const long = normalizeCalendarEventInput(validEvent({ note: "x".repeat(500) }));
+    expect(long.ok).toBe(true);
+    if (!long.ok) return;
+    expect(String(long.event.payload.note).length).toBe(280);
+    const blank = normalizeCalendarEventInput(validEvent({ note: "   " }));
+    expect(blank.ok).toBe(true);
+    if (!blank.ok) return;
+    expect(blank.event.payload.note).toBeUndefined();
   });
 
   it("allows all-day events with null minutes", () => {

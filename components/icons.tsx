@@ -275,6 +275,23 @@ export const CampIcon = {
   Note: svg(<path d="M5 6h14M5 11h14M5 16h9" />),
   // Field note: a flagged pennant on a pole — "mark this to change later".
   Flag: svg(<path d="M6 21V4M6 4.5h11l-2.3 3.4L17 11.3H6" />),
+  // --- axis glyphs for the property-row system (filters, settings, properties) ---
+  // Type / category — a price-tag.
+  Tag: svg(<path d="M4 4h7l9 9-7 7-9-9V4zM8.5 8.5h.01" />),
+  // Theme — a sparkle.
+  Sparkles: svg(<path d="M12 3l1.6 5.1L19 9.7l-5.4 1.6L12 16l-1.6-4.7L5 9.7l5.4-1.6L12 3zM18.5 14.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" />),
+  // Where (inside / outside) — a sun.
+  Sun: svg(<path d="M12 5V3M12 21v-2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M17.7 6.3l1.4-1.4M4.9 19.1l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />),
+  // Kit / materials — a box.
+  Box: svg(<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9zM3 7.5 12 12l9-4.5M12 12v9" />),
+  // Energy — a bolt.
+  Bolt: svg(<path d="M13 3 4 14h7l-1 7 9-11h-7l1-7z" />),
+  // Rating — a star.
+  Star: svg(<path d="M12 3.5l2.6 5.6 6 .7-4.4 4.2 1.1 6L12 17.1 6.7 20l1.1-6-4.4-4.2 6-.7z" />),
+  // Sort — up/down arrows.
+  Sort: svg(<path d="M7 4v16M7 4 4 7.5M7 4l3 3.5M17 20V4M17 20l-3-3.5M17 20l3-3.5" />),
+  // Reminder — a bell (a point-in-time nudge).
+  Bell: svg(<path d="M6 16V10a6 6 0 0 1 12 0v6l1.5 2H4.5L6 16zM10 18a2 2 0 0 0 4 0" />),
   Shield: svg(
     <>
       <path d="M12 21c4-4.5 6-7.8 6-11a6 6 0 1 0-12 0c0 3.2 2 6.5 6 11z" />

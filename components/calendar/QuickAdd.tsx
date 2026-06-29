@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  DURATION_OPTIONS,
   MINUTES_PER_DAY,
   SNAP_MIN,
   formatClock,
@@ -11,13 +10,14 @@ import {
 } from "@/lib/calendar/time";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
-import { categoryTint, durLabel, effectiveActivityColor } from "@/lib/data";
+import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
+import { PropRow } from "../PropRow";
 import { Modal } from "../Modal";
-import { Seg, ToggleSwitch } from "../primitives";
+import { ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
 import { ColorField } from "../floating/ColorField";
@@ -43,14 +43,18 @@ export type EditorDraft = {
   color?: string;
   /** Where this placement happens (gym, classroom…); empty = unstated. */
   locations?: string[];
+  /** A short free-text note carried by the event (the nudge for a 0-min reminder,
+   *  or a detail line on a real block). */
+  note?: string;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
   return {
     id: event.id,
     date: event.date,
+    // A 0-min event keeps its 0 length (a reminder); otherwise the real span.
+    durationMin: event.allDay ? 30 : event.endMin - event.startMin,
     startMin: event.startMin,
-    durationMin: event.allDay ? 30 : Math.max(SNAP_MIN, event.endMin - event.startMin),
     allDay: Boolean(event.allDay),
     activityId: event.activityId,
     title: event.title,
@@ -58,19 +62,22 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     recurrence: event.recurrence,
     color: event.color,
     locations: event.locations,
+    note: event.note,
   };
 }
 
-type QuickTab = "Library" | "Custom";
-
 // THE calendar event window — every create and edit goes through this one
-// surface, so the calendar has a single look and a single set of habits.
-// Two postures:
+// surface, so the calendar has a single look and a single set of habits. There
+// is ONE create path now: a search bar. Type a name; matching library activities
+// appear and a tap places one; if it isn't there, the same text becomes a new
+// event — and a "Save to library" switch (on by default) decides whether that new
+// event is also saved as a reusable library activity (in the Routine bucket) or
+// stays a one-off. Length drives behavior: a timed block, or "None" = a 0-minute
+// reminder. Two postures:
 //  - slot posture (tap/drag a slot): the gesture already chose the when, so
-//    picking an activity or naming a custom event creates instantly, with Undo.
-//  - pick-a-time posture (library row, the + FAB, or editing an event): the
-//    same window grows a compact when-row (date · starts · length · all day)
-//    and commits through one button instead of instantly.
+//    picking an activity or naming a new event creates instantly, with Undo.
+//  - pick-a-time posture (the + FAB, editing an event): the same window grows a
+//    compact when-row (date · starts · length · all day) and commits via a button.
 export function QuickAdd({
   draft,
   pickTime,
@@ -79,7 +86,7 @@ export function QuickAdd({
   locationOptions,
   onManageLocations,
   onPickActivity,
-  onCustom,
+  onCreateActivity,
   onSave,
   onDelete,
   onDuplicate,
@@ -87,7 +94,7 @@ export function QuickAdd({
   onClose,
 }: {
   draft: EditorDraft;
-  /** Show the when-row + commit button (library pick, FAB, and edit). */
+  /** Show the when-row + commit button (the FAB and edit). */
   pickTime: boolean;
   activities: Activity[];
   window: DayWindow;
@@ -95,8 +102,12 @@ export function QuickAdd({
   locationOptions: readonly string[];
   /** Opens the place-list editor from the Location picker's footer. */
   onManageLocations?: () => void;
+  /** Place an existing library activity instantly (slot posture). */
   onPickActivity: (activity: Activity) => void;
-  onCustom: (title: string) => void;
+  /** Create a brand-new library activity from a typed name + length (the
+   *  "Save to library" path) and return it so it can be placed. Lands in the
+   *  Routine bucket. Returns null if the staff gate blocks it. */
+  onCreateActivity: (title: string, durationMin: number) => Activity | null;
   onSave: (draft: EditorDraft) => void;
   onDelete?: () => void;
   /** Copy this event (edit posture only) — the single-event action that used to
@@ -108,16 +119,20 @@ export function QuickAdd({
   onClose: () => void;
 }) {
   const isEdit = Boolean(draft.id);
-  const [tab, setTab] = useState<QuickTab>(!draft.activityId && isEdit ? "Custom" : "Library");
-  const [query, setQuery] = useState("");
-  const [customTitle, setCustomTitle] = useState(draft.activityId ? "" : draft.title);
+  // One text field does double duty: a search query while creating, and the
+  // editable name when editing a one-off custom event.
+  const [query, setQuery] = useState(isEdit && !draft.activityId ? draft.title : "");
+  const [activityId, setActivityId] = useState(draft.activityId ?? "");
+  // "Save to library" — on by default, so a named new event becomes a reusable
+  // library activity unless the user opts out for a true one-off.
+  const [addToLibrary, setAddToLibrary] = useState(true);
   // The when-state only drives the pick-a-time posture; the slot posture's
   // when came from the gesture and is displayed read-only in the header.
-  const [activityId, setActivityId] = useState(draft.activityId ?? "");
   const [date, setDate] = useState(draft.date);
   const [startMin, setStartMin] = useState(draft.startMin);
   const [durationMin, setDurationMin] = useState(draft.durationMin);
   const [allDay, setAllDay] = useState(draft.allDay);
+  const [note, setNote] = useState(draft.note ?? "");
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
   const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
@@ -138,25 +153,16 @@ export function QuickAdd({
     [sorted, trimmed]
   );
   const selectedActivity = sorted.find((a) => a.id === activityId) ?? null;
+  // Is the typed name already a library title? Then "create new" doesn't apply —
+  // the matching row is the path. (Case-/space-insensitive.)
+  const hasExactMatch = useMemo(
+    () => Boolean(trimmed) && sorted.some((a) => a.title.trim().toLowerCase() === trimmed.toLowerCase()),
+    [sorted, trimmed]
+  );
 
-  // Switching tabs moves focus into that tab's field — data-autofocus only
-  // runs once, when the dialog first opens.
-  const tabTouched = useRef(false);
-  useEffect(() => {
-    if (!tabTouched.current) {
-      tabTouched.current = true;
-      return;
-    }
-    document.getElementById(tab === "Library" ? "quickadd-search" : "quickadd-title")?.focus();
-  }, [tab]);
-
-  // A preselected activity (rail click, editing) may sort below the fold —
-  // bring its row into view so the selection is never invisible.
+  // A preselected activity (editing) may sort below the fold — bring its row into
+  // view so the selection is never invisible.
   const listRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    listRef.current?.querySelector(".quickadd__item.is-on")?.scrollIntoView({ block: "center" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const startChoices = useMemo(() => {
     const options: { value: number; label: string }[] = [];
@@ -170,93 +176,184 @@ export function QuickAdd({
     return options;
   }, [dayWindow, startMin]);
 
-  const durationChoices = useMemo(
-    () =>
-      DURATION_OPTIONS.includes(durationMin)
-        ? DURATION_OPTIONS
-        : [...DURATION_OPTIONS, durationMin].sort((a, b) => a - b),
-    [durationMin]
-  );
-
+  // A 0-min length IS a reminder — it shows just a start time, no range.
+  const isReminder = !allDay && durationMin === 0;
+  // End-time choices mirror the start grid, from one snap past the start to the
+  // end of the day. The END is the live control now; LENGTH is derived from it
+  // (end − start) and shown only as a faint hint — "important to have, not to
+  // see." Changing the end sets the duration; changing the start shifts the end.
+  const endChoices = useMemo(() => {
+    const options: { value: number; label: string }[] = [];
+    for (let m = startMin + SNAP_MIN; m <= dayWindow.endMin; m += SNAP_MIN) {
+      options.push({ value: m, label: formatClock(m) });
+    }
+    const end = Math.min(MINUTES_PER_DAY, startMin + durationMin);
+    if (end > startMin && !options.some((option) => option.value === end)) {
+      options.push({ value: end, label: formatClock(end) });
+      options.sort((a, b) => a.value - b.value);
+    }
+    return options;
+  }, [dayWindow, startMin, durationMin]);
+  // Move the start but keep the block's length (the end rides along), clamped so
+  // it can't spill past midnight.
+  const moveStart = (next: number) => {
+    setStartMin(next);
+    if (next + durationMin > MINUTES_PER_DAY) setDurationMin(MINUTES_PER_DAY - next);
+  };
+  // Set the end → that defines the length (never negative).
+  const setEnd = (next: number) => setDurationMin(Math.max(SNAP_MIN, next - startMin));
+  // Toggling "Reminder" zeroes the length (a point in time) and remembers the
+  // last real length so switching back restores a sensible block — round-trippable.
+  const lastDurationRef = useRef(draft.durationMin || 30);
+  const toggleReminder = (on: boolean) => {
+    if (on) {
+      if (durationMin > 0) lastDurationRef.current = durationMin;
+      setAllDay(false);
+      setDurationMin(0);
+    } else {
+      setDurationMin(lastDurationRef.current || 30);
+    }
+  };
+  const draftIsReminder = !draft.allDay && draft.durationMin === 0;
   const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
   const timeLabel = pickTime
-    ? allDay
-      ? "All day"
-      : formatClock(startMin) + " – " + formatClock(clampedEnd)
-    : draft.allDay
-      ? "All day"
-      : draft.explicitDuration
-        ? formatClock(draft.startMin) +
-          " – " +
-          formatClock(Math.min(MINUTES_PER_DAY, draft.startMin + draft.durationMin))
-        : formatClock(draft.startMin);
+    ? isReminder
+      ? formatClock(startMin)
+      : allDay
+        ? "All day"
+        : formatClock(startMin) + " – " + formatClock(clampedEnd)
+    : draftIsReminder
+      ? formatClock(draft.startMin)
+      : draft.allDay
+        ? "All day"
+        : draft.explicitDuration
+          ? formatClock(draft.startMin) +
+            " – " +
+            formatClock(Math.min(MINUTES_PER_DAY, draft.startMin + draft.durationMin))
+          : formatClock(draft.startMin);
 
-  const customTrimmed = customTitle.trim();
-  const valid = tab === "Library" ? Boolean(selectedActivity) : Boolean(customTrimmed);
+  // Valid to commit when an activity is selected, or a name is typed.
+  const valid = selectedActivity ? true : Boolean(trimmed);
+  // Showing the list area. It's a TYPE-TO-SEARCH dropdown now, not an always-open
+  // catalog: while creating it appears only once you've typed (so an empty Add
+  // reads as a calm property sheet, and dropdowns have room to open), but while
+  // swapping an edited activity it stays open so you can browse the library.
+  const showList = changingActivity || (!isEdit && Boolean(trimmed));
+  // Whether to RECOMMEND library events. Off when "Save to library" is unchecked
+  // — that's a calendar-only text entry, so the library suggestions are just
+  // noise. Always on while swapping an edited activity (that IS a library pick).
+  const showSuggestions = changingActivity || (!isEdit && addToLibrary);
+  // The inline "create new" affordance shows while creating, once a name is typed.
+  // With "Save to library" off it always shows (calendar-only text, even if the
+  // name happens to match a library title); on, it defers to an exact match.
+  const canCreateNew = !isEdit && Boolean(trimmed) && (!addToLibrary || !hasExactMatch);
 
   // The repeat rule clamped so its end never falls behind the event's own date.
   function clampedRule(): RecurrenceRule | undefined {
     return recurrence ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until } : undefined;
   }
 
-  // Slot posture commits: a one-off creates instantly (the gesture chose the
-  // when), but once a repeat is set it routes through onSave so CalendarShell
-  // builds the whole series — the fix for "repeat is unreachable from tap/drag".
-  function slotCommitActivity(activity: Activity) {
-    if (!recurrence) {
-      onPickActivity(activity);
-      return;
-    }
-    const dur = draft.explicitDuration ? durationMin : activity.durationMin || durationMin;
-    onSave({
-      date,
-      startMin,
-      durationMin: dur,
-      allDay,
-      activityId: activity.id,
-      title: activity.title,
-      explicitDuration: draft.explicitDuration,
-      recurrence: clampedRule(),
-    });
-  }
-
-  function slotCommitCustom(title: string) {
-    if (!recurrence) {
-      onCustom(title);
-      return;
-    }
-    onSave({ date, startMin, durationMin, allDay, title, recurrence: clampedRule() });
-  }
-
-  function chooseActivity(activity: Activity) {
-    if (!pickTime) {
-      slotCommitActivity(activity);
-      return;
-    }
-    setActivityId(activity.id);
-    setChangingActivity(false);
-    // Seed the recommended length only when nothing deliberate was chosen —
-    // a dragged span or an edited event's length always wins.
-    if (!isEdit && !draft.explicitDuration && activity.durationMin) setDurationMin(activity.durationMin);
-  }
-
-  function save() {
-    if (!valid) return;
-    onSave({
+  // Build the draft an existing-activity commit saves.
+  function activityDraft(activity: Activity): EditorDraft {
+    return {
       id: draft.id,
       date,
       startMin,
       durationMin,
-      allDay,
-      activityId: tab === "Library" ? selectedActivity?.id : undefined,
-      title: tab === "Library" ? selectedActivity?.title ?? "" : customTrimmed,
-      // The end date can fall behind once the event's own date is pushed later;
-      // clamp it so the saved rule always covers the start.
+      allDay: isReminder ? false : allDay,
+      activityId: activity.id,
+      title: activity.title,
+      explicitDuration: draft.explicitDuration,
       recurrence: clampedRule(),
       color,
       locations,
-    });
+      note: note.trim() || undefined,
+    };
   }
+
+  // Build the draft a one-off custom commit saves (no library backing).
+  function customDraft(title: string): EditorDraft {
+    return {
+      id: draft.id,
+      date,
+      startMin,
+      durationMin,
+      allDay: isReminder ? false : allDay,
+      title,
+      explicitDuration: draft.explicitDuration,
+      recurrence: clampedRule(),
+      color,
+      locations,
+      note: note.trim() || undefined,
+    };
+  }
+
+  // Place an existing activity. Slot posture creates instantly (unless a repeat
+  // is set — then it routes through onSave so CalendarShell builds the series).
+  function chooseActivity(activity: Activity) {
+    if (!pickTime) {
+      if (recurrence) onSave(activityDraft(activity));
+      else onPickActivity(activity);
+      return;
+    }
+    // Pick-a-time: toggle the selection; seed the recommended length only when
+    // nothing deliberate was chosen.
+    if (activity.id === activityId) {
+      setActivityId("");
+      return;
+    }
+    setActivityId(activity.id);
+    setChangingActivity(false);
+    if (!isEdit && !draft.explicitDuration && activity.durationMin) setDurationMin(activity.durationMin);
+  }
+
+  // Commit a brand-new entry: create a reusable library activity first when
+  // "Save to library" is on, else place a one-off custom event. Either way the
+  // chosen Length (0 = reminder) carries through.
+  function commitNew() {
+    const title = trimmed;
+    if (!title) return;
+    if (addToLibrary) {
+      const activity = onCreateActivity(title, isReminder ? 0 : durationMin);
+      if (!activity) return; // staff gate blocked it
+      onSave(activityDraft(activity));
+    } else {
+      onSave(customDraft(title));
+    }
+  }
+
+  // The pick-a-time commit button: an existing activity, a new entry, or a saved
+  // edit of a one-off custom event.
+  function save() {
+    if (!valid) return;
+    if (selectedActivity) onSave(activityDraft(selectedActivity));
+    else if (!isEdit) commitNew();
+    else onSave(customDraft(trimmed));
+  }
+
+  // Editing a calendar-only event: add it to the library after the fact (when
+  // "Save to library" was off at creation). Creates the reusable activity and
+  // links this placement to it, so the event becomes activity-backed.
+  function promoteToLibrary() {
+    const title = trimmed || draft.title;
+    if (!title) return;
+    const activity = onCreateActivity(title, isReminder ? 0 : durationMin);
+    if (!activity) return; // staff gate blocked it
+    onSave(activityDraft(activity));
+  }
+
+  // Is the field actually SEARCHING the library, or just NAMING an event? It
+  // searches while swapping an activity, or while creating with "Save to library"
+  // on. Otherwise (calendar-only create, or editing a one-off) it's a plain name
+  // field — so it sheds the search icon and reads "Name this event", not a search.
+  const searching = changingActivity || (!isEdit && addToLibrary);
+  const searchPlaceholder = changingActivity
+    ? "Search activities"
+    : isEdit
+      ? "Event name"
+      : searching
+        ? "Search the library or name an event"
+        : "Name this event";
 
   return (
     <Modal
@@ -275,80 +372,67 @@ export function QuickAdd({
             <CampIcon.Close />
           </button>
         </div>
-        <div className="quickadd__tabs">
-          <Seg options={["Library", "Custom"] as const} value={tab} onChange={setTab} ariaLabel="What to add" />
-        </div>
-        {/* Slot posture: the when came from the gesture, but a repeat is still
-            reachable here — set it, then the next pick builds the whole series.
-            (Pick-a-time posture has its own RepeatField in the schedule block.) */}
-        {!pickTime && (
-          <div className="quickadd__slotrepeat">
-            <div className="ledger">
-              <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
-            </div>
-          </div>
-        )}
-        {tab === "Library" ? (
-          isEdit && selectedActivity && !changingActivity ? (
-            <div className="quickadd__editing">
+        {isEdit && selectedActivity && !changingActivity ? (
+          // The library-backed event reads as a clean title block (category
+          // eyebrow + name), not a boxed summary card — the run-sheet header
+          // vocabulary, so editing an event and opening its sheet feel like one
+          // surface. Its actions are quiet inline links, not heavy buttons.
+          <div className="quickadd__act">
+            <span className="quickadd__act-eyebrow">
               <span
-                className="quickadd__editing-spine"
-                style={{ "--cal-tint": effectiveActivityColor(selectedActivity) } as CSSProperties}
+                className="quickadd__act-dot"
+                style={{ background: effectiveActivityColor(selectedActivity) }}
                 aria-hidden="true"
               />
-              <span className="quickadd__editing-info">
-                <span className="quickadd__editing-title">{selectedActivity.title}</span>
-                <span className="quickadd__editing-meta">
-                  {selectedActivity.type} · {durLabel(selectedActivity)}
-                </span>
-              </span>
+              {selectedActivity.type} · {durLabel(selectedActivity)}
+            </span>
+            <h3 className="quickadd__act-title">{selectedActivity.title}</h3>
+            <div className="quickadd__act-links">
               {onOpenActivity && (
-                <button
-                  type="button"
-                  className="btn btn--quiet btn--sm quickadd__editing-open"
-                  onClick={onOpenActivity}
-                >
+                <button type="button" className="quickadd__act-link" onClick={onOpenActivity}>
                   <CampIcon.BookOpen />
                   Open Run List
                 </button>
               )}
               <button
                 type="button"
-                className="btn btn--ghost btn--sm quickadd__editing-change"
+                className="quickadd__act-link quickadd__act-link--quiet"
                 onClick={() => setChangingActivity(true)}
               >
                 Change activity
               </button>
             </div>
-          ) : (
+          </div>
+        ) : (
           <>
-            {/* Enter takes the top match — type, hit return, done. An empty
-                field stays a no-op so a stray Enter never places an event. */}
+            {/* Enter takes the top match — type, hit return, done. With no match
+                the typed name becomes a new event (slot posture commits it). An
+                empty field stays a no-op so a stray Enter never places anything. */}
             <form
               className="quickadd__searchform"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!trimmed) return;
-                if (filtered.length > 0) {
-                  chooseActivity(filtered[0]);
-                } else if (pickTime) {
-                  // Mirror the rescue row: the typed name becomes a custom event.
-                  setCustomTitle(trimmed);
-                  setTab("Custom");
-                } else {
-                  slotCommitCustom(trimmed);
+                // Calendar-only mode: Enter commits the typed text, never a
+                // library match (we're not recommending any).
+                if (!isEdit && !addToLibrary) {
+                  commitNew();
+                  return;
                 }
+                if (filtered.length > 0) chooseActivity(filtered[0]);
+                else if (!isEdit) commitNew();
+                else if (pickTime) save();
               }}
             >
-              <label className="quickadd__search">
-                <CampIcon.Search />
+              <label className={"quickadd__search" + (searching ? "" : " quickadd__search--name")}>
+                {searching && <CampIcon.Search />}
                 <input
                   id="quickadd-search"
                   data-autofocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search activities"
-                  aria-label="Search the library"
+                  placeholder={searchPlaceholder}
+                  aria-label={searching ? "Search the library or name an event" : "Event name"}
                   // Stop the mobile keyboard from auto-capitalizing/autocorrecting
                   // the query (see LibraryTab's search for the full rationale).
                   autoCapitalize="none"
@@ -356,177 +440,217 @@ export function QuickAdd({
                   autoComplete="off"
                   spellCheck={false}
                 />
-                {query && (
-                  <button type="button" onClick={() => setQuery("")} aria-label="Clear">
-                    <CampIcon.Close />
-                  </button>
-                )}
               </label>
             </form>
-            <div className="quickadd__list" ref={listRef}>
-              {filtered.map((activity) => {
-                const on = pickTime && activity.id === activityId;
-                return (
-                  <button
-                    type="button"
-                    key={activity.id}
-                    className={"quickadd__item" + (on ? " is-on" : "")}
-                    aria-pressed={pickTime ? on : undefined}
-                    onClick={() => chooseActivity(activity)}
-                    style={{ "--cal-tint": effectiveActivityColor(activity) } as CSSProperties}
-                  >
-                    <span className="quickadd__name">{activity.title}</span>
-                    <span className="quickadd__meta">
-                      {durLabel(activity)} · {activity.type}
-                    </span>
-                    {on && (
-                      <span className="quickadd__picked" aria-hidden="true">
-                        <CampIcon.Check />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              {/* No match is never a dead end — the typed name can land as a
-                  custom event right here. */}
-              {!filtered.length && trimmed && (
-                <button
-                  type="button"
-                  className="quickadd__custom-row"
-                  onClick={() => {
-                    if (pickTime) {
-                      setCustomTitle(trimmed);
-                      setTab("Custom");
-                    } else {
-                      slotCommitCustom(trimmed);
-                    }
-                  }}
-                >
-                  <span className="quickadd__custom-icon" aria-hidden="true">
-                    <CampIcon.Plus />
+            {/* The ONE create control besides the search: does a name you type
+                match the library (become a reusable activity) or just land as
+                calendar-only text? Persistent so the choice is made up front, not
+                buried on the no-match row. Pick an existing row and this doesn't
+                apply — it's already in the library. */}
+            {!isEdit && (
+              <label className="quickadd__mode">
+                <span className="quickadd__mode-text">
+                  <span className="quickadd__mode-label">Save to library</span>
+                  <span className="quickadd__mode-hint">
+                    {addToLibrary
+                      ? "A new name becomes a reusable activity"
+                      : "A new name stays on the calendar only"}
                   </span>
-                  <span className="quickadd__name">Add &ldquo;{trimmed}&rdquo;</span>
-                  <span className="quickadd__meta">custom event</span>
-                </button>
-              )}
-              {!filtered.length && !trimmed && (
-                <div className="quickadd__empty">No activities yet.</div>
-              )}
-            </div>
-          </>
-          )
-        ) : (
-          <form
-            className={"quickadd__custom" + (pickTime ? " quickadd__custom--inline" : "")}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!customTrimmed) return;
-              if (pickTime) save();
-              else slotCommitCustom(customTrimmed);
-            }}
-          >
-            <div className="field">
-              <label className="field__label" htmlFor="quickadd-title">
-                Event name
+                </span>
+                <ToggleSwitch
+                  on={addToLibrary}
+                  onChange={setAddToLibrary}
+                  ariaLabel="Save a new entry to the library"
+                />
               </label>
-              <input
-                id="quickadd-title"
-                className="input"
-                data-autofocus
-                enterKeyHint="done"
-                placeholder="e.g. Lunch, Assembly, Free play"
-                value={customTitle}
-                onChange={(e) => setCustomTitle(e.target.value)}
-              />
-            </div>
-            {!pickTime && (
-              <button
-                type="submit"
-                className="btn btn--primary quickadd__custom-add"
-                disabled={!customTrimmed}
-              >
-                <CampIcon.Check />
-                Add to calendar
-              </button>
             )}
-          </form>
+            {showList && (
+              <div className="quickadd__list" ref={listRef}>
+                {/* Library recommendations — only when "Save to library" is on (or
+                    when swapping an edited activity). Off → a calendar-only text
+                    entry, so we stop recommending events entirely. */}
+                {showSuggestions &&
+                  filtered.map((activity) => {
+                    const on = pickTime && activity.id === activityId;
+                    return (
+                      <button
+                        type="button"
+                        key={activity.id}
+                        className={"quickadd__item" + (on ? " is-on" : "")}
+                        aria-pressed={pickTime ? on : undefined}
+                        onClick={() => chooseActivity(activity)}
+                        style={{ "--cal-tint": effectiveActivityColor(activity) } as CSSProperties}
+                      >
+                        <span className="quickadd__itemdot" aria-hidden="true" />
+                        <span className="quickadd__name">{activity.title}</span>
+                        <span className="quickadd__meta">
+                          {durLabel(activity)} · {activity.type}
+                        </span>
+                        {on && (
+                          <span className="quickadd__picked" aria-hidden="true">
+                            <CampIcon.Check />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                {/* No match is never a dead end — the typed name lands as a new
+                    event. Whether it's also saved to the library is the persistent
+                    checkbox above; this row just echoes the outcome. */}
+                {canCreateNew && (
+                  <div className="quickadd__create">
+                    <button type="button" className="quickadd__custom-row" onClick={commitNew}>
+                      <span className="quickadd__custom-icon" aria-hidden="true">
+                        <CampIcon.Plus />
+                      </span>
+                      <span className="quickadd__name">Add &ldquo;{trimmed}&rdquo;</span>
+                      <span className="quickadd__meta">
+                        {addToLibrary ? "new · saved to library" : "calendar only"}
+                      </span>
+                    </button>
+                  </div>
+                )}
+                {/* Calendar-only mode with nothing typed yet — a prompt, not the
+                    library's empty states (we're deliberately not recommending). */}
+                {!showSuggestions && !canCreateNew && (
+                  <div className="quickadd__empty">Type a name to drop it on the calendar.</div>
+                )}
+                {showSuggestions && !filtered.length && !canCreateNew && trimmed && (
+                  <div className="quickadd__empty">No activities match.</div>
+                )}
+                {showSuggestions && !filtered.length && !trimmed && (
+                  <div className="quickadd__empty">No activities yet.</div>
+                )}
+              </div>
+            )}
+            {/* Slot posture, nothing typed yet: a calm one-line prompt instead of
+                an always-open catalog (the list is type-to-search now). */}
+            {!isEdit && !pickTime && !trimmed && (
+              <p className="quickadd__prompt">
+                Search to place a library activity — or type a name for a one-off.
+              </p>
+            )}
+          </>
         )}
 
         {pickTime && (
           <div className="quickadd__schedule">
-            {/* The schedule is a switch ledger — the same label-left/control-right
-                rows as the calendar sidebar's View settings, so the editor and the
-                sidebar read as one compact vocabulary instead of a tall stack of
-                boxed fields. */}
-            <div className="ledger quickadd__settings">
-              <div className="ledger__row">
-                <span className="ledger__label">Date</span>
+            {/* The schedule is a PROPERTY LIST — the shared "Notion lines" rows
+                (icon · muted label · inline control) used across the app, so the
+                editor reads in the same vocabulary as the run sheet and filters.
+                The live time field is the start–end RANGE; length is derived and
+                shown only as a faint hint. */}
+            <div className="proplist quickadd__settings">
+              <PropRow icon={CampIcon.Calendar} label="Date">
                 <DatePopover
                   id="quickadd-date"
                   value={date}
                   onChange={(next) => setDate(next)}
                   ariaLabel="Event date"
                 />
-              </div>
-              <div className="ledger__row">
-                <span className="ledger__label">All day</span>
-                <ToggleSwitch on={allDay} onChange={setAllDay} ariaLabel="All day" />
-              </div>
-              {!allDay && (
-                <>
-                  <div className="ledger__row">
-                    <span className="ledger__label">Starts</span>
-                    <Select
-                      id="quickadd-start"
-                      value={startMin}
-                      options={startChoices}
-                      onChange={setStartMin}
-                      ariaLabel="Event start time"
-                    />
-                  </div>
-                  <div className="ledger__row">
-                    <span className="ledger__label">Length</span>
-                    <Select
-                      id="quickadd-length"
-                      value={durationMin}
-                      options={durationChoices.map((value) => ({ value, label: formatDuration(value) }))}
-                      onChange={setDurationMin}
-                      ariaLabel="Event length"
-                    />
-                  </div>
-                </>
+              </PropRow>
+              {/* Reminder: a point in time, no length (a bathroom-break nudge
+                  between blocks). The toggle round-trips back to a timed block. */}
+              <PropRow icon={CampIcon.Bell} label="Reminder">
+                <ToggleSwitch
+                  on={isReminder}
+                  onChange={toggleReminder}
+                  ariaLabel="Make this a point-in-time reminder"
+                />
+              </PropRow>
+              {/* All day is meaningless for a reminder — hide it then. */}
+              {!isReminder && (
+                <PropRow icon={CampIcon.Calendar} label="All day">
+                  <ToggleSwitch on={allDay} onChange={setAllDay} ariaLabel="All day" />
+                </PropRow>
               )}
-              <div className="ledger__row">
-                <span className="ledger__label">Color</span>
-                <ColorField
-                  id="quickadd-color"
-                  value={color}
-                  fallback={
-                    tab === "Library" && selectedActivity
-                      ? effectiveActivityColor(selectedActivity)
-                      : categoryTint(undefined)
-                  }
-                  onChange={setColor}
-                  ariaLabel="Event color"
-                />
-              </div>
-              <div className="ledger__row">
-                <span className="ledger__label">Location</span>
-                <LocationField
-                  id="quickadd-location"
-                  value={locations}
-                  options={locationOptions}
-                  onChange={setLocations}
-                  onManage={onManageLocations}
-                  ariaLabel="Event location"
-                />
-              </div>
-              {/* Repeat rides last: its detail rows (weekday toggles, end date)
-                  and the plain-language summary expand below without pushing the
-                  core when-controls down. */}
-              <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+              {!allDay && (
+                <PropRow icon={CampIcon.Clock} label={isReminder ? "At" : "Time"}>
+                  <Select
+                    id="quickadd-start"
+                    value={startMin}
+                    options={startChoices}
+                    onChange={moveStart}
+                    ariaLabel={isReminder ? "Reminder time" : "Event start time"}
+                  />
+                  {!isReminder && (
+                    <>
+                      <span className="quickadd__timedash" aria-hidden="true">–</span>
+                      <Select
+                        id="quickadd-end"
+                        value={clampedEnd}
+                        options={endChoices}
+                        onChange={setEnd}
+                        ariaLabel="Event end time"
+                      />
+                      <span className="quickadd__timelen">{formatDuration(durationMin)}</span>
+                    </>
+                  )}
+                </PropRow>
+              )}
+              {/* Create keeps the list to the WHEN (date · all-day · time). The
+                  richer details below — color, location, repeat, day note — are
+                  EDIT-only, so a fresh add stays calm; click the placed event to
+                  set them. */}
+              {isEdit && (
+                <PropRow icon={CampIcon.Palette} label="Color">
+                  <ColorField
+                    id="quickadd-color"
+                    value={color}
+                    fallback={
+                      isReminder
+                        ? reminderTint(undefined)
+                        : selectedActivity
+                          ? effectiveActivityColor(selectedActivity)
+                          : categoryTint(undefined)
+                    }
+                    onChange={setColor}
+                    ariaLabel="Event color"
+                  />
+                </PropRow>
+              )}
+              {isEdit && !isReminder && (
+                <PropRow icon={CampIcon.Pin} label="Location">
+                  <LocationField
+                    id="quickadd-location"
+                    value={locations}
+                    options={locationOptions}
+                    onChange={setLocations}
+                    onManage={onManageLocations}
+                    ariaLabel="Event location"
+                  />
+                </PropRow>
+              )}
+              {/* Repeat rides last (edit-only): its lead row carries the axis
+                  icon, its detail rows indent beneath it. */}
+              {isEdit && (
+                <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+              )}
+              {/* Day note — a named property that bridges to the run sheet. A
+                  top-aligned row whose value is the prose field. Edit-only. */}
+              {isEdit && (
+                <PropRow icon={CampIcon.Note} label="Day note" className="prop-row--top quickadd__noterow">
+                  <textarea
+                    id="quickadd-note"
+                    className="input quickadd__note"
+                    rows={2}
+                    maxLength={280}
+                    placeholder={
+                      isReminder ? "What's the nudge? e.g. switch the laundry" : "Shows on the run sheet — e.g. use the back field"
+                    }
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </PropRow>
+              )}
             </div>
             <div className="quickadd__foot">
+              {isEdit && !selectedActivity && (
+                <button type="button" className="btn btn--ghost quickadd__tolib-btn" onClick={promoteToLibrary}>
+                  <CampIcon.Bookmark />
+                  Add to library
+                </button>
+              )}
               {isEdit && onDuplicate && (
                 <button type="button" className="btn btn--ghost quickadd__dup" onClick={onDuplicate}>
                   <CampIcon.Copy />
@@ -545,15 +669,14 @@ export function QuickAdd({
                 {valid
                   ? (isEdit ? "Saving" : "Adding") +
                     " “" +
-                    (tab === "Library" ? selectedActivity?.title : customTrimmed) +
-                    "”"
-                  : tab === "Library"
-                    ? "Pick an activity to add it."
-                    : "Give the event a name."}
+                    (selectedActivity ? selectedActivity.title : trimmed) +
+                    "”" +
+                    (!isEdit && !selectedActivity && addToLibrary ? " · saved to library" : "")
+                  : "Search or name an event."}
               </p>
               <button type="button" className="btn btn--primary" disabled={!valid} onClick={save}>
                 <CampIcon.Check />
-                {isEdit ? "Save" : "Add to calendar"}
+                {isEdit ? "Save" : isReminder ? "Add reminder" : "Add to calendar"}
               </button>
             </div>
           </div>

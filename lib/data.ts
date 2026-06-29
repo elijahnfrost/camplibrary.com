@@ -11,11 +11,18 @@ export const CATEGORIES: Category[] = [
   { id: "Song", label: "Songs & Circle", numeral: "III" },
   { id: "Water", label: "Water & Wide", numeral: "IV" },
   { id: "Quiet", label: "Quiet Time", numeral: "V" },
-  // Routines: the repeated, utility "order of operations" of the day — circle
-  // time, the feelings check-in, the name-and-pronoun go-round, attention
-  // signals, line-up, clean-up. Not a game and not a craft; a shelf of its own.
-  { id: "Routine", label: "Routines", numeral: "VI" },
+  // Routines & quick adds: the repeated, utility "order of operations" of the
+  // day — circle time, the feelings check-in, attention signals, line-up,
+  // clean-up — AND the home for anything typed on the fly from the calendar's
+  // create bar (a one-tap block or a 0-min reminder). Not a game, not a craft;
+  // a shelf of its own. Reminders saved to the library live here too.
+  { id: "Routine", label: "Routines & quick adds", numeral: "VI" },
 ];
+
+// Every category id, in shelf order — the "all categories shown" state for the
+// library's multi-select Type filter (the default, and what "Select all" / a
+// filter clear-all resets to).
+export const ALL_CATEGORY_IDS: CategoryId[] = CATEGORIES.map((c) => c.id);
 
 export const ENERGY = ["", "Calm", "Lively", "Rowdy"] as const;
 
@@ -102,6 +109,9 @@ export function groupLabel(a: Pick<Activity, "groupMin" | "groupMax">): string {
 }
 
 export function durLabel(a: Pick<Activity, "durationMin">): string {
+  // A 0-minute library entry is a reminder (a no-time nudge), not a "0 min"
+  // block — read it as what it is everywhere the length is shown.
+  if (a.durationMin === 0) return "Reminder";
   return a.durationMin + " min";
 }
 
@@ -177,6 +187,17 @@ export function ratingColor(r: number | undefined): string {
 // Cooler + a touch darker than RATING_NEUTRAL: "no activity here" vs "activity,
 // just not rated/placed yet."
 export const CUSTOM_NEUTRAL = "#9c9486";
+
+// The default tint for a reminder marker — a muted, dusty terracotta-coral.
+// Warm and clearly "a marker", but softer than the Craft clay so a thin
+// reminder line reads as a quiet nudge that belongs, not an alarm. A saved
+// reminder can override it (Reminder.color); otherwise every reminder uses this.
+export const REMINDER_TINT = "#c2715a";
+
+// Resolve a reminder's marker color: its own override, else the default tint.
+export function reminderTint(color?: string): string {
+  return normalizeHexColor(color) ?? REMINDER_TINT;
+}
 
 // Where-it-happens → an earthy tint, one per built-in place so the "Color by →
 // Location" mode reads each place at a glance. Kept clearly distinct from one

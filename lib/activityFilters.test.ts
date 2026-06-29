@@ -8,6 +8,7 @@ import {
   sortActivities,
   type ActivityFilterState,
 } from "./activityFilters";
+import { ALL_CATEGORY_IDS } from "./data";
 import type { Activity } from "./types";
 
 function activity(overrides: Partial<Activity> = {}): Activity {
@@ -35,7 +36,7 @@ function activity(overrides: Partial<Activity> = {}): Activity {
 }
 
 const allFilters: ActivityFilterState = {
-  cat: "All",
+  cats: ALL_CATEGORY_IDS,
   place: "All",
   age: "All",
   query: "",
@@ -47,9 +48,13 @@ function filters(overrides: Partial<ActivityFilterState> = {}): ActivityFilterSt
 }
 
 describe("activity filters", () => {
-  it("filters by category", () => {
-    expect(matchesActivityFilters(activity({ type: "Game" }), filters({ cat: "Game" }))).toBe(true);
-    expect(matchesActivityFilters(activity({ type: "Craft" }), filters({ cat: "Game" }))).toBe(false);
+  it("filters by category (multi-select)", () => {
+    expect(matchesActivityFilters(activity({ type: "Game" }), filters({ cats: ["Game"] }))).toBe(true);
+    expect(matchesActivityFilters(activity({ type: "Craft" }), filters({ cats: ["Game"] }))).toBe(false);
+    // A subset shows every listed category…
+    expect(matchesActivityFilters(activity({ type: "Craft" }), filters({ cats: ["Game", "Craft"] }))).toBe(true);
+    // …and an empty set shows nothing.
+    expect(matchesActivityFilters(activity({ type: "Game" }), filters({ cats: [] }))).toBe(false);
   });
 
   it("filters by inside and outside placement while accepting Both", () => {
@@ -92,7 +97,7 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string"] }))).toBe(false);
     expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string", "rope"] }))).toBe(true);
     // The kit filter still ANDs with the other dimensions.
-    expect(matchesActivityFilters(base, filters({ cat: "Craft", availableMaterialTags: ["cones"] }))).toBe(false);
+    expect(matchesActivityFilters(base, filters({ cats: ["Craft"], availableMaterialTags: ["cones"] }))).toBe(false);
   });
 
   it("filters by an inclusive duration window (endpoints included)", () => {
@@ -112,7 +117,7 @@ describe("activity filters", () => {
 
     // The window still ANDs with the other dimensions.
     expect(
-      matchesActivityFilters(activity({ type: "Craft", durationMin: 30 }), filters({ cat: "Game", minutes: [15, 45] }))
+      matchesActivityFilters(activity({ type: "Craft", durationMin: 30 }), filters({ cats: ["Game"], minutes: [15, 45] }))
     ).toBe(false);
   });
 

@@ -1490,7 +1490,10 @@ export function ActivityRunList({
     if (icon === "pin") return <CampIcon.Pin />;
     if (icon === "users") return <CampIcon.Users />;
     if (icon === "clock") return <CampIcon.Clock />;
-    if (icon === "type") return <CampIcon.Card />;
+    if (icon === "type") return <CampIcon.Tag />;
+    if (icon === "energy") return <CampIcon.Bolt />;
+    if (icon === "prep") return <CampIcon.Tool />;
+    if (icon === "rating") return <CampIcon.Star />;
     return null;
   };
 

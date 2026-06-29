@@ -87,6 +87,13 @@ export function fromFcDates(
   // slotMinTime, so a half-hour camp window or any drift could otherwise leave a
   // dropped/resized block a few minutes off the grid every other block sits on.
   const startMin = snapMinutes(minutesOfDay(start));
+  // A 0-min event is a reminder — keep it 0-min through a move (e.g. dragged in
+  // Month, where it's a real FC chip); never floor it to a 15-min block.
+  if (!previous.allDay && previous.endMin === previous.startMin) {
+    const next: CalendarEvent = { ...previous, date, startMin, endMin: startMin, updatedAt: Date.now() };
+    delete next.allDay;
+    return next;
+  }
   const dayStart = fromDateKey(date);
   const duration = previous.allDay
     ? Math.max(MIN_DURATION_MIN, 30)

@@ -55,7 +55,7 @@ export function CalendarViewSettings({
   return (
     <div className="ledger calset">
       <div className="ledger__row">
-        <span className="ledger__label">Color by</span>
+        <span className="ledger__label"><CampIcon.Palette className="ledger__ic" />Color by</span>
         <Select
           value={colorMode}
           options={COLOR_BY_OPTIONS}
@@ -64,7 +64,7 @@ export function CalendarViewSettings({
         />
       </div>
       <div className="ledger__row">
-        <span className="ledger__label">Shade weekends</span>
+        <span className="ledger__label"><CampIcon.Calendar className="ledger__ic" />Shade weekends</span>
         <ToggleSwitch
           on={shadeWeekendsOn}
           onChange={() => onToggleShadeWeekends()}
@@ -72,7 +72,7 @@ export function CalendarViewSettings({
         />
       </div>
       <div className="ledger__row">
-        <span className="ledger__label">Week starts</span>
+        <span className="ledger__label"><CampIcon.Calendar className="ledger__ic" />Week starts</span>
         <MiniSeg
           ariaLabel="Start week on"
           value={String(weekStart)}
@@ -85,7 +85,7 @@ export function CalendarViewSettings({
       </div>
       {isMultiDay && (
         <div className="ledger__row">
-          <span className="ledger__label">Days</span>
+          <span className="ledger__label"><CampIcon.Calendar className="ledger__ic" />Days</span>
           <DaysStepper
             value={dayCount}
             onChange={(n) => onChangeView(n === 7 ? "timeGridWeek" : { type: "ndays", n })}
@@ -96,7 +96,7 @@ export function CalendarViewSettings({
           the camp manager (Manage camps), so the standalone "Camp hours" row is
           gone. With no camp, the calendar uses the standard 8:00–18:00 day. */}
       <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenCamps}>
-        <span className="ledger__label">Manage camps</span>
+        <span className="ledger__label"><CampIcon.Home className="ledger__ic" />Manage camps</span>
         <span className="calset__rowval" aria-hidden="true">
           <CampIcon.ChevronRight />
         </span>

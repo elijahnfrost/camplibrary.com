@@ -6,6 +6,8 @@ import { summarizeRecurrence, type NthWeekday, type RecurrenceRule } from "@/lib
 import type { DateKey } from "@/lib/calendar/types";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
+import { PropRow } from "../PropRow";
+import { CampIcon } from "../icons";
 
 // The recurrence control inside QuickAdd: a preset picker (none / daily / weekday
 // / weekly / monthly / yearly), weekday toggles when weekly, a month/year anchor
@@ -129,15 +131,14 @@ export function RepeatField({
     onChange({ ...value, until: next < startDate ? startDate : next });
   }
 
-  // The repeat controls are ledger rows like every other event setting — the
-  // parent (.quickadd__settings / .quickadd__slotrepeat) supplies the .ledger
-  // frame, so a label sits left and a compact control right. Detail rows
-  // (weekday toggles, anchor, end date) and the plain-language summary appear
-  // only once a repeat is switched on.
+  // The repeat controls are property rows like every other event setting (the
+  // parent .proplist supplies the frame). The lead "Repeat" row carries the
+  // axis icon; the detail rows (weekday toggles, anchor, end date) drop the icon
+  // so they indent beneath it. The plain-language summary closes it off — all
+  // shown only once a repeat is switched on.
   return (
     <>
-      <div className="ledger__row">
-        <span className="ledger__label">Repeat</span>
+      <PropRow icon={CampIcon.Repeat} label="Repeat">
         <Select
           id="quickadd-repeat"
           value={preset}
@@ -145,11 +146,10 @@ export function RepeatField({
           onChange={choosePreset}
           ariaLabel="Repeat"
         />
-      </div>
+      </PropRow>
 
       {value?.freq === "weekly" && (
-        <div className="ledger__row">
-          <span className="ledger__label">On</span>
+        <PropRow label="On">
           <div className="repeatfield__days" role="group" aria-label="Repeat on">
             {DAY_LETTERS.map((letter, day) => {
               const on = weekdays.includes(day);
@@ -167,12 +167,11 @@ export function RepeatField({
               );
             })}
           </div>
-        </div>
+        </PropRow>
       )}
 
       {(value?.freq === "monthly" || value?.freq === "yearly") && (
-        <div className="ledger__row">
-          <span className="ledger__label">Repeat on</span>
+        <PropRow label="Repeat on">
           <Select
             id="quickadd-repeat-anchor"
             value={anchorMode}
@@ -180,19 +179,18 @@ export function RepeatField({
             onChange={chooseAnchor}
             ariaLabel="Repeat on"
           />
-        </div>
+        </PropRow>
       )}
 
       {value && (
-        <div className="ledger__row">
-          <span className="ledger__label">Ends</span>
+        <PropRow label="Ends">
           <DatePopover
             id="quickadd-repeat-until"
             value={until}
             onChange={setUntil}
             ariaLabel="Repeat end date"
           />
-        </div>
+        </PropRow>
       )}
 
       {value && <p className="repeatfield__summary">{summarizeRecurrence({ ...value, until })}</p>}

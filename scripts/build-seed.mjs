@@ -35,6 +35,7 @@ const STATIC_LANES = [
   { file: "kg", varName: "kgActivities" },
   { file: "kc", varName: "kcActivities" },
   { file: "ro", varName: "roActivities" },
+  { file: "rm", varName: "rmActivities" },
 ];
 
 // Read every static lane's source and pull out its activity ids + titles (works
