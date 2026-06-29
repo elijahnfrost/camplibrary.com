@@ -1789,218 +1789,95 @@ body {
   max-height: 38vh;
 }
 
-/* ---------- shelf headers ---------- */
+/* ---------- shelf (overfilled bookcase — see components/shelfLayout.ts) ----
+   The library flows left→right and WRAPS onto the shelf below — no per-type
+   headers, no horizontal scroll. Each row is a full-width plank sized to its own
+   tallest book; the layout pass measures the column and packs books to fit. */
 .shelfwrap {
   padding-top: 4px;
 }
+.shelf-rows {
+  margin: 8px 18px 16px; /* the page gutter — vertical rhythm comes from the rows */
+}
 .shelf {
-  padding: 6px 0 22px;
-}
-.shelf__head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 0 18px;
-  padding: 14px 0 0;
-}
-.shelf__label {
-  font-family: var(--hand-sc);
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.shelf__count {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
+  position: relative;
 }
 
-/* ---------- spines (minimal books · height grows with the title) ---------- */
-.rail {
-  display: flex;
-  gap: 7px;
-  align-items: flex-end;
-  margin: 0 18px;
-  padding: 16px 2px 0;
-  border-bottom: 3px solid var(--ink);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+/* ---------- shelf books (see components/shelfLayout.ts) ----
+   The rail is a full-width sized canvas; every book is absolutely placed on the
+   shelf line by the layout pass. Off-scale numerics (radius, padding, font-size,
+   and the x/y/size of each book) are inline styles from the component, so this
+   block stays on the design-token scale. */
+.shelf-rail {
+  position: relative; /* full width; height set inline from the row layout */
+  width: 100%;
 }
-.rail::-webkit-scrollbar {
-  display: none;
+.shelf-floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--shelf-line, 4px);
+  background: var(--ink);
 }
-.spine {
-  flex: none;
-  position: relative;
-  overflow: hidden;
-  cursor: pointer;
-  z-index: 1;
+
+/* a book on the shelf — standing, leaning, or laid flat. Size/position/radius/
+   padding come inline; a leaner adds a transform around its planted foot. Books
+   are placed to overlap by one stroke so adjacent borders merge into ONE line. */
+.shelfbook {
+  position: absolute;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
-  padding: 14px 0 16px;
   background: var(--card);
   color: var(--ink);
-  border: 1.5px solid var(--ink);
-  border-bottom: none;
-  border-radius: 5px 5px 0 0;
-  /* Each spine has a fixed inline width and an overflow-hidden vertical title,
-     so isolating its layout keeps a re-sort reorder of the rail cheap. */
-  contain: layout;
-  transition: filter var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  border: var(--bw, 2px) solid var(--ink);
+  cursor: pointer;
+  transition: filter var(--t-fast) var(--ease);
 }
-.spine:hover {
-  filter: brightness(0.93);
+.shelfbook:hover {
+  filter: brightness(0.95);
 }
-.spine:active {
-  filter: brightness(0.88);
+.shelfbook:active {
+  filter: brightness(0.9);
 }
-/* The rail-wide "book wave" (every spine hopping on hover) was removed — it read
-   as noisy on the shelf. The directly-hovered spine keeps its brightness feedback
-   (above), and the loved sidebar-logo book ripple is untouched. */
-.spine__title {
-  position: relative;
-  z-index: 1; /* always rides above the decorative mark, guaranteeing legibility */
+.shelfbook--lean {
+  z-index: 2;
+}
+.shelfbook--laid {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  z-index: 3;
+}
+/* saved = a gilt-bound book: gold outline + a gold strip along the binding edge */
+.shelfbook--saved {
+  border-color: var(--star-gold);
+}
+.shelfbook__gilt {
+  position: absolute;
+  background: var(--star-gold);
+  pointer-events: none;
+}
+
+.shelfbook__title {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-family: var(--hand);
-  font-size: 13.5px;
   line-height: 1.05;
   letter-spacing: 0.01em;
-  color: inherit;
   white-space: nowrap;
+  overflow: hidden;
+  color: inherit;
 }
-
-/* Saved books get a hand-drawn spine treatment instead of a plain label band.
-   One of six motifs is chosen per book (see data-mark) — twin rules, end
-   lozenges, a cartouche panel, hatching, stripe bands, a crest — each drawn in
-   the book's ribbon tone (--tone-fill / --tone-edge) and confined to the head /
-   foot caps or the perimeter, so the vertical title is never crowded.
-   ShelfView reserves matching top & bottom padding on saved spines. */
-.spine__mark {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  color: var(--tone-edge, var(--star-ink));
-}
-.spine__mark::before,
-.spine__mark::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
-
-/* 0 · twin rules — a pair of fine lines at head and foot */
-.spine__mark[data-mark="0"]::before,
-.spine__mark[data-mark="0"]::after {
-  left: 6px;
-  right: 6px;
-  height: 5px;
-  border-top: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-}
-.spine__mark[data-mark="0"]::before { top: 11px; }
-.spine__mark[data-mark="0"]::after { bottom: 10px; }
-
-/* 1 · lozenges — a filled diamond capping each end */
-.spine__mark[data-mark="1"]::before,
-.spine__mark[data-mark="1"]::after {
-  left: 50%;
-  width: 9px;
-  height: 9px;
-  background: var(--tone-fill, var(--star-gold));
-  border: 1.5px solid currentColor;
-}
-.spine__mark[data-mark="1"]::before { top: 12px; transform: translateX(-50%) rotate(45deg); }
-.spine__mark[data-mark="1"]::after { bottom: 11px; transform: translateX(-50%) rotate(45deg); }
-
-/* 2 · cartouche — a rounded panel framing the title, crowned with a tiny diamond */
-.spine__mark[data-mark="2"] {
-  inset: 6px 5px;
-  border: 1.6px solid currentColor;
-  border-radius: 9px;
-}
-.spine__mark[data-mark="2"]::before {
-  top: 6px;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  background: var(--tone-fill, var(--star-gold));
-  border: 1.4px solid currentColor;
-  transform: translateX(-50%) rotate(45deg);
-}
-
-/* 3 · hatching — diagonal strokes fenced by a rule, head and foot */
-.spine__mark[data-mark="3"]::before,
-.spine__mark[data-mark="3"]::after {
-  left: 4px;
-  right: 4px;
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--tone-edge, #444) 72%, transparent) 3px 4.5px
-  );
-}
-.spine__mark[data-mark="3"]::before {
-  top: 6px;
-  height: 19px;
-  border-bottom: 1.5px solid currentColor;
-}
-.spine__mark[data-mark="3"]::after {
-  bottom: 6px;
-  height: 13px;
-  border-top: 1.5px solid currentColor;
-}
-
-/* 4 · stripe bands — bold tonal bands across the head, a rule at the foot */
-.spine__mark[data-mark="4"]::before {
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 21px;
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--tone-fill, var(--star-gold)) 0 5px,
-    transparent 5px 9px
-  );
-  border-bottom: 1.5px solid currentColor;
-}
-.spine__mark[data-mark="4"]::after {
-  left: 6px;
-  right: 6px;
-  bottom: 10px;
-  height: 0;
-  border-top: 1.5px solid currentColor;
-}
-
-/* 5 · crest — a diamond over a rule at the head, a rule at the foot */
-.spine__mark[data-mark="5"] {
-  background: linear-gradient(currentColor, currentColor) no-repeat;
-  background-size: calc(100% - 12px) 1.5px;
-  background-position: 6px 23px;
-}
-.spine__mark[data-mark="5"]::before {
-  top: 9px;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  background: var(--tone-fill, var(--star-gold));
-  border: 1.5px solid currentColor;
-  transform: translateX(-50%) rotate(45deg);
-}
-.spine__mark[data-mark="5"]::after {
-  left: 6px;
-  right: 6px;
-  bottom: 11px;
-  height: 0;
-  border-top: 1.5px solid currentColor;
+.shelfbook__title--laid {
+  writing-mode: horizontal-tb;
+  transform: none;
+  width: 100%;
+  text-align: left;
+  text-overflow: clip;
 }
 
 /* ---------- deck (grid) ---------- */
@@ -5812,12 +5689,8 @@ body {
     max-width: var(--lib-col-max);
     margin-inline: auto;
   }
-  .shelf__head {
-    margin: 0 32px;
-  }
-  .rail {
-    margin: 0 32px;
-    gap: 9px;
+  .shelf-rows {
+    margin: 10px 32px 16px;
   }
   .catalog {
     padding: 14px 32px 10px;
@@ -5869,8 +5742,7 @@ body {
   .deck {
     padding-inline: 40px;
   }
-  .shelf__head,
-  .rail {
+  .shelf-rows {
     margin-inline: 40px;
   }
   .home {
