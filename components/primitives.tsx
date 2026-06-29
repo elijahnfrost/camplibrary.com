@@ -140,7 +140,7 @@ function SwatchPicker({
   );
 }
 
-/** The category type selector (the fixed 5 Types). */
+/** The category type selector (the fixed Types — Games … Routines). */
 export function TypePicker<T extends string>({
   value,
   onChange,
