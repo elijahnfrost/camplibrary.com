@@ -3,7 +3,7 @@ import { SEED_ACTIVITIES } from "../lib/seed";
 import type { Activity } from "../lib/types";
 
 const A = SEED_ACTIVITIES;
-const CATS = ["Game", "Craft", "Song", "Water", "Quiet"];
+const CATS = ["Game", "Craft", "Song", "Water", "Quiet", "Routine"];
 const BANDS = ["pre", "g13", "g46", "g79", "g1012"];
 
 // Specialty items the camp does NOT stock (task constraint).

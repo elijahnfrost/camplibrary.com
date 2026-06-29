@@ -11,6 +11,10 @@ export const CATEGORIES: Category[] = [
   { id: "Song", label: "Songs & Circle", numeral: "III" },
   { id: "Water", label: "Water & Wide", numeral: "IV" },
   { id: "Quiet", label: "Quiet Time", numeral: "V" },
+  // Routines: the repeated, utility "order of operations" of the day — circle
+  // time, the feelings check-in, the name-and-pronoun go-round, attention
+  // signals, line-up, clean-up. Not a game and not a craft; a shelf of its own.
+  { id: "Routine", label: "Routines", numeral: "VI" },
 ];
 
 export const ENERGY = ["", "Calm", "Lively", "Rowdy"] as const;
@@ -114,6 +118,7 @@ const CATEGORY_TINTS: Record<CategoryId, string> = {
   Song: "#d99a3c", // amber
   Water: "#4d7a86", // muted river
   Quiet: "#4a4660", // dusk
+  Routine: "#9b6a73", // muted mauve — the warm "gather round" tone, distinct from terracotta and dusk
 };
 export function categoryTint(id: CategoryId | undefined): string {
   return id ? CATEGORY_TINTS[id] : "#8f8470";

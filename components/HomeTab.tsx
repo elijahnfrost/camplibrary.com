@@ -220,7 +220,7 @@ export function HomeTab({
 
   // Per-category counts for the browse strip.
   const countByType = useMemo(() => {
-    const counts: Record<CategoryId, number> = { Game: 0, Craft: 0, Song: 0, Water: 0, Quiet: 0 };
+    const counts: Record<CategoryId, number> = { Game: 0, Craft: 0, Song: 0, Water: 0, Quiet: 0, Routine: 0 };
     for (const a of activities) counts[a.type] += 1;
     return counts;
   }, [activities]);

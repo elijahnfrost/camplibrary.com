@@ -2,7 +2,7 @@
 
 import type { ActivityPlaybookData } from "@/lib/playbooks";
 
-export type CategoryId = "Game" | "Craft" | "Song" | "Water" | "Quiet";
+export type CategoryId = "Game" | "Craft" | "Song" | "Water" | "Quiet" | "Routine";
 export type Place = "Inside" | "Outside" | "Both";
 export type AgeGroupId = "pre" | "g13" | "g46" | "g79" | "g1012";
 export type Prep = "None" | "Low" | "Medium" | "High";
