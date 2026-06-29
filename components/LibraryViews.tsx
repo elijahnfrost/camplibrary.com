@@ -4,16 +4,20 @@ import type { Activity } from "@/lib/types";
 import type { Theme } from "@/lib/themes";
 import {
   ageLabel,
-  CATEGORIES,
   durLabel,
   ENERGY,
   monogram,
   ratingColor,
 } from "@/lib/data";
-import type { CSSProperties, MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
 import { useAgeUnit } from "./ageUnit";
 import { EmptyResults, SaveButton, ThemeBadge } from "./primitives";
+import { BW, RADIUS, SCALE, SHELF_LINE, planShelf, titleFontPx, wrapShelf, type Placed } from "./shelfLayout";
+
+// Measure synchronously before paint on the client; fall back on the server so
+// the isomorphic render never warns about useLayoutEffect.
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 interface ViewProps {
   items: Activity[];
@@ -25,69 +29,108 @@ interface ViewProps {
   themeOf?: (id: string) => Theme | null;
 }
 
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-// Book covers tint by approval rating (low = clay → high = green) so the shelf ranks by color.
-const spineWidth = (a: Activity) => 30 + (hash(a.id + "w") % 5) * 4; // 30–46
-const spinePadTop = (a: Activity) => 10 + (hash(a.id + "h") % 5) * 9; // extra cover space above the title
-const SPINE_MARKS = 6; // count of hand-drawn spine motifs (see .spine__mark in globals.css)
+// Books rest one stroke INTO the shelf line so their bottom border merges with it.
+const BASELINE = SHELF_LINE - BW;
 
 // ---------- Shelf view ----------
+// An overfilled bookcase: packed books, the odd one leaning to physically rest on
+// a neighbour or a flat stack, a few books piled flat, and the occasional book
+// perched on a base. The whole library flows left→right and OVERFLOWS onto the
+// shelf below — no per-type headers, no horizontal scroll. Geometry + physics live
+// in ./shelfLayout (pure: size → role → coordinates → wrap into rows that fit the
+// measured width). Here we just paint each resolved book as an interactive,
+// rating-coloured book; saved books get a gilt binding.
 export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
-  const groups = CATEGORIES.map((c) => ({
-    cat: c,
-    list: items.filter((a) => a.type === c.id),
-  })).filter((g) => g.list.length);
+  const railsRef = useRef<HTMLDivElement | null>(null);
+  const [shelfWidth, setShelfWidth] = useState(0);
 
-  if (!groups.length) return <EmptyResults />;
+  // The available shelf width is whatever the rails column is; books wrap to fit.
+  useIsoLayoutEffect(() => {
+    const el = railsRef.current;
+    if (!el) return;
+    const measure = () => setShelfWidth(el.clientWidth);
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  if (!items.length) return <EmptyResults />;
+
+  const rows = shelfWidth > 0 ? wrapShelf(planShelf(items), shelfWidth) : [];
+
+  const renderBook = (p: Placed) => {
+    const a = p.book;
+    const saved = isFav(a.id);
+    const laid = p.type === "laid";
+    const style: CSSProperties = {
+      left: p.x,
+      bottom: BASELINE + p.y,
+      width: p.w,
+      height: p.h,
+      background: ratingColor(a.rating),
+      borderRadius: RADIUS,
+      // title inset, scaled with the books (see SCALE in shelfLayout)
+      padding: laid ? `0 ${Math.round(7 * SCALE)}px` : `${Math.round(9 * SCALE)}px 0`,
+    };
+    if (p.type === "lean") {
+      style.transformOrigin = p.dir === "right" ? "100% 100%" : "0% 100%";
+      style.transform = `rotate(${p.dir === "right" ? p.deg : -p.deg}deg)`;
+    }
+    return (
+      <button
+        type="button"
+        key={(laid ? "laid-" : "") + a.id}
+        className={
+          "shelfbook" +
+          (p.type === "lean" ? " shelfbook--lean" : laid ? " shelfbook--laid" : "") +
+          (saved ? " shelfbook--saved" : "")
+        }
+        style={style}
+        title={a.title}
+        aria-label={a.title}
+        onClick={() => onOpen(a)}
+        onContextMenu={onContextMenu ? (e) => onContextMenu(a, e) : undefined}
+      >
+        <span
+          className={"shelfbook__title" + (laid ? " shelfbook__title--laid" : "")}
+          style={{ fontSize: laid ? 11.5 * SCALE : titleFontPx(a) }}
+        >
+          {a.title}
+        </span>
+        {saved && (
+          <span
+            className="shelfbook__gilt"
+            aria-hidden="true"
+            style={laid ? { left: 0, top: 0, bottom: 0, width: 3 } : { left: 0, right: 0, bottom: 0, height: 3 }}
+          />
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="fadein shelfwrap">
-      {groups.map((g) => (
-        <section className="shelf" key={g.cat.id}>
-          <div className="shelf__head">
-            <span className="shelf__label">{g.cat.label}</span>
-            <span className="shelf__count">
-              {g.list.length} {g.list.length === 1 ? "title" : "titles"}
-            </span>
-          </div>
-          <div className="rail">
-            {g.list.map((a) => {
-              const saved = isFav(a.id);
-              // saved spines get one of six hand-drawn motifs (data-mark), all in
-              // the single honey-gold; reserve head & foot room so it clears the title
-              const mark = hash(a.id + "spine") % SPINE_MARKS;
-              return (
-                <button
-                  type="button"
-                  className="spine"
-                  key={a.id}
-                  style={
-                    {
-                      width: spineWidth(a),
-                      paddingTop: saved ? Math.max(spinePadTop(a), 30) : spinePadTop(a),
-                      paddingBottom: saved ? 28 : undefined,
-                      background: ratingColor(a.rating),
-                    } as CSSProperties
-                  }
-                  title={a.title}
-                  aria-label={a.title}
-                  onClick={() => onOpen(a)}
-                  onContextMenu={onContextMenu ? (e) => onContextMenu(a, e) : undefined}
-                >
-                  {saved && <span className="spine__mark" data-mark={mark} aria-hidden="true" />}
-                  <span className="spine__title">{a.title}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-      <div style={{ height: 16 }} />
+      <div
+        className="shelf-rows"
+        ref={railsRef}
+        style={{ "--bw": `${BW}px`, "--shelf-line": `${SHELF_LINE}px` } as CSSProperties}
+      >
+        {rows.map((row, ri) => (
+          <section className="shelf" key={ri}>
+            {/* Full-width plank; books sit left-aligned on it and the shelf ends
+                with whatever empty run a real bookcase row would. */}
+            <div className="shelf-rail" style={{ height: row.height }}>
+              <div className="shelf-floor" aria-hidden="true" />
+              {row.placed.map(renderBook)}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
