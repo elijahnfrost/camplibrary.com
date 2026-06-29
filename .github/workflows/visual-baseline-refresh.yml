@@ -1,0 +1,38 @@
+name: visual-baseline-refresh
+
+# TEMPORARY helper: regenerates the darwin Playwright baselines on the same
+# macOS runner the visual-regression gate uses, then uploads them as an artifact
+# so they can be committed from a machine that can't pixel-match the runner.
+# Pinned to the feature branch and removed before merge — not permanent infra.
+
+on:
+  push:
+    branches: ["elijahnfrost/classic-games-and-utility-section"]
+
+jobs:
+  refresh:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Regenerate baselines
+        run: npm run test:visual:update
+
+      - name: Upload refreshed baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-baselines
+          path: tests/visual/**/*.png
+          retention-days: 3
