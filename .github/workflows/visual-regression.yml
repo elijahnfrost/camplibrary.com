@@ -32,15 +32,16 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
 
-      - name: Visual regression
-        run: npm run test:visual
+      # TEMP: regenerate darwin baselines ON the runner (dev Mac is macOS 26,
+      # newer than macos-latest → sub-tolerance mismatch). Reverted after baselines land.
+      - name: Regenerate baselines on runner (TEMP)
+        run: npm run test:visual:update
         env:
           CI: "true"
 
-      - name: Upload diff report on failure
-        if: failure()
+      - name: Upload regenerated baselines (TEMP)
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 14
+          name: darwin-baselines
+          path: tests/visual/surfaces.spec.ts-snapshots/
+          retention-days: 3
