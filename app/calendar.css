@@ -452,6 +452,7 @@
   padding: var(--s-2) 0;
 }
 .cal-dayhead__dow {
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
   letter-spacing: 0.08em;
   text-transform: uppercase;

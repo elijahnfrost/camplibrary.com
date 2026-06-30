@@ -3230,7 +3230,7 @@ export function CalendarShell({
           slotEventOverlap={false}
           eventMaxStack={4}
           eventShortHeight={46}
-          eventMinHeight={22}
+          eventMinHeight={0}
           snapDuration="00:15:00"
           slotDuration="00:15:00"
           slotLabelInterval="01:00:00"
