@@ -28,6 +28,7 @@ import {
   rekeyRunDoc,
   runId,
   runPillLabel,
+  defaultRunIcon,
   todayStamp,
   topFromChild,
   type RunDoc,
@@ -480,5 +481,47 @@ describe("cloneRunChild — diagram independence", () => {
     };
     const clone = cloneRunDoc(doc);
     expect(clone.blocks[0].children?.[0].diagram).not.toBe(doc.blocks[0].children?.[0].diagram);
+  });
+});
+
+describe("icon / colour presentation overrides", () => {
+  it("defaultRunIcon derives a glyph from the semantic type", () => {
+    expect(defaultRunIcon("safety")).toBe("safety");
+    expect(defaultRunIcon("variation")).toBe("tip");
+    expect(defaultRunIcon("note")).toBe("note");
+    expect(defaultRunIcon("step")).toBe("note");
+  });
+
+  it("normalizeRunDoc keeps a valid icon + colour on a text block, drops junk", () => {
+    const doc = normalizeRunDoc({
+      blocks: [
+        { id: "n1", type: "note", text: "hi", icon: "star", color: "amber" },
+        { id: "n2", type: "safety", text: "careful", icon: "nope", color: "neon" },
+      ],
+    });
+    expect(doc?.blocks[0].icon).toBe("star");
+    expect(doc?.blocks[0].color).toBe("amber");
+    // invalid values are simply dropped — the block still parses
+    expect(doc?.blocks[1].icon).toBeUndefined();
+    expect(doc?.blocks[1].color).toBeUndefined();
+    expect(doc?.blocks[1].type).toBe("safety");
+  });
+
+  it("normalizeRunDoc keeps icon/colour on an attached child too", () => {
+    const doc = normalizeRunDoc({
+      blocks: [{ id: "s1", type: "step", text: "go", children: [{ id: "c1", type: "variation", text: "v", icon: "flag", color: "dusk" }] }],
+    });
+    const child = doc?.blocks[0].children?.[0];
+    expect(child?.icon).toBe("flag");
+    expect(child?.color).toBe("dusk");
+  });
+
+  it("childFromTop / topFromChild carry the icon + colour through a nest/lift", () => {
+    const asChild = childFromTop({ id: "n", type: "note", text: "t", icon: "bell", color: "clay" });
+    expect(asChild?.icon).toBe("bell");
+    expect(asChild?.color).toBe("clay");
+    const asTop = topFromChild({ id: "n", type: "note", text: "t", icon: "bell", color: "clay" });
+    expect(asTop?.icon).toBe("bell");
+    expect(asTop?.color).toBe("clay");
   });
 });

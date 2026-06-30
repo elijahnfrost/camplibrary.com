@@ -46,6 +46,32 @@ export type RunBlockType =
   | "playbook"
   | "materials";
 
+// A text-ish block/child (note / safety / variation / substep / heading) can
+// carry an OPTIONAL presentation override: a glyph + colour chosen on the run
+// sheet. The block's TYPE stays the semantic anchor — print, the public run
+// page, and form round-trip all keep reading `type`, so nothing downstream
+// breaks. icon/color only change how the node looks; unset → derived from type.
+export type RunIcon = "note" | "safety" | "tip" | "bell" | "star" | "flag";
+export type RunColor = "none" | "green" | "amber" | "clay" | "dusk" | "wood";
+export const RUN_ICONS: RunIcon[] = ["note", "safety", "tip", "bell", "star", "flag"];
+export const RUN_COLORS: RunColor[] = ["none", "green", "amber", "clay", "dusk", "wood"];
+// Colour → design token, consumed by the run-sheet CSS via an inline --rl-blk.
+export const RUN_COLOR_TOKEN: Record<RunColor, string> = {
+  none: "var(--ink-soft)",
+  green: "var(--accent)",
+  amber: "var(--amber)",
+  clay: "var(--clay)",
+  dusk: "var(--dusk)",
+  wood: "var(--wood-soft)",
+};
+// The default glyph a text-ish block wears when it carries no explicit icon —
+// derived from its semantic type so existing/derived docs look right untouched.
+export function defaultRunIcon(type: RunBlockType | RunChildType): RunIcon {
+  if (type === "safety") return "safety";
+  if (type === "variation") return "tip";
+  return "note";
+}
+
 export interface RunDetailTag {
   id: string;
   label: string;
@@ -63,6 +89,9 @@ export interface RunChild {
   // notes (date + time), or a legacy date-only "YYYY-MM-DD". Optional so other
   // detail types ignore it.
   at?: string;
+  // text-ish details (note / safety / variation / substep): presentation override.
+  icon?: RunIcon;
+  color?: RunColor;
 }
 
 export interface RunBlock {
@@ -83,6 +112,9 @@ export interface RunBlock {
   // `children`. (Legacy flat notes stored their text/at on the block itself;
   // normalizeBlock folds that into a first entry.)
   at?: string;
+  // heading / note / safety / variation: presentation override (see RunIcon).
+  icon?: RunIcon;
+  color?: RunColor;
   children?: RunChild[];
 }
 
@@ -424,6 +456,21 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function asIcon(value: unknown): RunIcon | undefined {
+  return typeof value === "string" && (RUN_ICONS as string[]).includes(value) ? (value as RunIcon) : undefined;
+}
+function asColor(value: unknown): RunColor | undefined {
+  return typeof value === "string" && (RUN_COLORS as string[]).includes(value) ? (value as RunColor) : undefined;
+}
+// Attach a validated icon/color override to a normalized text-ish block/child.
+function withDeco<T extends { icon?: RunIcon; color?: RunColor }>(obj: T, r: Record<string, unknown>): T {
+  const icon = asIcon(r.icon);
+  const color = asColor(r.color);
+  if (icon) obj.icon = icon;
+  if (color) obj.color = color;
+  return obj;
+}
+
 function normalizeChild(raw: unknown, index: number): RunChild | null {
   if (typeof raw !== "object" || raw === null) return null;
   const r = raw as Record<string, unknown>;
@@ -447,7 +494,8 @@ function normalizeChild(raw: unknown, index: number): RunChild | null {
     if (at) child.at = at;
     return child;
   }
-  return { id, type: type as RunChildType, text: asString(r.text) ?? "" };
+  const child: RunChild = { id, type: type as RunChildType, text: asString(r.text) ?? "" };
+  return withDeco(child, r);
 }
 
 function normalizeBlock(raw: unknown, index: number): RunBlock | null {
@@ -521,7 +569,8 @@ function normalizeBlock(raw: unknown, index: number): RunBlock | null {
     return block;
   }
   // heading / note / safety / variation
-  return { id, type: type as RunBlockType, text: asString(r.text) ?? "", children };
+  const block: RunBlock = { id, type: type as RunBlockType, text: asString(r.text) ?? "", children };
+  return withDeco(block, r);
 }
 
 export function normalizeRunDoc(raw: unknown): RunDoc | null {
@@ -596,7 +645,10 @@ export function sameDragItem(a: DragItem | null, b: DragItem): boolean {
 // lossy child) — the dedicated block in the Details section, not an attachment.
 export function childFromTop(block: RunBlock): RunChild | null {
   if (block.type === "note" || block.type === "safety" || block.type === "variation") {
-    return { id: block.id, type: block.type, text: block.text || "" };
+    const child: RunChild = { id: block.id, type: block.type, text: block.text || "" };
+    if (block.icon) child.icon = block.icon;
+    if (block.color) child.color = block.color;
+    return child;
   }
   if (block.type === "materials") return { id: block.id, type: "materials" };
   return null;
@@ -606,7 +658,10 @@ export function childFromTop(block: RunBlock): RunChild | null {
 // detail stays put — field notes now live in the dedicated log container.)
 export function topFromChild(child: RunChild): RunBlock | null {
   if (child.type === "note" || child.type === "safety" || child.type === "variation") {
-    return { id: child.id, type: child.type, text: child.text || "", children: [] };
+    const block: RunBlock = { id: child.id, type: child.type, text: child.text || "", children: [] };
+    if (child.icon) block.icon = child.icon;
+    if (child.color) block.color = child.color;
+    return block;
   }
   if (child.type === "substep") {
     return { id: child.id, type: "step", text: child.text || "", collapsed: false, children: [] };

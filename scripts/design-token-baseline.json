@@ -6554,6 +6554,14 @@
       "property": "box-shadow",
       "value": "var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--rl-fieldnote) 18%, transparent)",
       "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.rl-row|padding|var(--s-2) 54px var(--s-2) var(--s-3)|screen",
+      "kind": "declaration",
+      "selector": ".rl-row",
+      "property": "padding",
+      "value": "var(--s-2) 54px var(--s-2) var(--s-3)",
+      "context": "screen"
     }
   ]
 }

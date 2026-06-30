@@ -7250,38 +7250,142 @@ button.rl-node {
   box-shadow: none;
   pointer-events: none;
 }
+/* A text-ish node with a chosen colour: the glyph + ring take the picked tint
+   (an inline --rl-blk). Wins over the per-type colour because it's defined here,
+   after the .rl-node--{type} rules. */
+.rl-node--tinted {
+  color: var(--rl-blk);
+  border-color: color-mix(in srgb, var(--rl-blk) 45%, var(--line));
+}
+/* The node doubles as the icon/colour picker trigger in edit mode. */
+button.rl-node--pick {
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+button.rl-node--pick:hover {
+  border-color: color-mix(in srgb, var(--rl-blk, var(--accent)) 60%, var(--line));
+}
+button.rl-node--pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- the icon + colour picker (decoNode → FloatingLayer) ---------- */
+/* Hosted in the portaled FloatingLayer (position driven inline), so clear any
+   anchored defaults — same fixed/auto reset the other floating menus use. */
+.rl-stylepop {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 20;
+  min-width: 204px;
+  max-width: 240px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.rl-stylepop__label {
+  margin: 0 0 var(--s-3);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.rl-stylepop__swatches {
+  display: flex;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+.rl-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.rl-swatch:hover {
+  border-color: var(--line);
+}
+.rl-swatch.is-on {
+  border-color: var(--ink);
+}
+.rl-stylepop__icons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--s-2);
+}
+.rl-iconpick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 30px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.rl-iconpick:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rl-iconpick.is-on {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.rl-iconpick svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* ---------- rows (the cards) ---------- */
+/* Flat "Rail" rows: the inked card is gone — text rides the rail directly, the
+   way the chosen draft reads. The border slot stays transparent so hover and the
+   drag drop-edge can still tint it; padding is kept (just lighter) so the diagram
+   / materials / media embeds and the hover row-tools keep their room. */
 .rl-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   position: relative;
   z-index: 2;
-  border: 2px solid var(--ink);
-  border-radius: 11px;
-  background: var(--card);
-  padding: 13px 54px 13px 14px;
-  box-shadow: var(--e2);
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  padding: var(--s-2) 54px var(--s-2) var(--s-3);
+  box-shadow: none;
   cursor: grab;
-  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease,
-    background 140ms ease, transform 140ms ease;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+.rl-row:hover {
+  background: color-mix(in srgb, var(--paper-2) 45%, transparent);
 }
 .rl-block[draggable="true"]:active > .rl-block__main > .rl-row {
   cursor: grabbing;
 }
 /* Read mode (the detail-sheet book) has no row tools and nothing to drag, so the
-   54px right gutter is dead space and the grab cursor is misleading — make the
-   cards symmetric and static. */
+   54px right gutter is dead space and the grab cursor is misleading. */
 .rl.is-readonly .rl-row {
-  padding-right: 14px;
+  padding-right: var(--s-3);
   cursor: default;
 }
-.rl-block--step > .rl-block__main > .rl-row {
-  background: linear-gradient(180deg, var(--card) 0%, color-mix(in srgb, var(--card) 80%, var(--paper)) 100%);
-}
-.rl-block--step.has-children:not(.is-collapsed) > .rl-block__main > .rl-row {
-  box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+.rl.is-readonly .rl-row:hover {
+  background: transparent;
 }
 .rl-row .rl-ed {
   cursor: text;
@@ -7347,11 +7451,13 @@ button.rl-node {
 .rl-block--detail .rl-block__main {
   margin-left: 0;
 }
+/* Sub-items read lighter on the same rail (flat — the colour lives in the node,
+   not a tinted card). */
 .rl-row--detail {
-  background: color-mix(in srgb, var(--card) 60%, var(--paper));
-  border: 1.5px solid var(--line);
+  background: transparent;
+  border: 1.5px solid transparent;
   box-shadow: none;
-  padding: 10px 12px;
+  padding: var(--s-2) var(--s-5) var(--s-2) var(--s-3);
 }
 .rl-row--detail .rl-text {
   font-size: 14px;
@@ -7359,10 +7465,6 @@ button.rl-node {
 }
 .rl-row--detail .rl-time {
   color: var(--ink-faint);
-}
-.rl-row--detail.rl-row--safety {
-  background: color-mix(in srgb, var(--clay) 8%, var(--card));
-  border-color: color-mix(in srgb, var(--clay) 34%, var(--line));
 }
 .rl-row--details {
   background: color-mix(in srgb, var(--accent) 7%, var(--card));
@@ -7511,14 +7613,28 @@ button.rl-node {
   flex: 0 0 auto;
   width: auto;
 }
+/* These three menus reuse .typepick__menu for the card/border look but are
+   hosted in the portaled FloatingLayer (position driven inline), NOT anchored
+   in flow like the sidebar pickers. Clear the .typepick__menu absolute anchor
+   (left:0; right:0) it doesn't use here — the leftover right:0 was stretching
+   the popover to full viewport width. Same reset .cselect__menu already does. */
 .rldetail__menu,
 .rldetail__agemenu,
 .rldetail__groupmenu {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
   min-width: 180px;
 }
 .rldetail__agemenu,
 .rldetail__groupmenu {
   padding: var(--s-4);
+}
+/* Cap the age popover so the grade/age chips wrap into a tidy block instead of
+   laying out as one wide row. */
+.rldetail__agemenu {
+  max-width: 264px;
 }
 .rldetail__ageunit {
   display: flex;

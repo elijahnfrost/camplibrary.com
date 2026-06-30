@@ -21,6 +21,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type FC,
   type MouseEvent as ReactMouseEvent,
@@ -44,12 +45,17 @@ import { ActivityPlaybook } from "./ActivityPlaybook";
 import {
   RUN_CHILD_META,
   RUN_CHILD_TYPES,
+  RUN_COLORS,
+  RUN_COLOR_TOKEN,
+  RUN_ICONS,
   RUN_TOP_LABEL,
   applyDrop,
   blankDiagramChild,
   blankStepBlock,
+  childFromTop,
   cloneRunChild,
   cloneRunDoc,
+  defaultRunIcon,
   detailTagsForActivity,
   fieldNoteChild,
   fieldNotesBlock,
@@ -59,14 +65,17 @@ import {
   runId,
   runPillLabel,
   sameDragItem,
+  topFromChild,
   type DragItem,
   type DropTarget,
   type RunBlock,
   type RunBlockType,
   type RunChild,
   type RunChildType,
+  type RunColor,
   type RunDetailTag,
   type RunDoc,
+  type RunIcon,
 } from "@/lib/runList";
 import type { ActivityPlaybookData } from "@/lib/playbooks";
 import { parseEmbed, type ParsedEmbed } from "@/lib/embed";
@@ -88,6 +97,24 @@ const TYPE_ICON: Record<string, IconCmp> = {
   materials: CampIcon.Card,
   heading: CampIcon.Heading,
   playbook: CampIcon.BookOpen,
+};
+
+// The glyph each pickable RunIcon wears in its node (the icon/colour picker).
+const RUN_ICON_CMP: Record<RunIcon, IconCmp> = {
+  note: CampIcon.Note,
+  safety: CampIcon.Shield,
+  tip: CampIcon.Variation,
+  bell: CampIcon.Bell,
+  star: CampIcon.Star,
+  flag: CampIcon.Flag,
+};
+const RUN_ICON_LABEL: Record<RunIcon, string> = {
+  note: "Note",
+  safety: "Safety",
+  tip: "Tip",
+  bell: "Reminder",
+  star: "Star",
+  flag: "Flag",
 };
 
 // Blocks you can append from the "Add a block" palette (top level).
@@ -156,6 +183,8 @@ function Editable({
   focusKey,
   onEnter,
   onBackspaceEmpty,
+  onIndent,
+  onOutdent,
   commitOnEnter,
 }: {
   value: string;
@@ -172,6 +201,10 @@ function Editable({
   onEnter?: (beforeText: string, afterText: string) => void;
   /** Backspace in an already-empty cell (e.g. remove the empty step). */
   onBackspaceEmpty?: () => void;
+  /** Tab: nest this block as a detail under the step above (commits text first). */
+  onIndent?: (text: string) => void;
+  /** Shift+Tab: lift this detail back to a top-level block (commits text first). */
+  onOutdent?: (text: string) => void;
   /** Enter commits and blurs (a field note is "done" on Enter); Shift+Enter
    *  still inserts a newline for a multi-line note. */
   commitOnEnter?: boolean;
@@ -209,6 +242,17 @@ function Editable({
       onKeyDown={
         editable
           ? (e) => {
+              if (e.key === "Tab" && (onIndent || onOutdent)) {
+                // Nest / un-nest like an outline. Commit the current text as part
+                // of the move (the row remounts at its new depth) so typing isn't
+                // lost, and suppress the trailing blur from re-committing stale text.
+                e.preventDefault();
+                const text = e.currentTarget.textContent || "";
+                cancelRef.current = true;
+                if (e.shiftKey) onOutdent?.(text);
+                else onIndent?.(text);
+                return;
+              }
               if (e.key === "Enter" && !e.shiftKey && onEnter) {
                 e.preventDefault();
                 // Split at the caret like a text document: "before|after"
@@ -974,6 +1018,8 @@ export function ActivityRunList({
   // Right-click on a block (edit mode only) → a themed menu mirroring the row
   // tools. Pointer-fine only; touch keeps the always-visible row buttons.
   const [blockMenu, setBlockMenu] = useState<{ item: DragItem; point: { x: number; y: number } } | null>(null);
+  // The icon + colour picker for a text-ish block/child, anchored to its node.
+  const [runStyle, setRunStyle] = useState<{ item: DragItem; rect: DOMRect } | null>(null);
   const [railSegments, setRailSegments] = useState<RailSegment[]>([]);
 
   const dragRef = useRef<DragItem | null>(null);
@@ -1032,6 +1078,53 @@ export function ActivityRunList({
           : b
       ),
     });
+
+  // Set the icon/colour override on whatever the picker is open over (a top
+  // block or an attached child). Routes through the same patch helpers, so the
+  // change persists like any other run-doc edit.
+  const applyRunStyle = (patch: { icon?: RunIcon; color?: RunColor }) => {
+    const item = runStyle?.item;
+    if (!item) return;
+    if (item.kind === "top") patchTop(item.id, patch);
+    else patchKid(item.parentId, item.id, patch);
+  };
+
+  // The leading node for a text-ish block/child: an outlined glyph the staffer
+  // can click to recolour / re-icon. The glyph defaults from the semantic type
+  // (so derived/old docs look right); a chosen colour tints the ring via --rl-blk.
+  const decoNode = (
+    railKey: string,
+    item: DragItem,
+    type: RunBlockType | RunChildType,
+    icon: RunIcon | undefined,
+    color: RunColor | undefined
+  ): ReactNode => {
+    const Glyph = RUN_ICON_CMP[icon ?? defaultRunIcon(type)];
+    const tinted = !!color && color !== "none";
+    const cls =
+      "rl-node rl-node--type rl-node--" + type + (tinted ? " rl-node--tinted" : "");
+    const style = tinted ? ({ ["--rl-blk"]: RUN_COLOR_TOKEN[color] } as CSSProperties) : undefined;
+    if (!editable) {
+      return (
+        <span ref={railNodeRef(railKey)} className={cls} style={style} contentEditable={false}>
+          <Glyph />
+        </span>
+      );
+    }
+    return (
+      <button
+        ref={railNodeRef(railKey)}
+        type="button"
+        className={cls + " rl-node--pick"}
+        style={style}
+        contentEditable={false}
+        aria-label="Set icon and colour"
+        onClick={(e) => setRunStyle({ item, rect: e.currentTarget.getBoundingClientRect() })}
+      >
+        <Glyph />
+      </button>
+    );
+  };
 
   // ---- "Specific details" tags (stored on the details block, so a hand edit
   // persists with the run-doc override — the same pattern as steps/notes). The
@@ -1155,6 +1248,58 @@ export function ActivityRunList({
         return { ...b, children };
       }),
     });
+  };
+
+  // Tab on a top-level note/safety/variation: tuck it under the nearest step
+  // above as a detail (committing its latest text in the same move). No step
+  // above → no-op. Reuses the unit-tested applyDrop + childFromTop conversion.
+  const indentTopBlock = (id: string, text: string) => {
+    const idx = doc.blocks.findIndex((b) => b.id === id);
+    if (idx < 0) return;
+    let stepId: string | null = null;
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      if (doc.blocks[i].type === "step") {
+        stepId = doc.blocks[i].id;
+        break;
+      }
+    }
+    if (!stepId) return;
+    const withText = doc.blocks.map((b) => (b.id === id ? { ...b, text } : b));
+    const moving = withText.find((b) => b.id === id);
+    if (!moving || !childFromTop(moving)) return;
+    const step = withText.find((b) => b.id === stepId);
+    const lastKid = step?.children?.length ? step.children[step.children.length - 1].id : null;
+    const next = applyDrop(withText, { kind: "top", id }, {
+      scope: "children",
+      parentId: stepId,
+      targetChildId: lastKid,
+      position: "after",
+    });
+    if (!next) return;
+    openStep(stepId);
+    pendingFocusRef.current = { id, caret: "end" };
+    commit({ blocks: next });
+  };
+
+  // Shift+Tab on an attached note/safety/variation: lift it back to a top-level
+  // block right after its parent step (committing its latest text).
+  const outdentChild = (parentId: string, childId: string, text: string) => {
+    const parent = doc.blocks.find((b) => b.id === parentId);
+    const child = parent?.children?.find((c) => c.id === childId);
+    if (!child || !topFromChild(child)) return;
+    const withText = doc.blocks.map((b) =>
+      b.id === parentId
+        ? { ...b, children: (b.children || []).map((c) => (c.id === childId ? { ...c, text } : c)) }
+        : b
+    );
+    const next = applyDrop(withText, { kind: "child", parentId, id: childId }, {
+      scope: "top",
+      targetId: parentId,
+      position: "after",
+    });
+    if (!next) return;
+    pendingFocusRef.current = { id: childId, caret: "end" };
+    commit({ blocks: next });
   };
 
   const rmKid = (pid: string, kid: string) => {
@@ -1538,6 +1683,21 @@ export function ActivityRunList({
         </button>
       </div>
     ) : null;
+    // Note / safety / variation details wear the clickable icon/colour node (the
+    // picker). Sub-steps stay structural (their own glyph), and the specialized
+    // children (diagram / materials / video / fieldnote) keep their fixed node.
+    const isTextChild = k.type === "note" || k.type === "safety" || k.type === "variation";
+    const nodeEl = isTextChild ? (
+      decoNode(childRailKey(stepId, k.id), { kind: "child", parentId: stepId, id: k.id }, k.type, k.icon, k.color)
+    ) : (
+      <span
+        ref={railNodeRef(childRailKey(stepId, k.id))}
+        className={"rl-node rl-node--type rl-node--" + k.type}
+        contentEditable={false}
+      >
+        <Icon />
+      </span>
+    );
     const shell = (body: ReactNode) => (
       <li
         key={k.id}
@@ -1550,13 +1710,7 @@ export function ActivityRunList({
           itemStateClass({ kind: "child", parentId: stepId, id: k.id })
         }
       >
-        <span
-          ref={railNodeRef(childRailKey(stepId, k.id))}
-          className={"rl-node rl-node--type rl-node--" + k.type}
-          contentEditable={false}
-        >
-          <Icon />
-        </span>
+        {nodeEl}
         <div className="rl-block__main">
           <div className={"rl-row rl-row--detail rl-row--" + k.type}>
             <div className="rl-body">
@@ -1669,11 +1823,13 @@ export function ActivityRunList({
         editable={editable || (isFieldnote && canCapture)}
         placeholder={RUN_CHILD_META[k.type].placeholder}
         ariaLabel={label + " detail text"}
+        focusKey={k.id}
         onCommit={
           isFieldnote
             ? (v) => (v.trim() ? patchKid(stepId, k.id, { text: v }) : rmKid(stepId, k.id))
             : (v) => patchKid(stepId, k.id, { text: v })
         }
+        onOutdent={isTextChild ? (t) => outdentChild(stepId, k.id, t) : undefined}
       />
     );
   };
@@ -2122,7 +2278,6 @@ export function ActivityRunList({
 
             // ---- TOP-LEVEL NOTE / SAFETY / VARIATION ----
             if (b.type !== "step") {
-              const Icon = TYPE_ICON[b.type] || CampIcon.Note;
               const label = RUN_TOP_LABEL[b.type as "note" | "safety" | "variation"] || "Note";
               return (
                 <li
@@ -2131,13 +2286,7 @@ export function ActivityRunList({
                   {...dropBind({ kind: "top", id: b.id })}
                   className={"rl-block rl-block--" + b.type + itemStateClass({ kind: "top", id: b.id })}
                 >
-                  <span
-                    ref={railNodeRef(topRailKey(b.id))}
-                    className={"rl-node rl-node--type rl-node--" + b.type}
-                    contentEditable={false}
-                  >
-                    <Icon />
-                  </span>
+                  {decoNode(topRailKey(b.id), { kind: "top", id: b.id }, b.type, b.icon, b.color)}
                   <div className="rl-block__main">
                     <div className={"rl-row rl-row--" + b.type}>
                       <div className="rl-body">
@@ -2148,7 +2297,9 @@ export function ActivityRunList({
                           editable={editable}
                           placeholder={label}
                           ariaLabel={label + " text"}
+                          focusKey={b.id}
                           onCommit={(v) => patchTop(b.id, { text: v })}
+                          onIndent={(t) => indentTopBlock(b.id, t)}
                         />
                       </div>
                       {handles(b.id)}
@@ -2442,6 +2593,65 @@ export function ActivityRunList({
               },
             ]}
           />
+        );
+      })()}
+
+      {runStyle && (() => {
+        const item = runStyle.item;
+        let cur: { icon?: RunIcon; color?: RunColor; type: RunBlockType | RunChildType } | null = null;
+        if (item.kind === "top") {
+          const b = doc.blocks.find((x) => x.id === item.id);
+          if (b) cur = { icon: b.icon, color: b.color, type: b.type };
+        } else {
+          const p = doc.blocks.find((x) => x.id === item.parentId);
+          const c = p?.children?.find((k) => k.id === item.id);
+          if (c) cur = { icon: c.icon, color: c.color, type: c.type };
+        }
+        if (!cur) return null;
+        const curIcon = cur.icon ?? defaultRunIcon(cur.type);
+        return (
+          <FloatingLayer
+            anchor={{ kind: "rect", rect: runStyle.rect }}
+            onClose={() => setRunStyle(null)}
+            className="rl-stylepop"
+            role="dialog"
+            ariaLabel="Icon and colour"
+          >
+            <div className="rl-stylepop__label">Colour</div>
+            <div className="rl-stylepop__swatches" role="group" aria-label="Colour">
+              {RUN_COLORS.map((c, i) => (
+                <button
+                  type="button"
+                  key={c}
+                  className={"rl-swatch" + ((cur!.color ?? "none") === c ? " is-on" : "")}
+                  style={{ background: RUN_COLOR_TOKEN[c] } as CSSProperties}
+                  data-floating-first={i === 0 ? "" : undefined}
+                  aria-label={c}
+                  aria-pressed={(cur!.color ?? "none") === c}
+                  onClick={() => applyRunStyle({ color: c })}
+                />
+              ))}
+            </div>
+            <div className="rl-stylepop__label">Icon</div>
+            <div className="rl-stylepop__icons" role="group" aria-label="Icon">
+              {RUN_ICONS.map((ic) => {
+                const Glyph = RUN_ICON_CMP[ic];
+                return (
+                  <button
+                    type="button"
+                    key={ic}
+                    className={"rl-iconpick" + (curIcon === ic ? " is-on" : "")}
+                    aria-label={RUN_ICON_LABEL[ic]}
+                    aria-pressed={curIcon === ic}
+                    title={RUN_ICON_LABEL[ic]}
+                    onClick={() => applyRunStyle({ icon: ic })}
+                  >
+                    <Glyph />
+                  </button>
+                );
+              })}
+            </div>
+          </FloatingLayer>
         );
       })()}
     </div>
