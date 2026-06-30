@@ -452,6 +452,7 @@
   padding: var(--s-2) 0;
 }
 .cal-dayhead__dow {
+  font-family: var(--hand-sc);
   font-size: var(--fs-meta);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2472,16 +2473,19 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--ink);
+  font-family: var(--hand);
   font-size: var(--fs-micro);
 }
 .cal-stop__meta {
   flex: none;
   color: var(--ink-faint);
+  font-family: var(--hand-sc);
   font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
 }
 .cal-stop__more {
   color: var(--ink-faint);
+  font-family: var(--hand-sc);
   font-size: var(--fs-micro);
   padding-left: calc(7px + var(--s-2));
 }

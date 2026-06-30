@@ -10893,6 +10893,7 @@ button.rl-node {
   border: 0.75pt solid var(--line);
   border-left: 3pt solid var(--pd-tint, var(--line));
   border-radius: calc(2pt);
+  font-family: var(--hand-sc);
   font-size: calc(9pt);
 }
 .pd-tl__grid {
@@ -10948,6 +10949,7 @@ button.rl-node {
 }
 .pd-tl__name {
   display: block;
+  font-family: var(--hand);
   font-weight: 700;
   font-size: calc(9.5pt);
   line-height: 1.05;
