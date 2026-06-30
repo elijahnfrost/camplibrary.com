@@ -44,7 +44,6 @@ import {
   SNAP_MIN,
   effectiveWindow,
   formatClock,
-  formatDuration,
   minutesToTimeString,
   nextFreeStartForDay,
   nowMinutes,
@@ -57,6 +56,7 @@ import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
 import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
+import { yToMinutes } from "@/lib/calendar/dragTime";
 import {
   applyMoveDelta,
   moveDelta,
@@ -520,6 +520,13 @@ export function CalendarShell({
     setWxPopover(null);
     setStopPopover({ ids, anchor });
   });
+  // A lone reminder's dot can be GRABBED and dragged to a new time/day (the
+  // marker isn't an FC event, so this is a custom pointer-drag). beginReminderDrag
+  // is kept on a ref — fed fresh closures by an effect — so the capture-phase
+  // pointerdown handler can start a drag without re-binding. remDraggedRef tells
+  // that handler's click branch to skip opening the editor when a drag just ended.
+  const beginReminderDragRef = useRef<(marker: HTMLElement, e: PointerEvent) => void>(() => {});
+  const remDraggedRef = useRef(false);
   // The weather detail card (click an hour chip or a day-header summary). Mutually
   // exclusive with the event menu (an effect below closes it whenever one
   // of those opens). openWxRef gives the imperative hour-chip click + the React
@@ -753,6 +760,118 @@ export function CalendarShell({
     },
     []
   );
+
+  // Grab-and-drag a lone reminder's dot to a new time (and day). The marker is an
+  // overlay, not an FC event, so this is a hand-rolled pointer drag: past a small
+  // threshold it shows a snapped preview line over the column under the cursor and,
+  // on release, re-times the 0-min event (kept 0-min) with an undo toast. A
+  // recurring reminder routes through the same this/following/all scope prompt a
+  // normal event-drop uses. Kept on a ref so the capture-phase pointerdown handler
+  // starts it with the live event map + grid geometry, never re-binding.
+  useEffect(() => {
+    beginReminderDragRef.current = (marker, e) => {
+      const ids = (marker.dataset.stopIds ?? "").split(",").filter(Boolean);
+      if (ids.length !== 1) return; // only a lone reminder is draggable
+      const original = events[ids[0]];
+      if (!original) return;
+      if (!requireStaff("move reminders")) return;
+      const span = gridEnd - gridStart;
+      if (span <= 0) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let dragging = false;
+      let ghost: HTMLElement | null = null;
+      let target: { date: string; minute: number } | null = null;
+
+      // The day column + snapped minute under a viewport point. A reminder marker
+      // is pointer-events:none and the ghost is too, so elementFromPoint resolves
+      // the grid cell beneath, not the markers.
+      const resolve = (x: number, y: number) => {
+        const el = document.elementFromPoint(x, y);
+        const col = el instanceof Element ? el.closest<HTMLElement>(".fc-timegrid-col[data-date]") : null;
+        const date = col?.getAttribute("data-date") ?? null;
+        const frame = col?.querySelector<HTMLElement>(".fc-timegrid-col-frame") ?? null;
+        if (!date || !frame) return null;
+        const r = frame.getBoundingClientRect();
+        return { date, minute: yToMinutes(y - r.top, r.height, gridStart, gridEnd), rect: r };
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onCancel);
+        document.body.classList.remove("is-cal-dragging");
+        ghost?.remove();
+        marker.style.opacity = "";
+      };
+
+      function onMove(me: PointerEvent) {
+        if (!dragging) {
+          if (Math.abs(me.clientX - startX) < 4 && Math.abs(me.clientY - startY) < 4) return;
+          dragging = true;
+          remDraggedRef.current = true; // the click that follows this drag must NOT open the editor
+          document.body.classList.add("is-cal-dragging");
+          marker.style.opacity = "0.35"; // dim the marker being moved
+          // The preview reuses the marker's own classes (hairline + plain dot), so
+          // it reads identically — just lifted to the viewport and placed where the
+          // reminder will land.
+          ghost = document.createElement("div");
+          ghost.className = "cal-stop cal-stop--line cal-rem-drag";
+          ghost.style.setProperty("--rem-tint", stopDotColor(original));
+          const hair = document.createElement("span");
+          hair.className = "cal-stop__hair";
+          const dot = document.createElement("span");
+          dot.className = "cal-stop__count cal-stop__count--solo";
+          ghost.append(hair, dot);
+          document.body.appendChild(ghost);
+        }
+        const t = resolve(me.clientX, me.clientY);
+        if (!ghost) return;
+        if (t) {
+          target = { date: t.date, minute: t.minute };
+          ghost.style.left = t.rect.left + "px";
+          ghost.style.width = t.rect.width + "px";
+          ghost.style.top = t.rect.top + ((t.minute - gridStart) / span) * t.rect.height + "px";
+          ghost.style.opacity = "1";
+        } else {
+          target = null;
+          ghost.style.opacity = "0.3"; // off the grid — release is a no-op
+        }
+      }
+
+      function onUp() {
+        cleanup();
+        if (!dragging || !target) return;
+        if (original.date === target.date && original.startMin === target.minute) return;
+        const next: CalendarEvent = {
+          ...original,
+          date: target.date,
+          startMin: target.minute,
+          endMin: target.minute, // stay a 0-min point in time
+          updatedAt: Date.now(),
+        };
+        if (original.seriesId) {
+          setScopePrompt({ mode: "edit", event: original, draft: draftFromEvent(next) });
+          return;
+        }
+        upsertEvent(next);
+        announce("Moved " + (original.title || "reminder") + " to " + formatClock(target.minute));
+        showToast({
+          message: "Moved " + (original.title || "reminder"),
+          onUndo: () => upsertEvent(original),
+        });
+      }
+
+      function onCancel() {
+        cleanup();
+      }
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onCancel);
+    };
+  }, [events, gridStart, gridEnd, requireStaff, stopDotColor, setScopePrompt, upsertEvent, announce, showToast]);
 
   // The drag-create selection box is kept visible while QuickAdd is open
   // (unselectAuto is off); clear it whenever the sheet closes — saved,
@@ -2822,16 +2941,15 @@ export function CalendarShell({
     };
   }, [weatherMode, weatherData, gridStart, gridEnd, activeView]);
 
-  // Stop markers: every "stop" (events sharing one exact start time) is painted
-  // into FullCalendar's own day columns (.fc-timegrid-col-frame), positioned by a
-  // top percentage of the day window — the exact mechanism the weather hour chips
-  // use, so stops ride the horizontal scroll AND the vertical hour-zoom for free
-  // and never enter FC's block-overlap layout. An all-0-min stop renders as a
-  // DOT + count; a stop with real events renders as a stacked "lined up" CARD
-  // listing them. A column is only rebuilt when that day's stops change (keyed),
-  // so the MutationObserver can't thrash. Clicks are caught in the CAPTURE phase
-  // and stopped before FC sees them.
-  const MAX_STOP_ROWS = 3;
+  // Stop markers: every reminder "stop" (the 0-min reminders sharing one exact
+  // start time) is painted into FullCalendar's own day columns
+  // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
+  // the exact mechanism the weather hour chips use, so stops ride the horizontal
+  // scroll AND the vertical hour-zoom for free and never enter FC's block-overlap
+  // layout. A stop renders as a quiet hairline + count dot at the column's right
+  // edge; real events stay native FC cards (never merged). A column is only
+  // rebuilt when that day's stops change (keyed), so the MutationObserver can't
+  // thrash. Clicks are caught in the CAPTURE phase and stopped before FC sees them.
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -2864,8 +2982,7 @@ export function CalendarShell({
         const key = JSON.stringify(
           dayStops.map((s) => [
             s.startMin,
-            s.allZero ? "z" : "c",
-            s.events.map((e) => [e.id, e.endMin - e.startMin, e.title, e.note ?? "", stopDotColor(e)]),
+            s.events.map((e) => [e.id, e.title, e.note ?? "", stopDotColor(e)]),
           ])
         );
         if (existing && existing.dataset.stopKey === key) return; // already current
@@ -2884,78 +3001,49 @@ export function CalendarShell({
           marker.dataset.stopIds = stop.events.map((e) => e.id).join(",");
           marker.style.top = ((stop.startMin - gridStart) / span) * 100 + "%";
 
-          if (stop.allZero) {
-            // Reminder stop → a quiet hairline across the column with the count
-            // dot anchored at the FAR RIGHT (in the lane events leave clear). A
-            // lone reminder is a small plain dot; several show a number.
-            marker.className = "cal-stop cal-stop--line";
-            // The hairline + dot wear the reminder's OWN event color (same
-            // coloring as any block), not a special reminder tint.
-            marker.style.setProperty("--rem-tint", stopDotColor(stop.events[0]));
-            marker.setAttribute(
-              "aria-label",
-              (count > 1 ? count + " reminders" : "Reminder") + " at " + formatClock(stop.startMin) + ": " + titles
-            );
-            marker.title = titles + " · " + formatClock(stop.startMin);
-            const hair = document.createElement("span");
-            hair.className = "cal-stop__hair";
-            hair.setAttribute("aria-hidden", "true");
-            const die = document.createElement("span");
-            die.className = count > 1 ? "cal-stop__count" : "cal-stop__count cal-stop__count--solo";
-            if (count > 1) die.textContent = String(count);
-            marker.append(hair, die);
-          } else {
-            // A stop with real events → a stacked card listing them (lined-up
-            // backups), capped at MAX_STOP_ROWS then "+N more".
-            marker.className = "cal-stop cal-stop--card";
-            marker.setAttribute(
-              "aria-label",
-              count + " events at " + formatClock(stop.startMin) + ": " + titles
-            );
-            marker.title = titles + " · " + formatClock(stop.startMin);
-            const list = document.createElement("span");
-            list.className = "cal-stop__list";
-            const shown = count > MAX_STOP_ROWS ? MAX_STOP_ROWS - 1 : count;
-            for (let i = 0; i < shown; i += 1) {
-              const event = stop.events[i];
-              const dur = event.endMin - event.startMin;
-              const row = document.createElement("span");
-              row.className = "cal-stop__row";
-              const dot = document.createElement("span");
-              dot.className = "cal-stop__dot";
-              dot.style.background = stopDotColor(event);
-              const title = document.createElement("span");
-              title.className = "cal-stop__title";
-              title.textContent = event.title || "Reminder";
-              row.append(dot, title);
-              if (dur > 0) {
-                const meta = document.createElement("span");
-                meta.className = "cal-stop__meta";
-                meta.textContent = formatDuration(dur);
-                row.appendChild(meta);
-              }
-              list.appendChild(row);
-            }
-            if (count > shown) {
-              const more = document.createElement("span");
-              more.className = "cal-stop__more";
-              more.textContent = "+" + (count - shown) + " more";
-              list.appendChild(more);
-            }
-            marker.appendChild(list);
-          }
+          // Reminder stop → a quiet hairline across the column with the count
+          // dot anchored at the FAR RIGHT (in the lane events leave clear). A
+          // lone reminder is a small plain dot; several show a number.
+          marker.className = "cal-stop cal-stop--line";
+          // The hairline + dot wear the reminder's OWN event color (same
+          // coloring as any block), not a special reminder tint.
+          marker.style.setProperty("--rem-tint", stopDotColor(stop.events[0]));
+          marker.setAttribute(
+            "aria-label",
+            (count > 1 ? count + " reminders" : "Reminder") + " at " + formatClock(stop.startMin) + ": " + titles
+          );
+          marker.title = titles + " · " + formatClock(stop.startMin);
+          const hair = document.createElement("span");
+          hair.className = "cal-stop__hair";
+          hair.setAttribute("aria-hidden", "true");
+          const die = document.createElement("span");
+          die.className = count > 1 ? "cal-stop__count" : "cal-stop__count cal-stop__count--solo";
+          if (count > 1) die.textContent = String(count);
+          marker.append(hair, die);
           overlay.appendChild(marker);
         }
         frame.appendChild(overlay);
       });
     };
 
-    // A marker click/press is handled here and stopped before FC sees it.
+    // A marker press/click is handled here and stopped before FC sees it. A lone
+    // reminder's dot also starts a custom drag-to-move on pointerdown; if a drag
+    // happened, its trailing click is swallowed so it doesn't also open the editor.
     const onCapture = (e: Event) => {
       const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".cal-stop") : null;
       if (!target) return;
       e.stopPropagation();
+      if (e.type === "pointerdown") {
+        remDraggedRef.current = false; // a fresh press; the drag re-sets this if it moves
+        const ids = (target.dataset.stopIds ?? "").split(",").filter(Boolean);
+        if (ids.length === 1) beginReminderDragRef.current(target, e as PointerEvent);
+        return;
+      }
       if (e.type !== "click") return;
+      if (remDraggedRef.current) {
+        remDraggedRef.current = false; // a drag just ended — swallow its click
+        return;
+      }
       const ids = (target.dataset.stopIds ?? "").split(",").filter(Boolean);
       if (ids.length) openStopRef.current(ids, target.getBoundingClientRect());
     };

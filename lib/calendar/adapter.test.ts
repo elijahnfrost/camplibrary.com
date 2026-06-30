@@ -102,6 +102,22 @@ describe("fromFcDates round-trip", () => {
     expect(allDay.allDay).toBe(true);
     expect(allDay.startMin).toBe(0);
   });
+
+  it("keeps a 0-min reminder 0-min through a round-trip", () => {
+    const reminder = event({ startMin: 540, endMin: 540 });
+    const fc = toFcEvent(reminder, BY_ID);
+    const back = fromFcDates(fc.start as Date, fc.end as Date, false, reminder);
+    expect(back.startMin).toBe(back.endMin); // still a point in time, not a block
+    expect(back.startMin).toBe(540);
+  });
+
+  it("keeps a reminder 0-min when moved to a new day and time", () => {
+    const reminder = event({ startMin: 540, endMin: 540 });
+    const back = fromFcDates(new Date(2026, 5, 12, 10, 30), new Date(2026, 5, 12, 10, 31), false, reminder);
+    expect(back.date).toBe("2026-06-12");
+    expect(back.startMin).toBe(10 * 60 + 30);
+    expect(back.endMin).toBe(10 * 60 + 30);
+  });
 });
 
 describe("healEvent", () => {

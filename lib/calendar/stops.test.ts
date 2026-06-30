@@ -20,46 +20,41 @@ describe("groupStops", () => {
     expect(stops).toHaveLength(0);
   });
 
-  it("groups two events sharing one start into a stop", () => {
+  it("does NOT group two real events sharing one start — only reminders form stops", () => {
     const a = ev({ startMin: 600, endMin: 660, title: "Plan A" });
     const b = ev({ startMin: 600, endMin: 645, title: "Plan B" });
-    const stops = groupStops([a, b]);
-    expect(stops).toHaveLength(1);
-    expect(stops[0].events).toHaveLength(2);
-    expect(stops[0].allZero).toBe(false);
-    // Longest first.
-    expect(stops[0].events[0].title).toBe("Plan A");
+    // Two real events dragged onto the same start stay native FC cards (laid out
+    // side by side), never merged into a multi-event block.
+    expect(groupStops([a, b])).toHaveLength(0);
   });
 
   it("treats a solo 0-min event as a stop (a reminder)", () => {
     const stops = groupStops([ev({ startMin: 600, endMin: 600, title: "Bathroom" })]);
     expect(stops).toHaveLength(1);
-    expect(stops[0].allZero).toBe(true);
     expect(stops[0].events).toHaveLength(1);
   });
 
-  it("groups several 0-min reminders at one time into one all-zero stop", () => {
+  it("groups several 0-min reminders at one time into one stop", () => {
     const stops = groupStops([
       ev({ startMin: 600, endMin: 600, title: "Bathroom" }),
       ev({ startMin: 600, endMin: 600, title: "Sunscreen" }),
       ev({ startMin: 600, endMin: 600, title: "Trash" }),
     ]);
     expect(stops).toHaveLength(1);
-    expect(stops[0].allZero).toBe(true);
     expect(stops[0].events).toHaveLength(3);
   });
 
-  it("a mixed stop (real + reminder) is not all-zero and lists real first", () => {
-    const stops = groupStops([
-      ev({ startMin: 600, endMin: 600, title: "Reminder" }),
-      ev({ startMin: 600, endMin: 660, title: "Real" }),
-    ]);
+  it("a reminder sharing a real event's start makes a reminder-only stop", () => {
+    const reminder = ev({ startMin: 600, endMin: 600, title: "Reminder" });
+    const real = ev({ startMin: 600, endMin: 660, title: "Real" });
+    const stops = groupStops([reminder, real]);
+    // Only the reminder is a stop; the real event stays a native FC card.
     expect(stops).toHaveLength(1);
-    expect(stops[0].allZero).toBe(false);
-    expect(stops[0].events[0].title).toBe("Real");
+    expect(stops[0].events).toHaveLength(1);
+    expect(stops[0].events[0].title).toBe("Reminder");
   });
 
-  it("does not group events at different starts, or all-day events", () => {
+  it("does not group non-zero events at different starts, or all-day events", () => {
     const stops = groupStops([
       ev({ startMin: 600, endMin: 630 }),
       ev({ startMin: 645, endMin: 700 }),
