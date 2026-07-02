@@ -33,16 +33,9 @@ jobs:
         run: npx playwright install chromium
 
       - name: Visual regression
-        run: npm run test:visual:update
+        run: npm run test:visual
         env:
           CI: "true"
-
-      - name: Upload updated snapshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: visual-baselines-tmp
-          path: tests/visual/surfaces.spec.ts-snapshots/
-          retention-days: 14
 
       - name: Upload diff report on failure
         if: failure()
