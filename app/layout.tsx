@@ -10,7 +10,7 @@ import "./calendar.css";
 // fetch to inject the real @font-face rules; when that fetch can't reach Google
 // (offline / sandboxed dev) it silently emits ONLY the Arial metric-fallback
 // faces, so every surface renders in default Arial. Bundling the woff2 makes the
-// real faces load deterministically in dev, CI, and prod. Caveat + Nunito Sans
+// real faces load deterministically in dev, CI, and prod. Caveat + Nunito
 // are variable woff2 (one file each, a 400–700 weight range); Patrick Hand and
 // its small-caps are static 400.
 const caveat = localFont({
@@ -34,8 +34,10 @@ const patrickHandSc = localFont({
 // A quiet humanist companion for body copy and dense data (catalog meta,
 // schedule times, blurbs) so the densest text stays legible while the
 // handwriting faces keep their personality on display headings/labels.
-const nunitoSans = localFont({
-  src: "./fonts/nunito-sans-400.woff2",
+// Nunito (not Nunito Sans) — its rounded terminals echo Patrick Hand/Caveat's
+// warmth while keeping the same legibility/hinting the plain sans needed.
+const nunito = localFont({
+  src: "./fonts/nunito-400.woff2",
   variable: "--font-text",
   weight: "400 700",
   display: "swap",
@@ -94,7 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${caveat.variable} ${patrickHand.variable} ${patrickHandSc.variable} ${nunitoSans.variable}`}
+      className={`${caveat.variable} ${patrickHand.variable} ${patrickHandSc.variable} ${nunito.variable}`}
     >
       <body>{app}</body>
     </html>
