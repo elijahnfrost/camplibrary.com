@@ -1,5 +1,11 @@
 import type { Activity, AgeGroupId, CategoryId } from "./types";
-import { usesAnyMaterialTag } from "./materials";
+
+// The 3-state "can I run this with my kit" lens. "all" = no filtering; the rest
+// match an activity's precomputed coverage state (see lib/materialCatalog
+// runnableState). The states are computed in the library hook (where the catalog
+// + on-hand set live) and passed in as a map, so this predicate stays decoupled
+// from the coverage machinery.
+export type KitFilter = "all" | "ready" | "almost" | "blocked";
 
 // The set of categories the library shows. A multi-select: every id = show all
 // (the default), a subset = show only those, [] = show none. Replaces the old
@@ -36,7 +42,10 @@ export interface ActivityFilterState {
   place: PlaceFilter;
   age: AgeFilter;
   query: string;
-  availableMaterialTags?: string[];
+  /** The runnable-with-my-kit lens, and the precomputed per-activity coverage
+   *  state it matches against. "all" (or an absent map) means no kit filtering. */
+  kitFilter?: KitFilter;
+  runnableStateById?: ReadonlyMap<string, string>;
   /** Filter to one theme. Pairs with themeAssignments (activityId -> themeId)
    *  since the theme lives in a side map, not on the activity itself. */
   theme?: ThemeFilter;
@@ -115,7 +124,9 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.minutes && (a.durationMin < filters.minutes[0] || a.durationMin > filters.minutes[1])) {
     return false;
   }
-  if (!usesAnyMaterialTag(a, filters.availableMaterialTags || [])) return false;
+  if (filters.kitFilter && filters.kitFilter !== "all" && filters.runnableStateById) {
+    if (filters.runnableStateById.get(a.id) !== filters.kitFilter) return false;
+  }
 
   return matchesActivitySearch(a, filters.query);
 }

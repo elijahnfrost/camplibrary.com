@@ -2860,3 +2860,11 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
 }
+
+/* The runnable lens ("Can run" in View settings): events you can't run with the
+   active filter fade back so the runnable ones stand out. A pure opacity/saturation
+   wash — no layout shift — toggled by CalendarShell's dim effect. */
+.calshell .fc-event.cal-event--dim:not(.fc-event-mirror) {
+  opacity: 0.34;
+  filter: saturate(0.6);
+}

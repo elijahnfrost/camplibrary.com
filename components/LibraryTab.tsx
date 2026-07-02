@@ -5,7 +5,7 @@
 // desktop filter rail renders inside the sidenav.
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, KitFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
 import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
@@ -46,6 +46,8 @@ export function LibraryTab({
   onMinutes,
   onToggleMaterial,
   onClearMaterials,
+  kitFilter,
+  onKitFilter,
   onOpen,
   isFav,
   onToggleFav,
@@ -82,6 +84,8 @@ export function LibraryTab({
   onMinutes: (v: MinutesRange) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
+  kitFilter: KitFilter;
+  onKitFilter: (v: KitFilter) => void;
   onOpen: (activity: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
@@ -194,6 +198,7 @@ export function LibraryTab({
         starredOnly={starredOnly}
         materialOptions={materialOptions}
         availableMaterials={availableMaterials}
+        kitFilter={kitFilter}
         minutes={minutes}
         minutesBounds={minutesBounds}
         resultCount={items.length}
@@ -204,6 +209,7 @@ export function LibraryTab({
         onManageThemes={onManageThemes}
         onStarredOnly={onStarredOnly}
         onMinutes={onMinutes}
+        onKitFilter={onKitFilter}
         onToggleMaterial={onToggleMaterial}
         onClearMaterials={onClearMaterials}
       />
@@ -244,6 +250,7 @@ export function LibraryTab({
                   theme={theme}
                   themes={themes}
                   availableMaterials={availableMaterials}
+                  kitFilter={kitFilter}
                   minutes={minutes}
                   minutesBounds={minutesBounds}
                   onCats={onCats}
@@ -251,6 +258,7 @@ export function LibraryTab({
                   onAge={onAge}
                   onTheme={onTheme}
                   onMinutes={onMinutes}
+                  onKitFilter={onKitFilter}
                   onClearMaterials={onClearMaterials}
                 />
                 <button
@@ -263,7 +271,7 @@ export function LibraryTab({
                     onTheme("All");
                     onStarredOnly(false);
                     onMinutes([minutesBounds.min, minutesBounds.max]);
-                    onClearMaterials();
+                    onKitFilter("all");
                   }}
                 >
                   Clear filters

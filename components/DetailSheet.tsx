@@ -29,6 +29,7 @@ import type { Activity } from "@/lib/types";
 import type { AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
+import type { MaterialCatalog } from "@/lib/materialCatalog";
 import {
   BLANK_FORM,
   activityFromForm,
@@ -65,6 +66,7 @@ export function DetailSheet({
   onPrint,
   showOwnerActions = true,
   availableMaterials,
+  materialCatalog,
   onToggleMaterial,
   runDoc,
   onSaveRunDoc,
@@ -93,6 +95,7 @@ export function DetailSheet({
   onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
   availableMaterials: string[];
+  materialCatalog: MaterialCatalog;
   onToggleMaterial: (id: string) => void;
   runDoc: RunDoc;
   /** Live run-doc save (read-mode field-note capture). Gates `canCapture`. */
@@ -303,6 +306,7 @@ export function DetailSheet({
               onChange={setPlayDoc}
               activity={draftActivity}
               availableMaterials={[]}
+              materialCatalog={materialCatalog}
               onToggleMaterial={() => {}}
               hideAddBlocks={["details", "materials"]}
               editForm={form}
@@ -397,6 +401,7 @@ export function DetailSheet({
               onChange={(next) => onSaveRunDoc?.(a.id, next)}
               activity={a}
               availableMaterials={availableMaterials}
+              materialCatalog={materialCatalog}
               onToggleMaterial={onToggleMaterial}
               onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
               // Lets staff jot field notes straight from the read-only viewer

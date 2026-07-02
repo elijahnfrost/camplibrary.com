@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
-import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, KitFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
@@ -10,7 +10,14 @@ import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
-export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+export type { AgeFilter, CatFilter, KitFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+
+// The runnable-lens labels, shared by the chip + the segmented control.
+const KIT_FILTER_LABEL: Record<Exclude<KitFilter, "all">, string> = {
+  ready: "Ready to run",
+  almost: "Almost",
+  blocked: "Can’t run",
+};
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
 export type MinutesRange = [number, number];
@@ -48,6 +55,9 @@ interface ActiveFilterProps {
   themes?: Theme[];
   starredOnly?: boolean;
   availableMaterials: string[];
+  /** The runnable-with-my-kit lens (Ready / Almost / Can't), surfaced as a
+   *  removable chip when narrowed from "all". */
+  kitFilter?: KitFilter;
   /** Current duration window + its full span, so the chip reads "15–45 min"
    *  and removing it widens back to the full bounds. */
   minutes: MinutesRange;
@@ -58,6 +68,7 @@ interface ActiveFilterProps {
   onTheme?: (v: ThemeFilter) => void;
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
+  onKitFilter?: (v: KitFilter) => void;
   onClearMaterials: () => void;
 }
 
@@ -109,8 +120,11 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
       onRemove: () => p.onMinutes([p.minutesBounds.min, p.minutesBounds.max]),
     });
   }
-  if (p.availableMaterials.length > 0) {
-    chips.push({ key: "kit", label: "Kit · " + p.availableMaterials.length, onRemove: p.onClearMaterials });
+  // The runnable lens is the removable filter chip — NOT the on-hand kit count
+  // (clearing that would wipe the inventory, not a filter). Kit editing lives in
+  // the "Available kit" picker / the Materials view.
+  if (p.kitFilter && p.kitFilter !== "all" && p.onKitFilter) {
+    chips.push({ key: "kit", label: KIT_FILTER_LABEL[p.kitFilter], onRemove: () => p.onKitFilter?.("all") });
   }
   if (p.starredOnly && p.onStarredOnly) {
     chips.push({ key: "starred", label: "Starred", onRemove: () => p.onStarredOnly?.(false) });
@@ -158,6 +172,8 @@ interface FiltersProps {
   starredOnly?: boolean;
   materialOptions: MaterialOption[];
   availableMaterials: string[];
+  /** The runnable-with-my-kit lens. Defaults to "all" (no filtering). */
+  kitFilter: KitFilter;
   /** Duration window [lo, hi] in minutes + the full library span it slides over.
    *  The row is hidden when the span is empty (bounds.max <= bounds.min). */
   minutes: MinutesRange;
@@ -172,6 +188,7 @@ interface FiltersProps {
   onManageThemes?: () => void;
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
+  onKitFilter: (v: KitFilter) => void;
   onToggleMaterial: (id: string) => void;
   onClearMaterials: () => void;
 }
@@ -467,6 +484,7 @@ function LedgerFilters({
   starredOnly,
   materialOptions,
   availableMaterials,
+  kitFilter,
   minutes,
   minutesBounds,
   onCats,
@@ -476,6 +494,7 @@ function LedgerFilters({
   onManageThemes,
   onStarredOnly,
   onMinutes,
+  onKitFilter,
   onToggleMaterial,
   onClearMaterials,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
@@ -530,6 +549,24 @@ function LedgerFilters({
           onToggle={onToggleMaterial}
           onClear={onClearMaterials}
         />
+        {/* The runnable lens: filter the catalog to what you can actually run with
+            the kit on hand (substitutions count). Separate from the kit editor
+            above — the picker sets WHAT you have; this filters by what that lets
+            you run. */}
+        <div className="ledger__row">
+          <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Can run</span>
+          <MiniSeg
+            ariaLabel="Filter by what you can run with your kit"
+            value={kitFilter}
+            onChange={onKitFilter}
+            options={[
+              { id: "all" as KitFilter, label: "All" },
+              { id: "ready" as KitFilter, label: "Ready", ariaLabel: "Can run with the kit on hand" },
+              { id: "almost" as KitFilter, label: "Almost", ariaLabel: "Missing one or two items" },
+              { id: "blocked" as KitFilter, label: "Can’t", ariaLabel: "Missing required materials" },
+            ]}
+          />
+        </div>
       </FilterGroup>
 
       {/* Sort & display — list presentation, not a filter: the whole-list order
@@ -580,6 +617,7 @@ export function Filters({
   starredOnly,
   materialOptions,
   availableMaterials,
+  kitFilter,
   minutes,
   minutesBounds,
   resultCount,
@@ -590,6 +628,7 @@ export function Filters({
   onManageThemes,
   onStarredOnly,
   onMinutes,
+  onKitFilter,
   onToggleMaterial,
   onClearMaterials,
 }: FiltersProps) {
@@ -604,6 +643,7 @@ export function Filters({
     themes,
     starredOnly,
     availableMaterials,
+    kitFilter,
     minutes,
     minutesBounds,
     onCats,
@@ -612,6 +652,7 @@ export function Filters({
     onTheme,
     onStarredOnly,
     onMinutes,
+    onKitFilter,
     onClearMaterials,
   };
   const activeCount =
@@ -621,7 +662,7 @@ export function Filters({
     (age !== "All" ? 1 : 0) +
     (minutesOn ? 1 : 0) +
     (starredOnly ? 1 : 0) +
-    (availableMaterials.length > 0 ? 1 : 0);
+    (kitFilter !== "all" ? 1 : 0);
   const anyOn = activeCount > 0;
   const clearAll = () => {
     onCats(ALL_CATEGORY_IDS);
@@ -630,7 +671,7 @@ export function Filters({
     onTheme("All");
     onStarredOnly?.(false);
     onMinutes([minutesBounds.min, minutesBounds.max]);
-    onClearMaterials();
+    onKitFilter("all");
   };
 
   const ledger = (
@@ -647,6 +688,7 @@ export function Filters({
       starredOnly={starredOnly}
       materialOptions={materialOptions}
       availableMaterials={availableMaterials}
+      kitFilter={kitFilter}
       minutes={minutes}
       minutesBounds={minutesBounds}
       onCats={onCats}
@@ -656,6 +698,7 @@ export function Filters({
       onManageThemes={onManageThemes}
       onStarredOnly={onStarredOnly}
       onMinutes={onMinutes}
+      onKitFilter={onKitFilter}
       onToggleMaterial={onToggleMaterial}
       onClearMaterials={onClearMaterials}
     />

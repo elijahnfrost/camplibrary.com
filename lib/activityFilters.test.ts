@@ -40,7 +40,7 @@ const allFilters: ActivityFilterState = {
   place: "All",
   age: "All",
   query: "",
-  availableMaterialTags: [],
+  kitFilter: "all",
 };
 
 function filters(overrides: Partial<ActivityFilterState> = {}): ActivityFilterState {
@@ -87,17 +87,33 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(untagged, filters({ theme: "theme-ocean", themeAssignments }))).toBe(false);
   });
 
-  it("composes the kit filter (uses ANY picked item) with other filters", () => {
-    const base = activity({ type: "Game", materials: ["Cones", "Rope"] });
+  it("composes the runnable-with-kit lens (precomputed coverage state) with other filters", () => {
+    const ready = activity({ id: "a-ready", type: "Game" });
+    const almost = activity({ id: "a-almost", type: "Game" });
+    const blocked = activity({ id: "a-blocked", type: "Game" });
+    const runnableStateById = new Map<string, string>([
+      ["a-ready", "ready"],
+      ["a-almost", "almost"],
+      ["a-blocked", "blocked"],
+    ]);
 
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: undefined }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: [] }))).toBe(true);
-    // A single overlapping kit item surfaces the activity (matches its count badge).
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["cones"] }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string"] }))).toBe(false);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string", "rope"] }))).toBe(true);
-    // The kit filter still ANDs with the other dimensions.
-    expect(matchesActivityFilters(base, filters({ cats: ["Craft"], availableMaterialTags: ["cones"] }))).toBe(false);
+    // "all" ignores runnability; an absent map means no kit filtering either.
+    expect(matchesActivityFilters(ready, filters({ kitFilter: "all", runnableStateById }))).toBe(true);
+    expect(matchesActivityFilters(blocked, filters({ kitFilter: "ready" }))).toBe(true);
+
+    // Each state shows only the activities whose precomputed coverage matches.
+    expect(matchesActivityFilters(ready, filters({ kitFilter: "ready", runnableStateById }))).toBe(true);
+    expect(matchesActivityFilters(almost, filters({ kitFilter: "ready", runnableStateById }))).toBe(false);
+    expect(matchesActivityFilters(almost, filters({ kitFilter: "almost", runnableStateById }))).toBe(true);
+    expect(matchesActivityFilters(blocked, filters({ kitFilter: "blocked", runnableStateById }))).toBe(true);
+
+    // The lens still ANDs with the other dimensions.
+    expect(
+      matchesActivityFilters(
+        activity({ id: "a-ready", type: "Craft" }),
+        filters({ cats: ["Game"], kitFilter: "ready", runnableStateById })
+      )
+    ).toBe(false);
   });
 
   it("filters by an inclusive duration window (endpoints included)", () => {

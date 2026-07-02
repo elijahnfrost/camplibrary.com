@@ -28,7 +28,8 @@ import {
 } from "react";
 import type { Activity, AgeGroupId } from "@/lib/types";
 import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
-import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
+import { indexCatalog, materialRowsForActivity, type MaterialCatalog, type MaterialRow } from "@/lib/materialCatalog";
+import { resolveRefs } from "@/lib/seed/materials";
 import {
   lines as splitList,
   validateForm,
@@ -312,52 +313,75 @@ function RunEmbed({ parsed, title }: { parsed: ParsedEmbed; title?: string }) {
   return null;
 }
 
-// The activity's materials as a working checklist (the same "kit" the library
-// filter reads). Attaches under a step as a materials detail. Checked items
-// float to the top; the count line says what's still to gather.
+// The activity's required materials mapped to the kit on hand: have ✓ /
+// stand-in ↔ / missing ⚠. Substitutions count (a "particular ball" requirement
+// is covered by any ball on hand), so the checklist answers "can I run this?"
+// not just "do I have the exact named item?". An item-ref row toggles its kit
+// id; category ("any of these") and unmapped rows show status only.
+const ROW_RANK: Record<MaterialRow["status"], number> = { have: 0, substitute: 1, missing: 2 };
+
 function MaterialChecklist({
-  needs,
-  availableMaterials,
+  rows,
   onToggleMaterial,
 }: {
-  needs: MaterialNeed[];
-  availableMaterials: string[];
+  rows: MaterialRow[];
   onToggleMaterial: (id: string) => void;
 }) {
-  const haveSet = new Set(availableMaterials);
-  const have = needs.filter((n) => haveSet.has(n.id));
-  const need = needs.filter((n) => !haveSet.has(n.id));
-  const ordered = [...have, ...need];
+  const have = rows.filter((r) => r.status === "have").length;
+  const sub = rows.filter((r) => r.status === "substitute").length;
+  const miss = rows.filter((r) => r.status === "missing").length;
+  // Covered rows float up; missing sink so "what's left to gather" reads last.
+  const ordered = [...rows].sort((a, b) => ROW_RANK[a.status] - ROW_RANK[b.status]);
+
+  const glyph = (status: MaterialRow["status"]) =>
+    status === "have" ? <CampIcon.Check /> : status === "substitute" ? <CampIcon.Repeat /> : <CampIcon.Flag />;
+  const aria = (row: MaterialRow) =>
+    (row.status === "have" ? "Have" : row.status === "substitute" ? "Have a stand-in for" : "Still need") +
+    ": " +
+    row.label;
 
   return (
     <div className="matkit">
-      {needs.length >= 2 && (
+      {rows.length >= 2 && (
         <div className="matkit__bar">
           <span className="matkit__status">
-            Have {have.length} · Need {need.length}
+            Have {have}
+            {sub ? " · Stand-in " + sub : ""} · Need {miss}
           </span>
         </div>
       )}
       <div className="matkit__list">
-        {ordered.map((n, i) => {
-          const has = haveSet.has(n.id);
-          const divide = i === have.length && i > 0 && i < ordered.length;
-          return (
-            <Fragment key={n.id}>
-              {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
-              <button
-                type="button"
-                className={"matkit__item" + (has ? " is-have" : "")}
-                onClick={() => onToggleMaterial(n.id)}
-                aria-pressed={has}
-                aria-label={(has ? "Have" : "Still need") + ": " + n.label}
-              >
-                <span className="matkit__check" aria-hidden="true">
-                  {has && <CampIcon.Check />}
-                </span>
-                <span className="matkit__name">{n.label}</span>
-              </button>
-            </Fragment>
+        {ordered.map((row, i) => {
+          const toggleId = row.ref.kind === "item" ? row.ref.id : undefined;
+          const cls = "matkit__item matkit__item--" + row.status;
+          const inner = (
+            <>
+              <span className="matkit__check" aria-hidden="true">
+                {glyph(row.status)}
+              </span>
+              <span className="matkit__name">
+                {row.label}
+                {row.status === "substitute" && row.substituteLabel ? (
+                  <span className="matkit__via"> — use your {row.substituteLabel}</span>
+                ) : null}
+              </span>
+            </>
+          );
+          return toggleId ? (
+            <button
+              key={i}
+              type="button"
+              className={cls}
+              onClick={() => onToggleMaterial(toggleId)}
+              aria-pressed={row.status !== "missing"}
+              aria-label={aria(row)}
+            >
+              {inner}
+            </button>
+          ) : (
+            <div key={i} className={cls + " is-readonly"} aria-label={aria(row)}>
+              {inner}
+            </div>
           );
         })}
       </div>
@@ -908,6 +932,7 @@ export function ActivityRunList({
   onChange,
   activity,
   availableMaterials,
+  materialCatalog,
   onToggleMaterial,
   onSetRating,
   hideAddBlocks,
@@ -923,6 +948,7 @@ export function ActivityRunList({
   onChange?: (next: RunDoc) => void;
   activity: Activity;
   availableMaterials: string[];
+  materialCatalog: MaterialCatalog;
   onToggleMaterial: (id: string) => void;
   onSetRating?: (value: number) => void;
   /** When provided (edit/create), the Details block renders as structured
@@ -1015,7 +1041,16 @@ export function ActivityRunList({
     return () => Object.values(timers).forEach((t) => clearTimeout(t));
   }, []);
 
-  const materialNeeds = useMemo(() => materialNeedsForActivity(activity), [activity]);
+  const materialCatalogIndex = useMemo(() => indexCatalog(materialCatalog), [materialCatalog]);
+  const materialRows = useMemo(
+    () =>
+      materialRowsForActivity(
+        { ...activity, materialRefs: resolveRefs(activity) },
+        new Set(availableMaterials),
+        materialCatalogIndex
+      ),
+    [activity, availableMaterials, materialCatalogIndex]
+  );
   const detailTags = useMemo(() => detailTagsForActivity(activity), [activity]);
 
   const commit = (next: RunDoc) => onChange?.(next);
@@ -1605,14 +1640,10 @@ export function ActivityRunList({
 
     if (k.type === "materials") {
       return shell(
-        materialNeeds.length === 0 ? (
+        materialRows.length === 0 ? (
           <span className="stamp">None needed</span>
         ) : (
-          <MaterialChecklist
-            needs={materialNeeds}
-            availableMaterials={availableMaterials}
-            onToggleMaterial={onToggleMaterial}
-          />
+          <MaterialChecklist rows={materialRows} onToggleMaterial={onToggleMaterial} />
         )
       );
     }
@@ -2098,14 +2129,10 @@ export function ActivityRunList({
                     <div className="rl-row rl-row--materials">
                       <div className="rl-body">
                         <div className="rl-time">{RUN_TOP_LABEL.materials}</div>
-                        {materialNeeds.length === 0 ? (
+                        {materialRows.length === 0 ? (
                           <span className="stamp">None needed</span>
                         ) : (
-                          <MaterialChecklist
-                            needs={materialNeeds}
-                            availableMaterials={availableMaterials}
-                            onToggleMaterial={onToggleMaterial}
-                          />
+                          <MaterialChecklist rows={materialRows} onToggleMaterial={onToggleMaterial} />
                         )}
                       </div>
                       {handles(b.id)}

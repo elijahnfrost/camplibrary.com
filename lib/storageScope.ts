@@ -4,6 +4,7 @@
 export const SCOPED_STORAGE_KEYS = [
   "view",
   "availableMaterials",
+  "materialCatalog",
   "favs",
   "extra",
   "playbooks",

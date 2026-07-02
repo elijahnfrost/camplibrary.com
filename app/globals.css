@@ -11033,3 +11033,467 @@ button.rl-node {
     display: none !important;
   }
 }
+
+/* ===================================================================
+   Materials — the kit/required reconciliation surface, its runnable
+   badge, and the 3-state run-sheet rows. The rail portals into the
+   primary sidebar (.sidenav__matrail), so .mattab is just the header +
+   board; on phones the rail renders inline (.mattab__rail).
+   =================================================================== */
+
+/* The sidebar slot the Materials lenses portal into — mirrors the print rail. */
+.sidenav__matrail {
+  flex: 1;
+  min-height: 0;
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  margin-inline: -18px;
+  padding-inline: 18px;
+}
+.sidenav__matrail::-webkit-scrollbar {
+  display: none;
+}
+
+.mattab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Header — mirrors .printhead / .calhead metrics so the tab headers line up. */
+.mathead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding: var(--s-5) var(--page-x);
+}
+@media (min-width: 1024px) {
+  .mathead {
+    padding: var(--s-5) var(--s-8);
+  }
+}
+.mathead__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.mathead__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink);
+}
+.mathead__scope {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.mathead__actions {
+  margin-left: auto;
+}
+.mathead__add {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.mathead__add input {
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  padding: 0 var(--s-5);
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.mathead__addbtn {
+  width: var(--control-md);
+  height: var(--control-md);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mathead__addbtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The board — the catalog grouped by substitution class, scrolling under the header. */
+.matboard {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-5) var(--page-x) var(--s-8);
+}
+@media (min-width: 1024px) {
+  .matboard {
+    padding-inline: 32px;
+  }
+}
+.matboard__empty {
+  color: var(--ink-faint);
+  padding: var(--s-8) var(--s-5);
+  text-align: center;
+}
+.matgroup {
+  margin-bottom: var(--s-7);
+  max-width: 880px;
+}
+.matgroup__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-4);
+}
+.matgroup__title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.matgroup__count {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.matgroup__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+/* One material row — the on-hand toggle + name + class + "required by" disclosure. */
+.matrow {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  overflow: hidden;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.matrow.is-have {
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+.matrow.is-open {
+  border-color: var(--ink-soft);
+}
+.matrow__head {
+  display: flex;
+  align-items: stretch;
+  min-height: var(--tap);
+}
+.matrow__check {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s-4) 0 var(--s-5);
+}
+.matrow.is-have .matrow__check .matkit__check {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.matrow__body {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5) var(--s-4) var(--s-1);
+  text-align: left;
+  font-family: var(--text);
+  color: var(--ink);
+}
+.matrow__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.matrow__cat {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--chrome-well);
+  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-4);
+}
+.matrow__subs {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-meta);
+  color: var(--star-ink);
+}
+.matrow__subs svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+}
+.matrow__back {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.matrow__back.is-unused {
+  opacity: 0.55;
+}
+.matrow__chev {
+  flex: none;
+  color: var(--ink-faint);
+  display: inline-flex;
+  transition: transform var(--t-fast) var(--ease);
+}
+.matrow__chev svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+}
+.matrow.is-open .matrow__chev {
+  transform: rotate(180deg);
+}
+.matrow__panel {
+  border-top: 1.5px dashed var(--line);
+  padding: var(--s-4) var(--s-5) var(--s-5);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.matrow__edit {
+  display: flex;
+  flex-direction: column;
+}
+.matrow__subchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+.matrow__subchip svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+}
+.matrow__refs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.matrow__refshead {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+.matrow__ref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  padding: var(--s-3) var(--s-5);
+  cursor: pointer;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.matrow__ref:hover {
+  border-color: var(--ink-soft);
+}
+.matrow__refname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The materials rail (lenses + coverage read-out), portaled into the sidebar. */
+.matrail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.matrail__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: 34px;
+  padding: 0 var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  margin-bottom: var(--s-2);
+}
+.matrail__search svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-faint);
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+}
+.matrail__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.matrail__search input:focus {
+  outline: none;
+}
+.matrail__search button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-faint);
+  display: inline-flex;
+}
+.matrail__stat {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.mattab__rail {
+  padding: var(--s-5) var(--page-x) var(--s-8);
+  border-top: 1.5px dashed var(--line-soft);
+}
+
+/* The shared coverage dot (rail legend) + runnable badge. */
+.matdot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+  display: inline-block;
+  margin-right: 7px;
+}
+.matdot--ready {
+  background: var(--accent);
+}
+.matdot--almost {
+  background: var(--star-gold);
+}
+.matdot--blocked {
+  background: var(--danger);
+}
+
+.matbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-4);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex: none;
+  border: 1.5px solid transparent;
+}
+.matbadge svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+}
+.matbadge--sm {
+  padding: var(--s-1) var(--s-3);
+  font-size: var(--fs-micro);
+}
+.matbadge--ready {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.matbadge--ready.matbadge--sub,
+.matbadge--almost {
+  background: color-mix(in srgb, var(--star-gold) 22%, var(--card));
+  color: var(--star-ink);
+  border-color: color-mix(in srgb, var(--star-gold) 45%, transparent);
+}
+.matbadge--blocked {
+  background: color-mix(in srgb, var(--danger) 14%, var(--card));
+  color: var(--danger-ink);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+/* The run-sheet "Materials" block: three coverage states on the .matkit recipe. */
+.matkit__item--have {
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+}
+.matkit__item--have .matkit__check {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.matkit__item--substitute {
+  background: color-mix(in srgb, var(--star-gold) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--star-gold) 42%, var(--line));
+}
+.matkit__item--substitute .matkit__check {
+  background: var(--star-gold);
+  border-color: var(--star-ink);
+  color: var(--star-ink);
+}
+.matkit__item--missing {
+  background: color-mix(in srgb, var(--danger) 7%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--line));
+}
+.matkit__item--missing .matkit__check {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: transparent;
+}
+.matkit__item--missing .matkit__check svg {
+  stroke: var(--danger);
+}
+.matkit__item.is-readonly {
+  cursor: default;
+}
+.matkit__via {
+  color: var(--ink-faint);
+  font-size: var(--fs-meta);
+}

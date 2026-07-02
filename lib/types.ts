@@ -1,6 +1,7 @@
 // Camp Library — shared domain types.
 
 import type { ActivityPlaybookData } from "@/lib/playbooks";
+import type { MaterialRef } from "@/lib/materialCatalog";
 
 export type CategoryId = "Game" | "Craft" | "Song" | "Water" | "Quiet" | "Routine";
 export type Place = "Inside" | "Outside" | "Both";
@@ -65,6 +66,12 @@ export interface Activity {
   blurb: string;
   materials: string[];
   materialTags?: string[];
+  // Canonical catalog references — the atomic, reconciliation-grade requirement
+  // list (each targets a Material id, a category, or an unmapped "other" label).
+  // Derived from materialTags + the curation layer (lib/seed/materials.ts
+  // resolveRefs) and attached in-memory for the Materials view / runnable filter
+  // / run-sheet block; not persisted (re-derived on load). Absent by default.
+  materialRefs?: MaterialRef[];
   steps: string[];
   notes: string;
   safety: string;
@@ -94,4 +101,4 @@ export interface Activity {
 
 export type LibraryView = "shelf" | "deck" | "catalog";
 
-export type TabId = "home" | "library" | "calendar" | "print" | "staff" | "admin";
+export type TabId = "home" | "library" | "calendar" | "print" | "materials" | "staff" | "admin";

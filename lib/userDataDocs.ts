@@ -17,6 +17,8 @@ import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes
 import { normalizeCamps, type Camp } from "./camps";
 import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
 import { normalizeHexColor } from "./color";
+import { cloneCatalog, normalizeMaterialCatalog, type MaterialCatalog } from "./materialCatalog";
+import { SEED_MATERIAL_CATALOG, DEFAULT_AVAILABLE_MATERIALS } from "./seed/materials";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -26,6 +28,7 @@ export const USER_DOC_KEYS = [
   "playbookOverrides",
   "view",
   "availableMaterials",
+  "materialCatalog",
   "themes",
   "themeAssignments",
   "camps",
@@ -44,6 +47,7 @@ export type DocValueMap = {
   playbookOverrides: Record<string, ActivityPlaybookData>;
   view: LibraryView;
   availableMaterials: string[];
+  materialCatalog: MaterialCatalog;
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
@@ -62,6 +66,7 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   playbookOverrides: "playbooks",
   view: "view",
   availableMaterials: "availableMaterials",
+  materialCatalog: "materialCatalog",
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
@@ -77,7 +82,12 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   runLists: () => ({}),
   playbookOverrides: () => ({}),
   view: () => "deck",
-  availableMaterials: () => [],
+  // A fresh camp starts with the real on-hand kit pre-seeded (so the runnable
+  // filter is useful day one); once edited, the stored list wins.
+  availableMaterials: () => [...DEFAULT_AVAILABLE_MATERIALS],
+  // The catalog ships seeded + curated; once the user edits it the stored doc
+  // wins wholesale (mirrors `locations` / DEFAULT_LOCATIONS).
+  materialCatalog: () => cloneCatalog(SEED_MATERIAL_CATALOG),
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
@@ -152,6 +162,12 @@ export const runListOverridesDoc: StorageValidator<Record<string, RunDoc>> = (va
 export const viewDoc: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
 
+// The canonical materials catalog (the kit/required reconciliation vocabulary).
+// Drops malformed materials/categories and references to ids that don't exist,
+// so renderers + the coverage predicate only ever see a clean catalog.
+export const materialCatalogDoc: StorageValidator<MaterialCatalog> = (value, fallback) =>
+  normalizeMaterialCatalog(value, fallback);
+
 // The user-definable theme vocabulary, and the activityId -> themeId map that
 // assigns one to each activity. Both validators run client + server.
 export const themesDoc: StorageValidator<Theme[]> = (value, fallback) =>
@@ -190,6 +206,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   playbookOverrides: playbookOverridesDoc,
   view: viewDoc,
   availableMaterials: stringArrayDoc,
+  materialCatalog: materialCatalogDoc,
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,

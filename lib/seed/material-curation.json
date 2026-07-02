@@ -1,0 +1,144 @@
+{
+  "_comment": "Hand-curated substitution layer over the auto-derived material catalog. categories = substitution classes (any on-hand member can stand in for another). materials = per-id category/substitute links. splitBundles = the real 'X or Y' tags, resolved to a category so EITHER member satisfies the requirement. Refine in-app over time; this is the v1 seed for the obvious classes (balls, tape, paper, paint, coloring, beads, string + the 'or' bundles).",
+  "categories": [
+    { "id": "balls", "label": "Balls" },
+    { "id": "paper", "label": "Paper" },
+    { "id": "paint", "label": "Paint" },
+    { "id": "coloring", "label": "Coloring tools" },
+    { "id": "beads", "label": "Beads" },
+    { "id": "string-yarn", "label": "String & yarn" },
+    { "id": "tape", "label": "Tape" },
+    { "id": "serveware", "label": "Paper plates & cups" }
+  ],
+  "materials": {
+    "playground-balls": { "category": "balls" },
+    "playground-ball": { "category": "balls" },
+    "soft-playground-ball": { "category": "balls" },
+
+    "paper": { "category": "paper" },
+    "construction-paper": { "category": "paper" },
+    "cardstock": { "category": "paper" },
+    "chart-paper": { "category": "paper" },
+    "square-paper": { "category": "paper" },
+    "paper-scraps": { "category": "paper" },
+
+    "paint": { "category": "paint" },
+    "washable-paint": { "category": "paint" },
+
+    "markers": { "category": "coloring" },
+    "crayons": { "category": "coloring" },
+
+    "pony-beads": { "category": "beads" },
+
+    "yarn": { "category": "string-yarn" },
+
+    "masking-tape": { "category": "tape" },
+
+    "paper-plates": { "category": "serveware" },
+    "paper-cups": { "category": "serveware" },
+
+    "team-identifiers": { "category": "flags-pinnies" },
+
+    "glue": { "substitutes": ["pva-glue"] },
+    "pva-glue": { "substitutes": ["glue"] }
+  },
+  "splitBundles": {
+    "flags-or-pinnies": {
+      "category": "flags-pinnies",
+      "categoryLabel": "Flags & pinnies",
+      "members": [
+        { "id": "flags", "name": "Flags" },
+        { "id": "pinnies", "name": "Pinnies" },
+        { "id": "bandanas", "name": "Bandanas" }
+      ]
+    },
+    "paper-plates-cups": {
+      "category": "serveware",
+      "categoryLabel": "Paper plates & cups",
+      "members": [
+        { "id": "paper-plates", "name": "Paper plates" },
+        { "id": "paper-cups", "name": "Paper cups" }
+      ]
+    },
+    "craft-sticks-or-twigs": {
+      "category": "sticks",
+      "categoryLabel": "Craft sticks or twigs",
+      "members": [
+        { "id": "craft-sticks", "name": "Craft sticks" },
+        { "id": "twigs", "name": "Twigs" }
+      ]
+    },
+    "markers-or-paint": {
+      "category": "markers-or-paint",
+      "categoryLabel": "Markers or paint",
+      "members": [
+        { "id": "markers", "name": "Markers" },
+        { "id": "paint", "name": "Paint" }
+      ]
+    },
+    "paint-or-paint-pens": {
+      "category": "paint",
+      "categoryLabel": "Paint",
+      "members": [
+        { "id": "paint", "name": "Paint" },
+        { "id": "paint-pens", "name": "Paint pens" }
+      ]
+    },
+    "yarn-or-string": {
+      "category": "string-yarn",
+      "categoryLabel": "String & yarn",
+      "members": [
+        { "id": "yarn", "name": "Yarn" },
+        { "id": "string", "name": "String" }
+      ]
+    },
+    "saline-or-liquid-starch": {
+      "category": "slime-activator",
+      "categoryLabel": "Slime activator",
+      "members": [
+        { "id": "saline", "name": "Saline solution" },
+        { "id": "liquid-starch", "name": "Liquid starch" }
+      ]
+    },
+    "eggs-or-ping-pong-balls": {
+      "category": "egg-or-pingpong",
+      "categoryLabel": "Eggs or ping-pong balls",
+      "members": [
+        { "id": "eggs", "name": "Eggs" },
+        { "id": "ping-pong-balls", "name": "Ping-pong balls" }
+      ]
+    },
+    "sacks-or-pillowcases": {
+      "category": "sack",
+      "categoryLabel": "Sacks or pillowcases",
+      "members": [
+        { "id": "burlap-sacks", "name": "Burlap sacks" },
+        { "id": "pillowcases", "name": "Pillowcases" }
+      ]
+    },
+    "can-or-cone": {
+      "category": "knockdown",
+      "categoryLabel": "Cans or cones",
+      "members": [
+        { "id": "cans", "name": "Empty cans" },
+        { "id": "cones", "name": "Cones" }
+      ]
+    },
+    "chalk-or-court-lines": {
+      "category": "court-lines",
+      "categoryLabel": "Chalk or court lines",
+      "members": [
+        { "id": "sidewalk-chalk", "name": "Sidewalk chalk" },
+        { "id": "court-lines", "name": "Painted court lines" }
+      ]
+    },
+    "carpet-squares-or-spots": {
+      "category": "floor-spots",
+      "categoryLabel": "Carpet squares or spots",
+      "members": [
+        { "id": "carpet-squares", "name": "Carpet squares" },
+        { "id": "floor-spots", "name": "Floor spots" }
+      ]
+    }
+  }
+}

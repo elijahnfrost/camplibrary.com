@@ -77,6 +77,8 @@ import {
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/store";
 import { CampIcon } from "../icons";
+import { MiniSeg } from "../primitives";
+import type { KitFilter } from "@/lib/activityFilters";
 import { Modal } from "../Modal";
 import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
@@ -251,6 +253,9 @@ export function CalendarShell({
   headerActions,
   themeOf,
   onReady,
+  kitFilter,
+  onKitFilter,
+  runnableStateById,
 }: {
   events: Record<string, CalendarEvent>;
   upsertEvent: (event: CalendarEvent) => void;
@@ -308,6 +313,12 @@ export function CalendarShell({
    *  paint. Lets the host hold a loading veil over the mount/layout-settle gap
    *  rather than dropping it on a blind timer. Idempotent on the caller's side. */
   onReady?: () => void;
+  /** The shared "can I run this with my kit" lens (also drives the Library). When
+   *  set (≠ "all"), scheduled activity-events whose coverage doesn't match are
+   *  dimmed; custom events (no activity) are never dimmed. */
+  kitFilter?: KitFilter;
+  onKitFilter?: (v: KitFilter) => void;
+  runnableStateById?: ReadonlyMap<string, string>;
 }) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -2173,6 +2184,28 @@ export function CalendarShell({
     return () => window.cancelAnimationFrame(frame);
   }, [selection, fcEvents, activeView]);
 
+  // The runnable lens: when a kit filter is active, dim scheduled activity-events
+  // whose coverage doesn't match — so "which of today's blocks can I run?" reads
+  // at a glance. Same DOM-walk pattern as the selection paint above; custom events
+  // (no activityId, so no materials) are never dimmed.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const active = Boolean(kitFilter && kitFilter !== "all" && runnableStateById);
+    const frame = window.requestAnimationFrame(() => {
+      grid.querySelectorAll<HTMLElement>("[data-event-id]").forEach((el) => {
+        let dim = false;
+        if (active) {
+          const ev = events[el.dataset.eventId ?? ""];
+          const activityId = ev?.activityId;
+          if (activityId) dim = runnableStateById!.get(activityId) !== kitFilter;
+        }
+        el.classList.toggle("cal-event--dim", dim);
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [kitFilter, runnableStateById, events, fcEvents, activeView]);
+
   // "Day" weather rides in the column header; bump renderDayHeader's identity only
   // when the daily forecast changes AND we're in day mode (so a Month view or the
   // hourly mode never re-renders the grid for weather). The map + units are read
@@ -3277,6 +3310,22 @@ export function CalendarShell({
                       onChangeView={changeView}
                       onOpenCamps={onOpenCamps}
                     />
+                    {onKitFilter && (
+                      <div className="ledger__row">
+                        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Can run</span>
+                        <MiniSeg
+                          ariaLabel="Dim events you can't run with your kit"
+                          value={kitFilter ?? "all"}
+                          onChange={onKitFilter}
+                          options={[
+                            { id: "all" as KitFilter, label: "All" },
+                            { id: "ready" as KitFilter, label: "Ready", ariaLabel: "Can run with the kit on hand" },
+                            { id: "almost" as KitFilter, label: "Almost", ariaLabel: "Missing one or two items" },
+                            { id: "blocked" as KitFilter, label: "Can’t", ariaLabel: "Missing required materials" },
+                          ]}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

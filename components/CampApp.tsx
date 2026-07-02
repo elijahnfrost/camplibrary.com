@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
@@ -59,6 +59,10 @@ const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab
   ssr: false,
   loading: ChunkVeil,
 });
+const MaterialsTab = dynamic(() => import("./materials/MaterialsTab").then((m) => m.MaterialsTab), {
+  ssr: false,
+  loading: ChunkVeil,
+});
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
@@ -69,6 +73,7 @@ const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
   { id: "print", label: "Print", icon: CampIcon.Print },
+  { id: "materials", label: "Materials", icon: CampIcon.Box },
 ];
 // The single intentional sign-in / account surface. Shown to everyone (signed
 // out it's "Sign in"; signed in it's the account panel) — it replaces the old
@@ -87,7 +92,7 @@ const ADMIN_TAB: NavTab = {
 // onto the main app. Stored unscoped (a per-device UI choice, like the calendar
 // view prefs) under the shared "camp:" store.
 const STORED_TAB_KEY = "currentTab";
-const RESTORABLE_TABS = ["home", "library", "calendar", "print", "staff"] as const;
+const RESTORABLE_TABS = ["home", "library", "calendar", "print", "materials", "staff"] as const;
 const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) =>
   typeof value === "string" && (RESTORABLE_TABS as readonly string[]).includes(value)
     ? (value as TabId)
@@ -385,6 +390,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [age, setAge] = useState<AgeFilter>("All");
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
+  // The 3-state "can I run this with my kit" lens, shared by the Library list and
+  // the Calendar (so the runnable filter reads the same everywhere).
+  const [kitFilter, setKitFilter] = useState<KitFilter>("all");
   const [query, setQuery] = useState("");
   // Duration filter. The slider spans the actual range of lengths in the
   // library (snapped out to a 5-minute grid), so the handles never sit past
@@ -463,19 +471,21 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           theme,
           themeAssignments: lib.themeAssignments,
           query,
-          availableMaterialTags: lib.activeAvailableMaterials,
+          kitFilter,
+          runnableStateById: lib.runnableStateById,
           minutes: minutesActive ? minutesValue : undefined,
         })
       ),
     [
       lib.all,
-      lib.activeAvailableMaterials,
+      lib.runnableStateById,
       lib.themeAssignments,
       cats,
       place,
       age,
       theme,
       query,
+      kitFilter,
       minutesActive,
       minutesValue,
     ]
@@ -591,6 +601,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // calendar rail above.
   const [printRail, setPrintRail] = useState<HTMLDivElement | null>(null);
   const printRailRef = useCallback((node: HTMLDivElement | null) => setPrintRail(node), []);
+  // The Materials tab shares the same sidebar: MaterialsTab portals its lenses
+  // into this slot (the same node-state pattern as the calendar / print rails).
+  const [matRail, setMatRail] = useState<HTMLDivElement | null>(null);
+  const matRailRef = useCallback((node: HTMLDivElement | null) => setMatRail(node), []);
 
   // Create: open the ONE surface blank, in edit mode, on a fresh draft activity
   // (built from BLANK_FORM so the read-mode preview/tint is coherent before the
@@ -758,10 +772,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onMinutes={handleMinutes}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
+              kitFilter={kitFilter}
+              onKitFilter={setKitFilter}
             />
           )}
           {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
           {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
+          {tab === "materials" && isDesktop && <div className="sidenav__matrail" ref={matRailRef} />}
         </nav>
 
         <main className="app__main" id="main">
@@ -823,6 +840,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onMinutes={handleMinutes}
               onToggleMaterial={lib.toggleAvailableMaterial}
               onClearMaterials={lib.clearAvailableMaterials}
+              kitFilter={kitFilter}
+              onKitFilter={setKitFilter}
               onOpen={openDetail}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
@@ -852,6 +871,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 railSlot={calRail}
                 themeOf={lib.themeOf}
                 onReady={onCalendarReady}
+                kitFilter={kitFilter}
+                onKitFilter={setKitFilter}
+                runnableStateById={lib.runnableStateById}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 locationOptions={lib.locations}
                 locationColors={lib.locationColors}
@@ -876,6 +898,22 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               railSlot={printRail}
               printHost={printHost}
               announce={setLiveMsg}
+            />
+          )}
+
+          {tab === "materials" && (
+            <MaterialsTab
+              catalog={lib.materialCatalog}
+              activities={lib.activitiesWithRefs}
+              onHand={lib.availableMaterials}
+              onToggleOnHand={lib.toggleAvailableMaterial}
+              canEdit={isSignedIn}
+              onSetCategory={lib.setMaterialCategory}
+              onAddSubstitute={lib.addSubstitute}
+              onRemoveSubstitute={lib.removeSubstitute}
+              onAddMaterial={lib.addMaterial}
+              onOpenActivity={openDetail}
+              railSlot={isDesktop ? matRail : null}
             />
           )}
 
@@ -1063,7 +1101,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
-            availableMaterials={lib.activeAvailableMaterials}
+            availableMaterials={lib.availableMaterials}
+            materialCatalog={lib.materialCatalog}
             onToggleMaterial={lib.toggleAvailableMaterial}
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSetRating={isSignedIn ? lib.setRating : undefined}

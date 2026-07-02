@@ -14,6 +14,21 @@ import {
 } from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
 import { materialOptionsForActivities } from "@/lib/materials";
+import {
+  addMaterialToCatalog,
+  addSubstituteToMaterial,
+  createCategoryInCatalog,
+  deleteMaterialFromCatalog,
+  indexCatalog,
+  materialCoverage,
+  removeSubstituteFromMaterial,
+  renameMaterialInCatalog,
+  runnableState,
+  setMaterialCategory as setMaterialCategoryInCatalog,
+  type CoverageResult,
+  type RunnableState,
+} from "@/lib/materialCatalog";
+import { resolveRefs } from "@/lib/seed/materials";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
 import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
 import {
@@ -38,6 +53,7 @@ export function useActivityLibrary({
   const { docs, setDoc, events, commitEvents } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view, deletedActivityIds } = docs;
   const availableMaterials = docs.availableMaterials;
+  const materialCatalog = docs.materialCatalog;
   const { themes, themeAssignments, locations, locationColors } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
@@ -75,6 +91,89 @@ export function useActivityLibrary({
     if (!requireStaff("update available kit")) return;
     setDoc("availableMaterials", []);
   }, [requireStaff, setDoc]);
+
+  // ---- The materials catalog: the single source reconciling the available kit
+  // (catalog ids flagged on hand, in `availableMaterials`) with what every
+  // activity requires (its refs). Substitution lives in the catalog, so coverage
+  // is computed once per activity and shared by the runnable filter, the badges,
+  // the Materials view, and the run-sheet block. ----
+  const catalogIndex = useMemo(() => indexCatalog(materialCatalog), [materialCatalog]);
+  const onHandSet = useMemo(() => new Set(availableMaterials), [availableMaterials]);
+
+  // Activities with their canonical refs attached (curation-aware bundle remap),
+  // for the Materials view + coverage. Not persisted — re-derived from tags.
+  const activitiesWithRefs = useMemo(() => all.map((a) => ({ ...a, materialRefs: resolveRefs(a) })), [all]);
+
+  const coverageById = useMemo(() => {
+    const map = new Map<string, CoverageResult>();
+    for (const a of all) map.set(a.id, materialCoverage(resolveRefs(a), onHandSet, catalogIndex));
+    return map;
+  }, [all, onHandSet, catalogIndex]);
+
+  const runnableStateById = useMemo(() => {
+    const map = new Map<string, RunnableState>();
+    for (const [id, cov] of coverageById) map.set(id, runnableState(cov));
+    return map;
+  }, [coverageById]);
+
+  const coverageOf = useCallback(
+    (id: string): CoverageResult | undefined => coverageById.get(id),
+    [coverageById]
+  );
+
+  const addMaterial = useCallback(
+    (name: string) => {
+      if (!requireStaff("add a material")) return;
+      setDoc("materialCatalog", (c) => addMaterialToCatalog(c, name));
+    },
+    [requireStaff, setDoc]
+  );
+  const renameMaterial = useCallback(
+    (id: string, name: string) => {
+      if (!requireStaff("rename a material")) return;
+      setDoc("materialCatalog", (c) => renameMaterialInCatalog(c, id, name));
+    },
+    [requireStaff, setDoc]
+  );
+  const setMaterialCategory = useCallback(
+    (id: string, category: string | null) => {
+      if (!requireStaff("set a substitution class")) return;
+      setDoc("materialCatalog", (c) => setMaterialCategoryInCatalog(c, id, category));
+    },
+    [requireStaff, setDoc]
+  );
+  const addSubstitute = useCallback(
+    (id: string, subId: string) => {
+      if (!requireStaff("add a stand-in")) return;
+      setDoc("materialCatalog", (c) => addSubstituteToMaterial(c, id, subId));
+    },
+    [requireStaff, setDoc]
+  );
+  const removeSubstitute = useCallback(
+    (id: string, subId: string) => {
+      if (!requireStaff("remove a stand-in")) return;
+      setDoc("materialCatalog", (c) => removeSubstituteFromMaterial(c, id, subId));
+    },
+    [requireStaff, setDoc]
+  );
+  const createMaterialCategory = useCallback(
+    (label: string): string | null => {
+      if (!requireStaff("add a substitution class")) return null;
+      const result = createCategoryInCatalog(materialCatalog, label);
+      if (!result.id) return null;
+      setDoc("materialCatalog", () => result.catalog);
+      return result.id;
+    },
+    [materialCatalog, requireStaff, setDoc]
+  );
+  const deleteMaterial = useCallback(
+    (id: string) => {
+      if (!requireStaff("delete a material")) return;
+      setDoc("materialCatalog", (c) => deleteMaterialFromCatalog(c, id));
+      setDoc("availableMaterials", (p) => p.filter((x) => x !== id));
+    },
+    [requireStaff, setDoc]
+  );
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
@@ -427,6 +526,22 @@ export function useActivityLibrary({
     activeAvailableMaterials,
     toggleAvailableMaterial,
     clearAvailableMaterials,
+    // Materials reconciliation
+    materialCatalog,
+    catalogIndex,
+    availableMaterials,
+    onHandSet,
+    activitiesWithRefs,
+    coverageById,
+    coverageOf,
+    runnableStateById,
+    addMaterial,
+    renameMaterial,
+    setMaterialCategory,
+    addSubstitute,
+    removeSubstitute,
+    createMaterialCategory,
+    deleteMaterial,
     resolvePlaybook,
     resolveRunDoc,
     saveRunDoc,
