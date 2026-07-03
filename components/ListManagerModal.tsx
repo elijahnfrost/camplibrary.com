@@ -494,6 +494,16 @@ export function CampDayStructure({
   );
 }
 
+// House rule for destructive confirms (applied across the app):
+//   • UNDOABLE actions never confirm — the calendar's event deletes all fire an
+//     Undo toast, so a stray delete is one tap to recover. A confirm there would
+//     be noise.
+//   • NON-undoable vocabulary deletes confirm via window.confirm — removing a
+//     theme / camp / location / guidance band / dietary entry has no undo and can
+//     touch every event that used it, so it asks first. (This matches the
+//     existing themes / camps / locations delete precedent in CampApp.)
+// The guidance-band and dietary-entry row deletes below are non-undoable, so
+// they confirm here, at the click site, exactly like the camps/locations rows.
 export function GuidesSection({
   guides,
   hourOptions,
@@ -566,7 +576,11 @@ export function GuidesSection({
               type="button"
               className="icon-btn manager__rowbtn manager__rowbtn--danger"
               aria-label={"Delete band " + band.label}
-              onClick={() => onDelete(band.id)}
+              onClick={() => {
+                if (window.confirm("Delete the “" + (band.label || "untitled") + "” guidance band? This can't be undone.")) {
+                  onDelete(band.id);
+                }
+              }}
             >
               <CampIcon.Trash />
             </button>
@@ -625,7 +639,11 @@ export function DietarySection({
               type="button"
               className="icon-btn manager__rowbtn manager__rowbtn--danger"
               aria-label={"Delete " + entry.label}
-              onClick={() => onDelete(entry.id)}
+              onClick={() => {
+                if (window.confirm("Delete the “" + (entry.label || "untitled") + "” dietary entry? This can't be undone.")) {
+                  onDelete(entry.id);
+                }
+              }}
             >
               <CampIcon.Trash />
             </button>

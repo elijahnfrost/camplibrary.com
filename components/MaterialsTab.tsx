@@ -321,9 +321,10 @@ export function MaterialsTab({
           </div>
         )}
 
-        <label className="materials-tab__search">
+        <label className="searchfield materials-tab__search">
           <CampIcon.Search />
           <input
+            className="searchfield__input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search materials"
@@ -334,7 +335,12 @@ export function MaterialsTab({
             spellCheck={false}
           />
           {query && (
-            <button type="button" onClick={() => setQuery("")} aria-label="Clear materials search">
+            <button
+              type="button"
+              className="searchfield__clear"
+              onClick={() => setQuery("")}
+              aria-label="Clear materials search"
+            >
               <CampIcon.Close />
             </button>
           )}
@@ -385,7 +391,14 @@ export function MaterialsTab({
               icon: <CampIcon.Trash />,
               danger: true,
               separatorBefore: true,
-              onSelect: () => onSetArchived(menu.row.id, menu.row.name, true),
+              // Archiving hides the material from the list with no undo toast —
+              // a non-undoable removal, so it confirms (house rule: undoable
+              // actions don't confirm, non-undoable vocabulary removals do).
+              onSelect: () => {
+                if (window.confirm("Archive “" + menu.row.name + "”? It's hidden from the list until you unarchive it.")) {
+                  onSetArchived(menu.row.id, menu.row.name, true);
+                }
+              },
             },
           ]}
         />

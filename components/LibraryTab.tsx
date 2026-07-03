@@ -1,20 +1,43 @@
 "use client";
 
-// The Library surface: view switcher, search, Add button, the mobile filter
-// bar, and the three browse views. Filter state lives in CampApp because the
-// desktop filter rail renders inside the sidenav.
+// The Library surface: the collection seg (Activities | Materials), view
+// switcher, search, Add button, the mobile filter bar, and the three browse
+// views. Filter state lives in CampApp because the desktop filter rail renders
+// inside the sidenav. The Materials collection mounts the existing MaterialsTab
+// content in place of the browse views (Materials was formerly its own tab).
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
-import type { Activity, LibraryView } from "@/lib/types";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
+import type { Activity, LibraryCollection, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters, type MinutesBounds, type MinutesRange } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
+import { MaterialsTab } from "./MaterialsTab";
 import { LoadingVeil } from "./primitives";
 
+// The MaterialsTab prop bundle, threaded through unchanged from CampApp. Kept as
+// one object so the Library toolbar stays readable and the Materials collection
+// is a clean drop-in of the existing component.
+export interface MaterialsCollectionProps {
+  activities: Activity[];
+  catalog: Material[];
+  kitStock: Record<string, StockState>;
+  onSetStockState: (id: string, state: StockState) => void;
+  onRename: (id: string, name: string) => void;
+  onSetConsumable: (id: string, name: string, consumable: boolean) => void;
+  onSetArchived: (id: string, name: string, archived: boolean) => void;
+  onBrowseMaterial: (id: string, name: string) => void;
+  canEdit: boolean;
+}
+
 export function LibraryTab({
+  collection,
+  onCollection,
+  materials,
   view,
   onView,
   actions,
@@ -55,6 +78,11 @@ export function LibraryTab({
   onAdd,
   hasLoaded = true,
 }: {
+  /** Which collection is showing — the activity catalog or the kit inventory. */
+  collection: LibraryCollection;
+  onCollection: (collection: LibraryCollection) => void;
+  /** The MaterialsTab prop bundle, mounted when collection === "materials". */
+  materials: MaterialsCollectionProps;
   view: LibraryView;
   onView: (view: LibraryView) => void;
   query: string;
@@ -101,90 +129,132 @@ export function LibraryTab({
   /** Rendered at the right end of the toolbar (e.g. the auth pill). */
   actions?: ReactNode;
 }) {
+  const isMaterials = collection === "materials";
   return (
     <>
       <div className="toolbar">
-        {/* --seg-i drives the sliding active pill (see .viewswitch in globals). */}
+        {/* Collection seg — the far-left dimension: Activities (the catalog) vs
+            Materials (the kit inventory, formerly its own tab). --seg-i drives
+            the sliding active pill (see .viewswitch in globals). */}
         <div
-          className="viewswitch seg-slide"
-          style={
-            {
-              "--seg-n": 3,
-              "--seg-i": view === "shelf" ? 0 : view === "deck" ? 1 : 2,
-            } as CSSProperties
-          }
+          className="collseg viewswitch seg-slide"
+          role="group"
+          aria-label="Library collection"
+          style={{ "--seg-n": 2, "--seg-i": isMaterials ? 1 : 0 } as CSSProperties}
         >
           <button
             type="button"
-            className={view === "shelf" ? "is-active" : ""}
-            aria-pressed={view === "shelf"}
-            onClick={() => onView("shelf")}
+            className={!isMaterials ? "is-active" : ""}
+            aria-pressed={!isMaterials}
+            onClick={() => onCollection("activities")}
           >
-            <CampIcon.Shelf />
-            Shelf
+            <CampIcon.Library />
+            Activities
           </button>
           <button
             type="button"
-            className={view === "deck" ? "is-active" : ""}
-            aria-pressed={view === "deck"}
-            onClick={() => onView("deck")}
+            className={isMaterials ? "is-active" : ""}
+            aria-pressed={isMaterials}
+            onClick={() => onCollection("materials")}
           >
-            <CampIcon.Deck />
-            Deck
-          </button>
-          <button
-            type="button"
-            className={view === "catalog" ? "is-active" : ""}
-            aria-pressed={view === "catalog"}
-            onClick={() => onView("catalog")}
-          >
-            <CampIcon.List />
-            Catalog
+            <CampIcon.Crate />
+            Materials
           </button>
         </div>
-        <div className="toolbar__search">
-          <CampIcon.Search />
-          <input
-            className="toolbar__search-input"
-            placeholder="Search titles, steps, materials..."
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-            aria-label="Search the library"
-            enterKeyHint="search"
-            // Mobile keyboards otherwise auto-capitalize and autocorrect the
-            // field, silently rewriting unusual game/alt-names ("Goggaball",
-            // "gaga") into real words before they reach the matcher — the
-            // root of "it searched something I didn't type."
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-            }}
-          />
-          {query && (
+        {/* The browse-view switch, search, and Add belong to the Activities
+            collection only — Materials mounts its own header + search below. */}
+        {!isMaterials && (
+          <>
+            {/* --seg-i drives the sliding active pill (see .viewswitch in globals). */}
+            <div
+              className="viewswitch seg-slide"
+              style={
+                {
+                  "--seg-n": 3,
+                  "--seg-i": view === "shelf" ? 0 : view === "deck" ? 1 : 2,
+                } as CSSProperties
+              }
+            >
+              <button
+                type="button"
+                className={view === "shelf" ? "is-active" : ""}
+                aria-pressed={view === "shelf"}
+                onClick={() => onView("shelf")}
+              >
+                <CampIcon.Shelf />
+                Shelf
+              </button>
+              <button
+                type="button"
+                className={view === "deck" ? "is-active" : ""}
+                aria-pressed={view === "deck"}
+                onClick={() => onView("deck")}
+              >
+                <CampIcon.Deck />
+                Deck
+              </button>
+              <button
+                type="button"
+                className={view === "catalog" ? "is-active" : ""}
+                aria-pressed={view === "catalog"}
+                onClick={() => onView("catalog")}
+              >
+                <CampIcon.List />
+                Catalog
+              </button>
+            </div>
+            <div className="searchfield toolbar__search">
+              <CampIcon.Search />
+              <input
+                className="searchfield__input"
+                placeholder="Search titles, steps, materials..."
+                value={query}
+                onChange={(e) => onQuery(e.target.value)}
+                aria-label="Search the library"
+                enterKeyHint="search"
+                // Mobile keyboards otherwise auto-capitalize and autocorrect the
+                // field, silently rewriting unusual game/alt-names ("Goggaball",
+                // "gaga") into real words before they reach the matcher — the
+                // root of "it searched something I didn't type."
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+                }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  className="searchfield__clear"
+                  onClick={() => onQuery("")}
+                  aria-label="Clear search"
+                >
+                  <CampIcon.Close />
+                </button>
+              )}
+            </div>
             <button
               type="button"
-              className="toolbar__search-clear"
-              onClick={() => onQuery("")}
-              aria-label="Clear search"
+              className="btn btn--primary toolbar__add"
+              onClick={onAdd}
+              title="Catalog a new activity"
             >
-              <CampIcon.Close />
+              <CampIcon.Plus />
+              <span>Add</span>
             </button>
-          )}
-        </div>
-        <button
-          type="button"
-          className="btn btn--primary toolbar__add"
-          onClick={onAdd}
-          title="Catalog a new activity"
-        >
-          <CampIcon.Plus />
-          <span>Add</span>
-        </button>
-        {actions && <div className="toolbar__auth">{actions}</div>}
+            {actions && <div className="toolbar__auth">{actions}</div>}
+          </>
+        )}
       </div>
+      {isMaterials ? (
+        // The Materials collection: the existing MaterialsTab content in place
+        // of the mobile filter bar + browse views. It owns its own header,
+        // search, and setup flow.
+        <MaterialsTab {...materials} />
+      ) : (
+        <>
       <Filters
         variant="bar"
         sort={sort}
@@ -297,6 +367,8 @@ export function LibraryTab({
           </>
         )}
       </div>
+        </>
+      )}
     </>
   );
 }

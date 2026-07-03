@@ -30,6 +30,17 @@ import { ColorField } from "../floating/ColorField";
 import { LocationField } from "../floating/LocationField";
 import { RepeatField } from "./RepeatField";
 
+// The Meal-tag options for the editor's Meal row — "" is the None (untag)
+// choice; the rest are the MealKind union with friendly labels.
+const MEAL_TAG_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "None" },
+  { value: "breakfast", label: "Breakfast" },
+  { value: "am-snack", label: "AM snack" },
+  { value: "lunch", label: "Lunch" },
+  { value: "pm-snack", label: "PM snack" },
+  { value: "other", label: "Other" },
+];
+
 export type EditorDraft = {
   id?: string; // present when editing an existing event
   date: DateKey;
@@ -256,6 +267,11 @@ export function QuickAdd({
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
   const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
+  // The meal tag on this placement — editable in the edit posture (the touch
+  // path for meal tagging; the right-click "Mark as meal…" is the desktop twin).
+  // Seeded off the draft; "" (the None option) clears it, and the save path
+  // deletes an absent mealKind, so choosing None un-tags the event.
+  const [mealKind, setMealKind] = useState<MealKind | undefined>(draft.mealKind);
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
@@ -438,10 +454,11 @@ export function QuickAdd({
     return recurrence ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until } : undefined;
   }
 
-  // Build the draft an existing-activity commit saves. mealKind + pinned aren't
-  // editor-owned controls, but they ride the draft (seeded by a meal preset chip
-  // on create, or carried off the edited event) so a save never silently drops
-  // the meal tag or the pin.
+  // Build the draft an existing-activity commit saves. `mealKind` is now an
+  // editor-owned control (the Meal row in edit posture); on create it's only ever
+  // seeded by a meal preset chip, which sets the draft's value — so reading the
+  // local `mealKind` state (initialized from the draft) covers both. `pinned`
+  // still rides the draft (an immediate footer action, not an editor control).
   function activityDraft(activity: Activity): EditorDraft {
     return {
       id: draft.id,
@@ -456,7 +473,7 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
-      mealKind: draft.mealKind,
+      mealKind,
       pinned: draft.pinned,
     };
   }
@@ -475,7 +492,7 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
-      mealKind: draft.mealKind,
+      mealKind,
       pinned: draft.pinned,
     };
   }
@@ -650,10 +667,16 @@ export function QuickAdd({
                 else if (pickTime) save();
               }}
             >
-              <label className={"quickadd__search" + (searching ? "" : " quickadd__search--name")}>
+              <label
+                className={
+                  "searchfield searchfield--content quickadd__search" +
+                  (searching ? "" : " searchfield--name")
+                }
+              >
                 {searching && <CampIcon.Search />}
                 <input
                   id="quickadd-search"
+                  className="searchfield__input"
                   data-autofocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -910,6 +933,21 @@ export function QuickAdd({
                   />
                 </PropRow>
               )}
+              {/* Meal — the TOUCH path for tagging a block as a meal (the desktop
+                  twin is the right-click "Mark as meal…"). None un-tags it; the
+                  save path deletes an absent mealKind, so choosing None clears it.
+                  Edit-only, non-reminder (a reminder isn't a meal block). */}
+              {isEdit && !isReminder && (
+                <PropRow icon={QuickAddMealGlyph} label="Meal">
+                  <Select
+                    id="quickadd-meal"
+                    value={mealKind ?? ""}
+                    options={MEAL_TAG_OPTIONS}
+                    onChange={(v) => setMealKind((v || undefined) as MealKind | undefined)}
+                    ariaLabel="Meal tag"
+                  />
+                </PropRow>
+              )}
               {/* Repeat rides last (edit-only): its lead row carries the axis
                   icon, its detail rows indent beneath it. */}
               {isEdit && (
@@ -1095,6 +1133,18 @@ export function QuickAdd({
         )}
       </div>
     </Modal>
+  );
+}
+
+// The Meal axis glyph (a fork + spoon) for the editor's Meal row. Mirrors the
+// MealGlyph the calendar cards/menus use; icons.tsx is owned elsewhere, so it's
+// inlined on the icon set's 24×24 stroke grid.
+function QuickAddMealGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
+      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
+    </svg>
   );
 }
 

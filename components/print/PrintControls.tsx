@@ -39,6 +39,26 @@ import { MiniRangeCalendar } from "./MiniRangeCalendar";
 type Patch = Partial<PrintOptions>;
 type IconCmp = FC<{ className?: string }>;
 
+// The printable "break sheet" PDF (a ready-made handout), one per color mode.
+// It's a static download — separate from the schedule Print/Export pipeline — so
+// it lives as a quiet footer row in this controls rail rather than a header
+// action competing with Export PDF. Keyed by the active color choice.
+const BREAK_SHEET_PDFS: Record<
+  PrintOptions["color"],
+  { href: string; download: string; description: string }
+> = {
+  color: {
+    href: "/documents/summertime-thrills-break-sheet-color.pdf",
+    download: "summertime-thrills-break-sheet-color.pdf",
+    description: "colored",
+  },
+  mono: {
+    href: "/documents/summertime-thrills-break-sheet-bw.pdf",
+    download: "summertime-thrills-break-sheet-bw.pdf",
+    description: "black and white",
+  },
+};
+
 // The cover title pushes upstream on a short debounce so each keystroke doesn't
 // reconcile the whole live preview. The local value stays responsive; it also
 // resyncs if the title is changed elsewhere (it isn't today, but keeps it honest).
@@ -277,9 +297,10 @@ function RunSheetPicker({
       )}
       {activities.length > 0 ? (
         <div className="prail__rssearch">
-          <label className="material-filter__search">
+          <label className="searchfield">
             <CampIcon.Search />
             <input
+              className="searchfield__input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Add a scheduled activity"
@@ -290,7 +311,12 @@ function RunSheetPicker({
               spellCheck={false}
             />
             {query && (
-              <button type="button" onClick={() => setQuery("")} aria-label="Clear search">
+              <button
+                type="button"
+                className="searchfield__clear"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
                 <CampIcon.Close />
               </button>
             )}
@@ -781,6 +807,25 @@ export function PrintControls({
           />
         </Row>
       </CollapsibleGroup>
+
+      {/* The ready-made "break sheet" handout — a quiet footer download, moved out
+          of the print header so the head keeps one primary action (Export PDF).
+          Follows the active color choice. */}
+      {(() => {
+        const pdf = BREAK_SHEET_PDFS[options.color];
+        return (
+          <a
+            className="prail__docdownload"
+            href={pdf.href}
+            download={pdf.download}
+            aria-label={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
+            title={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
+          >
+            <CampIcon.Export className="ledger__ic" />
+            <span>Break sheet PDF</span>
+          </a>
+        );
+      })()}
     </div>
   );
 }

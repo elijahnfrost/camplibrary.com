@@ -124,6 +124,7 @@ import { useDialogFocus } from "../useDialogFocus";
 import { useFloatingPosition } from "../floating/useFloatingPosition";
 import { DESKTOP_MIN } from "../useDeviceShape";
 import { CalendarHeader } from "./CalendarHeader";
+import { CalendarTodayCard } from "./CalendarTodayCard";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
 import { StopPopover } from "./StopPopover";
@@ -378,7 +379,7 @@ export function CalendarShell({
   guides = [],
   onSetMenuNote,
   onManageDietary,
-  headerActions,
+  subscribeControl,
   themeOf,
   kitStock = {},
   materialCatalog,
@@ -451,9 +452,11 @@ export function CalendarShell({
    *  "Manage…" link on a meal editor's dietary panel. Absent for hosts without
    *  meals. */
   onManageDietary?: () => void;
-  /** Header-cluster slot for camp-scoped actions composed by CampApp (where the
-   *  camp data lives) — currently the Subscribe / .ics feed pill. */
-  headerActions?: ReactNode;
+  /** The camp-scoped Subscribe / .ics feed control, composed by CampApp (where
+   *  the camp data lives). It lives in the sidebar rail (a "Subscribe" section
+   *  beside View settings) on desktop and in the mobile View-settings sheet — NOT
+   *  the header, whose actions cluster is now just the view switch + Add. */
+  subscribeControl?: ReactNode;
   /** Resolves an activity's theme, for the per-event theme badge (events reflect
    *  their activity's theme). */
   themeOf: ThemeResolver;
@@ -4897,7 +4900,6 @@ export function CalendarShell({
         onToday={goToday}
         onOpenSettings={() => setSettingsOpen(true)}
         onAdd={openAddSheet}
-        actions={headerActions}
         colorLens={
           colorMode === "custom"
             ? undefined
@@ -4937,6 +4939,10 @@ export function CalendarShell({
         {railSlot &&
           createPortal(
             <>
+              {/* The operator's Now/Next glance, moved off the retired Home tab
+                  to the top of the calendar rail (the week's shape is the
+                  mini-month's job, so this stays a compact today-only card). */}
+              <CalendarTodayCard events={events} byId={byId} onOpenActivity={onOpenActivity} />
               <MiniMonth
                 anchorDate={miniAnchor}
                 viewStart={visibleRange?.start ?? null}
@@ -5009,6 +5015,14 @@ export function CalendarShell({
                   </div>
                 )}
               </div>
+              {/* Subscribe (the .ics feed control) sits below the View / Weather
+                  sections — it's camp-scoped, so it belongs beside the settings,
+                  not in the header. Only renders when CampApp wires it (signed-in). */}
+              {subscribeControl && (
+                <div className="sidesection sidesection--fixed cal-subscribe">
+                  {subscribeControl}
+                </div>
+              )}
             </>,
             railSlot
           )}
@@ -5237,6 +5251,14 @@ export function CalendarShell({
               weatherStatus={weatherStatus}
               weatherCoverage={weatherCoverage}
             />
+            {/* Subscribe / .ics feed — the same rail-only control, in the mobile
+                sheet (the header carries no camp actions on any viewport now). */}
+            {subscribeControl && (
+              <>
+                <h3 className="calset__sheettitle">Subscribe</h3>
+                <div className="calset__subscribe">{subscribeControl}</div>
+              </>
+            )}
           </div>
         </Modal>
       )}

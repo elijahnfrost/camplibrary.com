@@ -265,9 +265,10 @@ export function MaterialPicker({
               </button>
             </div>
           )}
-          <label className="material-filter__search">
+          <label className="searchfield material-filter__search">
             <CampIcon.Search />
             <input
+              className="searchfield__input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search kit"
@@ -278,7 +279,12 @@ export function MaterialPicker({
               spellCheck={false}
             />
             {query && (
-              <button type="button" onClick={() => setQuery("")} aria-label="Clear kit search">
+              <button
+                type="button"
+                className="searchfield__clear"
+                onClick={() => setQuery("")}
+                aria-label="Clear kit search"
+              >
                 <CampIcon.Close />
               </button>
             )}

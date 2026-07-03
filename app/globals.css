@@ -412,6 +412,107 @@ body {
   outline-offset: -3px;
 }
 
+/* ---------- library collection seg (Activities | Materials) ----------
+   The far-left dimension of the Library toolbar. Built on .viewswitch/.seg-slide,
+   so it inherits the pill + sliding-thumb treatment; it just doesn't want the
+   view switch's wide desktop sizing (only two segments). Mobile inherits the
+   toolbar grid: it sits in row-1 col-1 beside the browse-view switch. */
+.collseg {
+  margin: 0 18px;
+}
+
+/* The Materials collection has no library filter rail — a one-line hint sits
+   where the filters would, in the sidebar's quiet ledger voice. */
+.sidenav__railhint {
+  margin: var(--s-6) 18px 0;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ---------- canonical search field ----------
+   ONE recipe for every text-search input in the app (the library toolbar, the
+   library filter's material search, the Materials list, the calendar QuickAdd).
+   A pill row: a leading 17px search icon, a transparent input at >=16px (which
+   keeps iOS Safari from auto-zooming on focus), and an optional round clear
+   button. Modifiers cover the two exceptions:
+     .searchfield--content — a --content surface + fixed --control-md height (the
+        QuickAdd sheet sits on --content, not the app --card).
+     .searchfield--name — the QuickAdd name-mode field with no leading icon (it's
+        NAMING an event, not searching), so the input flushes left. */
+.searchfield {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.searchfield:focus-within {
+  border-color: var(--accent);
+}
+.searchfield > svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.searchfield__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
+  font: 16px/1.2 var(--text);
+}
+.searchfield__input::placeholder {
+  color: var(--ink-faint);
+}
+.searchfield__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.searchfield__clear:hover {
+  background: var(--paper-2);
+}
+.searchfield__clear svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+/* QuickAdd sits on the --content sheet surface and wants a fixed control height. */
+.searchfield--content {
+  min-height: 0;
+  height: var(--control-md);
+  background: var(--content);
+}
+/* QuickAdd name-mode drops the leading search icon (it's NAMING an event, not
+   searching). No style change is needed — the input keeps the same left inset
+   from the field's own padding, so the text lines up in both modes; the class
+   stays as a semantic hook. */
+
 /* ---------- filters: mobile trigger + shared primitives ----------
    Mobile gets ONE "Filters" entry (opening a sheet) plus an always-visible
    removable active-filter row, so applied filters are never hidden and the
@@ -1885,63 +1986,10 @@ body {
   color: var(--accent-ink);
   text-decoration: underline;
 }
+/* The kit search is the canonical .searchfield; this rule only carries the
+   spacing before the kit list that follows it in the filter accordion. */
 .material-filter__search {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-height: var(--tap);
   margin-bottom: var(--s-5);
-  padding: 0 var(--s-5);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--content);
-  color: var(--ink-faint);
-}
-/* Kit search had no focus affordance — match the rest of the inputs. */
-.material-filter__search:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-tint);
-}
-.material-filter__search svg {
-  flex: none;
-  width: 17px;
-  height: 17px;
-  stroke: currentColor;
-  fill: none;
-}
-.material-filter__search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
-  font: 16px/1.2 var(--text);
-}
-.material-filter__search input::placeholder {
-  color: var(--ink-faint);
-}
-.material-filter__search button {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.material-filter__search button:hover {
-  background: color-mix(in srgb, var(--line-soft) 32%, transparent);
-  color: var(--ink);
-}
-.material-filter__search button svg {
-  width: 15px;
-  height: 15px;
 }
 .material-filter__list {
   max-height: min(330px, 48dvh);
@@ -3487,275 +3535,7 @@ body {
   color: var(--ink-soft);
 }
 
-/* ============================================================
- * Home surface — the landing screen
- * The app's front door: a warm welcome, today's schedule, the camp's
- * favorites, and the way into the library. Built from the same parts as the
- * rest of the app (cards, the 3px category spine, deck covers, stamps) so it
- * reads as one more room in the same building, not a separate marketing page.
- * Mobile-first; the desktop layer (>= 768px) widens the columns.
- * ============================================================ */
-.home {
-  padding: max(18px, calc(10px + env(safe-area-inset-top))) var(--page-x) 96px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-7);
-}
-.home > * {
-  width: min(100%, 1120px);
-  margin-inline: auto;
-}
-
-/* ---- welcome ---- */
-.home__welcome {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-6);
-}
-.home__welcome-copy {
-  min-width: 0;
-}
-.home__kicker {
-  display: block;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home__greeting {
-  margin: 5px 0 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: clamp(30px, 6vw, 40px);
-  line-height: 0.98;
-  color: var(--ink);
-}
-.home__welcome-actions {
-  flex: none;
-}
-
-/* ---- body: two stacks side by side ----
-   .home__plan (left) = today's schedule + this week strip — the working content.
-   .home__aside (right) = the getting-started / quick-reference guide — orientation.
-   Mobile stacks plan → aside; desktop (below) sets them two-up. The guide card is
-   tall enough that a quiet schedule day never leaves the canvas feeling blank. */
-.home__grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--s-7);
-}
-.home__plan,
-.home__aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-7);
-  min-width: 0;
-}
-.home__col {
-  min-width: 0;
-}
-.home__sec-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-5);
-  margin-bottom: var(--s-5);
-}
-.home__sec-title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home__sec-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: var(--s-1) 0;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  transition: color var(--t-fast) var(--ease);
-}
-.home__sec-link:hover {
-  color: var(--accent-ink);
-}
-.home__sec-link svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* ---- today's schedule ---- */
-.home-sched {
-  background: var(--content);
-  /* 2px to match its sibling .home-guide__card on the same screen (was 1.5px). */
-  border: 2px solid var(--ink);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-.home-sched__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  width: 100%;
-  text-align: left;
-  padding: var(--s-5);
-  background: transparent;
-  border: 0;
-  border-left: 3px solid var(--cal-tint, var(--line));
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.home-sched__row:last-child {
-  border-bottom: 0;
-}
-.home-sched__row--link {
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: background-color var(--t-fast) var(--ease);
-}
-.home-sched__row--link:hover {
-  background: var(--chrome-well);
-}
-.home-sched__row--link:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.home-sched__row--link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.home-sched__time {
-  flex: none;
-  width: 52px;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home-sched__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.home-sched__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-title-sm);
-  line-height: 1.05;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home-sched__row--link:hover .home-sched__title {
-  color: var(--accent-ink);
-}
-.home-sched__meta {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-}
-/* Meal-flagged event indicator: a quiet inline chip beside the row's meta
-   line, only rendered when event.mealKind is present. */
-.home-sched__meal {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--s-1) var(--s-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  color: var(--ink-soft);
-}
-/* Now/Next status pill on the operational schedule row. "Now" reads with the
-   accent so the current block is unmissable at a glance; "Next" stays quiet. */
-.home-sched__badge {
-  flex: none;
-  align-self: center;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-pill);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.home-sched__badge--now {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-  border: 1px solid var(--accent-ink);
-}
-.home-sched__badge--next {
-  background: var(--chrome-well);
-  color: var(--ink-soft);
-  border: 1px solid var(--line);
-}
-
-/* ---- this week strip ----
-   Five compact day cells (today + next 4), each a plain event count that taps
-   through to the calendar — replaces the old favorites deck / per-category
-   counts so the board stays a calm orientation glance, not a second Library. */
-.home-week {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--s-4);
-}
-.home-week__day {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-5) var(--s-3);
-  background: var(--content);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-lg);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.home-week__day:hover {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-}
-.home-week__day:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.home-week__day--today {
-  border: 2px solid var(--ink);
-}
-.home-week__day-label {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home-week__day-count {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-title-sm);
-  line-height: 1;
-  color: var(--ink);
-}
-
-/* ---- shared home empty state ---- */
+/* ---- shared empty state (used by StaffTab; formerly the Home tab too) ---- */
 .home-empty {
   display: flex;
   flex-direction: column;
@@ -3791,100 +3571,6 @@ body {
   max-width: 34ch;
   font-family: var(--text);
   font-size: var(--fs-meta);
-  line-height: 1.5;
-  color: var(--ink-faint);
-}
-
-/* ---- getting-started guide ----
-   The orientation card: numbered steps in the boxed, dashed-divider idiom used
-   across the app, plus the sign-in / sign-up CTAs. Replaces the old free-text
-   lede so first-time visitors get clean instructions in the house style. */
-.home-guide__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  padding: var(--s-6);
-  background: var(--content);
-  border: 2px solid var(--ink);
-  border-radius: var(--r-lg);
-}
-.home-guide__steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-.home-guide__step {
-  display: flex;
-  gap: var(--s-5);
-  padding: var(--s-5) 0;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.home-guide__step:first-child {
-  padding-top: 0;
-}
-.home-guide__step:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-.home-guide__num {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-round);
-  background: var(--accent-tint);
-  border: 1.5px solid var(--accent-ink);
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1;
-  color: var(--accent-ink);
-}
-.home-guide__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-.home-guide__step-title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1.1;
-  color: var(--ink);
-}
-.home-guide__step-copy {
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  line-height: 1.5;
-  color: var(--ink-soft);
-}
-.home-guide__link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.home-guide__link:hover {
-  color: var(--accent-ink);
-}
-.home-guide__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-.home-guide__actions .btn {
-  flex: 1;
-  min-width: 140px;
-}
-.home-guide__note {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
   line-height: 1.5;
   color: var(--ink-faint);
 }
@@ -5790,50 +5476,14 @@ body {
   grid-column: 2;
   justify-self: end;
 }
+/* The library toolbar search is the canonical .searchfield; .toolbar__search now
+   only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
+   wider tiers below), not the field's visual recipe. */
 .toolbar__search {
   grid-column: 1 / -1;
 }
 .toolbar__add {
   grid-column: 1 / -1;
-}
-.toolbar__search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--control-md);
-  padding: 0 12px;
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  color: var(--ink-soft);
-}
-.toolbar__search:focus-within {
-  border-color: var(--accent);
-}
-.toolbar__search svg {
-  width: 17px;
-  height: 17px;
-  flex: none;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.toolbar__search-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  outline: none;
-  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused
-     (shorthand mirrors .material-filter__search input). */
-  font: 16px/1.2 var(--text);
-  color: var(--ink);
-}
-.toolbar__search-input::placeholder {
-  color: var(--ink-faint);
 }
 .toolbar__add {
   height: var(--control-md);
@@ -6175,31 +5825,6 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .camprail__edit {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    cursor: pointer;
-    color: var(--ink-faint);
-    transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
-  }
-  .camprail__edit svg {
-    width: 14px;
-    height: 14px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-  }
-  .camprail__edit:hover {
-    color: var(--ink);
-    background: var(--chrome-well);
-  }
   .camprail__empty {
     margin: 0;
     padding: var(--s-2) 0 var(--s-3);
@@ -6228,6 +5853,24 @@ body {
     stroke-width: 1.7;
   }
   .camprail__new:hover {
+    color: var(--ink);
+  }
+  /* The ONE manage entry — a quiet footer row (typepick__manage voice), set
+     apart from the additive "New camp" shortcut by a dashed rule above it. */
+  .camprail__manage {
+    margin-top: var(--s-2);
+    padding-top: var(--s-3);
+    border: 0;
+    border-top: 1.5px dashed var(--line-soft);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-meta);
+    color: var(--ink-soft);
+    transition: color var(--t-fast) var(--ease);
+  }
+  .camprail__manage:hover {
     color: var(--ink);
   }
 
@@ -6298,9 +5941,6 @@ body {
   .filtertrigger {
     display: none;
   }
-  .searchrow {
-    display: none;
-  }
   /* header toolbar: view switch + persistent search — sits flush over the
      page like the calendar header (no divider line). Capped + centered to the
      same --lib-col-max column as the browse views below (32px inner gutter), so
@@ -6322,47 +5962,19 @@ body {
     max-width: 360px;
     margin: 0;
   }
+  /* Only two segments — narrower than the browse-view switch, and it leads the
+     row rather than sharing the 300px minimum. */
+  .collseg.viewswitch {
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+  /* Desk toolbar: the canonical .searchfield handles the pill; this only sizes it
+     in the flex row (grow, capped, pushed to the right of the view switch). */
   .toolbar__search {
-    display: flex;
     flex: 1;
-    align-items: center;
-    gap: 8px;
     max-width: 380px;
     margin-left: auto;
-    height: var(--control-md);
-    padding: 0 12px;
-    background: var(--card);
-    border: 1.5px solid var(--line);
-    border-radius: var(--r-md);
-    color: var(--ink-soft);
-    transition: border-color 120ms;
-  }
-  .toolbar__search:focus-within {
-    border-color: var(--accent);
-  }
-  .toolbar__search svg {
-    width: 17px;
-    height: 17px;
-    flex: none;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .toolbar__search-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    outline: none;
-    font-family: var(--hand);
-    font-size: 15px;
-    color: var(--ink);
-  }
-  .toolbar__search-input::placeholder {
-    color: var(--ink-faint);
   }
 
   /* ---- content: capped, centered column with consistent room ----
@@ -6445,9 +6057,6 @@ body {
   .shelf-rows {
     margin-inline: 40px;
   }
-  .home {
-    padding-inline: 40px;
-  }
 }
 
 @media (max-width: 1023px) {
@@ -6464,19 +6073,6 @@ body {
 }
 
 @media (min-width: 1024px) {
-  /* ---- Home: roomier desk ---- */
-  .home {
-    padding: var(--s-7) var(--s-8) var(--s-8);
-    gap: var(--s-7);
-  }
-  .home__grid {
-    /* The working content (schedule + this week) takes the wider left column;
-       the orientation aside (guide) sits at right. align-items:start lets
-       each column keep its natural height. */
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    align-items: start;
-    column-gap: var(--s-7);
-  }
 
   .modal-root {
     display: block;
@@ -7270,7 +6866,7 @@ body {
   .admin-action,
   .sortbtn,
   .rl-ptype,
-  .toolbar__search-clear {
+  .searchfield__clear {
     position: relative;
   }
   .rl-iconbtn,
@@ -7298,7 +6894,7 @@ body {
   .admin-action::before,
   .sortbtn::before,
   .rl-ptype::before,
-  .toolbar__search-clear::before {
+  .searchfield__clear::before {
     content: "";
     position: absolute;
     left: 50%;
@@ -9661,6 +9257,11 @@ button.rl-node--pick:focus-visible {
     max-width: 360px;
     margin: 0;
   }
+  /* The 2-segment collection seg doesn't need to grow — keep it compact so the
+     browse-view switch and search take the width. */
+  .collseg.viewswitch {
+    flex: 0 0 auto;
+  }
   .toolbar__search {
     flex: 1 1 240px;
     max-width: 420px;
@@ -9731,30 +9332,6 @@ button.rl-node--pick:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-}
-
-/* ---- library search clear ---- */
-.toolbar__search-clear {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--r-round);
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.toolbar__search-clear:hover {
-  background: var(--paper-2);
-}
-.toolbar__search-clear svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
 }
 
 /* ---- run-list video detail: clean caption + link (no fake player) ---- */
@@ -10358,9 +9935,6 @@ button.rl-node--pick:focus-visible {
   .printhead__btn {
     padding-inline: 12px;
   }
-  .printhead__docbtn span {
-    display: none;
-  }
 }
 
 /* The preview canvas the letter pages sit on. Uses the app canvas (--paper), the
@@ -10477,6 +10051,32 @@ button.rl-node--pick:focus-visible {
 .prail {
   display: flex;
   flex-direction: column;
+}
+
+/* Break-sheet download — a quiet footer row at the bottom of the controls rail
+   (moved here from the print header so the head keeps one primary action). Set
+   apart from the option groups above it by a dashed rule, in the rail's quiet
+   ledger voice. */
+.prail__docdownload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1.5px dashed var(--line-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+.prail__docdownload:hover {
+  color: var(--ink);
+}
+.prail__docdownload .ledger__ic {
+  color: var(--ink-faint);
 }
 
 /* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
@@ -11667,46 +11267,8 @@ button.rl-node--pick:focus-visible {
   margin-top: var(--s-2);
 }
 
-/* Search — the same pill field the library filters use. */
-.materials-tab__search {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: var(--control-md);
-  padding: 0 var(--s-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--card);
-  color: var(--ink-soft);
-}
-.materials-tab__search svg {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-}
-.materials-tab__search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  font-size: var(--fs-body);
-  color: var(--ink);
-}
-.materials-tab__search input:focus {
-  outline: none;
-}
-.materials-tab__search button {
-  flex: none;
-  display: inline-flex;
-  padding: var(--s-1);
-  border: 0;
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-}
+/* Search is the canonical .searchfield (see globals). The materials list uses it
+   verbatim — no per-tab overrides needed. */
 
 .materials-section {
   display: flex;
