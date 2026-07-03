@@ -1501,12 +1501,40 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 /* The library-backed event reads as a clean title block — category eyebrow +
    name + quiet inline links — the run-sheet header vocabulary, NOT a boxed
-   summary card, so editing an event and opening its sheet feel like one surface. */
+   summary card, so editing an event and opening its sheet feel like one surface.
+   It's also a NAVIGATING card (to the run sheet): position:relative anchors the
+   .stretch overlay button, and the whole-card hover/active dim mirrors the
+   book-cover/spine interactive-card convention (.shelfbook) rather than
+   inventing a new one — a card the whole app already treats as clickable. */
 .quickadd__act {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
   margin: var(--s-4) var(--qa-gx) 0;
+  border-radius: var(--r-md);
+  transition: filter var(--t-fast) var(--ease);
+}
+.quickadd__act:has(.quickadd__act-open):hover {
+  filter: brightness(0.95);
+}
+.quickadd__act:has(.quickadd__act-open):active {
+  filter: brightness(0.9);
+}
+/* The full-card click target (the app's stretched-button-card recipe — see
+   .stretch / .deck-card__open): sits BELOW the links row in paint order but its
+   ::after covers the whole card, so .quickadd__act-links must ride above it. */
+.quickadd__act-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.quickadd__act:has(.quickadd__act-open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.quickadd__act-open:focus-visible {
+  outline: none;
 }
 .quickadd__act-eyebrow {
   display: inline-flex;
@@ -1533,6 +1561,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   color: var(--ink);
 }
 .quickadd__act-links {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--s-6);
@@ -1561,7 +1591,24 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   text-decoration: underline;
 }
 .quickadd__act-link--quiet {
+  /* A real sibling button (Change activity swaps the linked activity — a
+     DIFFERENT action from the card's own navigate-to-run-sheet), so it must
+     win over the full-card .stretch overlay underneath it — cursor:pointer
+     here (not "inherit") stops the parent's clickable cursor from bleeding
+     through onto this distinct click target. */
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
   color: var(--ink-faint);
+}
+/* The static "Open Run List" echo: the click now belongs to the whole-card
+   .stretch overlay, so this label is decorative (not its own button) — it
+   still LOOKS like the other link for visual consistency, just non-interactive. */
+.quickadd__act-link--static {
+  cursor: default;
+}
+.quickadd__act-link--static:hover {
+  text-decoration: none;
 }
 /* Picker rows: a LIGHT list — a small category dot, the name, a muted meta, and
    a check when chosen. No heavy spine; the hover wash + dot carry the identity. */
@@ -1734,6 +1781,12 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__diet-row {
   display: flex;
   align-items: baseline;
+  /* quickadd-10: guard against a long label+detail pair overflowing the row —
+     the sibling .manager__dietrow (the roster editor's own equivalent row)
+     already wraps; this row didn't. min-width:0 lets the flex children actually
+     shrink/wrap instead of forcing the row wider than the sheet. */
+  flex-wrap: wrap;
+  min-width: 0;
   gap: var(--s-2);
   font-family: var(--hand);
   font-size: var(--fs-meta);
@@ -1752,10 +1805,31 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__diet-row--severe .quickadd__diet-sev {
   background: var(--danger);
 }
+/* meals-7: the visible tier word beside the dot — color is never the only
+   signal now, even for "avoid" (previously text-less). */
+.quickadd__diet-tier {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.quickadd__diet-row--avoid .quickadd__diet-tier {
+  color: var(--amber);
+}
+.quickadd__diet-row--severe .quickadd__diet-tier {
+  color: var(--danger);
+  font-weight: 600;
+}
 .quickadd__diet-row--severe .quickadd__diet-label {
   font-weight: 600;
 }
+.quickadd__diet-label {
+  min-width: 0;
+}
 .quickadd__diet-detail {
+  min-width: 0;
   color: var(--ink-soft);
 }
 .quickadd__diet-empty {
@@ -2010,6 +2084,99 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__settings > :last-child {
   border-bottom: 0;
 }
+/* Default-face SUMMARY rows (Color/Location/Meal/Repeat/Day note when already
+   set, and All day when on) — a compact read-only echo that opens "More
+   options" on tap, so anything already true about the event stays visible
+   without needing the section open. Plain-text button dressed as a value, not
+   a heavy control — it reads like the same PropRow value slot every other row
+   uses. */
+.quickadd__summarybtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+}
+.quickadd__summarybtn:hover .quickadd__summaryval {
+  text-decoration: underline;
+}
+.quickadd__summarydot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+}
+.quickadd__summaryval {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The Day note summary can be a full sentence — let it wrap onto a couple of
+   lines instead of the single-line ellipsis every other summary row uses. */
+.quickadd__summarybtn--note {
+  align-items: flex-start;
+}
+.quickadd__summarybtn--note .quickadd__summaryval {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* "More options" — the ONE inline expansion (pattern 5) holding every setting
+   not shown by default. Reuses the app's existing Collapsible chevron-header
+   idiom (see .manager__sect in globals.css, the ListManagerModal Guidance-
+   bands / Dietary-roster sections) rather than inventing a new disclosure. */
+.quickadd__more {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.quickadd__more-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.quickadd__more-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+.quickadd__more.is-open .quickadd__more-chev {
+  transform: rotate(90deg);
+}
+.quickadd__more-label {
+  flex: 1 1 auto;
+}
+.quickadd__more-body {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.quickadd__more-body > .prop-row {
+  padding-left: 0;
+  padding-right: 0;
+}
 /* The date · start · length · color · location · repeat controls are the shared
    PILL dropdowns (see .cselect__trigger + the .ledger__row hug rule in
    globals.css): hug-content, right-aligned, sage-tint when open — the same
@@ -2017,17 +2184,24 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    width/typography override here anymore; the base pill rules own the look.) */
 .quickadd__foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3) var(--s-4);
 }
-/* What the commit will do (or why it's disabled) — always present so the
-   chosen activity is named even when its row is scrolled out of view. */
-.quickadd__hint {
-  flex: 1;
-  margin: 0;
+/* J5: explicit Save, no simultaneous status line — the primary Save/Add button
+   is the one thing that always pins to the trailing edge; every other footer
+   action (Duplicate/Pin/Delete/…) wraps freely before it. */
+.quickadd__save {
+  margin-left: auto;
+}
+/* quickadd-14: the inline "would link, not duplicate" warning shown above the
+   footer when a typed custom-event title exactly matches an existing library
+   activity — amber, same register as the same-day kit conflict note. */
+.quickadd__tolib-warn {
+  margin: var(--s-3) var(--qa-gx) 0;
+  color: var(--amber);
   font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink-faint);
+  font-size: var(--fs-meta);
 }
 
 /* mobile add FAB (opens the event window) */
@@ -2720,6 +2894,13 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+/* The 366-occurrence-cap heads-up (quickadd-3): a quiet amber note appended to
+   the plain-language summary when the picked "Ends" date is actually beyond
+   what the series can materialize. Not an error — the series is still valid,
+   just shorter than the date implies. */
+.repeatfield__truncated {
+  color: var(--amber);
 }
 
 /* The BLACKOUT toggles (Except row) reuse the weekday-toggle shape but paint the

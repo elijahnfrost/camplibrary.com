@@ -9,12 +9,18 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
-import { formatEventDateLabel } from "@/lib/calendar/dates";
+import { formatEventDateLabel, fromDateKey } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
-import { type AlternateRef, type CalendarEvent, type DateKey, type MealKind } from "@/lib/calendar/types";
+import {
+  formatLocations,
+  type AlternateRef,
+  type CalendarEvent,
+  type DateKey,
+  type MealKind,
+} from "@/lib/calendar/types";
 import { dietaryBySeverity, type DietaryEntry, type MealsDoc } from "@/lib/meals";
-import type { RecurrenceRule } from "@/lib/calendar/recurrence";
+import { summarizeRecurrence, type RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { coverage } from "@/lib/materials";
 import type { Material } from "@/lib/materialCatalog";
@@ -30,16 +36,43 @@ import { ColorField } from "../floating/ColorField";
 import { LocationField } from "../floating/LocationField";
 import { RepeatField } from "./RepeatField";
 
+// The shared MealKind → label wording (meals-4: four call sites had already
+// drifted — CalendarShell.tsx's MEAL_KIND_LABELS, this file's MEAL_TAG_OPTIONS,
+// ListManagerModal's MEAL_OPTIONS, CalendarTodayCard's MEAL_KIND_LABEL — each
+// hand-rolled with small wording differences, e.g. "Other" here vs "Meal" in
+// CalendarShell). This map matches CalendarShell.tsx's MEAL_KIND_LABELS wording
+// EXACTLY (including "Meal" for "other") rather than adding a 5th drifted copy.
+// A parallel branch is landing a single shared map in lib/meals.ts — once that
+// lands, this local map (and the other 3) should be deleted in favor of it. Kept
+// local and NOT added to lib/meals.ts here because that file is owned by that
+// parallel branch during this workstream.
+const MEAL_KIND_LABELS: Record<MealKind, string> = {
+  breakfast: "Breakfast",
+  "am-snack": "AM snack",
+  lunch: "Lunch",
+  "pm-snack": "PM snack",
+  other: "Meal",
+};
+
 // The Meal-tag options for the editor's Meal row — "" is the None (untag)
-// choice; the rest are the MealKind union with friendly labels.
+// choice; the rest are the MealKind union using the shared label wording above.
 const MEAL_TAG_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "None" },
-  { value: "breakfast", label: "Breakfast" },
-  { value: "am-snack", label: "AM snack" },
-  { value: "lunch", label: "Lunch" },
-  { value: "pm-snack", label: "PM snack" },
-  { value: "other", label: "Other" },
+  ...(Object.keys(MEAL_KIND_LABELS) as MealKind[]).map((kind) => ({
+    value: kind,
+    label: MEAL_KIND_LABELS[kind],
+  })),
 ];
+
+// The dietary severity tier words (meals-7 / QuickAdd audit judgment [4]-a):
+// the read-only dietary panel showed severity by COLOR ALONE (a bare 7px dot) —
+// "avoid" had no distinguishing text at all, relying on hue in a life-safety
+// context. These match the MiniSeg-style short labels used in the roster editor.
+const DIETARY_SEVERITY_WORD: Record<DietaryEntry["severity"], string> = {
+  severe: "Severe",
+  avoid: "Avoid",
+  note: "Note",
+};
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event
@@ -125,6 +158,7 @@ export function QuickAdd({
   onCreateActivity,
   onSave,
   onDelete,
+  onDeleteSeries,
   onDuplicate,
   onOpenActivity,
   onTogglePin,
@@ -198,6 +232,12 @@ export function QuickAdd({
   onCreateActivity: (title: string, durationMin: number) => Activity | null;
   onSave: (draft: EditorDraft) => void;
   onDelete?: () => void;
+  /** quickadd-2: open the this/following/all scope dialog directly from the
+   *  sheet's footer, for a series member — the same "Delete entire series…"
+   *  safety hatch the context menu offers, reachable without closing the sheet
+   *  and right-clicking. Absent = not a series member (the plain Delete button
+   *  above already covers a one-off event completely). */
+  onDeleteSeries?: () => void;
   /** Copy this event (edit posture only) — the single-event action that used to
    *  live on the now-retired click popover, so touch (no right-click) keeps it. */
   onDuplicate?: () => void;
@@ -275,6 +315,13 @@ export function QuickAdd({
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
+  // "More options" — the ONE inline expansion holding everything besides Date/
+  // Time (All day, Color, Location, Meal, Repeat, Recover time, Day note, Backup
+  // plans): see the audit brief's default-face rule. Starts CLOSED — anything
+  // already set still shows as a compact read-only summary row on the default
+  // face (below), so nothing important goes invisible; opening the section is
+  // only needed to CHANGE something, not to see it.
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const sorted = useMemo(
     () => [...activities].sort((a, b) => a.title.localeCompare(b.title)),
@@ -318,21 +365,32 @@ export function QuickAdd({
     return options;
   }, [dayWindow, startMin, snap]);
 
-  // A 0-min length IS a reminder — it shows just a start time, no range.
+  // A 0-min length IS a reminder — it shows just a start time, no range. There
+  // is no separate "Reminder" toggle (removed — see the End-choices sentinel
+  // below): a reminder is simply what you get by picking "No end time" for the
+  // End control, and the time row itself then reads as a single time instead of
+  // a range, which IS the reminder-ness made visible, per the audit brief.
   const isReminder = !allDay && durationMin === 0;
+  // A sentinel End-choice value meaning "no end time" (durationMin 0, a
+  // reminder). Distinct from every real end-time value, which is always
+  // startMin + snap or later (>= 1) — so -1 can never collide with a real
+  // clock minute.
+  const REMINDER_END = -1;
   // End-time choices mirror the start grid, from one snap past the start to the
-  // end of the day. The END is the live control now; LENGTH is derived from it
+  // end of the day, PLUS the reminder sentinel as the first option (so "make
+  // this a point in time" is just the top of the same list, not a separate
+  // control). The END is the live control now; LENGTH is derived from it
   // (end − start) and shown only as a faint hint — "important to have, not to
   // see." Changing the end sets the duration; changing the start shifts the end.
   const endChoices = useMemo(() => {
-    const options: { value: number; label: string }[] = [];
+    const options: { value: number; label: string }[] = [{ value: REMINDER_END, label: "No end time" }];
     for (let m = startMin + snap; m <= dayWindow.endMin; m += snap) {
       options.push({ value: m, label: formatClock(m) });
     }
     const end = Math.min(MINUTES_PER_DAY, startMin + durationMin);
     if (end > startMin && !options.some((option) => option.value === end)) {
       options.push({ value: end, label: formatClock(end) });
-      options.sort((a, b) => a.value - b.value);
+      options.sort((a, b) => (a.value === REMINDER_END ? -1 : b.value === REMINDER_END ? 1 : a.value - b.value));
     }
     return options;
   }, [dayWindow, startMin, durationMin, snap]);
@@ -342,19 +400,20 @@ export function QuickAdd({
     setStartMin(next);
     if (next + durationMin > MINUTES_PER_DAY) setDurationMin(MINUTES_PER_DAY - next);
   };
-  // Set the end → that defines the length (never negative, at least one snap).
-  const setEnd = (next: number) => setDurationMin(Math.max(snap, next - startMin));
-  // Toggling "Reminder" zeroes the length (a point in time) and remembers the
-  // last real length so switching back restores a sensible block — round-trippable.
+  // Remembers the last real (non-zero) length, so picking "No end time" then
+  // picking a real end again restores a sensible block instead of a 1-snap
+  // sliver — the same round-trippability the old Reminder toggle gave, now
+  // folded into the End control itself (no separate toggle row).
   const lastDurationRef = useRef(draft.durationMin || 30);
-  const toggleReminder = (on: boolean) => {
-    if (on) {
+  // Set the end → that defines the length. The sentinel means "no end time"
+  // (durationMin 0, a reminder); any real value clamps to at least one snap.
+  const setEnd = (next: number) => {
+    if (next === REMINDER_END) {
       if (durationMin > 0) lastDurationRef.current = durationMin;
-      setAllDay(false);
       setDurationMin(0);
-    } else {
-      setDurationMin(lastDurationRef.current || 30);
+      return;
     }
+    setDurationMin(Math.max(snap, next - startMin));
   };
   const draftIsReminder = !draft.allDay && draft.durationMin === 0;
   const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
@@ -540,12 +599,35 @@ export function QuickAdd({
     else onSave(customDraft(trimmed));
   }
 
+  // quickadd-14: the exact library match (if any) for the title promoteToLibrary
+  // would act on — drives the inline warning below the footer's "Add to library"
+  // button so the link-instead-of-duplicate outcome is visible BEFORE the click,
+  // not just baked silently into promoteToLibrary's behavior.
+  const promoteExactMatch = useMemo(() => {
+    const title = (trimmed || draft.title).trim().toLowerCase();
+    if (!title) return null;
+    return sorted.find((a) => a.title.trim().toLowerCase() === title) ?? null;
+  }, [sorted, trimmed, draft.title]);
+
   // Editing a calendar-only event: add it to the library after the fact (when
   // "Save to library" was off at creation). Creates the reusable activity and
   // links this placement to it, so the event becomes activity-backed.
+  //
+  // quickadd-14: this used to call onCreateActivity unconditionally, with no
+  // exact-match guard — unlike the create path's canCreateNew (which suppresses
+  // "Add as new" when the typed name already matches a library title). A custom
+  // event coincidentally titled the same as an existing activity (e.g. "Capture
+  // the Flag") would silently mint a SECOND, duplicate library entry instead of
+  // linking to the existing one. Mirrors the create flow's existing guard: when
+  // the title exactly matches a library activity, promoting LINKS to that
+  // activity instead of minting a duplicate.
   function promoteToLibrary() {
     const title = trimmed || draft.title;
     if (!title) return;
+    if (promoteExactMatch) {
+      onSave(activityDraft(promoteExactMatch));
+      return;
+    }
     const activity = onCreateActivity(title, isReminder ? 0 : durationMin);
     if (!activity) return; // staff gate blocked it
     onSave(activityDraft(activity));
@@ -603,6 +685,12 @@ export function QuickAdd({
                     className={"quickadd__diet-row quickadd__diet-row--" + entry.severity}
                   >
                     <span className="quickadd__diet-sev" aria-hidden="true" />
+                    {/* meals-7: severity was color-only (a bare dot) — "avoid"
+                        had no distinguishing text at all, relying on hue alone in
+                        a life-safety context. A visible tier word now sits beside
+                        the dot, matching the MiniSeg-style short labels the
+                        roster editor uses. */}
+                    <span className="quickadd__diet-tier">{DIETARY_SEVERITY_WORD[entry.severity]}</span>
                     <span className="quickadd__diet-label">{entry.label}</span>
                     {entry.detail && <span className="quickadd__diet-detail">{entry.detail}</span>}
                   </li>
@@ -619,7 +707,15 @@ export function QuickAdd({
           // The library-backed event reads as a clean title block (category
           // eyebrow + name), not a boxed summary card — the run-sheet header
           // vocabulary, so editing an event and opening its sheet feel like one
-          // surface. Its actions are quiet inline links, not heavy buttons.
+          // surface. Activity-owned properties (type/ages/energy/prep/materials/
+          // steps) are NEVER edited here — this card is read-only and NAVIGATES
+          // to the run sheet (the same "Open Run List" path), so it must LOOK
+          // interactive rather than like static text. It reuses the app's own
+          // stretched-card convention (the deck/catalog book cards: a full-card
+          // .stretch overlay button + a sibling secondary control layered above),
+          // not a new hover language. "Change activity" stays a quiet secondary
+          // link, sitting above the stretch overlay via z-index so it's still
+          // its own click target.
           <div className="quickadd__act">
             <span className="quickadd__act-eyebrow">
               <span
@@ -630,12 +726,20 @@ export function QuickAdd({
               {selectedActivity.type} · {durLabel(selectedActivity)}
             </span>
             <h3 className="quickadd__act-title">{selectedActivity.title}</h3>
+            {onOpenActivity && (
+              <button
+                type="button"
+                className="quickadd__act-open stretch"
+                aria-label={"Open run list for " + selectedActivity.title}
+                onClick={onOpenActivity}
+              />
+            )}
             <div className="quickadd__act-links">
               {onOpenActivity && (
-                <button type="button" className="quickadd__act-link" onClick={onOpenActivity}>
+                <span className="quickadd__act-link quickadd__act-link--static" aria-hidden="true">
                   <CampIcon.BookOpen />
                   Open Run List
-                </button>
+                </span>
               )}
               <button
                 type="button"
@@ -851,7 +955,19 @@ export function QuickAdd({
                 (icon · muted label · inline control) used across the app, so the
                 editor reads in the same vocabulary as the run sheet and filters.
                 The live time field is the start–end RANGE; length is derived and
-                shown only as a faint hint. */}
+                shown only as a faint hint.
+                DEFAULT FACE: title/activity card (above) + Date + Time, plus a
+                compact READ-ONLY summary row for anything already set (Color/
+                Location/Meal/Repeat/Day note) — so "what's already true about
+                this event" is visible without opening anything. Everything ELSE
+                (All day, Color, Location, Meal, Repeat when UNSET, Recover time,
+                an EMPTY Day note, Backup plans) lives behind ONE "More options"
+                disclosure below, so a plain event's default face stays to two
+                rows. There is no separate "Reminder" toggle any more — picking
+                "No end time" on the Time row's End control IS how you make this
+                a reminder (a 0-min event), and the row then shows just the one
+                time instead of a range, which already reads as "this is a
+                reminder" per the audit brief. */}
             <div className="proplist quickadd__settings">
               <PropRow icon={CampIcon.Calendar} label="Date">
                 <DatePopover
@@ -861,21 +977,6 @@ export function QuickAdd({
                   ariaLabel="Event date"
                 />
               </PropRow>
-              {/* Reminder: a point in time, no length (a bathroom-break nudge
-                  between blocks). The toggle round-trips back to a timed block. */}
-              <PropRow icon={CampIcon.Bell} label="Reminder">
-                <ToggleSwitch
-                  on={isReminder}
-                  onChange={toggleReminder}
-                  ariaLabel="Make this a point-in-time reminder"
-                />
-              </PropRow>
-              {/* All day is meaningless for a reminder — hide it then. */}
-              {!isReminder && (
-                <PropRow icon={CampIcon.Calendar} label="All day">
-                  <ToggleSwitch on={allDay} onChange={setAllDay} ariaLabel="All day" />
-                </PropRow>
-              )}
               {!allDay && (
                 <PropRow icon={CampIcon.Clock} label={isReminder ? "At" : "Time"}>
                   <Select
@@ -885,172 +986,255 @@ export function QuickAdd({
                     onChange={moveStart}
                     ariaLabel={isReminder ? "Reminder time" : "Event start time"}
                   />
-                  {!isReminder && (
-                    <>
-                      <span className="quickadd__timedash" aria-hidden="true">–</span>
-                      <Select
-                        id="quickadd-end"
-                        value={clampedEnd}
-                        options={endChoices}
-                        onChange={setEnd}
-                        ariaLabel="Event end time"
-                      />
-                      <span className="quickadd__timelen">{formatDuration(durationMin)}</span>
-                    </>
-                  )}
-                </PropRow>
-              )}
-              {/* Create keeps the list to the WHEN (date · all-day · time). The
-                  richer details below — color, location, repeat, day note — are
-                  EDIT-only, so a fresh add stays calm; click the placed event to
-                  set them. */}
-              {isEdit && (
-                <PropRow icon={CampIcon.Palette} label="Color">
-                  <ColorField
-                    id="quickadd-color"
-                    value={color}
-                    fallback={
-                      isReminder
-                        ? reminderTint(undefined)
-                        : selectedActivity
-                          ? effectiveActivityColor(selectedActivity)
-                          : categoryTint(undefined)
-                    }
-                    onChange={setColor}
-                    ariaLabel="Event color"
-                  />
-                </PropRow>
-              )}
-              {isEdit && !isReminder && (
-                <PropRow icon={CampIcon.Pin} label="Location">
-                  <LocationField
-                    id="quickadd-location"
-                    value={locations}
-                    options={locationOptions}
-                    onChange={setLocations}
-                    onManage={onManageLocations}
-                    ariaLabel="Event location"
-                  />
-                </PropRow>
-              )}
-              {/* Meal — the TOUCH path for tagging a block as a meal (the desktop
-                  twin is the right-click "Mark as meal…"). None un-tags it; the
-                  save path deletes an absent mealKind, so choosing None clears it.
-                  Edit-only, non-reminder (a reminder isn't a meal block). */}
-              {isEdit && !isReminder && (
-                <PropRow icon={QuickAddMealGlyph} label="Meal">
+                  <span className="quickadd__timedash" aria-hidden="true">–</span>
                   <Select
-                    id="quickadd-meal"
-                    value={mealKind ?? ""}
-                    options={MEAL_TAG_OPTIONS}
-                    onChange={(v) => setMealKind((v || undefined) as MealKind | undefined)}
-                    ariaLabel="Meal tag"
+                    id="quickadd-end"
+                    value={isReminder ? REMINDER_END : clampedEnd}
+                    options={endChoices}
+                    onChange={setEnd}
+                    ariaLabel="Event end time"
                   />
+                  {!isReminder && <span className="quickadd__timelen">{formatDuration(durationMin)}</span>}
                 </PropRow>
               )}
-              {/* Repeat rides last (edit-only): its lead row carries the axis
-                  icon, its detail rows indent beneath it. */}
+              {/* All-day-events-only compact echo when More options is closed —
+                  All day itself lives in More, but a reader should still be able
+                  to tell an all-day event apart from a timed one at a glance
+                  (and reach the toggle in one tap). */}
+              {allDay && !moreOpen && (
+                <PropRow icon={CampIcon.Calendar} label="Time">
+                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summaryval">All day</span>
+                  </button>
+                </PropRow>
+              )}
+              {/* Compact, read-only summary rows for anything ALREADY SET — shown
+                  on the default face even with More options closed, so a glance
+                  at the sheet tells you what's already true about this event.
+                  Editing still happens inside More options (opening it moves the
+                  focus straight to the real control, not a second copy of it). */}
+              {isEdit && !moreOpen && color && (
+                <PropRow icon={CampIcon.Palette} label="Color">
+                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summarydot" style={{ background: color }} aria-hidden="true" />
+                    <span className="quickadd__summaryval">Custom</span>
+                  </button>
+                </PropRow>
+              )}
+              {isEdit && !moreOpen && locations.length > 0 && (
+                <PropRow icon={CampIcon.Pin} label="Location">
+                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summaryval">{formatLocations(locations)}</span>
+                  </button>
+                </PropRow>
+              )}
+              {isEdit && !moreOpen && !isReminder && mealKind && (
+                <PropRow icon={MealGlyph} label="Meal">
+                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summaryval">{MEAL_KIND_LABELS[mealKind]}</span>
+                  </button>
+                </PropRow>
+              )}
+              {isEdit && !moreOpen && recurrence && (
+                <PropRow icon={CampIcon.Repeat} label="Repeat">
+                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summaryval">{summarizeRecurrence(recurrence)}</span>
+                  </button>
+                </PropRow>
+              )}
+              {isEdit && !moreOpen && note.trim() && (
+                <PropRow icon={CampIcon.Note} label="Day note" className="prop-row--top">
+                  <button type="button" className="quickadd__summarybtn quickadd__summarybtn--note" onClick={() => setMoreOpen(true)}>
+                    <span className="quickadd__summaryval">{note}</span>
+                  </button>
+                </PropRow>
+              )}
+              {/* ONE "More options" inline expansion — the app's existing
+                  disclosure idiom (the Collapsible chevron-header shell used by
+                  ListManagerModal's Guidance bands / Dietary roster sections,
+                  same open/close treatment), reused here rather than inventing a
+                  new one. Create keeps everything but Date/Time behind it too
+                  (a fresh add stays calm); edit shows it once any hidden field
+                  is actually set (handled above by the summary rows) but the
+                  disclosure itself always offers a way in. */}
               {isEdit && (
-                <RepeatField
-                  value={recurrence}
-                  startDate={date}
-                  onChange={setRecurrence}
-                  onRestoreSkip={onRestoreSkip}
-                />
-              )}
-              {/* Recover time — the TOUCH door into the day-shift card (right-click
-                  isn't available on a tap). Two quiet inline actions: "Running long"
-                  (grow this end + slide the rest) and "Shift day" (slide everything
-                  from this start). Both close the sheet, then open the bar. Edit-
-                  only, timed non-reminder events. */}
-              {isEdit && !isReminder && !allDay && onRecoverTime && (
-                <PropRow icon={CampIcon.Clock} label="Recover time">
-                  <span className="quickadd__recover">
-                    <button
-                      type="button"
-                      className="quickadd__recover-btn"
-                      onClick={() => onRecoverTime(true)}
-                    >
-                      Running long
-                    </button>
-                    <button
-                      type="button"
-                      className="quickadd__recover-btn"
-                      onClick={() => onRecoverTime(false)}
-                    >
-                      Shift day
-                    </button>
-                  </span>
-                </PropRow>
-              )}
-              {/* Day note — a named property that bridges to the run sheet. A
-                  top-aligned row whose value is the prose field. Edit-only. */}
-              {isEdit && (
-                <PropRow icon={CampIcon.Note} label="Day note" className="prop-row--top quickadd__noterow">
-                  <textarea
-                    id="quickadd-note"
-                    className="input quickadd__note"
-                    rows={2}
-                    maxLength={280}
-                    placeholder={
-                      isReminder ? "What's the nudge? e.g. switch the laundry" : "Shows on the run sheet — e.g. use the back field"
-                    }
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </PropRow>
-              )}
-              {/* Backup plans — the placement's RESOLVED rain/overflow fallbacks
-                  (event override ?? activity default), shown as compact rows with a
-                  per-row [Swap] (the self-inverse promote). "Edit backups…" copies
-                  the resolved list onto THIS day (copy-on-write) so it can diverge;
-                  "No backups for this day" writes an authoritative empty list.
-                  Edit-only, non-reminder. */}
-              {isEdit && !isReminder && onSwapBackup && (
-                <PropRow icon={BackupGlyph} label="Backup plans" className="prop-row--top quickadd__backuprow">
-                  <div className="quickadd__backups">
-                    {backupAlternates.length ? (
-                      <ul className="quickadd__backuplist">
-                        {backupAlternates.map((alt, index) => (
-                          <li key={index} className="quickadd__backup">
-                            <span className="quickadd__backup-title">{alt.title}</span>
-                            {alt.reason === "rain" && (
-                              <span className="quickadd__backup-tag">rain</span>
-                            )}
+                <div className={"quickadd__more" + (moreOpen ? " is-open" : "")}>
+                  <button
+                    type="button"
+                    className="quickadd__more-head"
+                    aria-expanded={moreOpen}
+                    onClick={() => setMoreOpen((o) => !o)}
+                  >
+                    <CampIcon.ChevronRight className="quickadd__more-chev" />
+                    <span className="quickadd__more-label">More options</span>
+                  </button>
+                  {moreOpen && (
+                    <div className="quickadd__more-body">
+                      {!isReminder && (
+                        <PropRow icon={CampIcon.Calendar} label="All day">
+                          <ToggleSwitch on={allDay} onChange={setAllDay} ariaLabel="All day" />
+                        </PropRow>
+                      )}
+                      <PropRow icon={CampIcon.Palette} label="Color">
+                        <ColorField
+                          id="quickadd-color"
+                          value={color}
+                          fallback={
+                            isReminder
+                              ? reminderTint(undefined)
+                              : selectedActivity
+                                ? effectiveActivityColor(selectedActivity)
+                                : categoryTint(undefined)
+                          }
+                          onChange={setColor}
+                          ariaLabel="Event color"
+                        />
+                      </PropRow>
+                      {!isReminder && (
+                        <PropRow icon={CampIcon.Pin} label="Location">
+                          <LocationField
+                            id="quickadd-location"
+                            value={locations}
+                            options={locationOptions}
+                            onChange={setLocations}
+                            onManage={onManageLocations}
+                            ariaLabel="Event location"
+                          />
+                        </PropRow>
+                      )}
+                      {/* Meal — the TOUCH path for tagging a block as a meal (the
+                          desktop twin is the right-click "Mark as meal…"). None
+                          un-tags it; the save path deletes an absent mealKind, so
+                          choosing None clears it. Non-reminder only (a reminder
+                          isn't a meal block). */}
+                      {!isReminder && (
+                        <PropRow icon={MealGlyph} label="Meal">
+                          <Select
+                            id="quickadd-meal"
+                            value={mealKind ?? ""}
+                            options={MEAL_TAG_OPTIONS}
+                            onChange={(v) => setMealKind((v || undefined) as MealKind | undefined)}
+                            ariaLabel="Meal tag"
+                          />
+                        </PropRow>
+                      )}
+                      {/* Repeat: its lead row carries the axis icon, its detail
+                          rows indent beneath it. */}
+                      <RepeatField
+                        value={recurrence}
+                        startDate={date}
+                        onChange={setRecurrence}
+                        onRestoreSkip={onRestoreSkip}
+                      />
+                      {/* Recover time — the TOUCH door into the day-shift card
+                          (right-click isn't available on a tap). Two quiet inline
+                          actions: "Running long" (grow this end + slide the rest)
+                          and "Shift day" (slide everything from this start). Both
+                          close the sheet, then open the bar. Timed non-reminder
+                          events only. */}
+                      {!isReminder && !allDay && onRecoverTime && (
+                        <PropRow icon={CampIcon.Clock} label="Recover time">
+                          <span className="quickadd__recover">
                             <button
                               type="button"
-                              className="btn btn--quiet btn--sm quickadd__backup-swap"
-                              onClick={() => onSwapBackup(index)}
+                              className="quickadd__recover-btn"
+                              onClick={() => onRecoverTime(true)}
                             >
-                              Swap
+                              Running long
                             </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="quickadd__backup-empty">No backup plans for this block.</p>
-                    )}
-                    <div className="quickadd__backup-acts">
-                      {onEditBackups && (
-                        <button type="button" className="quickadd__backup-btn" onClick={onEditBackups}>
-                          {hasOwnBackups ? "Editing backups for this day" : "Edit backups…"}
-                        </button>
+                            <button
+                              type="button"
+                              className="quickadd__recover-btn"
+                              onClick={() => onRecoverTime(false)}
+                            >
+                              Shift day
+                            </button>
+                          </span>
+                        </PropRow>
                       )}
-                      {onClearBackups && backupAlternates.length > 0 && (
-                        <button type="button" className="quickadd__backup-btn" onClick={onClearBackups}>
-                          No backups for this day
-                        </button>
+                      {/* Day note — a named property that bridges to the run
+                          sheet. A top-aligned row whose value is the prose field. */}
+                      <PropRow icon={CampIcon.Note} label="Day note" className="prop-row--top quickadd__noterow">
+                        <textarea
+                          id="quickadd-note"
+                          className="input quickadd__note"
+                          rows={2}
+                          maxLength={280}
+                          placeholder={
+                            isReminder ? "What's the nudge? e.g. switch the laundry" : "Shows on the run sheet — e.g. use the back field"
+                          }
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                        />
+                      </PropRow>
+                      {/* Backup plans — the placement's RESOLVED rain/overflow
+                          fallbacks (event override ?? activity default), shown as
+                          compact rows with a per-row [Swap] (the self-inverse
+                          promote). "Edit backups…" copies the resolved list onto
+                          THIS day (copy-on-write) so it can diverge; "No backups
+                          for this day" writes an authoritative empty list.
+                          Non-reminder only. */}
+                      {!isReminder && onSwapBackup && (
+                        <PropRow icon={BackupGlyph} label="Backup plans" className="prop-row--top quickadd__backuprow">
+                          <div className="quickadd__backups">
+                            {backupAlternates.length ? (
+                              <ul className="quickadd__backuplist">
+                                {backupAlternates.map((alt, index) => (
+                                  <li key={index} className="quickadd__backup">
+                                    <span className="quickadd__backup-title">{alt.title}</span>
+                                    {alt.reason === "rain" && (
+                                      <span className="quickadd__backup-tag">rain</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="btn btn--quiet btn--sm quickadd__backup-swap"
+                                      onClick={() => onSwapBackup(index)}
+                                    >
+                                      Swap
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="quickadd__backup-empty">No backup plans for this block.</p>
+                            )}
+                            <div className="quickadd__backup-acts">
+                              {onEditBackups && (
+                                <button type="button" className="quickadd__backup-btn" onClick={onEditBackups}>
+                                  {hasOwnBackups ? "Editing backups for this day" : "Edit backups…"}
+                                </button>
+                              )}
+                              {onClearBackups && backupAlternates.length > 0 && (
+                                <button type="button" className="quickadd__backup-btn" onClick={onClearBackups}>
+                                  No backups for this day
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </PropRow>
                       )}
                     </div>
-                  </div>
-                </PropRow>
+                  )}
+                </div>
               )}
               {/* Menu note — the day's menu for THIS meal ("pizza + salad bar").
                   Stored on the meals doc keyed by (date, mealKind), never on the
                   event, so regenerating the meal series can't erase a season of
-                  menus. Commits on blur. Only for a meal-tagged edit. */}
+                  menus. Commits on blur. Only for a meal-tagged edit; stays on the
+                  default face (distinct from the More-options set — it's the one
+                  meal-specific field that's directly relevant whenever this sheet
+                  is a meal, not a rarely-touched extra). */}
               {isMealEdit && onSetMenuNote && (
-                <PropRow icon={CampIcon.Note} label="Menu note" className="prop-row--top quickadd__noterow">
+                <PropRow
+                  icon={CampIcon.Note}
+                  label={"Menu for " + fromDateKey(draft.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  // A wider label column than the default 104px — "Menu for Jul
+                  // 15" is longer than the usual one-word Notion-line labels
+                  // (Date/Time/Color/…), and this row's own value column (the
+                  // textarea) doesn't need the extra width the way a Select does.
+                  labelWidth={132}
+                  className="prop-row--top quickadd__noterow"
+                >
                   <textarea
                     id="quickadd-menunote"
                     className="input quickadd__note"
@@ -1064,6 +1248,19 @@ export function QuickAdd({
                 </PropRow>
               )}
             </div>
+            {/* "Add to library" ONLY while the draft is an unlinked custom title
+                (selectedActivity absent) — hidden once a library match is
+                selected, since there's nothing left to promote. quickadd-14: a
+                typed title that already matches an existing activity would
+                previously mint a silent duplicate; promoteToLibrary now links to
+                the exact match instead, and this inline note warns before that
+                happens rather than surprising the user after the fact. */}
+            {isEdit && !selectedActivity && promoteExactMatch && (
+              <p className="quickadd__tolib-warn" role="status">
+                “{promoteExactMatch.title}” is already in the library — Add to library will link this
+                event to it instead of creating a duplicate.
+              </p>
+            )}
             <div className="quickadd__foot">
               {isEdit && !selectedActivity && (
                 <button type="button" className="btn btn--ghost quickadd__tolib-btn" onClick={promoteToLibrary}>
@@ -1079,8 +1276,12 @@ export function QuickAdd({
               )}
               {/* Pin / unpin — an IMMEDIATE action (it commits instantly through
                   CalendarShell's series-wide path, closing nothing), so it sits in
-                  the footer next to Duplicate/Delete, NOT among the draft controls. */}
-              {isEdit && onTogglePin && (
+                  the footer next to Duplicate/Delete, NOT among the draft controls.
+                  event-detail-3: shown ONLY for TIMED (non-all-day) events — pin
+                  only guards day-shift, which never touches all-day events
+                  (lib/calendar/dayShift.ts), so offering it there was a functional
+                  no-op with no observable effect. */}
+              {isEdit && onTogglePin && !allDay && (
                 <button type="button" className="btn btn--ghost quickadd__pin" onClick={onTogglePin}>
                   <PinGlyph />
                   {pinned ? "Unpin" : "Pin in place"}
@@ -1113,18 +1314,29 @@ export function QuickAdd({
                   Delete
                 </button>
               )}
-              {/* The footer always says what the commit will do — the chosen
-                  row may be scrolled out of view in a long library. */}
-              <p className="quickadd__hint" role="status">
-                {valid
-                  ? (isEdit ? "Saving" : "Adding") +
-                    " “" +
-                    (selectedActivity ? selectedActivity.title : trimmed) +
-                    "”" +
-                    (!isEdit && !selectedActivity && addToLibrary ? " · saved to library" : "")
-                  : "Search or name an event."}
-              </p>
-              <button type="button" className="btn btn--primary" disabled={!valid} onClick={save}>
+              {/* quickadd-2: Delete on a series member only skips THIS day
+                  (instant, with a toast escalation to "Delete following"/"Delete
+                  all") — a staffer who opened the sheet specifically to delete the
+                  WHOLE series had no way to do that without closing the sheet and
+                  right-clicking "Delete entire series…". This quiet secondary
+                  action opens that exact same scope-choice dialog directly from
+                  here. Only rendered for an existing series member. */}
+              {isEdit && onDeleteSeries && (
+                <button type="button" className="btn btn--ghost quickadd__deleteseries" onClick={onDeleteSeries}>
+                  <CampIcon.Trash />
+                  Delete series…
+                </button>
+              )}
+              {/* J5: explicit Save everywhere — no simultaneous "Saving “X”…"
+                  status line next to the button (removed; it read as an ambient
+                  auto-save in progress when nothing has actually been written
+                  yet). Nothing here writes until Save is pressed, EXCEPT the
+                  already-documented immediate actions above (Pin, Apply to all/
+                  following, Reset to series, Delete, Delete series) and the
+                  backups editor's immediate actions (Swap/Edit backups/No backups
+                  for this day, in More options) — those are called out at their
+                  own definitions as intentionally immediate. */}
+              <button type="button" className="btn btn--primary quickadd__save" disabled={!valid} onClick={save}>
                 <CampIcon.Check />
                 {isEdit ? "Save" : isReminder ? "Add reminder" : "Add to calendar"}
               </button>
@@ -1136,10 +1348,12 @@ export function QuickAdd({
   );
 }
 
-// The Meal axis glyph (a fork + spoon) for the editor's Meal row. Mirrors the
-// MealGlyph the calendar cards/menus use; icons.tsx is owned elsewhere, so it's
-// inlined on the icon set's 24×24 stroke grid.
-function QuickAddMealGlyph({ className }: { className?: string }) {
+// The Meal axis glyph (a fork + spoon) for the editor's Meal row (default face
+// summary + the More-options Meal control). Mirrors the MealGlyph the calendar
+// cards/menus use (CalendarShell.tsx); icons.tsx is owned elsewhere, so it's
+// inlined on the icon set's 24×24 stroke grid — see meals-10 in spec-event.txt
+// for the cross-file duplication this mirrors (out of scope to consolidate here).
+function MealGlyph({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
       <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />

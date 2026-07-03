@@ -722,12 +722,11 @@ export function CalendarShell({
   const commitThisEditRef = useRef<
     (existing: CalendarEvent, next: CalendarEvent, verb: string) => void
   >(() => {});
-  // Same deal for the editor-save "following" (rule changed/cleared) commit and the
-  // instant "skip this day" delete — saveDraft / deleteEvent sit above their
-  // declarations, so they invoke through refs kept fresh once the callbacks exist.
-  const commitFollowingEditRef = useRef<
-    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => void
-  >(() => {});
+  // Same deal for the instant "skip this day" delete — deleteEvent sits above
+  // its declaration, so it invokes through a ref kept fresh once the callback
+  // exists. (The editor-save rule-changed path no longer auto-commits — it
+  // opens scopePrompt instead, and the dialog's onPick calls commitScopedEdit
+  // directly once it's declared, so no ref indirection is needed there.)
   const commitSkipThisRef = useRef<(event: CalendarEvent) => void>(() => {});
   // The weather detail card (click an hour chip or a day-header summary). Mutually
   // exclusive with the event menu (an effect below closes it whenever one
@@ -1694,18 +1693,25 @@ export function CalendarShell({
       if (draft.pinned) event.pinned = true;
       else delete event.pinned;
 
-      // Editing an event that ALREADY belongs to a series: commit at an instant
-      // default scope (no this/following/all dialog). Rule UNTOUCHED → "this" (a
-      // per-occurrence exception via commitThisEdit, with an escalation toast).
-      // Rule CHANGED or CLEARED → "following" (collapsing to "all" at the anchor)
-      // via commitFollowingEdit. The pattern the editor stages rides on the draft.
+      // Editing an event that ALREADY belongs to a series. Rule UNTOUCHED → an
+      // instant "this" commit (a per-occurrence exception via commitThisEdit,
+      // with an escalation toast) — "this" already has its own well-understood
+      // instant path, so no dialog for a plain field edit. Rule CHANGED or
+      // CLEARED → ASK the scope via SeriesScopeDialog (quickadd-1/2: this used
+      // to silently auto-pick "following" with zero visibility into what
+      // "following" vs "all" actually means before committing; now the user
+      // picks, same as the "Delete entire series…" safety hatch already does).
       if (existing?.seriesId) {
         if (rulesEqual(existing.recurrence, draft.recurrence)) {
           // Keep the series fields on the this-edit row (planOccurrenceEdit reads
           // the target's own rule; the patched `event` carries them via the spread).
           commitThisEditRef.current(existing, event, draft.id ? "Updated" : "Moved");
         } else {
-          commitFollowingEditRef.current({ mode: "edit", event: existing, draft });
+          // Close the editor sheet first — the scope dialog is a decision on
+          // TOP of the edit, never stacked alongside it (pattern 2's "never two
+          // stacked modals" contract).
+          setSheet(null);
+          setScopePrompt({ mode: "edit", event: existing, draft });
         }
         return;
       }
@@ -2279,19 +2285,24 @@ export function CalendarShell({
     commitThisEditRef.current = commitThisEdit;
   }, [commitThisEdit]);
 
-  // Commit an editor save whose RULE CHANGED at "following" (collapsing to "all"
-  // when the edited row is the series anchor = earliest). Toast: "Updated from here
-  // on" + [Whole series]. The rule-CLEARED case keeps the same planner branch
-  // (planSeriesEdit with rule undefined) at "following".
-  const commitFollowingEdit = useCallback(
-    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => {
+  // Commit an editor save whose RULE CHANGED, at an EXPLICIT scope the user
+  // picked from SeriesScopeDialog (quickadd-1/2: this used to auto-pick
+  // "following" with no dialog — see saveDraft below, which now opens the
+  // dialog instead of calling this directly). Still collapses "following" to
+  // "all" when the edited row is the series anchor (its "following" span
+  // already covers the whole series, and "all" reads cleaner) — the dialog
+  // only offers "following"/"all" ("this" has its own instant unchanged-rule
+  // path in saveDraft), so this collapse just picks the cleaner of the two
+  // when they're equivalent. Toast: "Updated from here on" + [Whole series].
+  // The rule-CLEARED case keeps the same planner branch (planSeriesEdit with
+  // rule undefined) at whichever scope was picked/collapsed to.
+  const commitScopedEdit = useCallback(
+    (prompt: Extract<ScopePrompt, { mode: "edit" }>, pickedScope: SeriesScope) => {
       const seriesId = prompt.event.seriesId;
       if (!seriesId) return;
       const snapshot = eventsInSeries(events, seriesId);
-      // Collapse "following" to "all" when the edited row is the earliest (its
-      // "following" span already covers the whole series, and "all" reads cleaner).
       const isAnchor = snapshot.length > 0 && snapshot[0].id === prompt.event.id;
-      const scope: SeriesScope = isAnchor ? "all" : "following";
+      const scope: SeriesScope = isAnchor ? "all" : pickedScope;
       const template = buildTemplate(prompt.draft, prompt.event.campId, prompt.event.pinned);
       const plan = planSeriesEdit(
         snapshot,
@@ -2345,9 +2356,6 @@ export function CalendarShell({
     },
     [announce, buildTemplate, commitEvents, escalateSeries, events, showToast]
   );
-  useEffect(() => {
-    commitFollowingEditRef.current = commitFollowingEdit;
-  }, [commitFollowingEdit]);
 
   // Commit an instant "skip this day" delete of a series member (planSeriesSkip,
   // a durable exdate). Toast: "Skipped this day" + [Delete following] [Delete all].
@@ -2780,9 +2788,14 @@ export function CalendarShell({
   // runs the retro-tag bulk over the untagged matches.
   const mealPresets = useMemo(() => {
     if (!onSetMenuNote) return undefined;
+    // J3 (PLAN.md): the quick-create chips now cover Breakfast / AM snack /
+    // Lunch / PM snack — "other" stays reachable only via the Meal field (it
+    // has no fixed clock-time default worth a chip). Breakfast was previously
+    // missing entirely (meals-11); it defaults ahead of the AM snack.
     const specs: { kind: MealKind; start: number; len: number }[] = [
-      { kind: "lunch", start: 12 * 60, len: 30 },
+      { kind: "breakfast", start: 8 * 60, len: 30 },
       { kind: "am-snack", start: 10 * 60, len: 15 },
+      { kind: "lunch", start: 12 * 60, len: 30 },
       { kind: "pm-snack", start: 15 * 60, len: 15 },
     ];
     return specs.map((spec) => {
@@ -5037,6 +5050,19 @@ export function CalendarShell({
 
       {sheet && (
         <QuickAdd
+          // quickadd-11: QuickAdd's local state (query/date/recurrence/menuNote/
+          // etc.) is seeded ONLY via useState initializers from `draft` at mount,
+          // with no reset-on-prop-change effect. Without a key, if `sheet` were
+          // ever replaced from one non-null draft straight to a different
+          // non-null draft (no intervening null), React would reuse the mounted
+          // instance and keep the STALE draft's state. Every current call site
+          // happens to route through a null transition first, so this "worked",
+          // but nothing in QuickAdd itself guarded against it. Keying the mount
+          // on the draft's identity (its id, or "new" while creating) forces a
+          // clean remount — and a fresh useState seed — on every distinct sheet,
+          // the idiomatic React reset-on-remount fix, simpler than adding a
+          // parallel reset-effect that would have to shadow every field.
+          key={sheet.draft.id ?? "new"}
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
@@ -5060,6 +5086,24 @@ export function CalendarShell({
               ? () => {
                   const existing = events[sheet.draft.id as string];
                   if (existing) deleteEvent(existing);
+                }
+              : undefined
+          }
+          // quickadd-2: Delete on a series member only skips THIS day (instant,
+          // with a toast escalation) — a staffer who opened the sheet SPECIFICALLY
+          // to delete the whole series had no way to do that without closing the
+          // sheet and right-clicking. This mirrors the context menu's "Delete
+          // entire series…" safety hatch exactly (same scopePrompt, same dialog),
+          // just reachable from the touch/edit surface too. Only rendered for an
+          // existing series member.
+          onDeleteSeries={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (!existing) return;
+                  if (!requireStaff("change the calendar")) return;
+                  setSheet(null);
+                  setScopePrompt({ mode: "delete", event: existing });
                 }
               : undefined
           }
@@ -5837,16 +5881,28 @@ export function CalendarShell({
           );
         })()}
 
-      {/* The scope dialog survives ONLY as the deliberate "Delete entire series…"
-          safety hatch (a right-click item): its instant paths cover this/following/
-          all everywhere else. Delete-mode, following/all only ("this" has its own
-          instant skip). */}
+      {/* The scope dialog: the deliberate "Delete entire series…" safety hatch
+          (a right-click item — its instant skip-this-day path covers "this"
+          everywhere else), AND (quickadd-1/2) the editor's save when a series
+          member's REPEAT RULE changed or cleared — an unchanged rule still
+          commits instantly as "this" (see saveDraft), but a changed rule now
+          asks rather than silently auto-picking "following". Both modes offer
+          following/all only ("this" has its own instant path in each case). */}
       {scopePrompt?.mode === "delete" && (
         <SeriesScopeDialog
           action="delete"
           title={scopePrompt.event.title}
           scopes={["following", "all"]}
           onPick={(scope) => commitSeriesDelete(scopePrompt.event, scope)}
+          onClose={() => setScopePrompt(null)}
+        />
+      )}
+      {scopePrompt?.mode === "edit" && (
+        <SeriesScopeDialog
+          action="edit"
+          title={scopePrompt.event.title}
+          scopes={["following", "all"]}
+          onPick={(scope) => commitScopedEdit(scopePrompt, scope)}
           onClose={() => setScopePrompt(null)}
         />
       )}

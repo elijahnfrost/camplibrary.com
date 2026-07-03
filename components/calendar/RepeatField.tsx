@@ -2,7 +2,12 @@
 
 import { useMemo } from "react";
 import { addDays, fromDateKey } from "@/lib/calendar/dates";
-import { summarizeRecurrence, type NthWeekday, type RecurrenceRule } from "@/lib/calendar/recurrence";
+import {
+  recurrenceIsTruncated,
+  summarizeRecurrence,
+  type NthWeekday,
+  type RecurrenceRule,
+} from "@/lib/calendar/recurrence";
 import type { DateKey } from "@/lib/calendar/types";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
@@ -266,7 +271,19 @@ export function RepeatField({
         </PropRow>
       ) : null}
 
-      {value && <p className="repeatfield__summary">{summarizeRecurrence({ ...value, until })}</p>}
+      {value && (
+        <p className="repeatfield__summary">
+          {summarizeRecurrence({ ...value, until })}
+          {/* A quiet inline note when the 366-occurrence cap (or its scan-step
+              backstops) cuts the series short of the picked "Ends" date, so
+              staff never believe a series runs through a date it silently
+              stopped short of (quickadd-3). Sourced from the pure helper in
+              recurrence.ts, not duplicated here. */}
+          {recurrenceIsTruncated(startDate, { ...value, until }) && (
+            <span className="repeatfield__truncated"> · stops early (366-occurrence limit)</span>
+          )}
+        </p>
+      )}
     </>
   );
 }

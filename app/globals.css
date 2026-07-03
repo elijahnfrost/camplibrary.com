@@ -8940,6 +8940,17 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
   white-space: pre-wrap;
 }
+/* event-detail-9: a quiet caption disambiguating the per-placement Day note
+   above from the per-activity Field Notes log further down — informational,
+   not a warning, so it stays muted rather than amber/danger-toned. */
+.rlv-fieldnote-hint {
+  align-self: stretch;
+  max-width: 760px;
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
 @media (prefers-reduced-motion: reduce) {
   .rl-insert__btn {
     transition: none;
