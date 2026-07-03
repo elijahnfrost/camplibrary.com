@@ -1,21 +1,30 @@
 "use client";
 
-// The Home surface: the app's landing screen. A warm welcome, a synopsis of
-// the day (today's schedule pulled from the calendar), the camp's fan-favorite
-// activities (saved first, then top-rated), and quick ways into the Library by
-// category. Read-only and link-only — it never mutates; every tile routes into
-// the Calendar or Library surfaces that own the real work.
+// The Home surface: the app's landing screen, reframed as a TODAY BOARD — the
+// single operator's morning glance. A warm welcome, an operational read of
+// today's schedule (Now/Next pills, meal indicators), and a calm "this week"
+// strip for orientation. Read-only and link-only — it never mutates; every
+// tile routes into the Calendar or Library surfaces that own the real work.
 
-import { useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { todayKey } from "@/lib/calendar/dates";
-import { formatClockCompact } from "@/lib/calendar/time";
-import { ageLabel, ALL_CATEGORY_IDS, CATEGORIES, categoryTint, durLabel, effectiveEventColor, ENERGY, monogram, ratingColor } from "@/lib/data";
-import { useAgeUnit } from "./ageUnit";
-import type { Activity, CategoryId } from "@/lib/types";
+import { addDays, todayKey } from "@/lib/calendar/dates";
+import { formatClockCompact, nowMinutes } from "@/lib/calendar/time";
+import { durLabel, effectiveEventColor } from "@/lib/data";
+import type { Activity } from "@/lib/types";
 import type { CatFilter } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
-import { LoadingVeil, SaveButton } from "./primitives";
+import { LoadingVeil } from "./primitives";
+
+// Short display labels for the meal-flagged event indicator — trivially
+// derived from the kebab-case MealKind values already on the event.
+const MEAL_KIND_LABEL: Record<string, string> = {
+  breakfast: "Breakfast",
+  "am-snack": "AM Snack",
+  lunch: "Lunch",
+  "pm-snack": "PM Snack",
+  other: "Meal",
+};
 
 // "Sunday · June 14" — the dateline under the kicker.
 function formatTodayLine(): string {
@@ -37,13 +46,17 @@ function greeting(): string {
 // One scheduled row in today's column: time + script title, carrying the same
 // 3px category spine the calendar rail, catalog rows, and placed event cards
 // use (--cal-tint). Activity-backed rows open the viewer; plain events don't.
+// `status` marks the block currently underway ("now") or up next ("next"), a
+// meal badge surfaces event.mealKind when present.
 function ScheduleRow({
   event,
   activity,
+  status,
   onOpen,
 }: {
   event: CalendarEvent;
   activity: Activity | null;
+  status?: "now" | "next";
   onOpen?: (activity: Activity, event: CalendarEvent) => void;
 }) {
   const tint = activity ? effectiveEventColor(event, activity) : event.color ?? "var(--line)";
@@ -51,13 +64,22 @@ function ScheduleRow({
   const meta = activity
     ? activity.type + " · " + durLabel(activity)
     : "Custom block";
+  const mealLabel = event.mealKind ? MEAL_KIND_LABEL[event.mealKind] ?? "Meal" : null;
   const body = (
     <>
       <span className="home-sched__time">{time}</span>
       <span className="home-sched__main">
         <span className="home-sched__title">{event.title || (activity ? activity.title : "Untitled")}</span>
-        <span className="home-sched__meta">{meta}</span>
+        <span className="home-sched__meta">
+          {meta}
+          {mealLabel && <span className="home-sched__meal">{mealLabel}</span>}
+        </span>
       </span>
+      {status && (
+        <span className={"home-sched__badge home-sched__badge--" + status}>
+          {status === "now" ? "Now" : "Next"}
+        </span>
+      )}
     </>
   );
   if (activity && onOpen) {
@@ -79,54 +101,30 @@ function ScheduleRow({
   );
 }
 
-// A favorite cover: the same deck-card anatomy as the Library deck view (plate
-// tinted by rating, monogram, save ribbon), shrunk for the home grid.
-function FavoriteCard({
-  activity,
-  saved,
+// Compact per-day count for the "this week" strip.
+function WeekDayCell({
+  label,
+  count,
+  isToday,
   onOpen,
-  onToggleFav,
-  onContextMenu,
 }: {
-  activity: Activity;
-  saved: boolean;
-  onOpen: (activity: Activity) => void;
-  onToggleFav: (id: string) => void;
-  onContextMenu?: (activity: Activity, event: MouseEvent) => void;
+  label: string;
+  count: number;
+  isToday: boolean;
+  onOpen: () => void;
 }) {
-  const ageUnit = useAgeUnit();
   return (
-    <div
-      className="deck-card home-fav"
-      onContextMenu={onContextMenu ? (e) => onContextMenu(activity, e) : undefined}
+    <button
+      type="button"
+      className={"home-week__day" + (isToday ? " home-week__day--today" : "")}
+      onClick={onOpen}
+      aria-label={label + ": " + count + (count === 1 ? " activity" : " activities")}
     >
-      <div className="plate" style={{ background: ratingColor(activity.rating) }} aria-hidden="true">
-        <div className="plate__grid" />
-        <span className="plate__cat">{activity.type}</span>
-        <span className="plate__mono">{monogram(activity.title)}</span>
-      </div>
-      <div className="deck-card__body">
-        <div className="deck-card__title">{activity.title}</div>
-        <div className="deck-card__meta">
-          {durLabel(activity)} · {activity.place}
-          <br />
-          {ageLabel(activity, ageUnit)} · {ENERGY[activity.energy]}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="deck-card__open stretch"
-        aria-label={activity.title}
-        onClick={() => onOpen(activity)}
-      />
-      <span className="plate__star">
-        <SaveButton on={saved} onToggle={() => onToggleFav(activity.id)} variant="ribbon" />
-      </span>
-    </div>
+      <span className="home-week__day-label">{label}</span>
+      <span className="home-week__day-count">{count}</span>
+    </button>
   );
 }
-
-const FAVORITE_SLOTS = 6;
 
 export function HomeTab({
   actions,
@@ -182,6 +180,14 @@ export function HomeTab({
 }) {
   const today = todayKey();
 
+  // Minute-tick clock driving the Now/Next pills — the only new state this
+  // board adds. Cleans up its interval on unmount.
+  const [clockMin, setClockMin] = useState<number>(() => nowMinutes());
+  useEffect(() => {
+    const id = window.setInterval(() => setClockMin(nowMinutes()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   // Today's timed events, earliest first; all-day events float to the top.
   const todaysEvents = useMemo(
     () =>
@@ -194,39 +200,44 @@ export function HomeTab({
     [events, today]
   );
 
-  // Favorites: the user's saved activities first (in save order), then the
-  // highest-rated activities to fill the row — so a fresh camp still sees its
-  // crowd-pleasers, and a counselor who's saved things sees their own picks.
-  const favorites = useMemo(() => {
-    const picked: Activity[] = [];
-    const seen = new Set<string>();
-    for (const id of favs) {
-      const a = byId[id];
-      if (a && !seen.has(id)) {
-        picked.push(a);
-        seen.add(id);
-        if (picked.length >= FAVORITE_SLOTS) return picked;
+  // The block underway right now (clockMin within [startMin,endMin)) and the
+  // next upcoming block after it — timed events only, all-day blocks never
+  // carry a Now/Next pill since they have no clock window.
+  const { nowEventId, nextEventId } = useMemo(() => {
+    let nowId: string | null = null;
+    let nextId: string | null = null;
+    let nextStart = Infinity;
+    for (const e of todaysEvents) {
+      if (e.allDay) continue;
+      if (clockMin >= e.startMin && clockMin < e.endMin) {
+        nowId = e.id;
+      } else if (e.startMin >= clockMin && e.startMin < nextStart) {
+        nextStart = e.startMin;
+        nextId = e.id;
       }
     }
-    const topRated = [...activities]
-      .filter((a) => !seen.has(a.id))
-      .sort((a, b) => b.rating - a.rating || a.title.localeCompare(b.title));
-    for (const a of topRated) {
-      picked.push(a);
-      if (picked.length >= FAVORITE_SLOTS) break;
+    // Don't double-badge: the "next" slot only applies when nothing is
+    // running right now, or once the running block is different from it.
+    if (nowId && nextId === nowId) nextId = null;
+    return { nowEventId: nowId, nextEventId: nextId };
+  }, [todaysEvents, clockMin]);
+
+  // This week: per-day event counts for the next 5 days (today included),
+  // each tapping through to the calendar. A calm orientation strip in place
+  // of the old favorites deck / per-category counts.
+  const weekDays = useMemo(() => {
+    const days = Array.from({ length: 5 }, (_, i) => addDays(today, i));
+    const counts = new Map<string, number>();
+    for (const e of Object.values(events)) {
+      counts.set(e.date, (counts.get(e.date) ?? 0) + 1);
     }
-    return picked;
-  }, [activities, byId, favs]);
-
-  // Per-category counts for the browse strip.
-  const countByType = useMemo(() => {
-    const counts: Record<CategoryId, number> = { Game: 0, Craft: 0, Song: 0, Water: 0, Quiet: 0, Routine: 0 };
-    for (const a of activities) counts[a.type] += 1;
-    return counts;
-  }, [activities]);
-
-  const savedCount = favs.filter((id) => byId[id]).length;
-  const favoritesLabel = savedCount > 0 ? "Your saved activities" : "Camp favorites";
+    return days.map((date, i) => ({
+      date,
+      label: i === 0 ? "Today" : new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }),
+      count: counts.get(date) ?? 0,
+      isToday: i === 0,
+    }));
+  }, [events, today]);
 
   return (
     <div className="app__scroll">
@@ -258,6 +269,7 @@ export function HomeTab({
                       key={event.id}
                       event={event}
                       activity={event.activityId ? byId[event.activityId] ?? null : null}
+                      status={event.id === nowEventId ? "now" : event.id === nextEventId ? "next" : undefined}
                       onOpen={onOpenEventActivity}
                     />
                   ))}
@@ -285,40 +297,23 @@ export function HomeTab({
               )}
             </section>
 
-            <section className="home__col home__col--favs" aria-labelledby="home-fav-title">
+            <section className="home__col home__col--week" aria-labelledby="home-week-title">
               <div className="home__sec-head">
-                <span className="home__sec-title" id="home-fav-title">
-                  {favoritesLabel}
+                <span className="home__sec-title" id="home-week-title">
+                  This week
                 </span>
-                <button type="button" className="home__sec-link" onClick={() => onGoLibrary(ALL_CATEGORY_IDS)}>
-                  All {activities.length} activities
-                  <CampIcon.ChevronRight />
-                </button>
               </div>
-              {favorites.length > 0 ? (
-                <div className="home-favs">
-                  {favorites.map((a) => (
-                    <FavoriteCard
-                      key={a.id}
-                      activity={a}
-                      saved={isFav(a.id)}
-                      onOpen={onOpenActivity}
-                      onToggleFav={onToggleFav}
-                      onContextMenu={onContextMenu}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="home-empty">
-                  <span className="home-empty__mark" aria-hidden="true">
-                    <CampIcon.Library />
-                  </span>
-                  <p className="home-empty__title">The library is empty.</p>
-                  <button type="button" className="btn btn--quiet btn--sm" onClick={() => onGoLibrary(ALL_CATEGORY_IDS)}>
-                    Browse the library
-                  </button>
-                </div>
-              )}
+              <div className="home-week">
+                {weekDays.map((day) => (
+                  <WeekDayCell
+                    key={day.date}
+                    label={day.label}
+                    count={day.count}
+                    isToday={day.isToday}
+                    onOpen={onGoCalendar}
+                  />
+                ))}
+              </div>
             </section>
           </div>
 
@@ -394,29 +389,6 @@ export function HomeTab({
                     are unavailable — but everything is fully browsable.
                   </p>
                 )}
-              </div>
-            </section>
-
-            <section className="home__browse" aria-labelledby="home-browse-title">
-              <div className="home__sec-head">
-                <span className="home__sec-title" id="home-browse-title">
-                  Browse by type
-                </span>
-              </div>
-              <div className="home-types">
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className="home-type"
-                    style={{ "--cal-tint": categoryTint(c.id) } as CSSProperties}
-                    onClick={() => onGoLibrary([c.id])}
-                  >
-                    <span className="home-type__dot" aria-hidden="true" />
-                    <span className="home-type__label">{c.label}</span>
-                    <span className="home-type__count">{countByType[c.id]}</span>
-                  </button>
-                ))}
               </div>
             </section>
           </aside>

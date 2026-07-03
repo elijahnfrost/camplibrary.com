@@ -2055,8 +2055,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   /* Wall off each card's internal layout so a stable-keyed grid reorder (sort)
-     doesn't relayout the whole deck subtree. Reused wholesale by Home favorites
-     (.home-fav .deck-card), so this containment helps there too. */
+     doesn't relayout the whole deck subtree. */
   contain: layout;
   transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
@@ -3380,8 +3379,8 @@ body {
 }
 
 /* ---- body: two stacks side by side ----
-   .home__plan (left) = today's schedule + camp favorites — the working content.
-   .home__aside (right) = the getting-started guide + browse-by-type — orientation.
+   .home__plan (left) = today's schedule + this week strip — the working content.
+   .home__aside (right) = the getting-started / quick-reference guide — orientation.
    Mobile stacks plan → aside; desktop (below) sets them two-up. The guide card is
    tall enough that a quiet schedule day never leaves the canvas feeling blank. */
 .home__grid {
@@ -3396,8 +3395,7 @@ body {
   gap: var(--s-7);
   min-width: 0;
 }
-.home__col,
-.home__browse {
+.home__col {
   min-width: 0;
 }
 .home__sec-head {
@@ -3516,20 +3514,87 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* Meal-flagged event indicator: a quiet inline chip beside the row's meta
+   line, only rendered when event.mealKind is present. */
+.home-sched__meal {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--ink-soft);
+}
+/* Now/Next status pill on the operational schedule row. "Now" reads with the
+   accent so the current block is unmissable at a glance; "Next" stays quiet. */
+.home-sched__badge {
+  flex: none;
+  align-self: center;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.home-sched__badge--now {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent-ink);
+}
+.home-sched__badge--next {
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
 }
 
-/* ---- favorites grid (mini deck covers) ---- */
-.home-favs {
+/* ---- this week strip ----
+   Five compact day cells (today + next 4), each a plain event count that taps
+   through to the calendar — replaces the old favorites deck / per-category
+   counts so the board stays a calm orientation glance, not a second Library. */
+.home-week {
   display: grid;
-  /* Fluid like the Library deck (was a hard 1fr 1fr that rendered the covers
-     ~30% larger than the identical deck-card module). */
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: var(--s-5);
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--s-4);
 }
-/* The home favorite cover reuses .deck-card wholesale; only the title scales
-   down a touch for the tighter grid. */
-.home-fav .deck-card__title {
-  font-size: var(--fs-body-lg);
+.home-week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-5) var(--s-3);
+  background: var(--content);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.home-week__day:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.home-week__day:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.home-week__day--today {
+  border: 2px solid var(--ink);
+}
+.home-week__day-label {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.home-week__day-count {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink);
 }
 
 /* ---- shared home empty state ---- */
@@ -3663,49 +3728,6 @@ body {
   font-family: var(--text);
   font-size: var(--fs-ui);
   line-height: 1.5;
-  color: var(--ink-faint);
-}
-
-/* ---- browse by type ---- */
-.home-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-.home-type {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-4);
-  height: var(--control-md);
-  padding: 0 var(--s-6);
-  background: var(--content);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.home-type:hover {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-}
-.home-type:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.home-type__dot {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: var(--r-round);
-  background: var(--cal-tint, var(--line));
-}
-.home-type__count {
-  font-family: var(--text);
-  font-size: var(--fs-label);
   color: var(--ink-faint);
 }
 
@@ -5612,10 +5634,6 @@ body {
     gap: var(--s-5);
     padding: var(--s-5) var(--s-6) var(--s-3);
   }
-  /* Home favorites already auto-fill; nudge the gutter to match the deck. */
-  .home-favs {
-    gap: var(--s-5);
-  }
 }
 
 /* ============================================================
@@ -6057,15 +6075,12 @@ body {
     gap: var(--s-7);
   }
   .home__grid {
-    /* The working content (schedule + favorites) takes the wider left column;
-       the orientation aside (guide + browse) sits at right. align-items:start
-       lets each column keep its natural height. */
+    /* The working content (schedule + this week) takes the wider left column;
+       the orientation aside (guide) sits at right. align-items:start lets
+       each column keep its natural height. */
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
     align-items: start;
     column-gap: var(--s-7);
-  }
-  .home-favs {
-    gap: var(--s-6);
   }
 
   .modal-root {
