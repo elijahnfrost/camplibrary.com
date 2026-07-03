@@ -2143,6 +2143,26 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   height: 11px;
 }
 
+/* ---------- pinned events ----------
+   A small pushpin marks an event held in place (the day-shift firewall). Sits
+   beside the recurrence loop, sharing its muted, subtle treatment so it reads as
+   a quiet affordance, not a loud badge. Only painted when event.pinned is set
+   (threaded through the adapter's extendedProps), so unpinned cards are
+   untouched. Filled (not stroked) so a 12px pushpin still reads. */
+.cal-card__pin,
+.cal-chip__pin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: var(--ink-soft);
+  stroke: none;
+  opacity: 0.8;
+}
+.cal-chip__pin {
+  width: 11px;
+  height: 11px;
+}
+
 /* ---------- the Repeat control inside QuickAdd ----------
    RepeatField renders bare .ledger__row lines now (no wrapper element); the
    parent ledger frames them. The weekday toggles sit on their own ledger row,

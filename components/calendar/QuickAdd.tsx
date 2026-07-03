@@ -97,6 +97,9 @@ export function QuickAdd({
   onDelete,
   onDuplicate,
   onOpenActivity,
+  onTogglePin,
+  pinned = false,
+  onRecoverTime,
   onClose,
 }: {
   draft: EditorDraft;
@@ -129,6 +132,17 @@ export function QuickAdd({
   /** Jump to this activity event's run list (activity-backed edits only) — the
    *  other action the click popover carried; now reachable from the editor. */
   onOpenActivity?: () => void;
+  /** Pin / unpin this event in place (edit posture only). An IMMEDIATE action —
+   *  it commits instantly through CalendarShell's series-wide path and does NOT
+   *  close the sheet, so it never routes through the draft/save/scope machinery.
+   *  The touch surface for pinning (right-click doesn't fire on a tap). */
+  onTogglePin?: () => void;
+  /** Whether this event is currently pinned (drives the footer label). */
+  pinned?: boolean;
+  /** Open the day-shift card for this event (edit posture, timed non-reminder).
+   *  `extend` true = "Running long" (grow this end + slide the rest); false =
+   *  "Shift day from here". Closes the sheet first, then opens the bar. */
+  onRecoverTime?: (extend: boolean) => void;
   onClose: () => void;
 }) {
   const isEdit = Boolean(draft.id);
@@ -659,6 +673,31 @@ export function QuickAdd({
               {isEdit && (
                 <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
               )}
+              {/* Recover time — the TOUCH door into the day-shift card (right-click
+                  isn't available on a tap). Two quiet inline actions: "Running long"
+                  (grow this end + slide the rest) and "Shift day" (slide everything
+                  from this start). Both close the sheet, then open the bar. Edit-
+                  only, timed non-reminder events. */}
+              {isEdit && !isReminder && !allDay && onRecoverTime && (
+                <PropRow icon={CampIcon.Clock} label="Recover time">
+                  <span className="quickadd__recover">
+                    <button
+                      type="button"
+                      className="quickadd__recover-btn"
+                      onClick={() => onRecoverTime(true)}
+                    >
+                      Running long
+                    </button>
+                    <button
+                      type="button"
+                      className="quickadd__recover-btn"
+                      onClick={() => onRecoverTime(false)}
+                    >
+                      Shift day
+                    </button>
+                  </span>
+                </PropRow>
+              )}
               {/* Day note — a named property that bridges to the run sheet. A
                   top-aligned row whose value is the prose field. Edit-only. */}
               {isEdit && (
@@ -690,6 +729,15 @@ export function QuickAdd({
                   Duplicate
                 </button>
               )}
+              {/* Pin / unpin — an IMMEDIATE action (it commits instantly through
+                  CalendarShell's series-wide path, closing nothing), so it sits in
+                  the footer next to Duplicate/Delete, NOT among the draft controls. */}
+              {isEdit && onTogglePin && (
+                <button type="button" className="btn btn--ghost quickadd__pin" onClick={onTogglePin}>
+                  <PinGlyph />
+                  {pinned ? "Unpin" : "Pin in place"}
+                </button>
+              )}
               {isEdit && onDelete && (
                 <button type="button" className="btn btn--ghost quickadd__delete" onClick={onDelete}>
                   <CampIcon.Trash />
@@ -716,5 +764,17 @@ export function QuickAdd({
         )}
       </div>
     </Modal>
+  );
+}
+
+// A small inline pushpin for the footer "Pin in place" / "Unpin" action.
+// CampIcon.Pin is the location MAP-pin (semantically wrong here), and icons.tsx
+// is owned elsewhere, so the pushpin is inlined on the icon set's 24×24 grid.
+function PinGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5z" />
+      <path d="M12 17v3" />
+    </svg>
   );
 }

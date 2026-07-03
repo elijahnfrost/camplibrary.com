@@ -110,6 +110,7 @@ import {
 import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
+import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
 
 // The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
 // "day"), so they list consecutive days from wherever you've scrolled and never
@@ -177,7 +178,10 @@ function targetDaysFor(view: ViewKey): number {
 // render through the same ContextMenu at the cursor point.
 type MenuState =
   | { kind: "single"; event: CalendarEvent; point: { x: number; y: number } }
-  | { kind: "bulk"; ids: string[]; point: { x: number; y: number } };
+  | { kind: "bulk"; ids: string[]; point: { x: number; y: number } }
+  // An empty-slot right-click inside a timed day column: one item that opens the
+  // day-shift card at the clicked date + minute.
+  | { kind: "shift"; date: DateKey; cutoffMin: number; point: { x: number; y: number } };
 // A bulk Color… / Location… menu item opens its picker cursor-anchored at the
 // same point (the floating-picker pattern), carrying the ids it acts on.
 type BulkPickerState =
@@ -549,6 +553,19 @@ export function CalendarShell({
   const openWxRef = useRef((target: WeatherPopoverTarget, anchor: DOMRect) => {
     setMenu(null);
     setWxPopover({ target, anchor });
+  });
+  // The day-shift card ("recover time" — slide the rest of the day by N minutes,
+  // or extend a running-long block). One surface behind several doors (empty-slot
+  // right-click, the single-event menu's "Running long…" / "Shift day from here…",
+  // and the editor's "Recover time" row), opened via a stable ref so every door
+  // shares one path. Clears the other floating surfaces on open, like openWxRef.
+  const [shiftBar, setShiftBar] = useState<ShiftBarTarget | null>(null);
+  const openShiftRef = useRef((next: ShiftBarTarget) => {
+    setMenu(null);
+    setWxPopover(null);
+    setStopPopover(null);
+    setSheet(null);
+    setShiftBar(next);
   });
   // Shift/Cmd-click (and touch long-press) multi-selection, Finder/Notion
   // semantics: the SET of selected event ids, plus a FIXED anchor that a
@@ -1078,7 +1095,7 @@ export function CalendarShell({
   // The series fields an occurrence shares — pulled off the editor draft and
   // stamped onto every date by the recurrence module.
   const buildTemplate = useCallback(
-    (draft: EditorDraft, campId?: string): SeriesTemplate => {
+    (draft: EditorDraft, campId?: string, pinned?: boolean): SeriesTemplate => {
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
       const template: SeriesTemplate = {
         startMin: draft.allDay ? 0 : draft.startMin,
@@ -1092,6 +1109,10 @@ export function CalendarShell({
       if (draft.color) template.color = draft.color;
       if (draft.locations?.length) template.locations = draft.locations;
       if (draft.note) template.note = draft.note;
+      // The editor doesn't own `pinned` (it's set from the right-click / editor
+      // pin action, never a draft field), so a following/all regeneration must
+      // carry it off the edited ROW or the whole series would silently un-pin.
+      if (pinned) template.pinned = true;
       return template;
     },
     [byId]
@@ -1238,6 +1259,70 @@ export function CalendarShell({
     [announce, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
+  // Pin / unpin an event in place — SCOPE-FREE and SERIES-WIDE (an adversarial
+  // review mandated this: a partially-pinned series is unrepresentable from every
+  // surface). For a plain event it's one flag-only upsert; for a series member it
+  // flag-flips EVERY row sharing the seriesId (no regeneration — pinned is a plain
+  // payload field, so a targeted flag write is enough), all as ONE commit + undo.
+  // A pinned event holds its position when a day-shift moves the rest of the day.
+  const togglePin = useCallback(
+    (event: CalendarEvent) => {
+      if (!requireStaff("plan the calendar")) return;
+      const nextPinned = !event.pinned;
+      // The rows this toggle rewrites: the whole series, or just this event.
+      const rows = event.seriesId ? eventsInSeries(events, event.seriesId) : [event];
+      const before: CalendarEvent[] = [];
+      const after: CalendarEvent[] = [];
+      for (const row of rows) {
+        before.push(row);
+        const next = { ...row, updatedAt: Date.now() };
+        if (nextPinned) next.pinned = true;
+        else delete next.pinned;
+        after.push(next);
+      }
+      if (!after.length) return;
+      commitEvents(after, []);
+      const scopeNote = event.seriesId ? " — whole series" : "";
+      const label =
+        (nextPinned ? "Pinned " : "Unpinned ") + (event.title || "event") + scopeNote;
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents(before.map((r) => ({ ...r, updatedAt: Date.now() })), []),
+      });
+    },
+    [announce, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Commit a day-shift plan (the ShiftBar's Commit button). The bar computed the
+  // plan.upserts; here we run the staff gate, commit ONE batch (removes always []
+  // — day-shift never deletes), snapshot the before-rows for a single Undo, and
+  // announce. The bar closes on commit.
+  const commitDayShift = useCallback(
+    (upserts: CalendarEvent[], summary: string) => {
+      if (!requireStaff("plan the calendar")) return;
+      if (!upserts.length) return;
+      const before: CalendarEvent[] = [];
+      for (const next of upserts) {
+        const live = events[next.id];
+        if (live) before.push(live);
+      }
+      commitEvents(upserts, []);
+      setShiftBar(null);
+      const count = upserts.length;
+      const label = "Shifted " + count + (count === 1 ? " event" : " events");
+      announce(label + (summary ? " · " + summary : ""));
+      showToast(
+        {
+          message: label,
+          onUndo: () => commitEvents(before.map((r) => ({ ...r, updatedAt: Date.now() })), []),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, requireStaff, showToast]
+  );
+
   // Bulk-delete the whole multi-selection as ONE undoable step. Each occurrence
   // is treated as a plain single-day delete — we deliberately do NOT pop the
   // recurring this/following/all dialog here (a bulk delete is predictable: what
@@ -1340,7 +1425,10 @@ export function CalendarShell({
       const seriesId = prompt.event.seriesId;
       if (!seriesId) return;
       const before = eventsInSeries(events, seriesId);
-      const template = buildTemplate(prompt.draft, prompt.event.campId);
+      // Carry the edited row's pin through the regeneration (the editor never
+      // stages pinned, so it must ride off the row) — a pinned series stays
+      // pinned across a following/all edit.
+      const template = buildTemplate(prompt.draft, prompt.event.campId, prompt.event.pinned);
       const plan = planSeriesEdit(
         before,
         prompt.event,
@@ -1766,7 +1854,23 @@ export function CalendarShell({
       if (typeof window !== "undefined" && !window.matchMedia("(pointer: fine)").matches) return;
       const el = (e.target as HTMLElement).closest<HTMLElement>("[data-event-id]");
       const id = el?.dataset.eventId;
-      if (!id) return;
+      if (!id) {
+        // Empty-slot right-click → a "Shift day from <time>…" door. ONLY inside a
+        // timed day column frame (never a Month cell, never the all-day lane), so
+        // the reminder-drag hit-test recipe resolves the day + snapped minute of
+        // the click (yToMinutes off the column frame's height across the drawn
+        // gridStart..gridEnd window).
+        const col = (e.target as HTMLElement).closest<HTMLElement>(".fc-timegrid-col[data-date]");
+        const date = col?.getAttribute("data-date");
+        const frame = col?.querySelector<HTMLElement>(".fc-timegrid-col-frame");
+        if (!date || !frame) return;
+        const r = frame.getBoundingClientRect();
+        const cutoffMin = yToMinutes(e.clientY - r.top, r.height, gridStart, gridEnd);
+        e.preventDefault();
+        const point = { x: e.clientX, y: e.clientY };
+        setMenu({ kind: "shift", date, cutoffMin, point });
+        return;
+      }
       const event = events[id];
       if (!event) return;
       e.preventDefault();
@@ -1778,7 +1882,7 @@ export function CalendarShell({
       }
       setMenu({ kind: "single", event: healEvent(event, byId), point });
     },
-    [byId, events]
+    [byId, events, gridStart, gridEnd]
   );
 
   // ---- Touch long-press → multi-select arm --------------------------------
@@ -2261,6 +2365,10 @@ export function CalendarShell({
     // affordance. Only rendered when the event repeats, so non-repeating cards
     // (and the visual baselines) are untouched.
     const repeats = arg.event.extendedProps.repeats === true;
+    // A pinned event (held in place when a day-shift moves the rest of the day)
+    // carries a small pin glyph beside the recurrence loop. Threaded through the
+    // adapter's extendedProps like `repeats`, so it repaints on every data change.
+    const pinned = arg.event.extendedProps.pinned === true;
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
@@ -2290,6 +2398,7 @@ export function CalendarShell({
         <div className="cal-chip" ref={paint}>
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
+          {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
         </div>
       );
@@ -2306,6 +2415,7 @@ export function CalendarShell({
         <span className="cal-card__line">
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
+          {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
         </span>
         {!arg.event.allDay && <span className="cal-card__time">{arg.timeText}</span>}
@@ -2881,6 +2991,13 @@ export function CalendarShell({
   useEffect(() => {
     if (stopPopover && !stopPopover.ids.some((id) => events[id])) setStopPopover(null);
   }, [events, stopPopover]);
+
+  // The day-shift card is mutually exclusive with the other anchored layers /
+  // editor — opening any of them dismisses it (openShiftRef clears them going the
+  // other way). It also drops on navigation via the same wx/menu closers upstream.
+  useEffect(() => {
+    if (menu || sheet || scopePrompt || wxPopover || stopPopover) setShiftBar(null);
+  }, [menu, sheet, scopePrompt, wxPopover, stopPopover]);
 
   // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
   // each hour block. The chips live INSIDE FullCalendar's own day columns
@@ -3500,6 +3617,41 @@ export function CalendarShell({
                 }
               : undefined
           }
+          onTogglePin={
+            sheet.draft.id
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  // Immediate + series-wide; the sheet stays open (togglePin never
+                  // closes it), so the pin flips under the editor.
+                  if (existing) togglePin(healEvent(existing, byId));
+                }
+              : undefined
+          }
+          pinned={Boolean(sheet.draft.id && events[sheet.draft.id]?.pinned)}
+          onRecoverTime={
+            sheet.draft.id
+              ? (extend) => {
+                  const existing = events[sheet.draft.id as string];
+                  if (!existing) return;
+                  setSheet(null);
+                  openShiftRef.current({
+                    date: existing.date,
+                    cutoffMin: extend ? existing.endMin : existing.startMin,
+                    extendEventId: extend ? existing.id : undefined,
+                    // No cursor point from a sheet button — dock/center via a
+                    // synthetic rect at the viewport middle (rect anchor flips as
+                    // needed; on coarse pointers it bottom-docks regardless).
+                    anchor: {
+                      kind: "rect",
+                      rect:
+                        typeof window !== "undefined"
+                          ? new DOMRect(window.innerWidth / 2 - 150, window.innerHeight / 2 - 40, 300, 0)
+                          : new DOMRect(0, 0, 300, 0),
+                    },
+                  });
+                }
+              : undefined
+          }
           onClose={() => setSheet(null)}
         />
       )}
@@ -3581,58 +3733,153 @@ export function CalendarShell({
           );
         })()}
 
-      {/* Single-event context menu — unchanged. */}
-      {menu?.kind === "single" && (
-        <ContextMenu
-          point={menu.point}
-          ariaLabel={menu.event.title || "Event"}
-          onClose={() => setMenu(null)}
-          items={[
-            ...(menu.event.activityId && byId[menu.event.activityId]
-              ? [
-                  {
-                    label: "Open Run List",
-                    icon: <CampIcon.BookOpen />,
-                    onSelect: () => {
-                      const activity = byId[menu.event.activityId as string];
-                      if (activity) onOpenActivity(activity, menu.event);
-                    },
+      {/* The day-shift card. In-app the events are already camp-filtered, so the
+          bar runs planDayShift WITHOUT a campId; closeMin is the camp day window's
+          end (a soft close the planner flags a spill past). */}
+      {shiftBar &&
+        (() => {
+          const dayEvents = healedEvents.filter((event) => event.date === shiftBar.date);
+          return (
+            <ShiftBar
+              target={shiftBar}
+              dayEvents={dayEvents}
+              closeMin={window_.endMin}
+              isToday={shiftBar.date === todayKey()}
+              colorOf={stopDotColor}
+              onCommit={commitDayShift}
+              onClose={() => setShiftBar(null)}
+            />
+          );
+        })()}
+
+      {/* Single-event context menu. Gains the day-shift doors ("Running long…" /
+          "Shift day from here…") and the scope-free series-wide "Pin in place". */}
+      {menu?.kind === "single" &&
+        (() => {
+          const ev = menu.event;
+          const point = menu.point;
+          const isTimed = !ev.allDay;
+          const isReminder = isTimed && ev.endMin === ev.startMin; // 0-min
+          return (
+            <ContextMenu
+              point={point}
+              ariaLabel={ev.title || "Event"}
+              onClose={() => setMenu(null)}
+              items={[
+                ...(ev.activityId && byId[ev.activityId]
+                  ? [
+                      {
+                        label: "Open Run List",
+                        icon: <CampIcon.BookOpen />,
+                        onSelect: () => {
+                          const activity = byId[ev.activityId as string];
+                          if (activity) onOpenActivity(activity, ev);
+                        },
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Edit",
+                  icon: <CampIcon.Pencil />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setSheet({ draft: draftFromEvent(ev), pickTime: true });
                   },
-                ]
-              : []),
-            {
-              label: "Edit",
-              icon: <CampIcon.Pencil />,
-              onSelect: () => {
-                if (!requireStaff("change the calendar")) return;
-                setSheet({ draft: draftFromEvent(menu.event), pickTime: true });
-              },
-            },
-            {
-              // The right-click way into recurrence: opens the editor where the
-              // Repeat control lives (reads "Edit repeat…" once a rule is set).
-              label: menu.event.recurrence ? "Edit repeat…" : "Repeat…",
-              icon: <CampIcon.Repeat />,
-              onSelect: () => {
-                if (!requireStaff("change the calendar")) return;
-                setSheet({ draft: draftFromEvent(menu.event), pickTime: true });
-              },
-            },
-            {
-              label: "Duplicate",
-              icon: <CampIcon.Copy />,
-              onSelect: () => duplicateEvent(menu.event),
-            },
-            {
-              label: "Delete",
-              icon: <CampIcon.Trash />,
-              danger: true,
-              separatorBefore: true,
-              onSelect: () => deleteEvent(menu.event),
-            },
-          ]}
-        />
-      )}
+                },
+                {
+                  // The right-click way into recurrence: opens the editor where the
+                  // Repeat control lives (reads "Edit repeat…" once a rule is set).
+                  label: ev.recurrence ? "Edit repeat…" : "Repeat…",
+                  icon: <CampIcon.Repeat />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setSheet({ draft: draftFromEvent(ev), pickTime: true });
+                  },
+                },
+                {
+                  // Pin / unpin — SERIES-WIDE and scope-free (a partially-pinned
+                  // series is unrepresentable). Commits instantly, no dialog.
+                  label: ev.pinned ? "Unpin" : "Pin in place",
+                  icon: <PinInPlaceIcon />,
+                  onSelect: () => togglePin(ev),
+                },
+                {
+                  label: "Duplicate",
+                  icon: <CampIcon.Copy />,
+                  onSelect: () => duplicateEvent(ev),
+                },
+                // Day-shift doors, only for TIMED events. "Running long…" (extend
+                // this event's end + slide the rest) is hidden for a 0-min reminder;
+                // "Shift day from here…" (slide everything from this start) applies
+                // to any timed event including a reminder.
+                ...(isTimed && !isReminder
+                  ? [
+                      {
+                        label: "Running long…",
+                        icon: <CampIcon.Clock />,
+                        separatorBefore: true,
+                        onSelect: () =>
+                          openShiftRef.current({
+                            date: ev.date,
+                            cutoffMin: ev.endMin,
+                            extendEventId: ev.id,
+                            anchor: { kind: "point", x: point.x, y: point.y },
+                          }),
+                      },
+                    ]
+                  : []),
+                ...(isTimed
+                  ? [
+                      {
+                        label: "Shift day from here…",
+                        icon: <CampIcon.Clock />,
+                        separatorBefore: isReminder,
+                        onSelect: () =>
+                          openShiftRef.current({
+                            date: ev.date,
+                            cutoffMin: ev.startMin,
+                            anchor: { kind: "point", x: point.x, y: point.y },
+                          }),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Delete",
+                  icon: <CampIcon.Trash />,
+                  danger: true,
+                  separatorBefore: true,
+                  onSelect: () => deleteEvent(ev),
+                },
+              ]}
+            />
+          );
+        })()}
+
+      {/* Empty-slot right-click → one item that opens the day-shift card at the
+          clicked date + minute (timed columns only; see onGridContextMenu). */}
+      {menu?.kind === "shift" &&
+        (() => {
+          const { date, cutoffMin, point } = menu;
+          return (
+            <ContextMenu
+              point={point}
+              ariaLabel="Recover time"
+              onClose={() => setMenu(null)}
+              items={[
+                {
+                  label: "Shift day from " + formatClock(cutoffMin) + "…",
+                  icon: <CampIcon.Clock />,
+                  onSelect: () =>
+                    openShiftRef.current({
+                      date,
+                      cutoffMin,
+                      anchor: { kind: "point", x: point.x, y: point.y },
+                    }),
+                },
+              ]}
+            />
+          );
+        })()}
 
       {/* Bulk context menu — the SAME ContextMenu/style as the single-event one,
           opened (by onGridContextMenu) when the right-clicked event is part of a
@@ -3808,6 +4055,23 @@ export function CalendarShell({
     </div>
   );
 }
+
+// A small inline pushpin, shared by the "Pin in place" / "Unpin" menu item and
+// the pinned-event card glyph. CampIcon.Pin is the location MAP-pin (semantically
+// wrong for holding an event in place), and icons.tsx is owned elsewhere, so the
+// pushpin is inlined here on the shared 24×24 stroke grid the icon set uses
+// (currentColor via CSS).
+function PinInPlaceIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5z" />
+      <path d="M12 17v3" />
+    </svg>
+  );
+}
+// The card variant is the same glyph — a distinct name at the call site keeps the
+// two uses legible (a menu item's icon vs a card affordance).
+const CardPinGlyph = PinInPlaceIcon;
 
 // The bulk Location… picker body: owns a working set so the toggled rows stay
 // checked while the menu is open (the popover doesn't unmount between toggles),

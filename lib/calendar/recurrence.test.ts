@@ -368,6 +368,17 @@ describe("planSeriesEdit", () => {
     expect(plan.upserts.every((e) => e.title === "Renamed" && e.startMin === 480)).toBe(true);
   });
 
+  it('carries "pinned" through an "all" regeneration so a pinned series stays pinned', () => {
+    const series = makeSeries();
+    const target = series[2];
+    // The edited draft's template carries pinned (buildTemplate threads it off the
+    // edited row); every regenerated occurrence must inherit it.
+    const pinnedTemplate: SeriesTemplate = { ...template, pinned: true };
+    const plan = planSeriesEdit(series, target, pinnedTemplate, target.date, rule, "all", counter());
+    expect(plan.upserts).toHaveLength(4);
+    expect(plan.upserts.every((e) => e.pinned === true)).toBe(true);
+  });
+
   it('"this" with a cleared rule detaches the occurrence into a standalone event', () => {
     const series = makeSeries();
     const target = series[1];

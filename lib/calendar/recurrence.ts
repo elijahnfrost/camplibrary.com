@@ -316,6 +316,11 @@ export interface SeriesTemplate {
   color?: string;
   locations?: string[];
   note?: string;
+  // A pinned occurrence must stay pinned across a "following"/"all" regeneration
+  // (which rebuilds occurrences from the template). Without this carry-through a
+  // regeneration would silently drop the pin, so a pinned series edited "all"
+  // would un-pin itself. Threaded through buildTemplate off the edited row.
+  pinned?: boolean;
 }
 
 // One event from a template + date. With a seriesId/rule it's a series
@@ -346,6 +351,7 @@ function occurrence(
   if (template.color) event.color = template.color;
   if (template.locations?.length) event.locations = [...template.locations];
   if (template.note) event.note = template.note;
+  if (template.pinned) event.pinned = true;
   if (template.allDay) event.allDay = true;
   return event;
 }

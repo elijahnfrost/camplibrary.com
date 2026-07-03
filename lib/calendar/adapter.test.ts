@@ -66,6 +66,12 @@ describe("toFcEvent", () => {
     expect(fc.allDay).toBe(true);
     expect(fc.end).toBeUndefined();
   });
+
+  it("threads the pinned flag into extendedProps for the card glyph", () => {
+    // Absent → false (so a plain card never draws the pin), present → true.
+    expect(toFcEvent(event(), BY_ID).extendedProps?.pinned).toBe(false);
+    expect(toFcEvent(event({ pinned: true }), BY_ID).extendedProps?.pinned).toBe(true);
+  });
 });
 
 describe("fromFcDates round-trip", () => {

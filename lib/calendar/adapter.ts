@@ -56,6 +56,10 @@ export function toFcEvent(
       themeLabel: theme?.label,
       location: formatLocations(event.locations) || undefined,
       repeats: Boolean(event.recurrence),
+      // A pinned event (held in place when a day-shift moves the rest of the day)
+      // carries a small pin glyph on its card — threaded here like `repeats` so
+      // renderEventContent can paint it without reaching back into the store.
+      pinned: Boolean(event.pinned),
     },
   };
 
