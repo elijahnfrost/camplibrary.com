@@ -359,6 +359,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     },
     [lib]
   );
+  // Mark a material as `plenty` in the catalog — the calendar Gather popover's "We
+  // have several" action, resolving a same-day hard conflict (we own enough copies
+  // to share across overlapping blocks). Mirrors useActivityLibrary's
+  // setMaterialConsumable: mints an entry under the FROZEN id (carrying the display
+  // label) when the row is derived-only, else flips the flag on the existing entry.
+  // Staff-gated; inert for anonymous / read-only. Ids are frozen forever.
+  const markMaterialPlenty = useCallback(
+    (id: string, label: string) => {
+      if (!requireStaff("edit materials")) return;
+      if (!id) return;
+      cloud.setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === id)) {
+          return previous.map((entry) => (entry.id === id ? { ...entry, plenty: true } : entry));
+        }
+        return [...previous, { id, name: label.trim() || id, plenty: true }];
+      });
+    },
+    [cloud, requireStaff]
+  );
   // Depend on the stable filterEvents callback, not the whole campKit object
   // (rebuilt every render), so the calendar event set memo doesn't recompute on
   // every render.
@@ -896,6 +915,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 themeOf={lib.themeOf}
                 kitStock={lib.kitStock}
                 materialCatalog={lib.materialCatalog}
+                setStockState={lib.setStockState}
+                markPlenty={markMaterialPlenty}
                 onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 locationOptions={lib.locations}

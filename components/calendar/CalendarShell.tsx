@@ -52,8 +52,15 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import { catalogNameFor, type Material } from "@/lib/materialCatalog";
+import { nextStockState, type StockState } from "@/lib/kitStock";
+import {
+  conflictsForEvent,
+  dayKit,
+  type DayKit,
+  type DayKitItem,
+  type KitConflict,
+} from "@/lib/calendar/kitConflicts";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
@@ -84,6 +91,9 @@ import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
+import { useDialogFocus } from "../useDialogFocus";
+import { useFloatingPosition } from "../floating/useFloatingPosition";
+import { DESKTOP_MIN } from "../useDeviceShape";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
@@ -263,6 +273,8 @@ export function CalendarShell({
   themeOf,
   kitStock = {},
   materialCatalog,
+  setStockState,
+  markPlenty,
   onReady,
 }: {
   events: Record<string, CalendarEvent>;
@@ -316,10 +328,21 @@ export function CalendarShell({
    *  their activity's theme). */
   themeOf: ThemeResolver;
   /** The effective 3-state kit stock map — drives an informational coverage dot
-   *  on QuickAdd's search rows. Empty ({}) = UNSET = no dot. Never filters. */
+   *  on QuickAdd's search rows AND the day-header Gather chip. Empty ({}) = UNSET
+   *  = no decoration. Never filters. */
   kitStock?: Record<string, StockState>;
-  /** The materials catalog (substitution groups + names) for the coverage dot. */
+  /** The materials catalog (substitution groups + names + plenty/consumable
+   *  flags) for coverage + the same-day contention lens. */
   materialCatalog?: Material[];
+  /** Set ONE material's stock state — the SAME fold-aware writer the run sheet
+   *  and Materials tab use. Threaded so the Gather popover can cycle a row's
+   *  stock (staff-gated at the source). Absent for hosts that don't wire kit. */
+  setStockState?: (id: string, state: StockState) => void;
+  /** Mark a material as `plenty` in the catalog (we own enough copies to share
+   *  across overlapping blocks) — the Gather popover's "We have several" action.
+   *  Mints a catalog entry under the frozen id when the material is derived-only.
+   *  Staff-gated at the source. Absent for hosts that don't wire kit. */
+  markPlenty?: (id: string, label: string) => void;
   /** Fired ONCE when the calendar has settled enough to reveal: after the
    *  client-resolved view has mounted AND the first scroll-to-today realign has
    *  run (the day-width effect's initial pass) — Month resolves on the same first
@@ -554,6 +577,18 @@ export function CalendarShell({
     setMenu(null);
     setWxPopover({ target, anchor });
   });
+  // The Gather popover (click a day-header kit chip) — the day's whole gather
+  // list plus any hard conflicts pinned on top. Anchored at the chip like the
+  // weather card; holds the DATE (rows are resolved live from dayKitByDate) so a
+  // stock/plenty edit re-renders it in place. openGatherRef gives the React
+  // day-header button a stable opener that first clears the other surfaces.
+  const [gatherPopover, setGatherPopover] = useState<{ date: DateKey; anchor: DOMRect } | null>(null);
+  const openGatherRef = useRef((date: DateKey, anchor: DOMRect) => {
+    setMenu(null);
+    setWxPopover(null);
+    setStopPopover(null);
+    setGatherPopover({ date, anchor });
+  });
   // The day-shift card ("recover time" — slide the rest of the day by N minutes,
   // or extend a running-long block). One surface behind several doors (empty-slot
   // right-click, the single-event menu's "Running long…" / "Shift day from here…",
@@ -671,6 +706,29 @@ export function CalendarShell({
     for (const event of healedEvents) days.add(event.date);
     return days;
   }, [healedEvents]);
+
+  // Same-day kit contention, computed once per day (dateKey → DayKit): the day's
+  // gather list, hard conflicts (overlapping blocks fighting over one material),
+  // and soft warnings (a consumable/low item two blocks share). Pure — dayKit
+  // lives in lib/calendar/kitConflicts and is unit-tested in isolation. Feeds the
+  // day-header Gather chip, the Gather popover, and the placement-warning probes.
+  const dayKitByDate = useMemo(() => {
+    const byDate = new Map<string, CalendarEvent[]>();
+    for (const event of healedEvents) {
+      const arr = byDate.get(event.date);
+      if (arr) arr.push(event);
+      else byDate.set(event.date, [event]);
+    }
+    const out = new Map<string, DayKit>();
+    for (const [date, dayEvents] of byDate) {
+      out.set(date, dayKit(dayEvents, byId, kitStock, materialCatalog));
+    }
+    return out;
+  }, [healedEvents, byId, kitStock, materialCatalog]);
+  // The Gather chip + popover read the latest map through a ref so the imperative
+  // day-header click opener doesn't re-arm on every recompute.
+  const dayKitByDateRef = useRef(dayKitByDate);
+  dayKitByDateRef.current = dayKitByDate;
 
   // Every event id in chronological order — (date, then startMin, then id as a
   // stable tiebreak). This is the spine a shift-click range walks: "in between"
@@ -1077,6 +1135,7 @@ export function CalendarShell({
     // a rect-anchored popover would detach — dismiss them.
     setMenu(null);
     setStopPopover(null);
+    setGatherPopover(null);
     // The strip's visible window + title are driven by scroll position
     // (syncVisible), NOT by the full rendered range — so the strip ignores this.
     // Only Month, with its own grid, reads its window straight from FullCalendar.
@@ -1151,6 +1210,39 @@ export function CalendarShell({
     [announce, buildTemplate, removeEvents, showToast, upsertEvents]
   );
 
+  // A same-day kit warning for a placement that JUST committed: recompute the
+  // day's contention with `next` in place (the store may not have the new
+  // geometry yet at call time), and — if `next` now sits in a hard conflict that
+  // `previous` did NOT — return a toast suffix naming the material + the other
+  // block. Cheap: one dayKit over the one day. Never blocks; purely a heads-up.
+  const placementWarning = useCallback(
+    (previous: CalendarEvent | undefined, next: CalendarEvent): string => {
+      // A reminder/all-day placement gathers no kit — nothing to warn about.
+      if (next.allDay || next.endMin === next.startMin || !next.activityId) return "";
+      const dayEvents = healedEvents
+        .filter((event) => event.date === next.date && event.id !== next.id)
+        .concat(next);
+      const after = dayKit(dayEvents, byId, kitStock, materialCatalog);
+      const nowIn = conflictsForEvent(after, next.id);
+      if (!nowIn.length) return "";
+      // Was it already conflicting BEFORE the move? Compare against the day it left
+      // (previous's date), so re-arranging within an existing conflict stays quiet.
+      const before = previous
+        ? conflictsForEvent(dayKitByDateRef.current.get(previous.date) ?? after, previous.id)
+        : [];
+      const beforeIds = new Set(before.map((conflict) => conflict.id));
+      const fresh = nowIn.filter((conflict) => !beforeIds.has(conflict.id));
+      if (!fresh.length) return "";
+      // Name the first fresh clash + the first OTHER block sharing that material.
+      const clash = fresh[0];
+      const otherId = clash.eventIds.find((id) => id !== next.id);
+      const other = otherId ? events[otherId] : undefined;
+      const otherLabel = other ? other.title || "another block" : "another block";
+      return " · ⚠ shares " + clash.label + " with " + otherLabel;
+    },
+    [byId, events, healedEvents, kitStock, materialCatalog]
+  );
+
   const saveDraft = useCallback(
     (draft: EditorDraft) => {
       if (!requireStaff("plan the calendar")) return;
@@ -1202,13 +1294,17 @@ export function CalendarShell({
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + (isReminder ? "reminder " : "") + event.title);
+      // Same-day kit heads-up: naming a fresh hard conflict this save created
+      // (empty for a clean placement, a reminder, or one already conflicting).
+      const warn = placementWarning(existing, event);
       if (!draft.id) {
         const toastState: ToastState = {
           message:
             "Added " +
             (isReminder ? "reminder " : "") +
             event.title +
-            (event.allDay ? " · all day" : " · " + formatClock(event.startMin)),
+            (event.allDay ? " · all day" : " · " + formatClock(event.startMin)) +
+            warn,
           onUndo: () => removeEvent(event.id),
         };
         // A brand-new one-off gets a one-tap path into the library ("Save to
@@ -1232,9 +1328,16 @@ export function CalendarShell({
           };
         }
         showToast(toastState);
+      } else if (warn && existing) {
+        // Editing an existing event into a fresh conflict — surface the same
+        // undoable heads-up (a new add already carries it on its create toast).
+        showToast({
+          message: "Updated " + event.title + warn,
+          onUndo: () => upsertEvent(existing),
+        });
       }
     },
-    [announce, byId, createSeries, events, onCreateActivity, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, byId, createSeries, events, onCreateActivity, placementWarning, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const deleteEvent = useCallback(
@@ -2259,8 +2362,18 @@ export function CalendarShell({
       }
       upsertEvent(next);
       announce("Moved " + (existing.title || "event") + " to " + formatClock(next.startMin));
+      // Heads-up (never blocking): if this move drops the block into a FRESH
+      // same-day kit conflict, say so on an undoable toast so the move is easy to
+      // walk back. Quiet when the placement is clean or was already conflicting.
+      const warn = placementWarning(existing, next);
+      if (warn) {
+        showToast({
+          message: "Moved " + (existing.title || "event") + warn,
+          onUndo: () => upsertEvent(existing),
+        });
+      }
     },
-    [announce, commitEvents, events, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, commitEvents, events, placementWarning, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const onEventResize = useCallback(
@@ -2280,8 +2393,17 @@ export function CalendarShell({
       }
       upsertEvent(next);
       announce((existing.title || "Event") + " now ends at " + formatClock(next.endMin));
+      // A resize that stretches a block INTO a fresh overlap can create a kit
+      // conflict too — same informational, undoable heads-up as a drop.
+      const warn = placementWarning(existing, next);
+      if (warn) {
+        showToast({
+          message: (existing.title || "Event") + " resized" + warn,
+          onUndo: () => upsertEvent(existing),
+        });
+      }
     },
-    [announce, events, requireStaff, upsertEvent]
+    [announce, events, placementWarning, requireStaff, showToast, upsertEvent]
   );
 
   const onEventReceive = useCallback(
@@ -2456,6 +2578,24 @@ export function CalendarShell({
   // fresh from the ref so the value itself isn't a memo dep.
   const dayWxVersion = weatherMode === "day" ? weatherData?.version ?? 0 : 0;
 
+  // The Gather chip rides in the timed-view column header too, so it needs the
+  // same identity bump when the day contention changes (a stock edit, a move, a
+  // new event). dayKitByDate is read LIVE from its ref inside renderDayHeader —
+  // this signature (does any day have items / a warning / a hard conflict) re-arms
+  // the FC header only when the CHIP would actually change, not on every recompute.
+  const kitChipVersion = useMemo(() => {
+    let sig = "";
+    for (const [date, day] of dayKitByDate) {
+      if (!day.items.length) continue;
+      sig +=
+        date +
+        (day.hardConflicts.length ? "r" : day.softWarnings.length ? "a" : "q") +
+        day.items.length +
+        "|";
+    }
+    return sig;
+  }, [dayKitByDate]);
+
   // Google-style day headers: "MON" over the date numeral, today circled — plus,
   // in "Day" weather mode, a small forecast summary (glyph + high/low) that opens
   // the detail card on click.
@@ -2478,6 +2618,19 @@ export function CalendarShell({
         arg.date.getDate()
       ).padStart(2, "0")}`;
       const dayWx = weatherMode === "day" ? weatherDataRef.current?.daily.get(dateKey) : undefined;
+      // The day's kit contention (read live from the ref so a recompute doesn't
+      // re-arm this FC memo). The chip renders only when the day needs at least
+      // one material; its tone escalates quiet → amber (soft warning) → red (hard
+      // conflict), and clicking it opens the Gather popover.
+      const kit = dayKitByDateRef.current.get(dateKey);
+      const kitTone = !kit || !kit.items.length
+        ? null
+        : kit.hardConflicts.length
+          ? "red"
+          : kit.softWarnings.length
+            ? "amber"
+            : "quiet";
+      const kitCount = kit?.items.length ?? 0;
       return (
         <div
           className={
@@ -2509,12 +2662,33 @@ export function CalendarShell({
               </span>
             </button>
           )}
+          {kitTone && (
+            <button
+              type="button"
+              className={"cal-kit-chip cal-kit-chip--" + kitTone}
+              aria-label={
+                (kitTone === "red"
+                  ? "Kit conflict"
+                  : kitTone === "amber"
+                    ? "Kit warning"
+                    : "Gather") +
+                ` — ${kitCount} material${kitCount === 1 ? "" : "s"} needed. View gather list`
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                openGatherRef.current(dateKey as DateKey, e.currentTarget.getBoundingClientRect());
+              }}
+            >
+              <KitGlyph className="cal-kit-chip__glyph" />
+            </button>
+          )}
         </div>
       );
     },
-    // weatherDataRef is read live; dayWxVersion re-arms only on a day-mode refresh.
+    // weatherDataRef + dayKitByDateRef are read live; dayWxVersion / kitChipVersion
+    // re-arm only when the weather or the kit chip would actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [weatherMode, dayWxVersion]
+    [weatherMode, dayWxVersion, kitChipVersion]
   );
 
   // Size the day columns so the active zoom (1 / 7 / N days) fits the viewport:
@@ -2991,6 +3165,16 @@ export function CalendarShell({
   useEffect(() => {
     if (stopPopover && !stopPopover.ids.some((id) => events[id])) setStopPopover(null);
   }, [events, stopPopover]);
+
+  // The Gather popover is mutually exclusive with the other anchored layers /
+  // editor, and (rect-anchored) drops on navigation. It also self-closes once its
+  // day no longer needs any kit (every contributing event removed / unlinked).
+  useEffect(() => {
+    if (menu || sheet || scopePrompt || wxPopover || stopPopover) setGatherPopover(null);
+  }, [menu, sheet, scopePrompt, wxPopover, stopPopover]);
+  useEffect(() => {
+    if (gatherPopover && !(dayKitByDate.get(gatherPopover.date)?.items.length)) setGatherPopover(null);
+  }, [dayKitByDate, gatherPopover]);
 
   // The day-shift card is mutually exclusive with the other anchored layers /
   // editor — opening any of them dismisses it (openShiftRef clears them going the
@@ -3584,6 +3768,8 @@ export function CalendarShell({
           activities={activities}
           kitStock={kitStock}
           materialCatalog={materialCatalog}
+          dayEvents={healedEvents}
+          byId={byId}
           window={window_}
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
@@ -3729,6 +3915,33 @@ export function CalendarShell({
               onDelete={(event) => deleteEvent(event)}
               onAddAtTime={() => openAddAtStop(list[0].date, list[0].startMin)}
               onClose={() => setStopPopover(null)}
+            />
+          );
+        })()}
+
+      {/* The Gather popover — the day's kit gather list + any hard conflicts
+          pinned on top. Rows are resolved LIVE from dayKitByDate so a stock/plenty
+          edit re-renders it in place; if the day empties of kit it self-closes. */}
+      {gatherPopover &&
+        (() => {
+          const day = dayKitByDate.get(gatherPopover.date);
+          if (!day || !day.items.length) return null;
+          return (
+            <GatherPopover
+              date={gatherPopover.date}
+              day={day}
+              anchor={gatherPopover.anchor}
+              stock={kitStock}
+              catalog={materialCatalog}
+              events={events}
+              canEdit={Boolean(setStockState)}
+              onCycleStock={
+                setStockState
+                  ? (id, current) => setStockState(id, nextStockState(current))
+                  : undefined
+              }
+              onMarkPlenty={markPlenty}
+              onClose={() => setGatherPopover(null)}
             />
           );
         })()}
@@ -4073,6 +4286,20 @@ function PinInPlaceIcon({ className }: { className?: string }) {
 // two uses legible (a menu item's icon vs a card affordance).
 const CardPinGlyph = PinInPlaceIcon;
 
+// The Gather chip's glyph — a small supply crate/basket standing for the day's
+// kit. Inlined on the icon set's 24×24 grid (icons.tsx is owned elsewhere), the
+// same convention the pin glyph uses. Tone comes from the chip's own color, so
+// this is a plain currentColor outline.
+function KitGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M4 9h16l-1.2 9.5a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9L4 9z" />
+      <path d="M8.5 9 12 4.5 15.5 9" />
+      <path d="M9.5 12.5v3.5M14.5 12.5v3.5" />
+    </svg>
+  );
+}
+
 // The bulk Location… picker body: owns a working set so the toggled rows stay
 // checked while the menu is open (the popover doesn't unmount between toggles),
 // and re-applies the whole set across the selection on each toggle — a REPLACE,
@@ -4099,5 +4326,206 @@ function BulkLocationPicker({
       }}
       onManage={onManage}
     />
+  );
+}
+
+// The Gather popover — the day's kit at a glance. Hard conflicts pin on top (two
+// overlapping blocks fighting over one item, each with a "We have several" action
+// that marks the material `plenty`); then the gather list, one row per needed
+// material with its coverage glyph and a staff-gated tap that cycles its stock.
+// Rides the shared .cal-popover floating surface (rect-anchored on desktop,
+// bottom-docked on phones, scroll-closes) like the weather + stop cards.
+function GatherPopover({
+  date,
+  day,
+  anchor,
+  stock,
+  catalog,
+  events,
+  canEdit,
+  onCycleStock,
+  onMarkPlenty,
+  onClose,
+}: {
+  date: DateKey;
+  day: DayKit;
+  anchor: DOMRect;
+  stock: Record<string, StockState>;
+  catalog?: Material[];
+  events: Record<string, CalendarEvent>;
+  /** Staff session — read-only sessions see the list inert (no cycle / no action). */
+  canEdit: boolean;
+  onCycleStock?: (id: string, current: StockState | undefined) => void;
+  onMarkPlenty?: (id: string, label: string) => void;
+  onClose: () => void;
+}) {
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
+  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
+
+  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
+  // through FullCalendar re-renders (same as the weather / stop cards).
+  useEffect(() => {
+    if (docked) return;
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onClose);
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onClose);
+    };
+  }, [docked, onClose]);
+
+  // A short "10:00 Parachute Games" label for an event in a conflict, in the
+  // blocks' own order (dayKit already sorts eventIds chronologically).
+  const eventLabel = (id: string): string => {
+    const event = events[id];
+    if (!event) return "a block";
+    return formatClock(event.startMin) + " " + (event.title || "block");
+  };
+
+  return (
+    <div className="cal-popover-root">
+      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
+      <div
+        ref={(node) => {
+          dialogRef.current = node;
+          cardRef.current = node;
+        }}
+        className="cal-popover cal-gather"
+        style={
+          docked
+            ? undefined
+            : position
+              ? { left: position.left, top: position.top, visibility: "visible" }
+              : { left: 0, top: 0, visibility: "hidden" }
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label={"Gather — " + formatEventDateLabel(date)}
+        tabIndex={-1}
+      >
+        <div className="cal-popover__head">
+          <div className="cal-popover__heading">
+            <h3 className="cal-popover__title">Gather</h3>
+            <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <CampIcon.Close />
+          </button>
+        </div>
+
+        {day.hardConflicts.length > 0 && (
+          <ul className="cal-gather__conflicts">
+            {day.hardConflicts.map((conflict) => (
+              <li key={conflict.id} className="cal-gather__conflict">
+                <div className="cal-gather__conflict-body">
+                  <span className="cal-gather__conflict-title">
+                    {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
+                  </span>
+                  <span className="cal-gather__conflict-blocks">
+                    {conflict.eventIds.map(eventLabel).join(" · ")}
+                  </span>
+                </div>
+                {canEdit && onMarkPlenty && (
+                  <button
+                    type="button"
+                    className="btn btn--quiet btn--sm cal-gather__plenty"
+                    onClick={() => onMarkPlenty(conflict.id, conflict.label)}
+                  >
+                    We have several
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <ul className="cal-gather__list">
+          {day.items.map((item) => (
+            <GatherRow
+              key={item.id}
+              item={item}
+              catalog={catalog}
+              canEdit={canEdit}
+              current={stock[item.id]}
+              onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
+            />
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// One gather-list row: the material's status glyph (✓ on hand · ↔ via <name> ·
+// low · out · missing) and its name, cycling its stock on tap when staff. A
+// read-only session gets a plain, non-interactive row.
+function GatherRow({
+  item,
+  catalog,
+  canEdit,
+  current,
+  onCycle,
+}: {
+  item: DayKitItem;
+  catalog?: Material[];
+  canEdit: boolean;
+  current: StockState | undefined;
+  onCycle?: () => void;
+}) {
+  const glyph =
+    item.status === "have"
+      ? "✓"
+      : item.status === "substituted"
+        ? "↔"
+        : item.status === "low"
+          ? "◑"
+          : item.status === "out"
+            ? "✕"
+            : "•"; // missing
+  const statusText =
+    item.status === "have"
+      ? "on hand"
+      : item.status === "substituted"
+        ? "via " + (item.viaId ? catalogNameFor(catalog, item.viaId) : "substitute")
+        : item.status === "low"
+          ? "low"
+          : item.status === "out"
+            ? "out"
+            : "missing";
+  const interactive = canEdit && Boolean(onCycle);
+  const content = (
+    <>
+      <span className={"cal-gather__glyph cal-gather__glyph--" + item.status} aria-hidden="true">
+        {glyph}
+      </span>
+      <span className="cal-gather__name">{item.label}</span>
+      <span className="cal-gather__status">{statusText}</span>
+    </>
+  );
+  if (!interactive) {
+    return (
+      <li className="cal-gather__row cal-gather__row--static">
+        {content}
+      </li>
+    );
+  }
+  return (
+    <li className="cal-gather__row">
+      <button
+        type="button"
+        className="cal-gather__cycle"
+        onClick={onCycle}
+        aria-label={item.label + " — " + statusText + ". Tap to update stock"}
+      >
+        {content}
+      </button>
+    </li>
   );
 }

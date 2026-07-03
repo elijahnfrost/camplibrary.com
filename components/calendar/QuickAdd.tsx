@@ -17,6 +17,7 @@ import type { Activity } from "@/lib/types";
 import { coverage } from "@/lib/materials";
 import type { Material } from "@/lib/materialCatalog";
 import type { StockState } from "@/lib/kitStock";
+import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
 import { CampIcon } from "../icons";
 import { PropRow } from "../PropRow";
 import { Modal } from "../Modal";
@@ -88,6 +89,8 @@ export function QuickAdd({
   activities,
   kitStock = {},
   materialCatalog,
+  dayEvents = [],
+  byId = {},
   window: dayWindow,
   locationOptions,
   onManageLocations,
@@ -113,6 +116,12 @@ export function QuickAdd({
   kitStock?: Record<string, StockState>;
   /** The materials catalog — substitution groups + names for the coverage dot. */
   materialCatalog?: Material[];
+  /** The day's existing events (all days is fine — we filter to the draft date),
+   *  used to warn when the current draft would create a same-day kit conflict.
+   *  Safe default [] so other hosts compile unchanged; empty = no warning. */
+  dayEvents?: CalendarEvent[];
+  /** activityId → Activity, so the conflict probe can resolve each event's kit. */
+  byId?: Record<string, Activity>;
   window: DayWindow;
   /** The user-editable place vocabulary for the Location picker. */
   locationOptions: readonly string[];
@@ -245,6 +254,49 @@ export function QuickAdd({
   };
   const draftIsReminder = !draft.allDay && draft.durationMin === 0;
   const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
+
+  // Same-day kit conflict for the CURRENT draft: a quiet, informational heads-up
+  // (never blocking) shown when placing this activity at this date + time would
+  // fight another block for the same material. Computed by running dayKit over the
+  // day's existing events PLUS a synthetic candidate for the draft. Only timed,
+  // activity-backed, non-reminder drafts can conflict; everything else is empty.
+  const conflictWarning = useMemo((): string => {
+    const activityId = selectedActivity?.id;
+    if (!activityId || allDay || isReminder) return "";
+    const candidateId = draft.id ?? "__quickadd_candidate__";
+    const candidate: CalendarEvent = {
+      id: candidateId,
+      date,
+      startMin,
+      endMin: clampedEnd,
+      kind: "activity",
+      title: selectedActivity.title,
+      activityId,
+      updatedAt: 0,
+    };
+    const others = dayEvents.filter((event) => event.date === date && event.id !== candidateId);
+    const day = dayKit([...others, candidate], byId, kitStock, materialCatalog);
+    const conflicts = conflictsForEvent(day, candidateId);
+    if (!conflicts.length) return "";
+    const clash = conflicts[0];
+    const otherId = clash.eventIds.find((id) => id !== candidateId);
+    const other = otherId ? dayEvents.find((event) => event.id === otherId) : undefined;
+    const otherTitle = other?.title || "another block";
+    const otherAt = other ? " at " + formatClock(other.startMin) : "";
+    return clash.label + " is also needed by " + otherTitle + otherAt;
+  }, [
+    selectedActivity,
+    allDay,
+    isReminder,
+    draft.id,
+    date,
+    startMin,
+    clampedEnd,
+    dayEvents,
+    byId,
+    kitStock,
+    materialCatalog,
+  ]);
   const timeLabel = pickTime
     ? isReminder
       ? formatClock(startMin)
@@ -578,6 +630,15 @@ export function QuickAdd({
               </p>
             )}
           </>
+        )}
+
+        {/* A quiet, informational same-day kit conflict heads-up — never blocks
+            the create; it just names the block this draft would fight for a
+            material. Sits under the list / name section for both postures. */}
+        {conflictWarning && (
+          <p className="quickadd__conflict" role="status">
+            <span aria-hidden="true">⚠</span> {conflictWarning}
+          </p>
         )}
 
         {pickTime && (
