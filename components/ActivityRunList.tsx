@@ -521,7 +521,7 @@ function MaterialChecklist({
                 {subbed || skipped ? (
                   <button
                     type="button"
-                    className="matkit__act matkit__revert"
+                    className="btn btn--ghost btn--sm matkit__revert"
                     onClick={() => onSetSub?.(n.id, null)}
                     aria-label={"Revert " + n.label + " to the original"}
                     title="Revert to the original"
@@ -532,7 +532,7 @@ function MaterialChecklist({
                   <>
                     <button
                       type="button"
-                      className="matkit__act"
+                      className="btn btn--ghost btn--sm"
                       onClick={() => setSwapping((id) => (id === n.id ? null : n.id))}
                       aria-label={"Swap " + n.label + " for the day"}
                     >
@@ -540,7 +540,7 @@ function MaterialChecklist({
                     </button>
                     <button
                       type="button"
-                      className="matkit__act"
+                      className="btn btn--ghost btn--sm"
                       onClick={() => onSetSub?.(n.id, "")}
                       aria-label={"Skip " + n.label + " today"}
                     >
@@ -601,39 +601,52 @@ function MaterialSwapForm({
 
   return (
     <div className="matkit__swap" role="group" aria-label={"Swap " + original}>
-      <input
-        className="input matkit__swapinput"
-        value={text}
-        autoFocus
-        placeholder={"Replace " + original + " with…"}
-        aria-label={"Replacement for " + original}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && text.trim()) onPick(text.trim());
-          else if (e.key === "Escape") onClose();
-        }}
-      />
-      {suggestions.length > 0 && (
-        <ul className="matkit__swaplist">
+      {/* Same search-field anatomy as QuickAdd's activity search: icon + input
+          in one bordered pill (`.quickadd__search`), not a bespoke input. */}
+      <label className="quickadd__search matkit__swapsearch">
+        <CampIcon.Search />
+        <input
+          value={text}
+          autoFocus
+          placeholder={"Replace " + original + " with…"}
+          aria-label={"Replacement for " + original}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && text.trim()) onPick(text.trim());
+            else if (e.key === "Escape") onClose();
+          }}
+        />
+      </label>
+      {(suggestions.length > 0 || text.trim()) && (
+        // Same result-list anatomy as QuickAdd's typeahead (`.quickadd__list`
+        // of `.quickadd__item` rows with a name + muted meta), so a suggestion
+        // row here reads identically to a library search result elsewhere.
+        <div className="quickadd__list matkit__swaplist">
           {suggestions.map((s) => (
-            <li key={s.label}>
-              <button
-                type="button"
-                className={"matkit__swapopt" + (s.onHand ? " is-have" : "")}
-                onClick={() => onPick(s.label)}
-              >
-                <span className="matkit__swapname">{s.label}</span>
-                {s.onHand && <span className="matkit__swaphave">on hand</span>}
-              </button>
-            </li>
+            <button
+              type="button"
+              key={s.label}
+              className="quickadd__item"
+              onClick={() => onPick(s.label)}
+            >
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">{s.label}</span>
+              {s.onHand && <span className="quickadd__meta">on hand</span>}
+            </button>
           ))}
-        </ul>
+          {text.trim() && (
+            <button type="button" className="quickadd__item" onClick={() => onPick(text.trim())}>
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">Use “{text.trim()}”</span>
+            </button>
+          )}
+        </div>
       )}
-      {text.trim() && (
-        <button type="button" className="matkit__swapfree" onClick={() => onPick(text.trim())}>
-          Use “{text.trim()}”
+      <div className="matkit__swapacts">
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>
+          Cancel
         </button>
-      )}
+      </div>
     </div>
   );
 }
@@ -657,7 +670,9 @@ type DetailFormProps = {
 // A label-only inline menu picker bound to the run sheet (mirrors the sidebar
 // MenuPicker, but hosted in the FloatingLayer so it shares the Escape/scrim
 // contract). Used for Type / duration where a long option list beats segments.
-function LedgerMenu<T extends string>({
+// Exported so other ledger-anatomy editors (e.g. DetailSheet's Backup plans
+// reason picker) share the exact same `.typepick` pill, not a lookalike copy.
+export function LedgerMenu<T extends string>({
   value,
   options,
   onChange,

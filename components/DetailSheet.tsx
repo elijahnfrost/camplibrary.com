@@ -50,7 +50,7 @@ import { CampIcon } from "./icons";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
 import { ColorField } from "./floating/ColorField";
-import { ActivityRunList } from "./ActivityRunList";
+import { ActivityRunList, LedgerMenu } from "./ActivityRunList";
 import { type ThemeKit } from "./ThemeField";
 import { DESKTOP_MIN } from "./useDeviceShape";
 
@@ -487,11 +487,13 @@ const ALTERNATE_REASON_OPTIONS: { value: AlternateRef["reason"]; label: string }
 ];
 
 // The edit-mode "Backup plans" section — the activity's DEFAULT fallbacks (up to
-// ALTERNATES_MAX). Each row: a title text input, an optional library-activity link
-// (a native datalist typeahead that co-fills the title on pick), and a reason
-// select defaulting to rain. A clean list is normalized on save; here the rows are
-// free-form so a half-typed row doesn't vanish. Purely local draft state lifted to
-// the parent via onChange.
+// ALTERNATES_MAX). Each row is a pair of ledger rows (label-left/control-right,
+// matching the Details block above it): a title field that doubles as a library
+// typeahead (the same `.quickadd__search` + `.quickadd__list` anatomy as
+// QuickAdd's activity search), and a reason picker built on the exact `.typepick`
+// pill (LedgerMenu, shared with the Details block's Type/Ages/etc. controls). A
+// clean list is normalized on save; here the rows are free-form so a half-typed
+// row doesn't vanish. Purely local draft state lifted to the parent via onChange.
 function BackupPlansEditor({
   value,
   onChange,
@@ -512,12 +514,6 @@ function BackupPlansEditor({
     if (value.length >= ALTERNATES_MAX) return;
     onChange([...value, { title: "", reason: "rain" }]);
   };
-  // Resolve a typed/picked link title to a library activity id (title match), so
-  // the row carries an activityId when it names a real library book.
-  const linkFromTitle = (title: string): { title: string; activityId?: string } => {
-    const hit = sorted.find((act) => act.title.toLowerCase() === title.trim().toLowerCase());
-    return hit ? { title: hit.title, activityId: hit.id } : { title };
-  };
 
   return (
     <section className="rlv-backups" aria-label="Backup plans">
@@ -534,47 +530,36 @@ function BackupPlansEditor({
         <ul className="rlv-backups__list">
           {value.map((row, index) => (
             <li key={index} className="rlv-backups__row">
-              <input
-                className="input rlv-backups__name"
-                list="rlv-backups-lib"
-                value={row.title}
-                maxLength={ALTERNATE_TITLE_MAX_LENGTH}
-                placeholder="Backup title, or pick a library activity"
-                aria-label={"Backup plan " + (index + 1) + " title"}
-                onChange={(e) => {
-                  const linked = linkFromTitle(e.target.value);
-                  patchRow(index, { title: e.target.value, activityId: linked.activityId });
-                }}
-              />
-              <select
-                className="input rlv-backups__reason"
-                value={row.reason}
-                aria-label={"Backup plan " + (index + 1) + " reason"}
-                onChange={(e) => patchRow(index, { reason: e.target.value as AlternateRef["reason"] })}
-              >
-                {ALTERNATE_REASON_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="rlv-headbtn rlv-headbtn--danger rlv-backups__del"
-                onClick={() => removeRow(index)}
-                aria-label={"Remove backup plan " + (index + 1)}
-              >
-                <CampIcon.Close />
-              </button>
+              <div className="ledger__row rldetail__row rlv-backups__titlerow">
+                <span className="ledger__label">Backup {index + 1}</span>
+                <BackupTitleField
+                  title={row.title}
+                  activities={sorted}
+                  index={index}
+                  onPick={(title, activityId) => patchRow(index, { title, activityId })}
+                />
+                <button
+                  type="button"
+                  className="rlv-headbtn rlv-headbtn--danger rlv-backups__del"
+                  onClick={() => removeRow(index)}
+                  aria-label={"Remove backup plan " + (index + 1)}
+                >
+                  <CampIcon.Close />
+                </button>
+              </div>
+              <div className="ledger__row rldetail__row">
+                <span className="ledger__label">Reason</span>
+                <LedgerMenu
+                  value={row.reason}
+                  options={ALTERNATE_REASON_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
+                  onChange={(reason) => patchRow(index, { reason })}
+                  ariaLabel={"Backup plan " + (index + 1) + " reason"}
+                />
+              </div>
             </li>
           ))}
         </ul>
       )}
-      <datalist id="rlv-backups-lib">
-        {sorted.map((act) => (
-          <option key={act.id} value={act.title} />
-        ))}
-      </datalist>
       {value.length < ALTERNATES_MAX && (
         <button type="button" className="rlv-backups__add" onClick={addRow}>
           <CampIcon.Plus />
@@ -582,5 +567,84 @@ function BackupPlansEditor({
         </button>
       )}
     </section>
+  );
+}
+
+// The "Backup N" title field — a free-text name that also works as a library
+// typeahead. Built on the exact QuickAdd activity-search anatomy (search icon +
+// bordered pill input, `.quickadd__list` of `.quickadd__item` result rows) so
+// picking a backup plan reads identically to searching the library or QuickAdd.
+// Typing free text is still valid (a backup plan need not be a library book);
+// picking a suggestion links `activityId` the same way the old datalist did.
+function BackupTitleField({
+  title,
+  activities,
+  index,
+  onPick,
+}: {
+  title: string;
+  activities: Activity[];
+  index: number;
+  onPick: (title: string, activityId: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const matches = useMemo(() => {
+    const query = title.trim().toLowerCase();
+    if (!query) return activities.slice(0, 6);
+    return activities.filter((act) => act.title.toLowerCase().includes(query)).slice(0, 6);
+  }, [activities, title]);
+
+  // Typing an exact library title (not just picking a result row) still links
+  // activityId — the same re-match the old datalist input did on every change.
+  const linkFromTitle = (text: string): string | undefined =>
+    activities.find((act) => act.title.toLowerCase() === text.trim().toLowerCase())?.id;
+
+  return (
+    <div
+      className="rlv-backups__titlewrap"
+      ref={wrapRef}
+      onBlur={(e) => {
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <label className="quickadd__search rlv-backups__search">
+        <CampIcon.Search />
+        <input
+          value={title}
+          maxLength={ALTERNATE_TITLE_MAX_LENGTH}
+          placeholder="Backup title, or pick a library activity"
+          aria-label={"Backup plan " + (index + 1) + " title"}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setOpen(true);
+            onPick(e.target.value, linkFromTitle(e.target.value));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+          }}
+        />
+      </label>
+      {open && matches.length > 0 && (
+        <div className="quickadd__list rlv-backups__results">
+          {matches.map((act) => (
+            <button
+              type="button"
+              key={act.id}
+              className="quickadd__item"
+              onClick={() => {
+                onPick(act.title, act.id);
+                setOpen(false);
+              }}
+            >
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">{act.title}</span>
+              <span className="quickadd__meta">{act.type}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

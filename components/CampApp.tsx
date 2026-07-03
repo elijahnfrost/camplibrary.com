@@ -171,6 +171,82 @@ function StaffPromptModal({
   );
 }
 
+// The desktop sidebar's ONE entry point into camps: a collapsed-by-default
+// section under the calendar rail (mirrors the calendar's own View/Weather
+// disclosures). Picking a camp switches it inline; the deep editor (per-camp
+// hours, guidance bands, dietary roster) is too rich for a 260px rail, so
+// "Edit…" and "New camp" both hand off to the existing ListManagerModal.
+function CampsRail({
+  camps,
+  activeCampId,
+  onSwitch,
+  onEdit,
+  onNew,
+}: {
+  camps: Camp[];
+  activeCampId: string | null;
+  onSwitch: (id: string) => void;
+  onEdit: () => void;
+  onNew: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={"sidesection sidesection--fixed camprail" + (open ? " is-open" : "")}>
+      <button
+        type="button"
+        className="sidesection__head camprail__head"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="sidesection__title">
+          <CampIcon.Home className="camprail__headic" />
+          Camps
+        </span>
+        <CampIcon.ChevronRight className="camprail__chev" />
+      </button>
+      {open && (
+        <div className="sidesection__body camprail__body">
+          {camps.length ? (
+            <ul className="camprail__list">
+              {camps.map((camp) => {
+                const active = camp.id === activeCampId;
+                return (
+                  <li key={camp.id} className={"camprail__row" + (active ? " is-active" : "")}>
+                    <button
+                      type="button"
+                      className="camprail__pick"
+                      onClick={() => onSwitch(camp.id)}
+                      aria-pressed={active}
+                    >
+                      <span className="camprail__dot" aria-hidden="true" />
+                      <span className="camprail__name">{camp.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="camprail__edit"
+                      onClick={onEdit}
+                      aria-label={"Edit " + camp.name}
+                      title="Edit…"
+                    >
+                      <CampIcon.Pencil />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
+          )}
+          <button type="button" className="camprail__new" onClick={onNew}>
+            <CampIcon.Plus />
+            New camp
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
   // Only the main app entry remembers/restores its tab. The /admin route mounts
@@ -541,10 +617,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     [cloud, requireStaff]
   );
 
-  // The camp manager (add / switch / rename / delete) — reached from the calendar
-  // view dropdown's "Manage camps…" entry. Camps are a rarely-used option, so
-  // they no longer occupy a permanent header pill. Opening is ungated (switching
-  // is a local view pref); create/rename/delete stay staff-gated below.
+  // The camp manager (add / switch / rename / delete) — reached from the
+  // sidebar's "Camps" section (desktop) or the calendar settings sheet
+  // (mobile/tablet). Camps are a rarely-used option, so they no longer occupy
+  // a permanent header pill. Opening is ungated (switching is a local view
+  // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
 
   // Library filters. State lives here because the desktop filter rail
@@ -1009,6 +1086,19 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             />
           )}
           {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
+          {/* The ONE entry point into camps on desktop — a collapsed-by-default
+              section below the calendar rail. The deep editor (hours, guidance
+              bands, dietary roster) still opens as the existing camps modal;
+              this section only picks the active camp or hands off to it. */}
+          {tab === "calendar" && isDesktop && (
+            <CampsRail
+              camps={campKit.camps}
+              activeCampId={campKit.activeCampId}
+              onSwitch={campKit.switchCamp}
+              onEdit={() => setCampsManagerOpen(true)}
+              onNew={() => setCampsManagerOpen(true)}
+            />
+          )}
           {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
           {/* Sync state where edits actually happen (not just the Staff card).
               Quiet by default: renders only when it carries a signal — pending

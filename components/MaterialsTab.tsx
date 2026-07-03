@@ -7,12 +7,13 @@
 // derived from every activity's kit — and shows it in two presentations off the
 // same list:
 //
-//  · SETUP mode, shown while the stock map is UNSET ({}): a zero-state banner, a
-//    usage-sorted list with big tap targets, and bulk shortcuts to mark a lot at
+//  · SETUP mode, shown while the stock map is UNSET ({}): a zero-state banner
+//    over the same usage-sorted list, plus bulk shortcuts to mark a lot at
 //    once. It's PURELY presentation — the first stock write (any tap) flips the
 //    tab to normal mode naturally, because the map is no longer empty.
 //  · NORMAL mode: a pinned "Restock" section (the low/out rows, one tap back to
-//    have), then the full searchable list. Each row cycles its stock on tap and
+//    have), then the full searchable list. Each row shows an explicit Have/
+//    Low/Out control (all three states visible at once — no tap-to-cycle) and
 //    carries an overflow menu (rename / consumable / archive) and a "Used by N
 //    activities →" jump into the pre-filtered Library.
 //
@@ -27,6 +28,7 @@ import { isStocked, type StockState } from "@/lib/kitStock";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
+import { MiniSeg } from "./primitives";
 
 // The top-N most-used materials the opt-in "Start from your most-used kit"
 // button marks as Have. Data-driven (never a default), so a fresh account only
@@ -86,20 +88,17 @@ function buildRows(
   return rows;
 }
 
-// The next state a row cycles to on tap: unset → have → low → out → have. Absent
-// enters at "have" so a single tap marks a fresh row present (matches the run
-// sheet's nextStockState, kept local to avoid a stock-write helper import here).
-function nextTapState(current: StockState | undefined): StockState {
-  if (current === "have") return "low";
-  if (current === "low") return "out";
-  return "have";
-}
-
-const STATE_LABEL: Record<StockState, string> = {
-  have: "Have",
-  low: "Low",
-  out: "Out",
-};
+// The explicit 3-way control every row shows — Have / Low / Out, all visible
+// at once (replaces the old tap-to-cycle button, which hid the other two
+// states until you tapped through them). A row with no state yet renders
+// with none selected; MiniSeg's active index is just -1, no bespoke case
+// needed. Kept local (not the sidebar's KitFilter instance) since options are
+// per-row identical but the value differs per row.
+const STOCK_OPTIONS: { id: StockState; label: string; ariaLabel: string }[] = [
+  { id: "have", label: "Have", ariaLabel: "Have" },
+  { id: "low", label: "Low", ariaLabel: "Low" },
+  { id: "out", label: "Out", ariaLabel: "Out" },
+];
 
 function matchesQuery(name: string, q: string): boolean {
   return !q || normalizeSearchText(name).includes(q);
@@ -196,49 +195,46 @@ export function MaterialsTab({
     const stateClass = row.state ? " is-" + row.state : " is-unset";
     return (
       <li key={row.id} className={"matrow" + stateClass}>
-        <button
-          type="button"
-          className="matrow__toggle"
-          onClick={() => onSetStockState(row.id, nextTapState(row.state))}
-          disabled={!canEdit}
-          aria-label={
-            "Mark " + row.name + ", currently " + (row.state ? STATE_LABEL[row.state] : "unmarked")
-          }
-        >
-          <span className="matrow__dot" aria-hidden="true">
-            {isStocked(row.state) && <CampIcon.Check />}
-          </span>
-          <span className="matrow__body">
-            {isRenaming ? (
-              <input
-                className="matrow__rename"
-                value={renaming.draft}
-                autoFocus
-                aria-label={"Rename " + row.name}
-                onChange={(e) => setRenaming({ id: row.id, draft: e.target.value })}
-                onClick={(e) => e.stopPropagation()}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commitRename();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    setRenaming(null);
-                  }
-                }}
-              />
-            ) : (
-              <span className="matrow__name">
-                {row.name}
-                {row.consumable && <span className="matrow__tagconsumable">consumable</span>}
-              </span>
-            )}
-          </span>
-          <span className={"matrow__state" + stateClass}>
-            {row.state ? STATE_LABEL[row.state] : "Mark"}
-          </span>
-        </button>
+        <span className="matrow__dot" aria-hidden="true">
+          {isStocked(row.state) && <CampIcon.Check />}
+        </span>
+        <span className="matrow__body">
+          {isRenaming ? (
+            <input
+              className="matrow__rename"
+              value={renaming.draft}
+              autoFocus
+              aria-label={"Rename " + row.name}
+              onChange={(e) => setRenaming({ id: row.id, draft: e.target.value })}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setRenaming(null);
+                }
+              }}
+            />
+          ) : (
+            <span className="matrow__name">
+              {row.name}
+              {row.consumable && <span className="matrow__tagconsumable">consumable</span>}
+            </span>
+          )}
+        </span>
+        {/* Explicit 3-state control — Have/Low/Out all shown at once, so the
+            other states are never hidden behind repeated taps. Unset renders
+            with nothing selected (MiniSeg's active index is just -1). A
+            read-only visitor still sees the current state; taps are inert
+            (mirrors every other staff-gated control here). */}
+        <MiniSeg
+          ariaLabel={"Stock for " + row.name}
+          value={(row.state ?? "") as StockState}
+          onChange={(v) => canEdit && onSetStockState(row.id, v)}
+          options={STOCK_OPTIONS}
+        />
         <span
           className="matrow__used"
           role="button"
@@ -290,7 +286,7 @@ export function MaterialsTab({
               <span className="materials-setup__kicker">Set up your kit</span>
               <h2 className="materials-setup__title">Mark what you have — ~2 minutes</h2>
               <p className="materials-setup__copy">
-                Tap a material to mark it Have, Low, or Out. Once you&rsquo;ve marked a few, the
+                Set each material to Have, Low, or Out. Once you&rsquo;ve marked a few, the
                 library can show what you can run right now.
               </p>
               <div className="materials-setup__actions">

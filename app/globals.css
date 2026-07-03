@@ -4470,38 +4470,16 @@ body {
   align-items: center;
   gap: var(--s-2);
 }
-.matkit__act {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  background: transparent;
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: var(--s-2) var(--s-3);
-  cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.matkit__act:hover {
-  border-color: var(--ink-soft);
-  color: var(--ink);
-}
+/* Swap…/Skip today/revert now render as .btn.btn--ghost.btn--sm (the app's one
+   secondary-action button); .matkit__revert only tightens it to icon-only. */
 .matkit__revert {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--s-2);
+  padding-left: var(--s-2);
+  padding-right: var(--s-2);
 }
-.matkit__revert svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-}
-/* The mini Swap form under a row: a text field + on-hand-first suggestions. */
+/* The mini Swap form under a row: reuses the QuickAdd search-field + result-list
+   anatomy verbatim (.quickadd__search / .quickadd__list / .quickadd__item) so a
+   material swap reads exactly like the app's other typeaheads; these rules only
+   size the wrapper + suggestion list within the swap form's own box. */
 .matkit__swap {
   flex-basis: 100%;
   display: flex;
@@ -4513,54 +4491,17 @@ body {
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
 }
-.matkit__swaplist {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  list-style: none;
+.matkit__swapsearch {
   margin: 0;
+}
+.matkit__swaplist {
+  max-height: none;
+  margin-top: 0;
   padding: 0;
 }
-.matkit__swapopt {
+.matkit__swapacts {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  width: 100%;
-  text-align: left;
-  padding: var(--s-3) var(--s-4);
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  font-family: var(--text);
-  font-size: var(--fs-body);
-  color: var(--ink);
-}
-.matkit__swapopt.is-have {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
-}
-.matkit__swaphave {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-}
-.matkit__swapfree {
-  align-self: flex-start;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.03em;
-  color: var(--ink-soft);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-.matkit__swapfree:hover {
-  color: var(--ink);
-  text-decoration: underline;
+  justify-content: flex-end;
 }
 
 /* The kit-lens "mark what you have" hint (shown under the Kit filter row while
@@ -6117,6 +6058,177 @@ body {
   .sidesection--fixed > .sidesection__body {
     flex: none;
     overflow: visible;
+  }
+
+  /* ---- camps rail (Calendar tab, desktop) ----
+     The sidebar's ONE entry point into camps: a fixed-height .sidesection,
+     collapsed by default, sitting under the calendar rail. Its head reuses the
+     shared .sidesection__head/__title treatment; the chevron is its own
+     right-collapsed/down-open glyph (the same affordance as the camp manager's
+     .manager__sect-chev) — a disclosure that expands DOWNWARD should always
+     point down once open, so this is the affordance every rail disclosure
+     should read. */
+  .camprail__head {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .camprail__headic {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+    margin-right: var(--s-2);
+    vertical-align: -1.5px;
+  }
+  .camprail__chev {
+    width: 13px;
+    height: 13px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--ink-soft);
+    transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  }
+  .camprail.is-open .camprail__chev {
+    transform: rotate(90deg);
+  }
+  .camprail__head:hover .sidesection__title,
+  .camprail__head:hover .camprail__chev {
+    color: var(--ink);
+  }
+  .camprail:not(.is-open) .camprail__head {
+    margin-bottom: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .camprail__chev {
+      transition: none;
+    }
+  }
+  .camprail__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  .camprail__list {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .camprail__row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    border-bottom: 1.5px dashed var(--line-soft);
+  }
+  .camprail__row:last-child {
+    border-bottom: 0;
+  }
+  .camprail__pick {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    min-height: 38px;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    color: var(--ink-faint);
+  }
+  .camprail__pick:hover {
+    color: var(--ink);
+  }
+  .camprail__dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    background: transparent;
+  }
+  .camprail__row.is-active .camprail__dot {
+    border-color: var(--accent-ink);
+    background: var(--accent-ink);
+  }
+  .camprail__row.is-active .camprail__name {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .camprail__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .camprail__edit {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink-faint);
+    transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  }
+  .camprail__edit svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+  }
+  .camprail__edit:hover {
+    color: var(--ink);
+    background: var(--chrome-well);
+  }
+  .camprail__empty {
+    margin: 0;
+    padding: var(--s-2) 0 var(--s-3);
+    font-size: var(--fs-meta);
+    color: var(--ink-faint);
+  }
+  .camprail__new {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    min-height: 34px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-meta);
+    color: var(--ink-soft);
+    transition: color var(--t-fast) var(--ease);
+  }
+  .camprail__new svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+  }
+  .camprail__new:hover {
+    color: var(--ink);
   }
 
   /* ---- filter rail body (Library tab) ----
@@ -8332,18 +8444,41 @@ button.rl-node--pick:focus-visible {
   margin: 0 0 var(--s-4);
   padding: 0;
 }
+/* Each backup plan is now a pair of ledger rows (title, reason) — the same
+   label-left/control-right anatomy as the Details block above (.ledger__row
+   .rldetail__row), so the section reads as one continuous property ledger. */
 .rlv-backups__row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+}
+.rlv-backups__titlerow {
   gap: var(--s-3);
 }
-.rlv-backups__name {
+/* The title field fills the row's remaining width (a free-text name, not a
+   hug-content fact pill like the other ledger controls). */
+.rlv-backups__titlewrap {
+  position: relative;
   flex: 1;
   min-width: 0;
 }
-.rlv-backups__reason {
-  flex: none;
-  width: 120px;
+.rlv-backups__search {
+  width: 100%;
+}
+/* The library-match dropdown floats under the field, reusing the QuickAdd
+   result-list look (.quickadd__list/.quickadd__item) verbatim. */
+.rlv-backups__results {
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  margin-top: 0;
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
 }
 .rlv-backups__add {
   display: inline-flex;
@@ -11606,8 +11741,9 @@ button.rl-node--pick:focus-visible {
   text-align: center;
 }
 
-/* The list + rows. Each row is a big tap target (the toggle) plus a "used by"
-   jump and an overflow button. */
+/* The list + rows. Each row is a status dot + name on the left, then the
+   explicit Have/Low/Out MiniSeg, the "used by" jump, and an overflow button —
+   the same label-left/control-right shape as a ledger row. */
 .matlist {
   list-style: none;
   margin: 0;
@@ -11618,28 +11754,14 @@ button.rl-node--pick:focus-visible {
 }
 .matrow {
   display: flex;
-  align-items: stretch;
-  gap: var(--s-1);
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: var(--s-3);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--card);
-  overflow: hidden;
-}
-.matrow__toggle {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
-  padding: var(--s-3);
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
   color: var(--ink);
-}
-.matrow__toggle:disabled {
-  cursor: default;
 }
 .matrow__dot {
   flex: none;
@@ -11693,29 +11815,32 @@ button.rl-node--pick:focus-visible {
 .matrow__rename:focus {
   outline: none;
 }
-.matrow__state {
+/* The explicit Have/Low/Out control — same MiniSeg used everywhere else, just
+   hugging its own content on the row's right side (matches
+   .rldetail__row .miniseg). Its own is-on styling already carries the
+   selected label; the row still tints its border to match (below), so the
+   whole row — not just the pill — reads at a glance. */
+.matrow .miniseg {
   flex: none;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
 }
-/* Stock states — the run sheet's palette, keyed off the row modifier so the dot
-   AND the state word carry the color. */
+/* Unlike every other MiniSeg in the app, a fresh row's stock is genuinely
+   unselected (id "" matches none of the 3 options) — the shared seg-slide
+   thumb has no home for that (its geometry assumes --seg-i is always >= 0)
+   and would otherwise paint a stray sliver at the pill's left edge. Hide the
+   thumb for exactly that state; is-unset is the same modifier the dot/border
+   already key off. */
+.matrow.is-unset .miniseg::before {
+  display: none;
+}
+/* Stock states — the run sheet's palette, keyed off the row modifier so the
+   dot and the row border both carry the color. */
 .matrow.is-have .matrow__dot {
   background: var(--accent);
   border-color: var(--accent-ink);
 }
-.matrow.is-have .matrow__state {
-  color: var(--accent-ink);
-}
 .matrow.is-low .matrow__dot {
   background: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
-}
-.matrow.is-low .matrow__state {
-  color: var(--amber);
 }
 .matrow.is-low {
   border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
@@ -11723,9 +11848,6 @@ button.rl-node--pick:focus-visible {
 .matrow.is-out .matrow__dot {
   background: var(--danger);
   border-color: var(--danger-ink);
-}
-.matrow.is-out .matrow__state {
-  color: var(--danger);
 }
 .matrow.is-out {
   border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
@@ -11735,8 +11857,8 @@ button.rl-node--pick:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: var(--s-1);
-  padding: 0 var(--s-3);
-  border-left: 1px solid var(--line);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--line-soft);
   font-family: var(--hand-sc);
   font-size: var(--fs-micro);
   letter-spacing: 0.03em;
@@ -11756,21 +11878,25 @@ button.rl-node--pick:focus-visible {
   stroke: currentColor;
   stroke-width: 1.6;
 }
+/* Same compact icon-button vocabulary as .icon-btn, sized down to fit inside
+   the row instead of the tap-target 44px (the row itself already meets --tap
+   height). */
 .matrow__more {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--control-md);
+  width: var(--control-sm);
+  height: var(--control-sm);
   border: 0;
-  border-left: 1px solid var(--line);
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--ink-soft);
   cursor: pointer;
 }
 .matrow__more svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
 }
 .matrow__more:hover {
@@ -11789,11 +11915,12 @@ button.rl-node--pick:focus-visible {
   cursor: pointer;
 }
 
-/* Phones: stack the used-by jump under the row body isn't worth the reflow — the
-   row already scrolls; just tighten the used-by label so three columns fit. */
+/* Phones: stacking the used-by jump under the row body isn't worth the
+   reflow — just tighten its padding so dot + name + MiniSeg + used-by + more
+   still fit in one row. */
 @media (max-width: 520px) {
   .matrow__used {
-    padding: 0 var(--s-2);
+    padding-left: var(--s-2);
   }
 }
 

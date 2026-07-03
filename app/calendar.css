@@ -1741,6 +1741,28 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 /* The "day note" zone: prose, set apart from the pill ledger above it. A header
    row (icon · title · where-it-goes hint) over a calm full-width textarea — so it
    reads as one deliberate field, not a giant box crammed among the dropdowns. */
+/* The Recover time property row: two quiet inline actions (the touch door into
+   the day-shift card) — same underline-on-hover link vocabulary as
+   .quickadd__backup-btn, the row's nearest neighbor in the ledger. */
+.quickadd__recover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.quickadd__recover-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.quickadd__recover-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
 /* The start–end Time row: a thin dash between the two time pills, then a faint
    derived length — "important to have, not to see." */
 .quickadd__timedash {
@@ -3326,17 +3348,19 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
 }
+/* Row anatomy matches .cal-gather__row (the other cal-popover list) — a flush
+   list separated by a top rule, not a bordered card. */
 .cal-rain__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--card);
+  padding: var(--s-3) var(--s-2);
+  border-top: 1px solid var(--line);
+}
+.cal-rain__row:first-child {
+  border-top: 0;
 }
 .cal-rain__body {
   flex: 1;
@@ -3377,8 +3401,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  border-top: 1px dashed var(--line-soft);
 }
+/* Option rows read like the QuickAdd search list (.quickadd__item): a flat,
+   hover-washed row — not a bordered card per option. */
 .cal-rain__pickopt {
   display: flex;
   align-items: baseline;
@@ -3386,14 +3412,15 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   gap: var(--s-3);
   width: 100%;
   text-align: left;
-  padding: var(--s-3) var(--s-4);
-  background: var(--paper-2);
-  border: 1px solid var(--line);
+  padding: var(--s-3) var(--s-2);
+  border: 0;
   border-radius: var(--r-sm);
+  background: transparent;
   cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
 }
 .cal-rain__pickopt:hover {
-  border-color: var(--ink-soft);
+  background: var(--chrome-well);
 }
 .cal-rain__pickname {
   font-family: var(--hand);
