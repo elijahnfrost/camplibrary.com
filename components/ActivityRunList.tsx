@@ -1412,9 +1412,14 @@ export function ActivityRunList({
       ),
     });
     openStep(pid);
-    setOpenKid(null);
-    // A fresh diagram opens straight into the full-screen editor.
-    if (type === "diagram") setFullDiagram({ stepId: pid, childId: kid.id });
+    // The palette STAYS OPEN after an add so several sub-blocks (a note, then
+    // safety, then materials) go in without reopening it each time — dismissal
+    // is the existing close affordance / Escape. A diagram is the exception:
+    // it opens straight into the full-screen editor, so the palette closes.
+    if (type === "diagram") {
+      setOpenKid(null);
+      setFullDiagram({ stepId: pid, childId: kid.id });
+    }
   };
 
   const makeTopBlock = (type: RunBlockType): RunBlock => {
