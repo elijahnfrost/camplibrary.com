@@ -9,13 +9,21 @@ describe("printFormatStorage", () => {
 
   it("validates the new format fields field-by-field", () => {
     const out = printFormatStorage(
-      { fontScale: "large", density: "tight", showCover: false, pageNumbers: true },
+      { fontScale: "large", density: "tight", showCover: false },
       DEFAULT_PRINT_FORMAT
     );
     expect(out.fontScale).toBe("large");
     expect(out.density).toBe("tight");
     expect(out.showCover).toBe(false);
-    expect(out.pageNumbers).toBe(true);
+  });
+
+  it("ignores a stale pageNumbers key from an old persisted blob without crashing", () => {
+    const out = printFormatStorage(
+      { pageNumbers: true, fontScale: "small" },
+      DEFAULT_PRINT_FORMAT
+    );
+    expect(out.fontScale).toBe("small");
+    expect((out as unknown as Record<string, unknown>).pageNumbers).toBeUndefined();
   });
 
   it("falls back per-field for an out-of-range enum", () => {

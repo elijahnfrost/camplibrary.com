@@ -21,14 +21,17 @@ export interface DateRange {
 
 // Inclusive [lo, hi] from a fixed anchor to a clicked day, clamped so the span
 // never exceeds maxDays (the far end is reeled back toward the anchor).
-function rangeFromAnchor(anchor: DateKey, picked: DateKey, maxDays: number): DateRange {
+// `clamped` tells the caller whether the pick actually got reeled in, so it
+// can surface feedback (print-11) instead of silently snapping the range back.
+function rangeFromAnchor(anchor: DateKey, picked: DateKey, maxDays: number): DateRange & { clamped: boolean } {
   const forward = fromDateKey(picked).getTime() >= fromDateKey(anchor).getTime();
   const inclusive = Math.abs(daySpan(anchor, picked)) + 1;
+  const clamped = inclusive > maxDays;
   let end = picked;
-  if (inclusive > maxDays) end = addDays(anchor, (forward ? 1 : -1) * (maxDays - 1));
+  if (clamped) end = addDays(anchor, (forward ? 1 : -1) * (maxDays - 1));
   const lo = forward ? anchor : end;
   const hi = forward ? end : anchor;
-  return { start: lo, end: hi };
+  return { start: lo, end: hi, clamped };
 }
 
 export function MiniRangeCalendar({
@@ -37,6 +40,7 @@ export function MiniRangeCalendar({
   maxDays,
   today,
   firstDay = 1,
+  onClamped,
 }: {
   value: DateRange;
   onChange: (range: DateRange) => void;
@@ -44,6 +48,11 @@ export function MiniRangeCalendar({
   maxDays: number;
   today: DateKey;
   firstDay?: number;
+  /** Called (with the cap) when a pick gets reeled back to maxDays, so the
+   *  caller can surface visible feedback (print-11) — a silent clamp reads as
+   *  a bug ("I picked further than this"). Optional: omitting it just skips
+   *  the feedback, it never affects the clamped range itself. */
+  onClamped?: (maxDays: number) => void;
 }) {
   const [monthCursor, setMonthCursor] = useState(() => {
     const d = fromDateKey(value.start);
@@ -96,11 +105,19 @@ export function MiniRangeCalendar({
     onChange(next);
   }
 
+  // Commit a maxDays-clamped range, and — if it actually got reeled in —
+  // surface that to the caller (print-11: a clamp used to happen silently).
+  function commitClamped(next: DateRange & { clamped: boolean }) {
+    const { clamped, ...range } = next;
+    commit(range);
+    if (clamped) onClamped?.(maxDays);
+  }
+
   function pick(date: Date, shiftKey: boolean) {
     const key = toDateKey(date);
     if (shiftKey) {
       // Quick path: extend straight from the current start.
-      commit(rangeFromAnchor(value.start, key, maxDays));
+      commitClamped(rangeFromAnchor(value.start, key, maxDays));
       setPending(null);
       return;
     }
@@ -110,7 +127,7 @@ export function MiniRangeCalendar({
       commit({ start: key, end: key });
     } else {
       // Second tap: close the range from the pending start to this day.
-      commit(rangeFromAnchor(pending, key, maxDays));
+      commitClamped(rangeFromAnchor(pending, key, maxDays));
       setPending(null);
     }
   }

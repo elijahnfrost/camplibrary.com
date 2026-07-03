@@ -1050,8 +1050,21 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
       // Kit stock + catalog power the print shopping list (missing & low only).
       kitStock: lib.kitStock,
       materialCatalog: lib.materialCatalog,
+      // The dietary roster + menu notes power the printed day-header dietary
+      // line (approved plan §H, "Meals on paper") — same synced doc the
+      // calendar's meal editor reads/writes (cloud.docs.meals).
+      mealsDoc: cloud.docs.meals,
     }),
-    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps, lib.kitStock, lib.materialCatalog]
+    [
+      cloud.events,
+      lib.byId,
+      lib.resolveRunDoc,
+      lib.themeOf,
+      campKit.camps,
+      lib.kitStock,
+      lib.materialCatalog,
+      cloud.docs.meals,
+    ]
   );
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
