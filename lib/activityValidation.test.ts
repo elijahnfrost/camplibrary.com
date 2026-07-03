@@ -135,3 +135,22 @@ describe("activity validation", () => {
     expect(normalized?.subsets).toBeUndefined();
   });
 });
+
+describe("normalizeActivity forward compatibility", () => {
+  it("round-trips keys this build doesn't know and cleans malformed known optionals", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      // A newer client's field: a stale build must round-trip it, not erase it.
+      materialRefs: [{ id: "flour", note: "~2 cups per batch" }],
+      // Malformed known optionals must NOT ride through the spread.
+      altNames: "not-an-array",
+      color: 123,
+    });
+    expect(normalized).not.toBeNull();
+    expect((normalized as unknown as Record<string, unknown>).materialRefs).toEqual([
+      { id: "flour", note: "~2 cups per batch" },
+    ]);
+    expect(normalized?.altNames).toBeUndefined();
+    expect(normalized?.color).toBeUndefined();
+  });
+});

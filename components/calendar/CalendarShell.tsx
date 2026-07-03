@@ -181,7 +181,12 @@ type MenuState =
 type BulkPickerState =
   | { kind: "color"; ids: string[]; point: { x: number; y: number } }
   | { kind: "location"; ids: string[]; point: { x: number; y: number } };
-type ToastState = { message: string; onUndo?: () => void };
+type ToastState = {
+  message: string;
+  onUndo?: () => void;
+  /** An optional second, non-undo action (e.g. "Save to library" after a one-off). */
+  action?: { label: string; onClick: () => void };
+};
 // Editing or deleting one occurrence of a repeating event first asks the scope
 // (this / following / all). The pending action is held here until the user picks.
 type ScopePrompt =
@@ -1134,7 +1139,13 @@ export function CalendarShell({
       const startMin = draft.allDay ? 0 : draft.startMin;
       const endMin = endMinForDraft(draft.startMin, draft.durationMin, draft.allDay);
       const isReminder = !draft.allDay && endMin === startMin; // 0-min marker
+      // The editor save is a PATCH over the stored row, not a rebuild: spread the
+      // existing event first so fields the editor doesn't own (campId, pinned,
+      // future payload fields) survive the save — mirroring applyBulkEdit, which
+      // patches rows in place. Rebuilding from the draft silently un-scoped
+      // camp events on every edit.
       const event: CalendarEvent = {
+        ...existing,
         id: draft.id ?? crypto.randomUUID(),
         date: draft.date,
         startMin,
@@ -1146,26 +1157,54 @@ export function CalendarShell({
         title: activity?.title ?? draft.title ?? "Untitled",
         updatedAt: Date.now(),
       };
+      // Editor-owned optionals: the draft's value wins, INCLUDING a clear —
+      // deleting here (after the spread) is what makes clearing stick on edits.
       if (draft.activityId) event.activityId = draft.activityId;
+      else delete event.activityId;
       if (draft.allDay) event.allDay = true;
+      else delete event.allDay;
       if (draft.color) event.color = draft.color;
+      else delete event.color;
       if (draft.locations?.length) event.locations = draft.locations;
+      else delete event.locations;
       if (draft.note) event.note = draft.note;
+      else delete event.note;
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + (isReminder ? "reminder " : "") + event.title);
       if (!draft.id) {
-        showToast({
+        const toastState: ToastState = {
           message:
             "Added " +
             (isReminder ? "reminder " : "") +
             event.title +
             (event.allDay ? " · all day" : " · " + formatClock(event.startMin)),
           onUndo: () => removeEvent(event.id),
-        });
+        };
+        // A brand-new one-off gets a one-tap path into the library ("Save to
+        // library" defaults off): the action creates the Routine activity and
+        // links this placement to it — reversible, never modal.
+        if (!event.activityId && event.title) {
+          toastState.action = {
+            label: "Save to library",
+            onClick: () => {
+              const created = onCreateActivity(event.title, isReminder ? 0 : endMin - startMin);
+              if (!created) return; // staff gate blocked it
+              upsertEvent({
+                ...event,
+                activityId: created.id,
+                kind: "activity",
+                title: created.title,
+                updatedAt: Date.now(),
+              });
+              announce("Saved " + created.title + " to library");
+            },
+          };
+        }
+        showToast(toastState);
       }
     },
-    [announce, byId, createSeries, events, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, byId, createSeries, events, onCreateActivity, removeEvent, requireStaff, showToast, upsertEvent]
   );
 
   const deleteEvent = useCallback(
@@ -3731,6 +3770,17 @@ export function CalendarShell({
       {toast && (
         <div className="calshell__toast" role="status">
           <span>{toast.message}</span>
+          {toast.action && (
+            <button
+              type="button"
+              onClick={() => {
+                toast.action?.onClick();
+                setToast(null);
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
           {toast.onUndo && (
             <button
               type="button"

@@ -156,3 +156,27 @@ describe("calendar event campId round-trip", () => {
     expect(badCamp?.campId).toBeUndefined();
   });
 });
+
+describe("normalizeCamp forward compatibility", () => {
+  it("round-trips keys this build doesn't know while still clamping known fields", () => {
+    const [out] = normalizeCamps(
+      [
+        {
+          id: "c1",
+          name: "Summer",
+          createdAt: 1,
+          openMin: 300, // below the selectable floor -> clamped
+          closeMin: 9999, // above the ceiling -> clamped
+          snapMin: 10, // a newer client's field: must survive the round-trip
+          weekdayHours: { 5: null },
+        },
+      ],
+      []
+    );
+    const raw = out as unknown as Record<string, unknown>;
+    expect(raw.snapMin).toBe(10);
+    expect(raw.weekdayHours).toEqual({ 5: null });
+    expect(out.openMin).toBe(EARLIEST_OPEN_MIN);
+    expect(out.closeMin).toBe(LATEST_CLOSE_MIN);
+  });
+});

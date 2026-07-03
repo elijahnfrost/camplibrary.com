@@ -95,7 +95,11 @@ function normalizeCamp(value: unknown): Camp | null {
     typeof v.openMin === "number" && Number.isFinite(v.openMin) ? v.openMin : DEFAULT_OPEN_MIN;
   const closeRaw =
     typeof v.closeMin === "number" && Number.isFinite(v.closeMin) ? v.closeMin : DEFAULT_CLOSE_MIN;
-  return { id, name, createdAt, ...clampOpenClose(openRaw, closeRaw) };
+  // Spread the raw record first so keys this build doesn't know (fields added by
+  // a newer client — per-day hours, snap…) round-trip instead of being erased by
+  // a stale client's next whole-doc save. Every field this build DOES know is
+  // overwritten after the spread, so junk can never shadow a validated value.
+  return { ...v, id, name, createdAt, ...clampOpenClose(openRaw, closeRaw) } as Camp;
 }
 
 // The camps doc: a list of unique-id camps in creation order. Deterministic so

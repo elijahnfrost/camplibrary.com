@@ -70,9 +70,10 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
 // surface, so the calendar has a single look and a single set of habits. There
 // is ONE create path now: a search bar. Type a name; matching library activities
 // appear and a tap places one; if it isn't there, the same text becomes a new
-// event — and a "Save to library" switch (on by default) decides whether that new
-// event is also saved as a reusable library activity (in the Routine bucket) or
-// stays a one-off. Length drives behavior: a timed block, or "None" = a 0-minute
+// event — and a "Save to library" switch (OFF by default, so quickly typed
+// one-offs don't silently become permanent library rows) decides whether that
+// new event is also saved as a reusable library activity (in the Routine
+// bucket). Length drives behavior: a timed block, or "None" = a 0-minute
 // reminder. Two postures:
 //  - slot posture (tap/drag a slot): the gesture already chose the when, so
 //    picking an activity or naming a new event creates instantly, with Undo.
@@ -123,9 +124,11 @@ export function QuickAdd({
   // editable name when editing a one-off custom event.
   const [query, setQuery] = useState(isEdit && !draft.activityId ? draft.title : "");
   const [activityId, setActivityId] = useState(draft.activityId ?? "");
-  // "Save to library" — on by default, so a named new event becomes a reusable
-  // library activity unless the user opts out for a true one-off.
-  const [addToLibrary, setAddToLibrary] = useState(true);
+  // "Save to library" — OFF by default: quickly typed one-off entries stay
+  // one-offs instead of silently becoming permanent library rows that degrade
+  // search all season. A just-placed one-off can still be promoted afterwards
+  // (the create toast's "Save to library" action, or promoteToLibrary in edit).
+  const [addToLibrary, setAddToLibrary] = useState(false);
   // The when-state only drives the pick-a-time posture; the slot posture's
   // when came from the gesture and is displayed read-only in the header.
   const [date, setDate] = useState(draft.date);
@@ -239,10 +242,11 @@ export function QuickAdd({
   // reads as a calm property sheet, and dropdowns have room to open), but while
   // swapping an edited activity it stays open so you can browse the library.
   const showList = changingActivity || (!isEdit && Boolean(trimmed));
-  // Whether to RECOMMEND library events. Off when "Save to library" is unchecked
-  // — that's a calendar-only text entry, so the library suggestions are just
-  // noise. Always on while swapping an edited activity (that IS a library pick).
-  const showSuggestions = changingActivity || (!isEdit && addToLibrary);
+  // Whether to RECOMMEND library events. Always on while creating — matches are
+  // PLACEMENT options (the primary create path), independent of the
+  // save-to-library switch, which only governs what happens to a brand-new typed
+  // name. Also on while swapping an edited activity (that IS a library pick).
+  const showSuggestions = changingActivity || !isEdit;
   // The inline "create new" affordance shows while creating, once a name is typed.
   // With "Save to library" off it always shows (calendar-only text, even if the
   // name happens to match a library title); on, it defers to an exact match.
