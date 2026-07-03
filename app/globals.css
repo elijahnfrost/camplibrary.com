@@ -1181,6 +1181,35 @@ body {
   justify-content: center;
   font-size: var(--fs-meta);
 }
+/* The QR code — a scan-friendly light tile regardless of the popover's own
+   surface, so it stays legible if the popover shell is ever themed dark. */
+.subfeed__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-soft);
+}
+.subfeed__qr-tile {
+  width: 128px;
+  height: 128px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: var(--s-2);
+}
+.subfeed__qr-tile svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.subfeed__qr-caption {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
 .subfeed__reset {
   align-self: flex-start;
   margin-top: var(--s-3);
@@ -4156,6 +4185,88 @@ body {
 .matkit__item.is-have .matkit__check {
   background: var(--accent);
   border-color: var(--accent-ink);
+}
+/* Kit stock 3-state rows: "low" runs an amber accent (running out, plan a
+   refill), "out" a red one (uncovered). "have"/via reuse the green .is-have. */
+.matkit__item.is-low {
+  background: color-mix(in srgb, var(--amber) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+.matkit__item.is-low .matkit__check {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+  color: var(--card);
+}
+.matkit__item.is-out {
+  background: color-mix(in srgb, var(--danger) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+.matkit__item.is-out .matkit__check {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+  color: var(--card);
+}
+/* The "↔ via <name>" tag on a substitute-covered row — a quiet meta note. */
+.matkit__via {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.matkit__via svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The coverage pill in the checklist header: Ready (green, amber when a covered
+   item is running low), "N missing" (amber almost / red can't). */
+.matkit__pill {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  color: var(--ink-soft);
+}
+.matkit__pill--ready {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent-ink);
+}
+.matkit__pill--ready.matkit__pill--low {
+  background: color-mix(in srgb, var(--amber) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 48%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--almost {
+  background: color-mix(in srgb, var(--amber) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--cant {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--danger-ink);
+}
+/* The kit-lens "mark what you have" hint (shown under the Kit filter row while
+   stock is unset). Non-blocking guidance, not an error. */
+.kitlens__hint {
+  margin: var(--s-2) 0 0;
+  padding: 0 var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
 }
 /* The category checklist (Type filter) reuses the kit picker's shell; it adds a
    color swatch per row so each category reads by its shelf tint, and pairs the

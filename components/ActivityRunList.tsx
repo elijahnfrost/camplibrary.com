@@ -29,7 +29,9 @@ import {
 } from "react";
 import type { Activity, AgeGroupId } from "@/lib/types";
 import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
-import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
+import { coverage, resolveRefs, type ResolvedRef } from "@/lib/materials";
+import { catalogNameFor, type Material } from "@/lib/materialCatalog";
+import { isStocked, nextStockState, type StockState } from "@/lib/kitStock";
 import {
   mintMaterialRow,
   renameMaterialRow,
@@ -358,52 +360,114 @@ function RunEmbed({ parsed, title }: { parsed: ParsedEmbed; title?: string }) {
   return null;
 }
 
-// The activity's materials as a working checklist (the same "kit" the library
-// filter reads). Attaches under a step as a materials detail. Checked items
-// float to the top; the count line says what's still to gather.
+// The activity's materials as a 3-state stock checklist (the same "kit" the
+// library coverage lens reads). Attaches under a step as a materials detail.
+// Each row cycles have → low → out → have on tap (staff-gated upstream); a row
+// whose own item is out but a substitute is on hand reads "↔ via <name>". The
+// header is a compact coverage pill (Ready / "N missing"); nothing shows when
+// stock is UNSET (the lens is inert, so the checklist reads as a plain list).
 function MaterialChecklist({
   needs,
-  availableMaterials,
-  onToggleMaterial,
+  stock,
+  catalog,
+  onSetStockState,
 }: {
-  needs: MaterialNeed[];
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  needs: ResolvedRef[];
+  stock: Record<string, StockState>;
+  catalog?: Material[];
+  onSetStockState: (id: string, state: StockState) => void;
 }) {
-  const haveSet = new Set(availableMaterials);
-  const have = needs.filter((n) => haveSet.has(n.id));
-  const need = needs.filter((n) => !haveSet.has(n.id));
-  const ordered = [...have, ...need];
+  // Coverage over these exact needs (built from the same resolveRefs list, so
+  // the pill and the rows can't disagree). Unset stock → an inert lens.
+  const cov = useMemo(
+    () => coverage({ materialRefs: needs.map((n) => ({ id: n.id, note: n.note })) } as Activity, stock, catalog),
+    [needs, stock, catalog]
+  );
+  const unset = cov.state === "unset";
+  // The substitute source id per need, so a covered-via-substitute row can name
+  // its stand-in ("↔ via Pool noodles") instead of showing its own out state.
+  const viaById = useMemo(() => {
+    const map = new Map<string, string>();
+    cov.substituted.forEach((s) => map.set(s.id, s.viaId));
+    return map;
+  }, [cov.substituted]);
+
+  // A short status label for the pill: nothing when unset, "Ready" when fully
+  // covered, else "N missing".
+  const pill =
+    unset || cov.state === "ready"
+      ? unset
+        ? null
+        : "Ready"
+      : cov.missing.length + " missing";
 
   return (
     <div className="matkit">
-      {needs.length >= 2 && (
+      {pill && (
         <div className="matkit__bar">
-          <span className="matkit__status">
-            Have {have.length} · Need {need.length}
+          <span
+            className={
+              "matkit__pill" +
+              (cov.state === "ready"
+                ? " matkit__pill--ready" + (cov.lowCount ? " matkit__pill--low" : "")
+                : cov.state === "almost"
+                  ? " matkit__pill--almost"
+                  : " matkit__pill--cant")
+            }
+          >
+            {pill}
           </span>
         </div>
       )}
       <div className="matkit__list">
-        {ordered.map((n, i) => {
-          const has = haveSet.has(n.id);
-          const divide = i === have.length && i > 0 && i < ordered.length;
+        {needs.map((n) => {
+          const viaId = viaById.get(n.id);
+          const own = stock[n.id];
+          // The row's display state: a substitute-covered row reads as a "via"
+          // row; otherwise its own state (absent = "out"-like uncovered, but
+          // while UNSET we render it plain — no red/amber/green).
+          const state: StockState | "via" = viaId
+            ? "via"
+            : own ?? "out";
+          const viaName = viaId ? catalogNameFor(catalog, viaId) : "";
+          const stateWord =
+            state === "via"
+              ? "covered by " + viaName
+              : state === "have"
+                ? "have"
+                : state === "low"
+                  ? "low"
+                  : "out";
+          const rowClass = unset
+            ? ""
+            : state === "have" || state === "via"
+              ? " is-have"
+              : state === "low"
+                ? " is-low"
+                : " is-out";
           return (
-            <Fragment key={n.id}>
-              {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
-              <button
-                type="button"
-                className={"matkit__item" + (has ? " is-have" : "")}
-                onClick={() => onToggleMaterial(n.id)}
-                aria-pressed={has}
-                aria-label={(has ? "Have" : "Still need") + ": " + n.label}
-              >
-                <span className="matkit__check" aria-hidden="true">
-                  {has && <CampIcon.Check />}
+            <button
+              type="button"
+              key={n.id}
+              className={"matkit__item" + rowClass}
+              // The tap always cycles this material's OWN state (a substitute is
+              // a read-side convenience; you still stock the real item here).
+              onClick={() => onSetStockState(n.id, nextStockState(own))}
+              aria-label={n.label + ": " + stateWord}
+            >
+              <span className="matkit__check" aria-hidden="true">
+                {!unset && (state === "have" || state === "via") && <CampIcon.Check />}
+                {!unset && state === "low" && <CampIcon.Minus />}
+                {!unset && state === "out" && <CampIcon.Close />}
+              </span>
+              <span className="matkit__name">{n.label}</span>
+              {!unset && state === "via" && (
+                <span className="matkit__via">
+                  <CampIcon.Repeat />
+                  via {viaName}
                 </span>
-                <span className="matkit__name">{n.label}</span>
-              </button>
-            </Fragment>
+              )}
+            </button>
           );
         })}
       </div>
@@ -967,8 +1031,9 @@ export function ActivityRunList({
   editable,
   onChange,
   activity,
-  availableMaterials,
-  onToggleMaterial,
+  kitStock,
+  materialCatalog,
+  onSetStockState,
   onSetRating,
   hideAddBlocks,
   canCapture = false,
@@ -982,8 +1047,14 @@ export function ActivityRunList({
   editable: boolean;
   onChange?: (next: RunDoc) => void;
   activity: Activity;
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  /** The effective 3-state kit stock map the Materials checklist reads. Empty
+   *  ({}) = UNSET (the checklist renders as a plain list, no can-run state). */
+  kitStock: Record<string, StockState>;
+  /** The materials catalog — display names + substitution groups for coverage. */
+  materialCatalog?: Material[];
+  /** Cycle one material's stock state (have → low → out). Staff-gated upstream;
+   *  a no-op on public/read-only surfaces. */
+  onSetStockState: (id: string, state: StockState) => void;
   onSetRating?: (value: number) => void;
   /** When provided (edit/create), the Details block renders as structured
    *  dropdowns bound to this form, and the Materials block becomes an inline
@@ -1077,7 +1148,7 @@ export function ActivityRunList({
     return () => Object.values(timers).forEach((t) => clearTimeout(t));
   }, []);
 
-  const materialNeeds = useMemo(() => materialNeedsForActivity(activity), [activity]);
+  const materialNeeds = useMemo(() => resolveRefs(activity, materialCatalog), [activity, materialCatalog]);
   const detailTags = useMemo(() => detailTagsForActivity(activity), [activity]);
 
   const commit = (next: RunDoc) => onChange?.(next);
@@ -1780,8 +1851,9 @@ export function ActivityRunList({
         ) : (
           <MaterialChecklist
             needs={materialNeeds}
-            availableMaterials={availableMaterials}
-            onToggleMaterial={onToggleMaterial}
+            stock={kitStock}
+            catalog={materialCatalog}
+            onSetStockState={onSetStockState}
           />
         )
       );
@@ -2275,8 +2347,9 @@ export function ActivityRunList({
                         ) : (
                           <MaterialChecklist
                             needs={materialNeeds}
-                            availableMaterials={availableMaterials}
-                            onToggleMaterial={onToggleMaterial}
+                            stock={kitStock}
+                            catalog={materialCatalog}
+                            onSetStockState={onSetStockState}
                           />
                         )}
                       </div>

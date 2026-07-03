@@ -29,6 +29,8 @@ import type { Activity } from "@/lib/types";
 import type { AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import {
   BLANK_FORM,
   activityFromForm,
@@ -64,8 +66,9 @@ export function DetailSheet({
   onDelete,
   onPrint,
   showOwnerActions = true,
-  availableMaterials,
-  onToggleMaterial,
+  kitStock,
+  materialCatalog,
+  onSetStockState,
   runDoc,
   onSaveRunDoc,
   themeKit,
@@ -92,8 +95,15 @@ export function DetailSheet({
   onDelete: (a: Activity) => void;
   onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  /** The effective 3-state kit stock map (material id → have/low/out) the run
+   *  sheet's checklist reads. Empty ({}) = UNSET (the availability lens is inert).
+   *  Absent on read-only/public surfaces (they stay availability-inert). */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog — display names + substitution groups for coverage. */
+  materialCatalog?: Material[];
+  /** Cycle one material's stock state (have → low → out). Staff-gated upstream;
+   *  absent on public/read-only surfaces (the checklist becomes a no-op). */
+  onSetStockState?: (id: string, state: StockState) => void;
   runDoc: RunDoc;
   /** Live run-doc save (read-mode field-note capture). Gates `canCapture`. */
   onSaveRunDoc?: (activityId: string, doc: RunDoc) => void;
@@ -302,8 +312,8 @@ export function DetailSheet({
               editable
               onChange={setPlayDoc}
               activity={draftActivity}
-              availableMaterials={[]}
-              onToggleMaterial={() => {}}
+              kitStock={{}}
+              onSetStockState={() => {}}
               hideAddBlocks={["details", "materials"]}
               editForm={form}
               onEditFormChange={setForm}
@@ -396,8 +406,9 @@ export function DetailSheet({
               editable={false}
               onChange={(next) => onSaveRunDoc?.(a.id, next)}
               activity={a}
-              availableMaterials={availableMaterials}
-              onToggleMaterial={onToggleMaterial}
+              kitStock={kitStock ?? {}}
+              materialCatalog={materialCatalog}
+              onSetStockState={onSetStockState ?? (() => {})}
               onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
               // Lets staff jot field notes straight from the read-only viewer
               // while running the game — no edit-mode toggle needed.

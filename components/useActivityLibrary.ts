@@ -14,6 +14,7 @@ import {
 } from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
 import { materialOptionsForActivities } from "@/lib/materials";
+import { effectiveKitStock, foldStockWrite, type StockState } from "@/lib/kitStock";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
 import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
 import {
@@ -38,6 +39,8 @@ export function useActivityLibrary({
   const { docs, setDoc, events, commitEvents } = cloud;
   const { favs, extra, ratings, runLists: runListOverrides, playbookOverrides, view, deletedActivityIds } = docs;
   const availableMaterials = docs.availableMaterials;
+  const materialCatalog = docs.materialCatalog;
+  const rawKitStock = docs.kitStock;
   const { themes, themeAssignments, locations, locationColors } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
@@ -56,25 +59,32 @@ export function useActivityLibrary({
     return m;
   }, [all]);
 
-  const materialOptions = useMemo(() => materialOptionsForActivities(all), [all]);
+  const materialOptions = useMemo(() => materialOptionsForActivities(all, materialCatalog), [all, materialCatalog]);
   const activeAvailableMaterials = useMemo(() => {
     const optionIds = new Set(materialOptions.map((option) => option.id));
     return availableMaterials.filter((id) => optionIds.has(id));
   }, [availableMaterials, materialOptions]);
 
-  const toggleAvailableMaterial = useCallback(
-    (id: string) => {
-      if (!requireStaff("update available kit")) return;
-      setDoc("availableMaterials", (previous) =>
-        previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]
-      );
-    },
-    [requireStaff, setDoc]
+  // The 3-state stock the coverage lens + run-sheet reads: the kitStock doc with
+  // the legacy availableMaterials boolean set folded in as "have" under any real
+  // entry (kitStock wins per key). Empty ({}) is the UNSET state — a fresh
+  // account keeps the lens inert.
+  const kitStock = useMemo(
+    () => effectiveKitStock(rawKitStock, availableMaterials),
+    [rawKitStock, availableMaterials]
   );
-  const clearAvailableMaterials = useCallback(() => {
-    if (!requireStaff("update available kit")) return;
-    setDoc("availableMaterials", []);
-  }, [requireStaff, setDoc]);
+
+  // Set ONE material to a stock state, migrating the legacy set add-only on first
+  // touch (foldStockWrite never downgrades an existing kitStock state). All kit
+  // mutations flow through here so the write is always the merged map. Gated by
+  // requireStaff; a no-op for public/anonymous (the gate returns false).
+  const setStockState = useCallback(
+    (id: string, state: StockState) => {
+      if (!requireStaff("update kit stock")) return;
+      setDoc("kitStock", (previous) => foldStockWrite(previous, availableMaterials, id, state));
+    },
+    [availableMaterials, requireStaff, setDoc]
+  );
 
   const favSet = useMemo(() => new Set(favs), [favs]);
   const isFav = useCallback((id: string) => favSet.has(id), [favSet]);
@@ -425,8 +435,9 @@ export function useActivityLibrary({
     setRating,
     materialOptions,
     activeAvailableMaterials,
-    toggleAvailableMaterial,
-    clearAvailableMaterials,
+    materialCatalog,
+    kitStock,
+    setStockState,
     resolvePlaybook,
     resolveRunDoc,
     saveRunDoc,

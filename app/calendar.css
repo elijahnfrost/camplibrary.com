@@ -1475,6 +1475,20 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   letter-spacing: 0.03em;
   color: var(--ink-soft);
 }
+/* An informational coverage dot before the meta: amber = one item short,
+   red = can't run yet. Purely a heads-up — the row is always pickable. */
+.quickadd__cov {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+}
+.quickadd__cov--almost {
+  background: var(--amber);
+}
+.quickadd__cov--cant {
+  background: var(--danger);
+}
 .quickadd__empty,
 .quickadd__prompt {
   margin: 0;

@@ -1,5 +1,7 @@
 import type { Activity, AgeGroupId, CategoryId } from "./types";
-import { usesAnyMaterialTag } from "./materials";
+import { coverage } from "./materials";
+import type { Material } from "./materialCatalog";
+import type { StockState } from "./kitStock";
 
 // The set of categories the library shows. A multi-select: every id = show all
 // (the default), a subset = show only those, [] = show none. Replaces the old
@@ -9,6 +11,11 @@ export type PlaceFilter = "All" | "Inside" | "Outside";
 export type AgeFilter = "All" | AgeGroupId;
 // "All", or a themeId. Themes are user-definable, so this can't be a fixed union.
 export type ThemeFilter = "All" | string;
+// The kit availability lens (replaces the old uses-ANY kit picker): "all" is
+// the default (no narrowing); "ready" keeps only activities the camp can fully
+// run right now; "almost" keeps ready OR one-item-short. When stock is UNSET
+// ({}) the lens passes everything, so a fresh library is never blanked.
+export type KitLens = "all" | "ready" | "almost";
 
 // How the library list is ordered. "az" = title A–Z; "rating" = approval rating
 // high→low. Applies across all three browse views (deck/shelf/catalog).
@@ -36,7 +43,16 @@ export interface ActivityFilterState {
   place: PlaceFilter;
   age: AgeFilter;
   query: string;
-  availableMaterialTags?: string[];
+  /** The kit availability lens. Absent/"all" = no narrowing. "ready"/"almost"
+   *  read coverage() against the stock + catalog below; when stock is UNSET the
+   *  lens is inert and passes everything. */
+  kitLens?: KitLens;
+  /** The effective 3-state stock map (material id -> have/low/out) coverage()
+   *  reads. Empty ({}) means UNSET — the kit lens stays inert. */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog (for substitution groups + display labels in
+   *  coverage). Optional; coverage falls back to bare ids without it. */
+  materialCatalog?: Material[];
   /** Filter to one theme. Pairs with themeAssignments (activityId -> themeId)
    *  since the theme lives in a side map, not on the activity itself. */
   theme?: ThemeFilter;
@@ -44,6 +60,20 @@ export interface ActivityFilterState {
   /** Inclusive duration window [lo, hi] in minutes. Omit (or pass the full
    *  bounds) to match any length. */
   minutes?: [number, number];
+}
+
+// The kit lens clause: does an activity pass the "can run" filter? "all" (or
+// absent) never narrows. Otherwise read coverage() — an UNSET stock map yields
+// state "unset", which passes everything so a fresh library is never blanked.
+// "ready" keeps only fully-covered activities; "almost" also keeps the
+// one-item-short ones.
+function matchesKitLens(a: Activity, filters: ActivityFilterState): boolean {
+  const lens = filters.kitLens ?? "all";
+  if (lens === "all") return true;
+  const { state } = coverage(a, filters.kitStock ?? {}, filters.materialCatalog);
+  if (state === "unset") return true;
+  if (lens === "ready") return state === "ready";
+  return state === "ready" || state === "almost";
 }
 
 function searchableArray(values: unknown): string[] {
@@ -115,7 +145,7 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.minutes && (a.durationMin < filters.minutes[0] || a.durationMin > filters.minutes[1])) {
     return false;
   }
-  if (!usesAnyMaterialTag(a, filters.availableMaterialTags || [])) return false;
+  if (!matchesKitLens(a, filters)) return false;
 
   return matchesActivitySearch(a, filters.query);
 }

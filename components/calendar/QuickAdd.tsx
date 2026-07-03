@@ -14,6 +14,9 @@ import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
+import { coverage } from "@/lib/materials";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import { CampIcon } from "../icons";
 import { PropRow } from "../PropRow";
 import { Modal } from "../Modal";
@@ -83,6 +86,8 @@ export function QuickAdd({
   draft,
   pickTime,
   activities,
+  kitStock = {},
+  materialCatalog,
   window: dayWindow,
   locationOptions,
   onManageLocations,
@@ -98,6 +103,13 @@ export function QuickAdd({
   /** Show the when-row + commit button (the FAB and edit). */
   pickTime: boolean;
   activities: Activity[];
+  /** The effective 3-state kit stock map (material id → have/low/out). Drives
+   *  an INFORMATIONAL coverage dot on the search rows; empty ({}) = UNSET = no
+   *  dot. Never filters or blocks the create path. Safe default so other hosts
+   *  compile unchanged. */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog — substitution groups + names for the coverage dot. */
+  materialCatalog?: Material[];
   window: DayWindow;
   /** The user-editable place vocabulary for the Location picker. */
   locationOptions: readonly string[];
@@ -476,6 +488,14 @@ export function QuickAdd({
                 {showSuggestions &&
                   filtered.map((activity) => {
                     const on = pickTime && activity.id === activityId;
+                    // An INFORMATIONAL coverage dot: amber when the camp is one
+                    // item short, red when it can't run this yet. Nothing for
+                    // ready/unset. Never filters — the row is always pickable.
+                    const cov = coverage(activity, kitStock, materialCatalog);
+                    const showDot = cov.state === "almost" || cov.state === "cant";
+                    const missingTitle = showDot
+                      ? "Missing: " + cov.missing.map((m) => m.label).join(", ")
+                      : undefined;
                     return (
                       <button
                         type="button"
@@ -487,6 +507,15 @@ export function QuickAdd({
                       >
                         <span className="quickadd__itemdot" aria-hidden="true" />
                         <span className="quickadd__name">{activity.title}</span>
+                        {showDot && (
+                          <span
+                            className={
+                              "quickadd__cov quickadd__cov--" + (cov.state === "almost" ? "almost" : "cant")
+                            }
+                            title={missingTitle}
+                            aria-hidden="true"
+                          />
+                        )}
                         <span className="quickadd__meta">
                           {durLabel(activity)} · {activity.type}
                         </span>

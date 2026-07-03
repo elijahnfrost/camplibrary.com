@@ -52,6 +52,8 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
@@ -255,6 +257,8 @@ export function CalendarShell({
   dayWindow,
   headerActions,
   themeOf,
+  kitStock = {},
+  materialCatalog,
   onReady,
 }: {
   events: Record<string, CalendarEvent>;
@@ -307,6 +311,11 @@ export function CalendarShell({
   /** Resolves an activity's theme, for the per-event theme badge (events reflect
    *  their activity's theme). */
   themeOf: ThemeResolver;
+  /** The effective 3-state kit stock map — drives an informational coverage dot
+   *  on QuickAdd's search rows. Empty ({}) = UNSET = no dot. Never filters. */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog (substitution groups + names) for the coverage dot. */
+  materialCatalog?: Material[];
   /** Fired ONCE when the calendar has settled enough to reveal: after the
    *  client-resolved view has mounted AND the first scroll-to-today realign has
    *  run (the day-width effect's initial pass) — Month resolves on the same first
@@ -3456,6 +3465,8 @@ export function CalendarShell({
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
+          kitStock={kitStock}
+          materialCatalog={materialCatalog}
           window={window_}
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}

@@ -5,9 +5,8 @@
 // desktop filter rail renders inside the sidenav.
 
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
-import type { MaterialOption } from "@/lib/materials";
 import type { Theme } from "@/lib/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
@@ -31,8 +30,8 @@ export function LibraryTab({
   themes,
   themeOf,
   starredOnly,
-  materialOptions,
-  availableMaterials,
+  kitLens,
+  kitUnset,
   minutes,
   minutesBounds,
   ageUnit,
@@ -44,8 +43,7 @@ export function LibraryTab({
   onManageThemes,
   onStarredOnly,
   onMinutes,
-  onToggleMaterial,
-  onClearMaterials,
+  onKitLens,
   onOpen,
   isFav,
   onToggleFav,
@@ -69,8 +67,8 @@ export function LibraryTab({
   themes: Theme[];
   themeOf: (id: string) => Theme | null;
   starredOnly: boolean;
-  materialOptions: MaterialOption[];
-  availableMaterials: string[];
+  kitLens: KitLens;
+  kitUnset: boolean;
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
   onCats: (v: CatFilter) => void;
@@ -80,8 +78,7 @@ export function LibraryTab({
   onManageThemes: () => void;
   onStarredOnly: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
-  onToggleMaterial: (id: string) => void;
-  onClearMaterials: () => void;
+  onKitLens: (v: KitLens) => void;
   onOpen: (activity: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
@@ -192,8 +189,8 @@ export function LibraryTab({
         theme={theme}
         themes={themes}
         starredOnly={starredOnly}
-        materialOptions={materialOptions}
-        availableMaterials={availableMaterials}
+        kitLens={kitLens}
+        kitUnset={kitUnset}
         minutes={minutes}
         minutesBounds={minutesBounds}
         resultCount={items.length}
@@ -204,8 +201,7 @@ export function LibraryTab({
         onManageThemes={onManageThemes}
         onStarredOnly={onStarredOnly}
         onMinutes={onMinutes}
-        onToggleMaterial={onToggleMaterial}
-        onClearMaterials={onClearMaterials}
+        onKitLens={onKitLens}
       />
       <div className="app__scroll">
         {items.length === 0 ? (
@@ -243,7 +239,7 @@ export function LibraryTab({
                   ageUnit={ageUnit}
                   theme={theme}
                   themes={themes}
-                  availableMaterials={availableMaterials}
+                  kitLens={kitLens}
                   minutes={minutes}
                   minutesBounds={minutesBounds}
                   onCats={onCats}
@@ -251,7 +247,7 @@ export function LibraryTab({
                   onAge={onAge}
                   onTheme={onTheme}
                   onMinutes={onMinutes}
-                  onClearMaterials={onClearMaterials}
+                  onKitLens={onKitLens}
                 />
                 <button
                   type="button"
@@ -263,7 +259,7 @@ export function LibraryTab({
                     onTheme("All");
                     onStarredOnly(false);
                     onMinutes([minutesBounds.min, minutesBounds.max]);
-                    onClearMaterials();
+                    onKitLens("all");
                   }}
                 >
                   Clear filters

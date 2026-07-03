@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
@@ -385,6 +385,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [age, setAge] = useState<AgeFilter>("All");
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
+  // The kit availability lens (All / Ready / +Almost). Inert while the stock map
+  // is unset — the Filters row surfaces a hint pointing at the Materials tab.
+  const [kitLens, setKitLens] = useState<KitLens>("all");
   const [query, setQuery] = useState("");
   // Duration filter. The slider spans the actual range of lengths in the
   // library (snapped out to a 5-minute grid), so the handles never sit past
@@ -453,6 +456,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // The search query persists across tab switches — a quick Calendar
   // round-trip shouldn't cost you your search.
 
+  // The stock map is UNSET when the effective (fold-aware) map has no entries —
+  // the kit lens is inert in that case, so the Filters row shows a hint.
+  const kitUnset = useMemo(() => Object.keys(lib.kitStock).length === 0, [lib.kitStock]);
+
   const filtered = useMemo(
     () =>
       lib.all.filter((a) =>
@@ -463,19 +470,23 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           theme,
           themeAssignments: lib.themeAssignments,
           query,
-          availableMaterialTags: lib.activeAvailableMaterials,
+          kitLens,
+          kitStock: lib.kitStock,
+          materialCatalog: lib.materialCatalog,
           minutes: minutesActive ? minutesValue : undefined,
         })
       ),
     [
       lib.all,
-      lib.activeAvailableMaterials,
+      lib.kitStock,
+      lib.materialCatalog,
       lib.themeAssignments,
       cats,
       place,
       age,
       theme,
       query,
+      kitLens,
       minutesActive,
       minutesValue,
     ]
@@ -745,8 +756,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               theme={theme}
               themes={lib.themes}
               starredOnly={starredOnly}
-              materialOptions={lib.materialOptions}
-              availableMaterials={lib.activeAvailableMaterials}
+              kitLens={kitLens}
+              kitUnset={kitUnset}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
               onCats={setCats}
@@ -756,8 +767,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onMinutes={handleMinutes}
-              onToggleMaterial={lib.toggleAvailableMaterial}
-              onClearMaterials={lib.clearAvailableMaterials}
+              onKitLens={setKitLens}
             />
           )}
           {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
@@ -810,8 +820,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               themes={lib.themes}
               themeOf={lib.themeOf}
               starredOnly={starredOnly}
-              materialOptions={lib.materialOptions}
-              availableMaterials={lib.activeAvailableMaterials}
+              kitLens={kitLens}
+              kitUnset={kitUnset}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
               onCats={setCats}
@@ -821,8 +831,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onMinutes={handleMinutes}
-              onToggleMaterial={lib.toggleAvailableMaterial}
-              onClearMaterials={lib.clearAvailableMaterials}
+              onKitLens={setKitLens}
               onOpen={openDetail}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
@@ -851,6 +860,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 announce={setLiveMsg}
                 railSlot={calRail}
                 themeOf={lib.themeOf}
+                kitStock={lib.kitStock}
+                materialCatalog={lib.materialCatalog}
                 onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 locationOptions={lib.locations}
@@ -1063,8 +1074,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
-            availableMaterials={lib.activeAvailableMaterials}
-            onToggleMaterial={lib.toggleAvailableMaterial}
+            kitStock={lib.kitStock}
+            materialCatalog={lib.materialCatalog}
+            onSetStockState={lib.setStockState}
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSetRating={isSignedIn ? lib.setRating : undefined}
             onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}

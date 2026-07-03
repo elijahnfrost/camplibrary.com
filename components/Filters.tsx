@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
-import type { AgeFilter, CatFilter, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
@@ -10,7 +10,7 @@ import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
-export type { AgeFilter, CatFilter, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
+export type { AgeFilter, CatFilter, KitLens, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
 export type MinutesRange = [number, number];
@@ -47,7 +47,9 @@ interface ActiveFilterProps {
   theme?: ThemeFilter;
   themes?: Theme[];
   starredOnly?: boolean;
-  availableMaterials: string[];
+  /** The kit availability lens ("all" = inactive). Its chip reads the lens name
+   *  and removing it resets to "all". */
+  kitLens: KitLens;
   /** Current duration window + its full span, so the chip reads "15–45 min"
    *  and removing it widens back to the full bounds. */
   minutes: MinutesRange;
@@ -58,7 +60,7 @@ interface ActiveFilterProps {
   onTheme?: (v: ThemeFilter) => void;
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
-  onClearMaterials: () => void;
+  onKitLens: (v: KitLens) => void;
 }
 
 type ActiveChip = { key: string; label: string; tint?: string; onRemove: () => void };
@@ -109,8 +111,12 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
       onRemove: () => p.onMinutes([p.minutesBounds.min, p.minutesBounds.max]),
     });
   }
-  if (p.availableMaterials.length > 0) {
-    chips.push({ key: "kit", label: "Kit · " + p.availableMaterials.length, onRemove: p.onClearMaterials });
+  if (p.kitLens !== "all") {
+    chips.push({
+      key: "kit",
+      label: p.kitLens === "ready" ? "Can run" : "Almost",
+      onRemove: () => p.onKitLens("all"),
+    });
   }
   if (p.starredOnly && p.onStarredOnly) {
     chips.push({ key: "starred", label: "Starred", onRemove: () => p.onStarredOnly?.(false) });
@@ -156,8 +162,12 @@ interface FiltersProps {
   themes: Theme[];
   /** Omit both starred props to hide the Starred control (surfaces without favorites). */
   starredOnly?: boolean;
-  materialOptions: MaterialOption[];
-  availableMaterials: string[];
+  /** The kit availability lens (All / Ready / +Almost) — replaces the old
+   *  uses-ANY kit picker. */
+  kitLens: KitLens;
+  /** True when the stock map is UNSET ({}): the lens is inert (passes
+   *  everything), so picking Ready/+Almost shows a "mark what you have" hint. */
+  kitUnset: boolean;
   /** Duration window [lo, hi] in minutes + the full library span it slides over.
    *  The row is hidden when the span is empty (bounds.max <= bounds.min). */
   minutes: MinutesRange;
@@ -172,11 +182,13 @@ interface FiltersProps {
   onManageThemes?: () => void;
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
-  onToggleMaterial: (id: string) => void;
-  onClearMaterials: () => void;
+  onKitLens: (v: KitLens) => void;
 }
 
-function MaterialPicker({
+// The old uses-ANY kit BROWSE filter — RETIRED from the library rail (its "can
+// run" job is now the KitFilter lens below). Kept exported (unused here) because
+// the Materials tab (a later chunk) will re-home this browse-by-material value.
+export function MaterialPicker({
   options,
   selected,
   onToggle,
@@ -379,6 +391,43 @@ function CategoryPicker({
   );
 }
 
+// The kit availability lens — one ledger line: a MiniSeg of All / Ready /
+// +Almost. "Ready" keeps only activities the camp can fully run right now;
+// "+Almost" also keeps the one-item-short ones. When the stock map is UNSET the
+// lens is inert (it passes everything), so choosing Ready/+Almost surfaces a
+// small non-blocking hint pointing at the (upcoming) Materials tab rather than
+// silently doing nothing.
+function KitFilter({
+  value,
+  unset,
+  onChange,
+}: {
+  value: KitLens;
+  unset: boolean;
+  onChange: (v: KitLens) => void;
+}) {
+  return (
+    <>
+      <div className={"ledger__row" + (value !== "all" ? " is-active" : "")}>
+        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Kit</span>
+        <MiniSeg
+          ariaLabel="Filter by what you can run"
+          value={value}
+          onChange={onChange}
+          options={[
+            { id: "all" as KitLens, label: "All" },
+            { id: "ready" as KitLens, label: "Ready", ariaLabel: "Can run now" },
+            { id: "almost" as KitLens, label: "+Almost", ariaLabel: "Ready or one item short" },
+          ]}
+        />
+      </div>
+      {value !== "all" && unset && (
+        <p className="kitlens__hint">Mark what you have to use this — coming with the Materials tab.</p>
+      )}
+    </>
+  );
+}
+
 // The duration window — one ledger line like the others: a small-caps "Minutes"
 // label, then a compact dual-handle slider with a quiet readout on the right.
 // The readout reads "Any" at full span and "lo–hi" once narrowed. Hidden when
@@ -465,8 +514,8 @@ function LedgerFilters({
   theme,
   themes,
   starredOnly,
-  materialOptions,
-  availableMaterials,
+  kitLens,
+  kitUnset,
   minutes,
   minutesBounds,
   onCats,
@@ -476,8 +525,7 @@ function LedgerFilters({
   onManageThemes,
   onStarredOnly,
   onMinutes,
-  onToggleMaterial,
-  onClearMaterials,
+  onKitLens,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
     <div className="filtergroups">
@@ -524,12 +572,7 @@ function LedgerFilters({
             />
           </div>
         )}
-        <MaterialPicker
-          options={materialOptions}
-          selected={availableMaterials}
-          onToggle={onToggleMaterial}
-          onClear={onClearMaterials}
-        />
+        <KitFilter value={kitLens} unset={kitUnset} onChange={onKitLens} />
       </FilterGroup>
 
       {/* Sort & display — list presentation, not a filter: the whole-list order
@@ -578,8 +621,8 @@ export function Filters({
   theme,
   themes,
   starredOnly,
-  materialOptions,
-  availableMaterials,
+  kitLens,
+  kitUnset,
   minutes,
   minutesBounds,
   resultCount,
@@ -590,8 +633,7 @@ export function Filters({
   onManageThemes,
   onStarredOnly,
   onMinutes,
-  onToggleMaterial,
-  onClearMaterials,
+  onKitLens,
 }: FiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const minutesOn = minutesNarrowed(minutes, minutesBounds);
@@ -603,7 +645,7 @@ export function Filters({
     theme,
     themes,
     starredOnly,
-    availableMaterials,
+    kitLens,
     minutes,
     minutesBounds,
     onCats,
@@ -612,7 +654,7 @@ export function Filters({
     onTheme,
     onStarredOnly,
     onMinutes,
-    onClearMaterials,
+    onKitLens,
   };
   const activeCount =
     (cats.length !== CATEGORIES.length ? 1 : 0) +
@@ -621,7 +663,7 @@ export function Filters({
     (age !== "All" ? 1 : 0) +
     (minutesOn ? 1 : 0) +
     (starredOnly ? 1 : 0) +
-    (availableMaterials.length > 0 ? 1 : 0);
+    (kitLens !== "all" ? 1 : 0);
   const anyOn = activeCount > 0;
   const clearAll = () => {
     onCats(ALL_CATEGORY_IDS);
@@ -630,7 +672,7 @@ export function Filters({
     onTheme("All");
     onStarredOnly?.(false);
     onMinutes([minutesBounds.min, minutesBounds.max]);
-    onClearMaterials();
+    onKitLens("all");
   };
 
   const ledger = (
@@ -645,8 +687,8 @@ export function Filters({
       theme={theme}
       themes={themes}
       starredOnly={starredOnly}
-      materialOptions={materialOptions}
-      availableMaterials={availableMaterials}
+      kitLens={kitLens}
+      kitUnset={kitUnset}
       minutes={minutes}
       minutesBounds={minutesBounds}
       onCats={onCats}
@@ -656,8 +698,7 @@ export function Filters({
       onManageThemes={onManageThemes}
       onStarredOnly={onStarredOnly}
       onMinutes={onMinutes}
-      onToggleMaterial={onToggleMaterial}
-      onClearMaterials={onClearMaterials}
+      onKitLens={onKitLens}
     />
   );
 

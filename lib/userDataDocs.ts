@@ -18,6 +18,7 @@ import { normalizeCamps, type Camp } from "./camps";
 import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
 import { normalizeHexColor } from "./color";
 import { normalizeMaterialCatalog, type Material } from "./materialCatalog";
+import { normalizeKitStock, type StockState } from "./kitStock";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -28,6 +29,7 @@ export const USER_DOC_KEYS = [
   "view",
   "availableMaterials",
   "materialCatalog",
+  "kitStock",
   "themes",
   "themeAssignments",
   "camps",
@@ -47,6 +49,7 @@ export type DocValueMap = {
   view: LibraryView;
   availableMaterials: string[];
   materialCatalog: Material[];
+  kitStock: Record<string, StockState>;
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
@@ -68,6 +71,8 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   // Versioned name for the new doc (the catalog shape may evolve); the older
   // docs predate the convention and keep their bare names.
   materialCatalog: "materialCatalog.v1",
+  // Versioned like the catalog — the 3-state stock map is new and may evolve.
+  kitStock: "kitStock.v1",
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
@@ -85,6 +90,8 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   view: () => "deck",
   availableMaterials: () => [],
   materialCatalog: () => [],
+  // {} is the first-class UNSET state — an untouched account keeps the lens inert.
+  kitStock: () => ({}),
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
@@ -195,6 +202,12 @@ export const locationColorsDoc: StorageValidator<Record<string, string>> = (valu
 export const materialCatalogDoc: StorageValidator<Material[]> = (value) =>
   normalizeMaterialCatalog(value);
 
+// The 3-state kit stock map (material id → have/low/out). The pure validator
+// lives in lib/kitStock.ts (isomorphic); it ignores the fallback because
+// normalizeKitStock always yields a clean {} on malformed input.
+export const kitStockDoc: StorageValidator<Record<string, StockState>> = (value) =>
+  normalizeKitStock(value);
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -204,6 +217,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   view: viewDoc,
   availableMaterials: stringArrayDoc,
   materialCatalog: materialCatalogDoc,
+  kitStock: kitStockDoc,
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,

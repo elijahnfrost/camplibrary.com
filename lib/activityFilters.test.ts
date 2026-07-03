@@ -40,7 +40,7 @@ const allFilters: ActivityFilterState = {
   place: "All",
   age: "All",
   query: "",
-  availableMaterialTags: [],
+  kitLens: "all",
 };
 
 function filters(overrides: Partial<ActivityFilterState> = {}): ActivityFilterState {
@@ -87,17 +87,34 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(untagged, filters({ theme: "theme-ocean", themeAssignments }))).toBe(false);
   });
 
-  it("composes the kit filter (uses ANY picked item) with other filters", () => {
+  it("applies the kit lens (all / ready / almost) against coverage", () => {
     const base = activity({ type: "Game", materials: ["Cones", "Rope"] });
 
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: undefined }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: [] }))).toBe(true);
-    // A single overlapping kit item surfaces the activity (matches its count badge).
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["cones"] }))).toBe(true);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string"] }))).toBe(false);
-    expect(matchesActivityFilters(base, filters({ availableMaterialTags: ["string", "rope"] }))).toBe(true);
-    // The kit filter still ANDs with the other dimensions.
-    expect(matchesActivityFilters(base, filters({ cats: ["Craft"], availableMaterialTags: ["cones"] }))).toBe(false);
+    // "all" (or absent) never narrows.
+    expect(matchesActivityFilters(base, filters({ kitLens: undefined }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ kitLens: "all" }))).toBe(true);
+
+    // Ready: only fully-covered activities pass.
+    expect(matchesActivityFilters(base, filters({ kitLens: "ready", kitStock: { cones: "have", rope: "have" } }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ kitLens: "ready", kitStock: { cones: "have", rope: "out" } }))).toBe(false);
+
+    // +Almost also keeps the one-item-short ones, but not the can't (>= 2 short).
+    expect(matchesActivityFilters(base, filters({ kitLens: "almost", kitStock: { cones: "have", rope: "out" } }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ kitLens: "almost", kitStock: { cones: "out", rope: "out" } }))).toBe(false);
+
+    // The lens still ANDs with the other dimensions.
+    expect(
+      matchesActivityFilters(base, filters({ cats: ["Craft"], kitLens: "ready", kitStock: { cones: "have", rope: "have" } }))
+    ).toBe(false);
+  });
+
+  it("the kit lens is INERT while stock is unset (passes everything)", () => {
+    const base = activity({ type: "Game", materials: ["Cones", "Rope"] });
+    // Empty stock map = UNSET → a fresh library is never blanked, whatever the lens.
+    expect(matchesActivityFilters(base, filters({ kitLens: "ready", kitStock: {} }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ kitLens: "almost", kitStock: {} }))).toBe(true);
+    // Absent stock behaves the same as an empty map.
+    expect(matchesActivityFilters(base, filters({ kitLens: "ready" }))).toBe(true);
   });
 
   it("filters by an inclusive duration window (endpoints included)", () => {

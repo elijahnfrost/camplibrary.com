@@ -1,5 +1,6 @@
 import type { Activity, MaterialRef } from "./types";
 import { catalogNameFor, type Material } from "./materialCatalog";
+import { isStocked, type StockState } from "./kitStock";
 
 export interface MaterialOption {
   id: string;
@@ -162,4 +163,83 @@ export function usesAnyMaterialTag(activity: Activity, selectedMaterialTagIds: s
   if (!selectedMaterialTagIds.length) return true;
   const selected = new Set(selectedMaterialTagIds);
   return requiredMaterialTagIds(activity).some((id) => selected.has(id));
+}
+
+// ---------------------------------------------------------------------------
+// Coverage — the availability lens over the 3-state kit stock.
+//
+// A "state" summary of whether the camp can run an activity right now given
+// what's on hand (the effectiveKitStock map, material id → have/low/out):
+//   · unset  — the stock map is empty ({}): nobody has reviewed inventory, so
+//              the lens is INERT (no green/amber/red anywhere). This is what a
+//              fresh account sees.
+//   · ready  — every need is covered (a need with 0 uncovered items).
+//   · almost — exactly ONE need is uncovered (a single trip to the cupboard).
+//   · cant   — two or more needs are uncovered.
+//
+// A need is covered when its own id is stocked (have|low), OR any of its catalog
+// entry's `substitutes` is stocked (recorded in `substituted` so the UI can say
+// "↔ via <name>"). "out" and absent both read as uncovered. Zero-needs activities
+// are ALWAYS "ready" (nothing to gather). `lowCount` counts needs covered by a
+// "low" item — a decoration (amber accent) that never demotes the state.
+// ---------------------------------------------------------------------------
+export type CoverageState = "unset" | "ready" | "almost" | "cant";
+
+export interface Coverage {
+  state: CoverageState;
+  missing: { id: string; label: string }[];
+  lowCount: number;
+  substituted: { id: string; viaId: string }[];
+}
+
+export function coverage(
+  activity: Activity,
+  stock: Record<string, StockState>,
+  catalog?: Material[]
+): Coverage {
+  const needs = resolveRefs(activity, catalog);
+  // Zero needs always run — nothing to gather, so the stock state is irrelevant.
+  if (!needs.length) {
+    return { state: "ready", missing: [], lowCount: 0, substituted: [] };
+  }
+  // An empty stock map is the UNSET signal: the lens stays inert (no can-run
+  // verdict). Callers treat "unset" as "don't decorate / pass everything".
+  if (Object.keys(stock).length === 0) {
+    return { state: "unset", missing: [], lowCount: 0, substituted: [] };
+  }
+
+  // Substitution groups are keyed by id in the catalog; index them once so a
+  // need can check whether any of its stand-ins is on hand.
+  const substitutesById = new Map<string, string[]>();
+  if (catalog) {
+    for (const entry of catalog) {
+      if (entry.substitutes?.length) substitutesById.set(entry.id, entry.substitutes);
+    }
+  }
+
+  const missing: { id: string; label: string }[] = [];
+  const substituted: { id: string; viaId: string }[] = [];
+  let lowCount = 0;
+
+  for (const need of needs) {
+    const own = stock[need.id];
+    if (isStocked(own)) {
+      if (own === "low") lowCount += 1;
+      continue;
+    }
+    // Own item is out/absent — try substitutes (a "low" stand-in still counts,
+    // and decorates the same way a low own-item would).
+    const subs = substitutesById.get(need.id) ?? [];
+    const viaId = subs.find((sub) => isStocked(stock[sub]));
+    if (viaId) {
+      substituted.push({ id: need.id, viaId });
+      if (stock[viaId] === "low") lowCount += 1;
+      continue;
+    }
+    missing.push({ id: need.id, label: need.label });
+  }
+
+  const uncovered = missing.length;
+  const state: CoverageState = uncovered === 0 ? "ready" : uncovered === 1 ? "almost" : "cant";
+  return { state, missing, lowCount, substituted };
 }
