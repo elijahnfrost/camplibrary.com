@@ -9878,6 +9878,71 @@ button.rl-node--pick:focus-visible {
   display: none;
 }
 
+/* ---- Sidebar sync pill + app-level error toast ----
+   Sync state surfaced where edits happen (Calendar/Library), not just the Staff
+   card. The pill is QUIET by default — it only renders when something needs
+   attention (pending writes, offline, refused write) and taps through to the
+   Staff tab's full sync line. The toast makes a server-refused write visible;
+   it mirrors .calshell__toast so the two read as one system. */
+.sidenav__sync {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+}
+.sidenav__sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+.sidenav__sync.is-error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.sidenav__sync.is-error .sidenav__sync-dot {
+  background: var(--danger);
+}
+.app-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-6);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  box-shadow: var(--e3);
+}
+.app-toast button {
+  border: 0;
+  background: transparent;
+  color: var(--hl);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  min-height: var(--s-8);
+}
+.app-toast button:hover,
+.app-toast button:active {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ---- The sidebar print rail (.prail) ----
    Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
    is built from the SAME pieces as the calendar rail so all three rails read as

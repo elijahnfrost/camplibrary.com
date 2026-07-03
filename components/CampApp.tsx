@@ -267,6 +267,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const { isDesktop } = useDeviceShape();
 
   const [liveMsg, setLiveMsg] = useState("");
+  // The last sync error the user explicitly dismissed — a DIFFERENT error
+  // message re-arms the visible banner (see the app-toast below).
+  const [dismissedSyncError, setDismissedSyncError] = useState<string | null>(null);
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
   // Which form the Staff tab shows when reached signed-out (sign-in vs the
   // invite sign-up). Account state on that tab is driven by the session itself.
@@ -823,6 +826,24 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           )}
           {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
           {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
+          {/* Sync state where edits actually happen (not just the Staff card).
+              Quiet by default: renders only when it carries a signal — pending
+              writes, offline, or a write that was refused. Tapping it opens the
+              Staff tab, where the full sync line + account live. */}
+          {(cloud.pendingCount > 0 || cloud.status === "offline" || cloud.syncError) && (
+            <button
+              type="button"
+              className={"sidenav__sync" + (cloud.syncError ? " is-error" : "")}
+              onClick={() => setTab("staff")}
+            >
+              <span className="sidenav__sync-dot" aria-hidden />
+              {cloud.syncError
+                ? "Some changes didn't save"
+                : cloud.pendingCount > 0
+                  ? cloud.pendingCount + " pending"
+                  : "Offline — will sync"}
+            </button>
+          )}
         </nav>
 
         <main className="app__main" id="main">
@@ -1034,6 +1055,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
         <div className="sr-only" role="status" aria-live="polite">
           {liveMsg}
         </div>
+
+        {/* A write the server refused must be VISIBLE, not just announced to
+            screen readers — the drop-to-unwedge outbox behavior stays, this is
+            purely surfacing. Dismiss is per-message: a new error re-shows. */}
+        {cloud.syncError && cloud.syncError !== dismissedSyncError && (
+          <div className="app-toast" role="alert">
+            <span>{cloud.syncError}</span>
+            <button type="button" onClick={() => setDismissedSyncError(cloud.syncError)}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {themesManagerOpen && (
           <ListManagerModal
