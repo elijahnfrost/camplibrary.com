@@ -13,6 +13,13 @@ function focusWithoutScroll(element: HTMLElement) {
 // the TOPMOST layer may handle keys, so Escape closes one layer at a time.
 const dialogStack: HTMLElement[] = [];
 
+// Other document-level key handlers (e.g. the calendar's selection-clearing
+// Escape) must bail while any dialog is open — otherwise a capture-phase
+// listener outside the stack can eat the key before the topmost dialog sees it.
+export function hasOpenDialog(): boolean {
+  return dialogStack.length > 0;
+}
+
 export function useDialogFocus<T extends HTMLElement>(onClose: () => void) {
   const ref = useRef<T | null>(null);
   const onCloseRef = useRef(onClose);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CampIcon } from "./icons";
+import { requestConfirm } from "./ConfirmDialog";
 import type { InviteCodeRecord as ServerInviteCodeRecord } from "@/lib/server/inviteCodes";
 
 type InviteStatus = ServerInviteCodeRecord["status"] | "deactivated" | "exhausted";
@@ -365,12 +366,16 @@ export function AdminInviteCodes() {
                       type="button"
                       className="admin-action admin-action--danger"
                       disabled={!canDeactivate || isActionPending}
-                      onClick={() => {
+                      onClick={async () => {
                         // NOT undoable (the key stops working immediately) →
                         // confirm, matching the theme/camp/location deletes.
-                        if (window.confirm("Remove " + label + "? The key stops working immediately.")) {
-                          void deactivateInvite(invite);
-                        }
+                        const ok = await requestConfirm({
+                          title: "Remove " + label + "?",
+                          body: "The key stops working immediately.",
+                          confirmLabel: "Remove",
+                          danger: true,
+                        });
+                        if (ok) void deactivateInvite(invite);
                       }}
                       aria-label={"Remove " + label}
                     >

@@ -430,7 +430,13 @@ export function SchedulePrintDocument({
       <div className="pd-runsheets" key="appendix">
         <h2 className="pd-runsheets__head">Run sheets</h2>
         {runSheetActivities.map((activity) => (
-          <PrintRunSheet key={activity.id} activity={activity} runDoc={resolveRunDoc(activity)} />
+          <PrintRunSheet
+            key={activity.id}
+            activity={activity}
+            runDoc={resolveRunDoc(activity)}
+            kitStock={kitStock}
+            materialCatalog={materialCatalog}
+          />
         ))}
       </div>
     ) : null;

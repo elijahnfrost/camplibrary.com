@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import {
   conditionLabel,
@@ -11,15 +10,14 @@ import {
   type WeatherUnits,
 } from "@/lib/weather";
 import { CampIcon } from "../icons";
-import { useDialogFocus } from "../useDialogFocus";
-import { useFloatingPosition } from "../floating/useFloatingPosition";
-import { DESKTOP_MIN } from "../useDeviceShape";
+import { FloatingLayer } from "../floating/FloatingLayer";
 import { WeatherGlyph } from "./WeatherGlyph";
 
-// Click a weather chip → this anchored detail card (the EventPopover pattern:
-// rect-anchored on desktop, bottom-docked on phones, closes on outside scroll).
-// One card serves both modes: an HOUR target shows that hour's temp / rain / wind,
-// a DAY target shows the high–low and the day's rain outlook.
+// Click a weather chip → this anchored detail card, hosted in the shared
+// FloatingLayer engine (rect-anchored on desktop, bottom-docked on phones,
+// dismiss on Escape/outside click/scroll — see FloatingLayer.tsx). One card
+// serves both modes: an HOUR target shows that hour's temp / rain / wind, a
+// DAY target shows the high–low and the day's rain outlook.
 export type WeatherPopoverTarget =
   | { kind: "hour"; date: string; hour: number; weather: HourWeather }
   | { kind: "day"; date: string; weather: DayWeather };
@@ -43,28 +41,6 @@ export function WeatherPopover({
   anchor: DOMRect;
   onClose: () => void;
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
-
-  // Desktop: the card is anchored once; a grid scroll detaches it, so close
-  // rather than chase the chip (matches EventPopover).
-  useEffect(() => {
-    if (docked) return;
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.removeEventListener("resize", onClose);
-    };
-  }, [docked, onClose]);
-
   const isHour = target.kind === "hour";
   const condition = target.weather.condition;
   const isDay = isHour ? (target as { weather: HourWeather }).weather.isDay : true;
@@ -74,60 +50,46 @@ export function WeatherPopover({
     : formatEventDateLabel(target.date);
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-wx-pop"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${label} — ${when}`}
-        tabIndex={-1}
-      >
-        <div className="cal-wx-pop__head">
-          <WeatherGlyph condition={condition} isDay={isDay} className="cal-wx-pop__glyph" />
-          <div className="cal-wx-pop__heading">
-            {isHour ? (
-              <span className="cal-wx-pop__temp">
-                {formatTempWithUnit((target as { weather: HourWeather }).weather.temp, units)}
-              </span>
-            ) : (
-              <span className="cal-wx-pop__temp">
-                {formatTempWithUnit((target as { weather: DayWeather }).weather.tempMax, units)}
-                <span className="cal-wx-pop__lo">
-                  {formatTempWithUnit((target as { weather: DayWeather }).weather.tempMin, units)}
-                </span>
-              </span>
-            )}
-            <span className="cal-wx-pop__cond">{label}</span>
-            <span className="cal-wx-pop__when">{when}</span>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
-        </div>
-
-        <dl className="cal-wx-pop__rows">
+    <FloatingLayer
+      anchor={{ kind: "rect", rect: anchor }}
+      onClose={onClose}
+      className="cal-popover cal-wx-pop"
+      role="dialog"
+      ariaLabel={`${label} — ${when}`}
+    >
+      <div className="cal-wx-pop__head">
+        <WeatherGlyph condition={condition} isDay={isDay} className="cal-wx-pop__glyph" />
+        <div className="cal-wx-pop__heading">
           {isHour ? (
-            <HourRows weather={(target as { weather: HourWeather }).weather} units={units} />
+            <span className="cal-wx-pop__temp">
+              {formatTempWithUnit((target as { weather: HourWeather }).weather.temp, units)}
+            </span>
           ) : (
-            <DayRows weather={(target as { weather: DayWeather }).weather} units={units} />
+            <span className="cal-wx-pop__temp">
+              {formatTempWithUnit((target as { weather: DayWeather }).weather.tempMax, units)}
+              <span className="cal-wx-pop__lo">
+                {formatTempWithUnit((target as { weather: DayWeather }).weather.tempMin, units)}
+              </span>
+            </span>
           )}
-        </dl>
-
-        {locationName && <p className="cal-wx-pop__loc">{locationName}</p>}
+          <span className="cal-wx-pop__cond">{label}</span>
+          <span className="cal-wx-pop__when">{when}</span>
+        </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
       </div>
-    </div>
+
+      <dl className="cal-wx-pop__rows">
+        {isHour ? (
+          <HourRows weather={(target as { weather: HourWeather }).weather} units={units} />
+        ) : (
+          <DayRows weather={(target as { weather: DayWeather }).weather} units={units} />
+        )}
+      </dl>
+
+      {locationName && <p className="cal-wx-pop__loc">{locationName}</p>}
+    </FloatingLayer>
   );
 }
 

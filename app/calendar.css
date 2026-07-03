@@ -329,15 +329,32 @@
   font-family: var(--hand-sc);
   color: var(--accent-ink);
 }
+/* FullCalendar's own "+N more" day-cell overflow popover. The vendor stylesheet
+   hardcodes z-index:9999 (above every app overlay, including modals/lightbox),
+   so pull it into the app's own z-ladder at the floating-root tier (220) —
+   the same tier every other portaled menu/popover uses — and restyle its shell
+   to the app's card vocabulary so it stops reading as foreign chrome. */
 .calshell .fc .fc-popover {
+  z-index: 220;
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow: var(--e3);
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
 }
 .calshell .fc .fc-popover-header {
   background: var(--paper-2);
+  border-bottom: 1.5px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   font-family: var(--hand-sc);
+}
+.calshell .fc .fc-popover-title {
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.calshell .fc .fc-popover-close {
+  color: var(--ink-soft);
 }
 /* The all-day strip stays a slim shelf, not a second header. */
 .calshell .fc .fc-timegrid-axis-cushion {
@@ -916,16 +933,23 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 /* ---------- calendar rail (portal slot CampApp owns) ----------
    On desktop the mini-month + View settings render into this slot; the shared
    .sidesection rules (globals.css) own the header treatment and rhythm. The
-   sidenav is display:none on phones — there the FAB + header Add cover mobile. */
+   sidenav is display:none on phones — there the FAB + header Add cover mobile.
+   This div sits INSIDE the shared .sidenav__scroll zone (see globals.css), so
+   it must size honestly to its own content — flex:1/min-height:0 here used to
+   let it claim a share of the sidebar's height independent of its children,
+   which is exactly what let the portaled content (Today card + mini-month +
+   View + Weather + Subscribe) paint past a box shorter than they are. flex:none
+   + no min-height means its height is just the sum of its children, and the
+   ancestor scroll container is the only thing that can ever clip/scroll it. */
 .sidenav__calrail {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: none;
 }
-/* The View ledger sits flush like the mini-month above it (the shared
-   .sidesection__body bleeds its edges by -18px to seat a scrollbar; the View
-   section never scrolls, so undo that). */
+/* The View ledger sits flush like the mini-month above it (the .sidesection__body
+   rule it inherits has no inline bleed of its own now — the shared scroll
+   ancestor carries the gutter — so this override is now a no-op kept only in
+   case a future rule reintroduces inline spacing at the section-body level). */
 .sidenav__calrail .cal-view__body {
   margin-inline: 0;
   padding-inline: 0;
@@ -1057,34 +1081,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-width: 1.6;
 }
 
-/* ---------- rail "Subscribe" section (.ics feed) ----------
-   The Subscribe control, moved off the calendar header into the rail. It sits as
-   its own section below View / Weather; the trigger stretches full-width so it
-   reads as a rail row rather than a floating header pill. The popover itself is
-   unchanged (it anchors to the trigger). */
-.cal-subscribe {
-  flex: none;
-}
-.cal-subscribe .campswitch,
-.calset__subscribe .campswitch {
-  display: flex;
-}
-.cal-subscribe .campswitch__trigger,
-.calset__subscribe .campswitch__trigger {
-  width: 100%;
-  max-width: none;
-  justify-content: flex-start;
-}
-/* The trailing chevron pushes to the right edge, like the View section head. */
-.cal-subscribe .campswitch__trigger > svg:last-child,
-.calset__subscribe .campswitch__trigger > svg:last-child {
-  margin-left: auto;
-}
-/* Mobile sheet: a touch-tall trigger to match the sheet's other controls. */
-.calset__subscribe .campswitch__trigger {
-  height: var(--tap);
-}
-
 /* The "View" header is a toggle (folds the whole settings ledger away to keep the
    rail clean). It still reads as the section head — title left, chevron right. */
 .cal-view__head {
@@ -1113,6 +1109,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   /* Right when collapsed, down when open — the one disclosure affordance used
      by every collapsible (camps rail, manager sections). */
   transform: rotate(90deg);
+  /* Open = pointing down, so the closed-state chev-right hover nudge (global
+     translateX animation) must not run — it would override this rotate and snap
+     the glyph back to facing right on hover. Nudge stays closed-state only. */
+  animation: none;
 }
 .cal-view__head:hover .sidesection__title,
 .cal-view__head:hover .cal-view__chev {
@@ -2065,25 +2065,19 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 
 /* ---------- anchored floating card surface ----------
-   The shared base for the calendar's small anchored cards. The click-to-edit
-   event popover was retired (clicking an event now opens the editor; quick
-   actions live on the right-click menu + inside the editor), but the WeatherPopover
-   detail card still rides this surface (.cal-popover.cal-wx-pop). */
-.cal-popover-root {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-}
-.cal-popover__scrim {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: transparent;
-  cursor: default;
-}
+   The shared base for the calendar's small anchored cards (WeatherPopover,
+   StopPopover, ShiftBar, GatherPopover, RainPanel). All five are hosted in the
+   shared FloatingLayer engine (.floating-root/.floating__scrim in globals.css
+   supply the portal, scrim, z-index, and Escape/outside-click/scroll dismissal);
+   this class only supplies the card's own surface, sizing, and touch-docking
+   look. Clamp height so a long conflict/backup list scrolls inside the card
+   instead of running off-viewport (the position engine only flips/clamps the
+   card's origin, never its height). */
 .cal-popover {
   position: fixed;
-  width: 300px;
+  width: min(300px, calc(100vw - 2 * var(--s-4)));
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
   background: var(--card);
   border: 1.5px solid var(--line);
   /* --r-md matches the floating-popover family (cdate__pop, ccolor__pop, the
@@ -2463,14 +2457,11 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     top: auto !important;
     bottom: 0;
     width: auto;
+    max-height: 60vh;
     border-bottom: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
     animation: cl-rise 220ms var(--ease-overlay) both;
-  }
-  .cal-popover__scrim {
-    background: var(--scrim-bg);
-    animation: cl-fade 180ms ease both;
   }
   /* month chips need a real touch target */
   .calshell .fc-daygrid-event {
@@ -3441,8 +3432,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    [Swap] or [Pick backup…], a "N% rain" header, and a footer (Switch all / Shift
    day / Dismiss). */
 .cal-rain {
-  width: 320px;
-  max-width: min(320px, 92vw);
+  width: min(320px, calc(100vw - 2 * var(--s-4)));
 }
 .cal-rain__title-glyph {
   width: 16px;

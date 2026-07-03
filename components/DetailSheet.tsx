@@ -47,9 +47,11 @@ import {
 } from "@/lib/activityForm";
 import { categoryTint } from "@/lib/data";
 import { CampIcon } from "./icons";
+import { requestConfirm } from "./ConfirmDialog";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
 import { ColorField } from "./floating/ColorField";
+import { FloatingLayer } from "./floating/FloatingLayer";
 import { ActivityRunList, LedgerMenu } from "./ActivityRunList";
 import { type ThemeKit } from "./ThemeField";
 import { DESKTOP_MIN } from "./useDeviceShape";
@@ -172,6 +174,12 @@ export function DetailSheet({
     isCreate ? [] : normalizeActivityAlternates(a.alternates)
   );
 
+  // The draft snapshot at the moment editing started, for the unsaved-edit
+  // guard below. The surface remounts per open (see the `key` note on CampApp's
+  // DetailSheet usage), so a ref seeded on mount covers create/startEditing —
+  // but browse→edit (the pencil) does NOT remount, so beginEdit() re-seeds it.
+  const initialDraftRef = useRef(JSON.stringify({ form, playDoc, alternates }));
+
   // The activity object the run-doc editor previews against while editing — its
   // category tint, materials, etc. track the scalar controls live (the same
   // draft the old AddView fed the embedded run list).
@@ -186,9 +194,13 @@ export function DetailSheet({
   // facts so an aborted edit (Cancel) never half-applies.
   const beginEdit = () => {
     if (!canEdit) return;
-    setForm(formFromActivity(a, themeKit?.initialThemeId ?? ""));
-    setPlayDoc(playDocForActivity(a, runDoc));
-    setAlternates(normalizeActivityAlternates(a.alternates));
+    const freshForm = formFromActivity(a, themeKit?.initialThemeId ?? "");
+    const freshPlayDoc = playDocForActivity(a, runDoc);
+    const freshAlternates = normalizeActivityAlternates(a.alternates);
+    setForm(freshForm);
+    setPlayDoc(freshPlayDoc);
+    setAlternates(freshAlternates);
+    initialDraftRef.current = JSON.stringify({ form: freshForm, playDoc: freshPlayDoc, alternates: freshAlternates });
     setEditing(true);
   };
 
@@ -196,6 +208,29 @@ export function DetailSheet({
     // On create there is nothing behind the form, so Cancel closes the surface.
     if (isCreate) onClose();
     else setEditing(false);
+  };
+
+  // Scrim-click/Escape must not silently discard an in-progress edit — those
+  // gestures feel accidental in a way an explicit Cancel/Back tap doesn't, so
+  // ONLY they get the confirm. Read mode (not editing) and a clean draft close
+  // immediately, same as always.
+  const requestClose = async () => {
+    if (!editing) {
+      onClose();
+      return;
+    }
+    const dirty = JSON.stringify({ form, playDoc, alternates }) !== initialDraftRef.current;
+    if (!dirty) {
+      onClose();
+      return;
+    }
+    const ok = await requestConfirm({
+      title: "Discard changes?",
+      body: "Your edits to this activity haven't been saved.",
+      confirmLabel: "Discard",
+      danger: true,
+    });
+    if (ok) onClose();
   };
 
   const submit = () => {
@@ -256,7 +291,7 @@ export function DetailSheet({
   return (
     <Modal
       label={modalLabel}
-      onClose={onClose}
+      onClose={requestClose}
       overlayProps={{
         className: "overlay--viewer",
         "data-viewer-view": "stack",
@@ -588,7 +623,12 @@ function BackupTitleField({
   onPick: (title: string, activityId: string | undefined) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const fieldRef = useRef<HTMLLabelElement | null>(null);
+  // FloatingLayer restores focus to the input on close (it was focused when
+  // the layer opened) — that refocus would otherwise re-trigger onFocus and
+  // immediately reopen the just-closed layer after a pick. Suppress exactly
+  // that one reopen.
+  const suppressReopen = useRef(false);
 
   const matches = useMemo(() => {
     const query = title.trim().toLowerCase();
@@ -601,49 +641,58 @@ function BackupTitleField({
   const linkFromTitle = (text: string): string | undefined =>
     activities.find((act) => act.title.toLowerCase() === text.trim().toLowerCase())?.id;
 
+  function pick(actTitle: string, activityId: string | undefined) {
+    suppressReopen.current = true;
+    onPick(actTitle, activityId);
+    setOpen(false);
+  }
+
   return (
-    <div
-      className="rlv-backups__titlewrap"
-      ref={wrapRef}
-      onBlur={(e) => {
-        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
-      }}
-    >
-      <label className="quickadd__search rlv-backups__search">
+    <div className="rlv-backups__titlewrap">
+      <label className="quickadd__search rlv-backups__search" ref={fieldRef}>
         <CampIcon.Search />
         <input
           value={title}
           maxLength={ALTERNATE_TITLE_MAX_LENGTH}
           placeholder="Backup title, or pick a library activity"
           aria-label={"Backup plan " + (index + 1) + " title"}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            if (suppressReopen.current) {
+              suppressReopen.current = false;
+              return;
+            }
+            setOpen(true);
+          }}
           onChange={(e) => {
             setOpen(true);
             onPick(e.target.value, linkFromTitle(e.target.value));
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setOpen(false);
-          }}
         />
       </label>
-      {open && matches.length > 0 && (
-        <div className="quickadd__list rlv-backups__results">
+      {open && matches.length > 0 && fieldRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: fieldRef.current.getBoundingClientRect(), matchWidth: true }}
+          onClose={() => setOpen(false)}
+          className="quickadd__list rlv-backups__results"
+          role="listbox"
+          ariaLabel={"Backup plan " + (index + 1) + " library matches"}
+          initialFocus={false}
+        >
           {matches.map((act) => (
             <button
               type="button"
               key={act.id}
+              role="option"
+              aria-selected={title.trim().toLowerCase() === act.title.toLowerCase()}
               className="quickadd__item"
-              onClick={() => {
-                onPick(act.title, act.id);
-                setOpen(false);
-              }}
+              onClick={() => pick(act.title, act.id)}
             >
               <span className="quickadd__itemdot" aria-hidden="true" />
               <span className="quickadd__name">{act.title}</span>
               <span className="quickadd__meta">{act.type}</span>
             </button>
           ))}
-        </div>
+        </FloatingLayer>
       )}
     </div>
   );

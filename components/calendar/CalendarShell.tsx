@@ -120,9 +120,7 @@ import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
-import { useDialogFocus } from "../useDialogFocus";
-import { useFloatingPosition } from "../floating/useFloatingPosition";
-import { DESKTOP_MIN } from "../useDeviceShape";
+import { hasOpenDialog } from "../useDialogFocus";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarTodayCard } from "./CalendarTodayCard";
 import { CalendarViewSettings } from "./CalendarViewSettings";
@@ -4781,6 +4779,12 @@ export function CalendarShell({
     if (!selection.size || menu || sheet || scopePrompt || settingsOpen || bulkPicker) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== "Escape") return;
+      // A dialog opened OUTSIDE this shell's own local state (e.g. the run-sheet
+      // modal opened from an event, tracked in CampApp) can leave a stray 1-item
+      // selection alive underneath it. Without this bail this capture-phase
+      // listener still fires first and eats the Escape meant for that dialog's
+      // useDialogFocus stack.
+      if (hasOpenDialog()) return;
       event.preventDefault();
       clearSelection();
     };
@@ -4979,6 +4983,7 @@ export function CalendarShell({
                       onWeekStart={setWeekStart}
                       onChangeView={changeView}
                       onOpenCamps={onOpenCamps}
+                      subscribeControl={subscribeControl}
                     />
                   </div>
                 )}
@@ -5015,14 +5020,6 @@ export function CalendarShell({
                   </div>
                 )}
               </div>
-              {/* Subscribe (the .ics feed control) sits below the View / Weather
-                  sections — it's camp-scoped, so it belongs beside the settings,
-                  not in the header. Only renders when CampApp wires it (signed-in). */}
-              {subscribeControl && (
-                <div className="sidesection sidesection--fixed cal-subscribe">
-                  {subscribeControl}
-                </div>
-              )}
             </>,
             railSlot
           )}
@@ -5232,6 +5229,7 @@ export function CalendarShell({
                 setSettingsOpen(false);
                 onOpenCamps();
               }}
+              subscribeControl={subscribeControl}
             />
             <h3 className="calset__sheettitle">Weather</h3>
             <WeatherSettings
@@ -5251,14 +5249,6 @@ export function CalendarShell({
               weatherStatus={weatherStatus}
               weatherCoverage={weatherCoverage}
             />
-            {/* Subscribe / .ics feed — the same rail-only control, in the mobile
-                sheet (the header carries no camp actions on any viewport now). */}
-            {subscribeControl && (
-              <>
-                <h3 className="calset__sheettitle">Subscribe</h3>
-                <div className="calset__subscribe">{subscribeControl}</div>
-              </>
-            )}
           </div>
         </Modal>
       )}
@@ -6105,28 +6095,6 @@ function GatherPopover({
   onMarkPlenty?: (id: string, label: string) => void;
   onClose: () => void;
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
-
-  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
-  // through FullCalendar re-renders (same as the weather / stop cards).
-  useEffect(() => {
-    if (docked) return;
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.removeEventListener("resize", onClose);
-    };
-  }, [docked, onClose]);
-
   // A short "10:00 Parachute Games" label for an event in a conflict, in the
   // blocks' own order (dayKit already sorts eventIds chronologically).
   const eventLabel = (id: string): string => {
@@ -6136,76 +6104,62 @@ function GatherPopover({
   };
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-gather"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={"Gather — " + formatEventDateLabel(date)}
-        tabIndex={-1}
-      >
-        <div className="cal-popover__head">
-          <div className="cal-popover__heading">
-            <h3 className="cal-popover__title">Gather</h3>
-            <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
+    <FloatingLayer
+      anchor={{ kind: "rect", rect: anchor }}
+      onClose={onClose}
+      className="cal-popover cal-gather"
+      role="dialog"
+      ariaLabel={"Gather — " + formatEventDateLabel(date)}
+    >
+      <div className="cal-popover__head">
+        <div className="cal-popover__heading">
+          <h3 className="cal-popover__title">Gather</h3>
+          <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
         </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
+      </div>
 
-        {day.hardConflicts.length > 0 && (
-          <ul className="cal-gather__conflicts">
-            {day.hardConflicts.map((conflict) => (
-              <li key={conflict.id} className="cal-gather__conflict">
-                <div className="cal-gather__conflict-body">
-                  <span className="cal-gather__conflict-title">
-                    {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
-                  </span>
-                  <span className="cal-gather__conflict-blocks">
-                    {conflict.eventIds.map(eventLabel).join(" · ")}
-                  </span>
-                </div>
-                {canEdit && onMarkPlenty && (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-gather__plenty"
-                    onClick={() => onMarkPlenty(conflict.id, conflict.label)}
-                  >
-                    We have several
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <ul className="cal-gather__list">
-          {day.items.map((item) => (
-            <GatherRow
-              key={item.id}
-              item={item}
-              catalog={catalog}
-              canEdit={canEdit}
-              current={stock[item.id]}
-              onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
-            />
+      {day.hardConflicts.length > 0 && (
+        <ul className="cal-gather__conflicts">
+          {day.hardConflicts.map((conflict) => (
+            <li key={conflict.id} className="cal-gather__conflict">
+              <div className="cal-gather__conflict-body">
+                <span className="cal-gather__conflict-title">
+                  {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
+                </span>
+                <span className="cal-gather__conflict-blocks">
+                  {conflict.eventIds.map(eventLabel).join(" · ")}
+                </span>
+              </div>
+              {canEdit && onMarkPlenty && (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-gather__plenty"
+                  onClick={() => onMarkPlenty(conflict.id, conflict.label)}
+                >
+                  We have several
+                </button>
+              )}
+            </li>
           ))}
         </ul>
-      </div>
-    </div>
+      )}
+
+      <ul className="cal-gather__list">
+        {day.items.map((item) => (
+          <GatherRow
+            key={item.id}
+            item={item}
+            catalog={catalog}
+            canEdit={canEdit}
+            current={stock[item.id]}
+            onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
+          />
+        ))}
+      </ul>
+    </FloatingLayer>
   );
 }
 
@@ -6361,148 +6315,113 @@ function RainPanel({
   stock: Record<string, StockState>;
   catalog?: Material[];
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const footRef = useRef<HTMLDivElement | null>(null);
   // The row whose "Pick backup…" picker is open (an event id), plus the ranked
   // library suggestions — computed lazily when a picker opens.
   const [picking, setPicking] = useState<string | null>(null);
 
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
-
-  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
-  // (same as the weather / gather cards). The inner picker's scroll is excluded.
-  useEffect(() => {
-    if (docked) return;
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.removeEventListener("resize", onClose);
-    };
-  }, [docked, onClose]);
-
   const switchableCount = plan.rows.filter((r) => r.alternates.length).length;
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-rain"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={"Rain review — " + formatEventDateLabel(date)}
-        tabIndex={-1}
-      >
-        <div className="cal-popover__head">
-          <div className="cal-popover__heading">
-            <h3 className="cal-popover__title">
-              <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
-              {Math.round(plan.probMax)}% rain
-            </h3>
-            <p className="cal-popover__when">
-              {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
-              {plan.rows.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
+    <FloatingLayer
+      anchor={{ kind: "rect", rect: anchor }}
+      onClose={onClose}
+      className="cal-popover cal-rain"
+      role="dialog"
+      ariaLabel={"Rain review — " + formatEventDateLabel(date)}
+    >
+      <div className="cal-popover__head">
+        <div className="cal-popover__heading">
+          <h3 className="cal-popover__title">
+            <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
+            {Math.round(plan.probMax)}% rain
+          </h3>
+          <p className="cal-popover__when">
+            {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
+            {plan.rows.length === 1 ? "" : "s"}
+          </p>
         </div>
-
-        <ul className="cal-rain__list">
-          {plan.rows.map((row) => {
-            const hasBackup = row.alternates.length > 0;
-            const first = row.alternates[0];
-            return (
-              <li key={row.event.id} className="cal-rain__row">
-                <div className="cal-rain__body">
-                  <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
-                  <span className="cal-rain__title">{row.event.title || "block"}</span>
-                  {hasBackup && (
-                    <span className="cal-rain__arrow" aria-hidden="true">
-                      →
-                    </span>
-                  )}
-                  {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
-                </div>
-                {hasBackup ? (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-rain__swap"
-                    onClick={() => onPromote(row.event, 0)}
-                  >
-                    Swap
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-rain__pick"
-                    onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
-                    aria-expanded={picking === row.event.id}
-                  >
-                    Pick backup…
-                  </button>
-                )}
-                {picking === row.event.id && !hasBackup && (
-                  <RainBackupPicker
-                    suggestions={rankBackupSuggestions(
-                      row.event.activityId ? byId[row.event.activityId] : undefined,
-                      activities,
-                      events,
-                      stock,
-                      catalog
-                    )}
-                    onPick={(activity) => {
-                      onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
-                      setPicking(null);
-                    }}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="cal-rain__foot" ref={footRef}>
-          {switchableCount > 0 && (
-            <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
-              Switch all {switchableCount}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm cal-rain__shift"
-            onClick={() => {
-              const rect = footRef.current?.getBoundingClientRect() ?? anchor;
-              onShiftDay(rect);
-            }}
-          >
-            <CampIcon.Clock />
-            Shift day…
-          </button>
-          <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
-            Dismiss for today
-          </button>
-        </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
       </div>
-    </div>
+
+      <ul className="cal-rain__list">
+        {plan.rows.map((row) => {
+          const hasBackup = row.alternates.length > 0;
+          const first = row.alternates[0];
+          return (
+            <li key={row.event.id} className="cal-rain__row">
+              <div className="cal-rain__body">
+                <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
+                <span className="cal-rain__title">{row.event.title || "block"}</span>
+                {hasBackup && (
+                  <span className="cal-rain__arrow" aria-hidden="true">
+                    →
+                  </span>
+                )}
+                {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
+              </div>
+              {hasBackup ? (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-rain__swap"
+                  onClick={() => onPromote(row.event, 0)}
+                >
+                  Swap
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-rain__pick"
+                  onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
+                  aria-expanded={picking === row.event.id}
+                >
+                  Pick backup…
+                </button>
+              )}
+              {picking === row.event.id && !hasBackup && (
+                <RainBackupPicker
+                  suggestions={rankBackupSuggestions(
+                    row.event.activityId ? byId[row.event.activityId] : undefined,
+                    activities,
+                    events,
+                    stock,
+                    catalog
+                  )}
+                  onPick={(activity) => {
+                    onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
+                    setPicking(null);
+                  }}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="cal-rain__foot" ref={footRef}>
+        {switchableCount > 0 && (
+          <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
+            Switch all {switchableCount}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm cal-rain__shift"
+          onClick={() => {
+            const rect = footRef.current?.getBoundingClientRect() ?? anchor;
+            onShiftDay(rect);
+          }}
+        >
+          <CampIcon.Clock />
+          Shift day…
+        </button>
+        <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
+          Dismiss for today
+        </button>
+      </div>
+    </FloatingLayer>
   );
 }
 

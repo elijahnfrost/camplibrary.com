@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
 import { AGE_GROUPS, bandLong, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
+import { FloatingLayer } from "./floating/FloatingLayer";
 
 // ---- The "switch ledger" control family (desktop sidebar rails) ----
 // Every filter dimension is ONE ledger line: small-caps label left, a compact
@@ -42,25 +43,7 @@ function SwatchPicker({
   onManage?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const current = options.find((o) => o.id === value) ?? options[0];
   // Swatches only when a dimension actually carries color (Type, Theme). A
   // color-less dimension (Ages) renders label-only, so the menu isn't a column
@@ -68,6 +51,7 @@ function SwatchPicker({
   const showSwatch = options.some((o) => o.tint);
   const trigger = (
     <button
+      ref={triggerRef}
       type="button"
       className="typepick__trigger"
       aria-haspopup="listbox"
@@ -87,7 +71,7 @@ function SwatchPicker({
     </button>
   );
   return (
-    <div className={"typepick" + (open ? " is-open" : "")} ref={rootRef}>
+    <div className={"typepick" + (open ? " is-open" : "")}>
       {label ? (
         <div className="ledger__row">
           <span className="ledger__label">
@@ -99,8 +83,14 @@ function SwatchPicker({
       ) : (
         trigger
       )}
-      {open && (
-        <div className="typepick__menu" role="listbox" aria-label={ariaLabel}>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect(), matchWidth: true }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu"
+          role="listbox"
+          ariaLabel={ariaLabel}
+        >
           {options.map((o) => (
             <button
               type="button"
@@ -141,7 +131,7 @@ function SwatchPicker({
               </button>
             </>
           )}
-        </div>
+        </FloatingLayer>
       )}
     </div>
   );

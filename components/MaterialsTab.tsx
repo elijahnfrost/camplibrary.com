@@ -27,6 +27,7 @@ import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { isStocked, type StockState } from "@/lib/kitStock";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
+import { requestConfirm } from "./ConfirmDialog";
 import { ContextMenu } from "./floating/ContextMenu";
 import { MiniSeg } from "./primitives";
 
@@ -394,10 +395,14 @@ export function MaterialsTab({
               // Archiving hides the material from the list with no undo toast —
               // a non-undoable removal, so it confirms (house rule: undoable
               // actions don't confirm, non-undoable vocabulary removals do).
-              onSelect: () => {
-                if (window.confirm("Archive “" + menu.row.name + "”? It's hidden from the list until you unarchive it.")) {
-                  onSetArchived(menu.row.id, menu.row.name, true);
-                }
+              onSelect: async () => {
+                const ok = await requestConfirm({
+                  title: "Archive “" + menu.row.name + "”?",
+                  body: "It's hidden from the list until you unarchive it.",
+                  confirmLabel: "Archive",
+                  danger: true,
+                });
+                if (ok) onSetArchived(menu.row.id, menu.row.name, true);
               },
             },
           ]}

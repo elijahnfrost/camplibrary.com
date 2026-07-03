@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { RunShareButton } from "@/components/RunShareButton";
 import { RunSheetView } from "@/components/RunSheetView";
 import { ACTIVITIES } from "@/lib/data";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import type { ActivityPlaybookData } from "@/lib/playbooks";
 import { resolveRunDoc } from "@/lib/runListResolve";
 import type { RunDoc } from "@/lib/runList";
@@ -39,6 +41,18 @@ export default async function RunSheetPage({ params }: Params) {
   const ratings = (docs.ratings as Record<string, number> | undefined) ?? {};
   const runListOverrides = (docs.runLists as Record<string, RunDoc> | undefined) ?? {};
   const playbookOverrides = (docs.playbookOverrides as Record<string, ActivityPlaybookData> | undefined) ?? {};
+  // Kit stock + catalog are plain synced user docs (same shape the app reads
+  // client-side via useActivityLibrary), so the public materials list can show
+  // the SAME have/low/out lens the in-app read view does.
+  const kitStock = (docs.kitStock as Record<string, StockState> | undefined) ?? {};
+  const materialCatalog = (docs.materialCatalog as Material[] | undefined) ?? [];
+  // NOT reachable here: per-day material substitutions (Swap.../Skip today) are
+  // stored on the calendar EVENT (cloud.events[id].materialSubs), keyed by a
+  // specific scheduled occurrence. This route's params are only a feed token +
+  // an activityId — no event id — so there's no placement to resolve subs
+  // against. The materials list below renders the library-canonical state only
+  // (kit stock, no per-day swaps/skips), matching the "library-opened" case of
+  // the in-app checklist (MaterialChecklist with no onSetSub).
 
   const found = [...extra, ...ACTIVITIES].find((a) => a.id === activityId);
   if (!found) notFound();
@@ -55,7 +69,7 @@ export default async function RunSheetPage({ params }: Params) {
           <RunShareButton title={activity.title + " · Run sheet"} />
         </div>
       </div>
-      <RunSheetView activity={activity} runDoc={runDoc} />
+      <RunSheetView activity={activity} runDoc={runDoc} kitStock={kitStock} materialCatalog={materialCatalog} />
     </main>
   );
 }

@@ -42,6 +42,7 @@ import { useContextMenu } from "./floating/useContextMenu";
 import { ActivityBookPrint } from "./ActivityBookPrint";
 import { AdminInviteCodes } from "./AdminInviteCodes";
 import { usePreviewAuth } from "./AuthControls";
+import { ConfirmHost, requestConfirm } from "./ConfirmDialog";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
@@ -57,8 +58,9 @@ import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
 import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
+import { InviteSignUp } from "./InviteSignUp";
+import { ProfileControl } from "./ProfileControl";
 import { StaffSignIn } from "./StaffSignIn";
-import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
 import { useDeviceShape } from "./useDeviceShape";
@@ -91,10 +93,6 @@ const TABS: NavTab[] = [
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
   { id: "print", label: "Print", icon: CampIcon.Print },
 ];
-// The single intentional sign-in / account surface. Shown to everyone (signed
-// out it's "Sign in"; signed in it's the account panel) — it replaces the old
-// top-right auth pill and the sidebar identity line.
-const STAFF_TAB: NavTab = { id: "staff", label: "Staff", icon: CampIcon.Users };
 const ADMIN_TAB: NavTab = {
   id: "admin",
   label: "Invite Codes",
@@ -108,14 +106,17 @@ const ADMIN_TAB: NavTab = {
 // onto the main app. Stored unscoped (a per-device UI choice, like the calendar
 // view prefs) under the shared "camp:" store.
 const STORED_TAB_KEY = "currentTab";
-const RESTORABLE_TABS = ["library", "calendar", "print", "staff"] as const;
+const RESTORABLE_TABS = ["library", "calendar", "print"] as const;
 // Legacy stored tabs that no longer exist as surfaces migrate forward: the old
 // "home" tab is now the calendar; "materials" is now a collection inside the
 // library, so it restores to the library (CampApp then selects the Materials
-// collection — see the restore effect). Everything else falls through.
+// collection — see the restore effect). "staff" was a dedicated tab, now a
+// bottom-left profile popover — there's nothing to land on, so it falls back
+// to the calendar. Everything else falls through.
 const LEGACY_TAB_MIGRATIONS: Record<string, TabId> = {
   home: "calendar",
   materials: "library",
+  staff: "calendar",
 };
 const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) => {
   if (typeof value !== "string") return fallback;
@@ -142,29 +143,44 @@ function cleanAuthRouteUrl() {
   window.history.replaceState(null, "", next || "/");
 }
 
-// The only remaining modal in the auth flow: a quick sign-in popped when an
-// edit action is attempted signed-out, so the user keeps their place mid-edit.
-// Every other entry (the Staff tab, "create an account") is a full page.
+// The ONE auth modal: covers both an interrupted edit action (signed-out,
+// attempting a staff-gated change) and every intentional sign-in / sign-up
+// entry point (the profile popover's "Sign in" row, a ?auth= deep link). It
+// replaced the old dedicated Staff tab, which no longer exists as a surface.
 function StaffPromptModal({
   prompt,
   authEnabled,
   onClose,
   onRequestSignUp,
+  onRequestSignIn,
 }: {
   prompt: StaffPrompt;
   authEnabled: boolean;
   onClose: () => void;
   onRequestSignUp: () => void;
+  onRequestSignIn: () => void;
 }) {
   return (
     <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
       {authEnabled ? (
-        <StaffSignIn
-          returnTo={prompt.returnTo}
-          message={prompt.message}
-          onComplete={onClose}
-          onRequestSignUp={onRequestSignUp}
-        />
+        prompt.mode === "sign-up" ? (
+          <>
+            <InviteSignUp />
+            <p className="auth-form__hint">
+              Already have an account?{" "}
+              <button type="button" className="auth-form__link" onClick={onRequestSignIn}>
+                Sign in
+              </button>
+            </p>
+          </>
+        ) : (
+          <StaffSignIn
+            returnTo={prompt.returnTo}
+            message={prompt.message}
+            onComplete={onClose}
+            onRequestSignUp={onRequestSignUp}
+          />
+        )
       ) : (
         <div className="auth-form auth-form--prompt">
           <div className="auth-form__section">Staff access</div>
@@ -292,6 +308,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     // from a heavy tab clears the veil immediately (instant surfaces never wait).
     setTabRaw((prev) => {
       const next = typeof value === "function" ? value(prev) : value;
+      // Re-selecting the tab you're already on (the nav item, or the brand mark
+      // while already on Calendar) is a no-op: no veil, no state churn. Without
+      // this guard, CalendarShell never remounts on a same-tab transition (its
+      // internal onReady latch has already fired for this mount and won't fire
+      // again), so the veil raised below would have nothing to dismiss it except
+      // the blunt CAL_VEIL_MAX_MS safety timeout — a ~2.5s cover over nothing.
+      if (next === prev) return prev;
       if (isHeavyTab(next)) {
         setVeil(next);
         if (next === "calendar") {
@@ -379,21 +402,29 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // The last sync error the user explicitly dismissed — a DIFFERENT error
   // message re-arms the visible banner (see the app-toast below).
   const [dismissedSyncError, setDismissedSyncError] = useState<string | null>(null);
+  // The one auth modal, covering interrupted edit actions AND every
+  // intentional sign-in / sign-up entry point (the profile popover, a ?auth=
+  // deep link) — there is no dedicated Staff tab to land on any more.
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
-  // Which form the Staff tab shows when reached signed-out (sign-in vs the
-  // invite sign-up). Account state on that tab is driven by the session itself.
-  const [staffTabMode, setStaffTabMode] = useState<StaffTabMode>("sign-in");
+  // Lifted so the sidebar's sync pill AND the sidebar's profile row (and the
+  // mobile tab bar's Profile item) all open the exact same popover instance.
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  // The mobile tab bar's Profile button anchors the popover on phone/tablet,
+  // where the sidebar (and its own profile row) is display:none.
+  const profileTabRef = useRef<HTMLButtonElement | null>(null);
 
-  // Intentional sign-in / sign-up entry points open the dedicated Staff tab
-  // (not a modal). The inline modal is reserved for interrupted edit actions.
   const openSignUpPrompt = useCallback(() => {
-    setStaffTabMode("sign-up");
-    setTab("staff");
+    setStaffPrompt({ allowed: false, message: "Create a staff account.", signInHref: null, mode: "sign-up", returnTo: currentReturnPath() });
   }, []);
 
   const openSignInPrompt = useCallback(() => {
-    setStaffTabMode("sign-in");
-    setTab("staff");
+    setStaffPrompt({
+      allowed: false,
+      message: "Existing staff can sign in with Google or password.",
+      signInHref: null,
+      mode: "sign-in",
+      returnTo: currentReturnPath(),
+    });
   }, []);
 
   useEffect(() => {
@@ -404,10 +435,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
 
     cleanAuthRouteUrl();
     if (auth.signedIn || auth.providerSignedIn) return;
-    // A ?auth= deep link is an intentional ask — land on the Staff tab.
-    setStaffTabMode(mode);
-    setTab("staff");
-  }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
+    // A ?auth= deep link is an intentional ask — open the auth modal directly.
+    if (mode === "sign-up") openSignUpPrompt();
+    else openSignInPrompt();
+  }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn, openSignInPrompt, openSignUpPrompt]);
 
   const requireStaff = useCallback(
     (action: string) => {
@@ -959,8 +990,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     [cloud.events, lib.byId, campKit, detailEventId, requireStaff]
   );
 
-  function deleteActivity(activity: Activity) {
-    if (lib.deleteActivity(activity)) closeDetail();
+  async function deleteActivity(activity: Activity) {
+    if (await lib.deleteActivity(activity)) closeDetail();
   }
 
   function duplicateActivity(activity: Activity) {
@@ -1013,18 +1044,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   );
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
-  // The working surfaces are Library / Calendar / Print, plus the Staff account
-  // tab. ONE in-app path to invite codes (the Account card's "Manage invite
-  // codes" button; /admin stays as the server-gated deep link) — the admin tab
-  // only APPEARS while you're actually on the admin surface, so it still has a
-  // nav highlight + back target but no longer duplicates the entry point.
-  const navTabs = useMemo(
-    () => (tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
-    [isAdmin, tab]
-  );
-  // The phone tab bar is the same working surfaces + Staff. Admin is omitted
-  // (reached only via the server-gated /admin route and the Account card).
-  const mobileNavTabs = useMemo(() => [...TABS, STAFF_TAB], []);
+  // The working surfaces are Library / Calendar / Print. Account/auth lives in
+  // the bottom-left profile popover now, not a nav tab. ONE in-app path to
+  // invite codes (the profile popover's "Manage invite codes" row; /admin
+  // stays as the server-gated deep link) — the admin tab only APPEARS while
+  // you're actually on the admin surface, so it still has a nav highlight +
+  // back target but no longer duplicates the entry point.
+  const navTabs = useMemo(() => (tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [tab]);
 
   return (
     <AgeUnitProvider value={ageUnit}>
@@ -1062,78 +1088,110 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               </button>
             ))}
           </div>
-          {/* The filter rail belongs to the Activities collection only — the
-              Materials collection has its own search and no library filters, so
-              the rail shows a one-line hint there instead. */}
-          {tab === "library" && collection === "activities" && (
-            <Filters
-              variant="rail"
-              sort={sort}
-              onSort={setSort}
-              cats={cats}
-              place={place}
-              age={age}
-              ageUnit={ageUnit}
-              onAgeUnit={setAgeUnit}
-              theme={theme}
-              themes={lib.themes}
-              starredOnly={starredOnly}
-              kitLens={kitLens}
-              kitUnset={kitUnset}
-              minutes={minutesValue}
-              minutesBounds={minutesBounds}
-              materialId={materialId}
-              materialLabel={materialLabel}
-              onCats={setCats}
-              onPlace={setPlace}
-              onAge={setAge}
-              onTheme={setTheme}
-              onManageThemes={openThemesManager}
-              onStarredOnly={setStarredOnly}
-              onMinutes={handleMinutes}
-              onKitLens={setKitLens}
-              onMaterial={() => setMaterialId(null)}
-              onGoMaterials={goMaterials}
+          {/* THE RAIL ZONE — one scroll container for every tab-scoped section
+              below the primary nav, so sections can never overlap and a tall
+              roster (Camps) or a long control stack (Print) simply scrolls
+              instead of overflowing into whatever sits after it. Only one of
+              these renders at a time (gated by `tab`), so there's never more
+              than one scrollbar. */}
+          <div className="sidenav__scroll">
+            {/* The filter rail belongs to the Activities collection only — the
+                Materials collection has its own search and no library filters, so
+                the rail shows a one-line hint there instead. */}
+            {tab === "library" && collection === "activities" && (
+              <Filters
+                variant="rail"
+                sort={sort}
+                onSort={setSort}
+                cats={cats}
+                place={place}
+                age={age}
+                ageUnit={ageUnit}
+                onAgeUnit={setAgeUnit}
+                theme={theme}
+                themes={lib.themes}
+                starredOnly={starredOnly}
+                kitLens={kitLens}
+                kitUnset={kitUnset}
+                minutes={minutesValue}
+                minutesBounds={minutesBounds}
+                materialId={materialId}
+                materialLabel={materialLabel}
+                onCats={setCats}
+                onPlace={setPlace}
+                onAge={setAge}
+                onTheme={setTheme}
+                onManageThemes={openThemesManager}
+                onStarredOnly={setStarredOnly}
+                onMinutes={handleMinutes}
+                onKitLens={setKitLens}
+                onMaterial={() => setMaterialId(null)}
+                onGoMaterials={goMaterials}
+              />
+            )}
+            {tab === "library" && collection === "materials" && (
+              <p className="sidenav__railhint">
+                Reviewing your kit. Switch to Activities to browse and filter the library.
+              </p>
+            )}
+            {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
+            {/* The ONE entry point into camps on desktop — a collapsed-by-default
+                section below the calendar rail. The deep editor (hours, guidance
+                bands, dietary roster) still opens as the existing camps modal;
+                this section only picks the active camp or hands off to it. Sits
+                INSIDE the shared scroll zone (not a fixed-to-bottom sibling), so a
+                long camp roster scrolls with the rest of the rail instead of
+                overlapping it. */}
+            {tab === "calendar" && isDesktop && (
+              <CampsRail
+                camps={campKit.camps}
+                activeCampId={campKit.activeCampId}
+                onSwitch={campKit.switchCamp}
+                onManage={() => setCampsManagerOpen(true)}
+                onNew={() => setCampsManagerOpen(true)}
+              />
+            )}
+            {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
+          </div>
+          {/* The sidebar's ONE fixed foot: never scrolls, never overlapped by the
+              rail zone above it (a real border-top divider, not a margin-top:auto
+              float over shared overflow). Sync state where edits actually happen —
+              quiet by default: the sync pill only renders when it carries a signal
+              (pending writes, offline, a refused write), and now opens the SAME
+              profile popover as the row below it (there's no dedicated Staff tab
+              any more). The profile row is the app's one bottom-left account
+              control — always visible, avatar + name + chevron, opening account
+              identity, sync health, admin entry, and auth actions. */}
+          <div className="sidenav__foot">
+            {(cloud.pendingCount > 0 || cloud.status === "offline" || cloud.syncError) && (
+              <button
+                type="button"
+                className={"sidenav__sync" + (cloud.syncError ? " is-error" : "")}
+                onClick={() => setProfileMenuOpen(true)}
+              >
+                <span className="sidenav__sync-dot" aria-hidden />
+                {cloud.syncError
+                  ? "Some changes didn't save"
+                  : cloud.pendingCount > 0
+                    ? cloud.pendingCount + " pending"
+                    : "Offline — will sync"}
+              </button>
+            )}
+            <ProfileControl
+              session={auth.session}
+              authEnabled={auth.enabled}
+              syncStatus={cloud.status}
+              pendingCount={cloud.pendingCount}
+              syncError={cloud.syncError}
+              isAdmin={isAdmin}
+              onOpenInvites={() => setTab("admin")}
+              onSignIn={openSignInPrompt}
+              onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
+              onSignOut={() => auth.signOut("/")}
+              open={profileMenuOpen}
+              onOpenChange={setProfileMenuOpen}
             />
-          )}
-          {tab === "library" && collection === "materials" && (
-            <p className="sidenav__railhint">
-              Reviewing your kit. Switch to Activities to browse and filter the library.
-            </p>
-          )}
-          {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
-          {/* The ONE entry point into camps on desktop — a collapsed-by-default
-              section below the calendar rail. The deep editor (hours, guidance
-              bands, dietary roster) still opens as the existing camps modal;
-              this section only picks the active camp or hands off to it. */}
-          {tab === "calendar" && isDesktop && (
-            <CampsRail
-              camps={campKit.camps}
-              activeCampId={campKit.activeCampId}
-              onSwitch={campKit.switchCamp}
-              onManage={() => setCampsManagerOpen(true)}
-              onNew={() => setCampsManagerOpen(true)}
-            />
-          )}
-          {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
-          {/* Sync state where edits actually happen (not just the Staff card).
-              Quiet by default: renders only when it carries a signal — pending
-              writes, offline, or a write that was refused. Tapping it opens the
-              Staff tab, where the full sync line + account live. */}
-          {(cloud.pendingCount > 0 || cloud.status === "offline" || cloud.syncError) && (
-            <button
-              type="button"
-              className={"sidenav__sync" + (cloud.syncError ? " is-error" : "")}
-              onClick={() => setTab("staff")}
-            >
-              <span className="sidenav__sync-dot" aria-hidden />
-              {cloud.syncError
-                ? "Some changes didn't save"
-                : cloud.pendingCount > 0
-                  ? cloud.pendingCount + " pending"
-                  : "Offline — will sync"}
-            </button>
-          )}
+          </div>
         </nav>
 
         <main className="app__main" id="main">
@@ -1244,7 +1302,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                     <SubscribeFeedButton
                       activeCampId={campKit.activeCampId}
                       activeCampName={campKit.activeCamp?.name ?? null}
-                      canEdit={isSignedIn}
                     />
                   ) : undefined
                 }
@@ -1290,32 +1347,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               </div>
             </div>
           )}
-
-          {tab === "staff" && (
-            <StaffTab
-              session={auth.session}
-              authEnabled={auth.enabled}
-              mode={staffTabMode}
-              onMode={setStaffTabMode}
-              onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
-              onSignOut={() => auth.signOut("/")}
-              events={calendarEvents}
-              allEvents={cloud.events}
-              runLists={cloud.docs.runLists}
-              byId={lib.byId}
-              hasLoaded={cloud.hasLoaded}
-              syncStatus={cloud.status}
-              pendingCount={cloud.pendingCount}
-              isAdmin={isAdmin}
-              onOpenInvites={() => setTab("admin")}
-              activeCamp={campKit.activeCamp}
-              campCount={campKit.camps.length}
-            />
-          )}
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {mobileNavTabs.map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -1329,7 +1364,44 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               <span>{t.label}</span>
             </button>
           ))}
+          {/* The mobile equivalent of the sidebar's profile row — same popover
+              (anchored to THIS button via profileTabRef), opened as a bottom
+              sheet (FloatingLayer docks under 1024px). */}
+          <button
+            ref={profileTabRef}
+            type="button"
+            className={profileMenuOpen ? "is-active" : ""}
+            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+            aria-label="Profile"
+            aria-haspopup="dialog"
+            aria-expanded={profileMenuOpen}
+            title="Profile"
+          >
+            <CampIcon.User />
+            <span>Profile</span>
+          </button>
         </nav>
+        {/* Mounted once, outside the sidebar-only foot, so the mobile tab bar's
+            Profile button can open the exact same popover instance below the
+            desk breakpoint (where the sidebar itself is display:none). */}
+        {!isDesktop && (
+          <ProfileControl
+            session={auth.session}
+            authEnabled={auth.enabled}
+            syncStatus={cloud.status}
+            pendingCount={cloud.pendingCount}
+            syncError={cloud.syncError}
+            isAdmin={isAdmin}
+            onOpenInvites={() => setTab("admin")}
+            onSignIn={openSignInPrompt}
+            onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
+            onSignOut={() => auth.signOut("/")}
+            open={profileMenuOpen}
+            onOpenChange={setProfileMenuOpen}
+            hideTrigger
+            externalTriggerRef={profileTabRef}
+          />
+        )}
 
         <div className="sr-only" role="status" aria-live="polite">
           {liveMsg}
@@ -1357,10 +1429,14 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             emptyHint="No themes yet. Add one, then tag activities with it from the activity editor."
             onCreate={(name) => lib.createTheme(name)}
             onRename={lib.renameTheme}
-            onDelete={(item) => {
-              if (window.confirm("Delete the “" + item.label + "” theme? It is removed from any activities using it.")) {
-                lib.deleteTheme(item.id);
-              }
+            onDelete={async (item) => {
+              const ok = await requestConfirm({
+                title: "Delete the “" + item.label + "” theme?",
+                body: "It is removed from any activities using it.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) lib.deleteTheme(item.id);
             }}
             onClose={() => setThemesManagerOpen(false)}
           />
@@ -1393,11 +1469,15 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onRename={(id, name) => {
               if (requireStaff("manage camps")) campKit.renameCamp(id, name);
             }}
-            onDelete={(item) => {
+            onDelete={async (item) => {
               if (!requireStaff("manage camps")) return;
-              if (window.confirm("Delete the “" + item.label + "” camp? Its events stay on the calendar but are no longer grouped.")) {
-                campKit.deleteCamp(item.id);
-              }
+              const ok = await requestConfirm({
+                title: "Delete the “" + item.label + "” camp?",
+                body: "Its events stay on the calendar but are no longer grouped.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) campKit.deleteCamp(item.id);
             }}
             renderRowExtra={(item) => {
               const camp = campKit.camps.find((c) => c.id === item.id);
@@ -1457,15 +1537,15 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onChangeTint={(id, color) => {
               if (requireStaff("manage locations")) lib.setLocationColor(id, color);
             }}
-            onDelete={(item) => {
+            onDelete={async (item) => {
               if (!requireStaff("manage locations")) return;
-              if (
-                window.confirm(
-                  "Remove the “" + item.label + "” location? Events that already use it keep it; it just won’t be offered as a choice."
-                )
-              ) {
-                lib.deleteLocation(item.id);
-              }
+              const ok = await requestConfirm({
+                title: "Remove the “" + item.label + "” location?",
+                body: "Events that already use it keep it; it just won’t be offered as a choice.",
+                confirmLabel: "Remove",
+                danger: true,
+              });
+              if (ok) lib.deleteLocation(item.id);
             }}
             onClose={() => setLocationsManagerOpen(false)}
           />
@@ -1546,18 +1626,28 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             />
           );
         })()}
-        {printActivity && <ActivityBookPrint activity={printActivity} runDoc={lib.resolveRunDoc(printActivity)} />}
+        {printActivity && (
+          <ActivityBookPrint
+            activity={printActivity}
+            runDoc={lib.resolveRunDoc(printActivity)}
+            kitStock={lib.kitStock}
+            materialCatalog={lib.materialCatalog}
+          />
+        )}
         <div ref={printHostRef} className="print-host" />
+        <ConfirmHost />
         {staffPrompt && (
           <StaffPromptModal
             prompt={staffPrompt}
             authEnabled={auth.enabled}
             onClose={() => setStaffPrompt(null)}
             onRequestSignUp={() => {
-              // "Create an account" from the inline gate redirects to the full
-              // Staff page rather than swapping the modal to a sign-up form.
-              setStaffPrompt(null);
+              // "Create an account" from the inline gate swaps the SAME modal
+              // to the invite sign-up form (no dedicated Staff page any more).
               openSignUpPrompt();
+            }}
+            onRequestSignIn={() => {
+              openSignInPrompt();
             }}
           />
         )}

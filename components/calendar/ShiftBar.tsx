@@ -1,14 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { planDayShift, type DayShiftNote } from "@/lib/calendar/dayShift";
 import { SNAP_MIN, formatClock, nowMinutes, snapMinutes } from "@/lib/calendar/time";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { CampIcon } from "../icons";
-import { useDialogFocus } from "../useDialogFocus";
-import { useFloatingPosition, type FloatingAnchor } from "../floating/useFloatingPosition";
-import { DESKTOP_MIN } from "../useDeviceShape";
+import { FloatingLayer } from "../floating/FloatingLayer";
+import type { FloatingAnchor } from "../floating/useFloatingPosition";
 
 // The one surface behind every "recover time" door. A day runs long (a late bus,
 // a craft that overshot) or wraps early, and the operator wants to slide the REST
@@ -17,9 +16,10 @@ import { DESKTOP_MIN } from "../useDeviceShape";
 // live (planDayShift is pure and cheap, so we re-run it on every change), then
 // commits ONE undoable batch. It never mangles geometry itself — the planner
 // keeps the operator's intent and reports what it couldn't honor as notes, which
-// we surface as a quiet summary + affected list. Positioning + docking reuse the
-// shared floating helpers, so it clamps/flips and bottom-docks like every other
-// floating card (WeatherPopover / StopPopover).
+// we surface as a quiet summary + affected list. Hosted in the shared FloatingLayer
+// engine, so it clamps/flips/dismisses like every other floating card (WeatherPopover
+// / StopPopover) — it's a transient "how much to shift" tool, not a persistent
+// palette, so dismiss-on-outside-click/scroll/Escape is the right contract.
 
 // A small inline pushpin — the "held in place" affordance. CampIcon.Pin is the
 // location map-pin (semantically wrong here), so ShiftBar carries its own.
@@ -78,12 +78,6 @@ export function ShiftBar({
   onCommit: (upserts: CalendarEvent[], summary: string) => void;
   onClose: () => void;
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition(target.anchor, cardRef, docked);
-
   const extendTarget = target.extendEventId
     ? dayEvents.find((e) => e.id === target.extendEventId)
     : undefined;
@@ -194,172 +188,158 @@ export function ShiftBar({
   };
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-shift"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-      >
-        <div className="cal-popover__head">
-          <div className="cal-popover__heading">
-            <h3 className="cal-popover__title">
-              {extendTarget && (
-                <span
-                  className="cal-shift__dot"
-                  style={{ background: colorOf(extendTarget) }}
-                  aria-hidden="true"
-                />
-              )}
-              {title}
-            </h3>
-            <p className="cal-popover__when">
-              {formatEventDateLabel(target.date)}
-              {!extendMode ? "" : " · from " + cutoffLabel}
-            </p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
+    <FloatingLayer
+      anchor={target.anchor}
+      onClose={onClose}
+      className="cal-popover cal-shift"
+      role="dialog"
+      ariaLabel={title}
+    >
+      <div className="cal-popover__head">
+        <div className="cal-popover__heading">
+          <h3 className="cal-popover__title">
+            {extendTarget && (
+              <span
+                className="cal-shift__dot"
+                style={{ background: colorOf(extendTarget) }}
+                aria-hidden="true"
+              />
+            )}
+            {title}
+          </h3>
+          <p className="cal-popover__when">
+            {formatEventDateLabel(target.date)}
+            {!extendMode ? "" : " · from " + cutoffLabel}
+          </p>
         </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
+      </div>
 
-        {/* Delta chips + a ± stepper stepping by the snap. */}
-        <div className="cal-shift__deltas" role="group" aria-label="How much to shift">
-          {deltaChips(snapMin).map((d) => (
-            <button
-              key={d}
-              type="button"
-              className={"cal-shift__chip" + (delta === d ? " is-on" : "")}
-              aria-pressed={delta === d}
-              onClick={() => setDelta(d)}
-            >
-              {(d > 0 ? "+" : "") + d}
-            </button>
-          ))}
-          {toNowDelta != null && (
-            <button
-              type="button"
-              className={"cal-shift__chip" + (delta === toNowDelta ? " is-on" : "")}
-              aria-pressed={delta === toNowDelta}
-              onClick={() => setDelta(toNowDelta)}
-            >
-              to now
-            </button>
-          )}
-        </div>
-        <div className="cal-shift__stepper" role="group" aria-label="Adjust by 15 minutes">
+      {/* Delta chips + a ± stepper stepping by the snap. */}
+      <div className="cal-shift__deltas" role="group" aria-label="How much to shift">
+        {deltaChips(snapMin).map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={"cal-shift__chip" + (delta === d ? " is-on" : "")}
+            aria-pressed={delta === d}
+            onClick={() => setDelta(d)}
+          >
+            {(d > 0 ? "+" : "") + d}
+          </button>
+        ))}
+        {toNowDelta != null && (
           <button
             type="button"
-            className="cal-shift__step"
-            onClick={() => step(-1)}
-            aria-label="Fifteen minutes earlier"
+            className={"cal-shift__chip" + (delta === toNowDelta ? " is-on" : "")}
+            aria-pressed={delta === toNowDelta}
+            onClick={() => setDelta(toNowDelta)}
           >
-            −
+            to now
           </button>
-          <span className="cal-shift__amount" aria-live="polite">
-            {delta === 0 ? "no shift" : (delta > 0 ? "+" : "") + delta + " min"}
-          </span>
-          <button
-            type="button"
-            className="cal-shift__step"
-            onClick={() => step(1)}
-            aria-label="Fifteen minutes later"
-          >
-            +
-          </button>
-        </div>
-
-        {/* Live plan preview: a one-line summary + a compact affected list, each
-            row with a "hold" checkbox feeding excludeIds. */}
-        {summary && <p className="cal-shift__summary">{summary}</p>}
-
-        {plan.upserts.length > 0 && (
-          <ul className="cal-shift__list">
-            {plan.upserts.map((after) => {
-              const before = byId.get(after.id);
-              const isExtend = after.id === target.extendEventId;
-              return (
-                <li key={after.id} className="cal-shift__row">
-                  <span className="cal-shift__rowtitle">{after.title || "event"}</span>
-                  <span className="cal-shift__rowtime">
-                    {before ? formatClock(before.startMin) : ""}
-                    <span className="cal-shift__arrow" aria-hidden="true">→</span>
-                    {formatClock(after.startMin)}
-                  </span>
-                  {/* The extend target can't be "held" — its own end is the edit. */}
-                  {!isExtend && (
-                    <label className="cal-shift__hold" title="Keep this one where it is">
-                      <input
-                        type="checkbox"
-                        checked={held.has(after.id)}
-                        onChange={() => toggleHold(after.id)}
-                        aria-label={"Hold " + (after.title || "event")}
-                      />
-                      <PinGlyph />
-                    </label>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
         )}
+      </div>
+      <div className="cal-shift__stepper" role="group" aria-label="Adjust by 15 minutes">
+        <button
+          type="button"
+          className="cal-shift__step"
+          onClick={() => step(-1)}
+          aria-label="Fifteen minutes earlier"
+        >
+          −
+        </button>
+        <span className="cal-shift__amount" aria-live="polite">
+          {delta === 0 ? "no shift" : (delta > 0 ? "+" : "") + delta + " min"}
+        </span>
+        <button
+          type="button"
+          className="cal-shift__step"
+          onClick={() => step(1)}
+          aria-label="Fifteen minutes later"
+        >
+          +
+        </button>
+      </div>
 
-        {/* Held rows the operator chose but that don't move any more — offer them
-            back so a hold can be released without stepping the delta. */}
-        {[...held].some((id) => byId.has(id) && !plan.upserts.some((u) => u.id === id)) && (
-          <ul className="cal-shift__held">
-            {[...held]
-              .filter((id) => byId.has(id) && !plan.upserts.some((u) => u.id === id))
-              .map((id) => (
-                <li key={id} className="cal-shift__row cal-shift__row--held">
-                  <span className="cal-shift__rowtitle">{byId.get(id)?.title || "event"}</span>
-                  <label className="cal-shift__hold cal-shift__hold--on" title="Held in place">
+      {/* Live plan preview: a one-line summary + a compact affected list, each
+          row with a "hold" checkbox feeding excludeIds. */}
+      {summary && <p className="cal-shift__summary">{summary}</p>}
+
+      {plan.upserts.length > 0 && (
+        <ul className="cal-shift__list">
+          {plan.upserts.map((after) => {
+            const before = byId.get(after.id);
+            const isExtend = after.id === target.extendEventId;
+            return (
+              <li key={after.id} className="cal-shift__row">
+                <span className="cal-shift__rowtitle">{after.title || "event"}</span>
+                <span className="cal-shift__rowtime">
+                  {before ? formatClock(before.startMin) : ""}
+                  <span className="cal-shift__arrow" aria-hidden="true">→</span>
+                  {formatClock(after.startMin)}
+                </span>
+                {/* The extend target can't be "held" — its own end is the edit. */}
+                {!isExtend && (
+                  <label className="cal-shift__hold" title="Keep this one where it is">
                     <input
                       type="checkbox"
-                      checked
-                      onChange={() => toggleHold(id)}
-                      aria-label={"Release " + (byId.get(id)?.title || "event")}
+                      checked={held.has(after.id)}
+                      onChange={() => toggleHold(after.id)}
+                      aria-label={"Hold " + (after.title || "event")}
                     />
                     <PinGlyph />
                   </label>
-                </li>
-              ))}
-          </ul>
-        )}
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-        {visibleNotes.length > 0 && (
-          <ul className="cal-shift__notes">
-            {visibleNotes.map((n, i) => (
-              <li key={i} className={"cal-shift__note cal-shift__note--" + n.kind}>
-                {noteLabel(n)}
+      {/* Held rows the operator chose but that don't move any more — offer them
+          back so a hold can be released without stepping the delta. */}
+      {[...held].some((id) => byId.has(id) && !plan.upserts.some((u) => u.id === id)) && (
+        <ul className="cal-shift__held">
+          {[...held]
+            .filter((id) => byId.has(id) && !plan.upserts.some((u) => u.id === id))
+            .map((id) => (
+              <li key={id} className="cal-shift__row cal-shift__row--held">
+                <span className="cal-shift__rowtitle">{byId.get(id)?.title || "event"}</span>
+                <label className="cal-shift__hold cal-shift__hold--on" title="Held in place">
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={() => toggleHold(id)}
+                    aria-label={"Release " + (byId.get(id)?.title || "event")}
+                  />
+                  <PinGlyph />
+                </label>
               </li>
             ))}
-          </ul>
-        )}
+        </ul>
+      )}
 
-        <button
-          type="button"
-          className="btn btn--primary cal-shift__commit"
-          disabled={delta === 0 || !plan.upserts.length}
-          onClick={commit}
-        >
-          <CampIcon.Check />
-          {extendMode ? "Extend & shift" : "Shift day"}
-        </button>
-      </div>
-    </div>
+      {visibleNotes.length > 0 && (
+        <ul className="cal-shift__notes">
+          {visibleNotes.map((n, i) => (
+            <li key={i} className={"cal-shift__note cal-shift__note--" + n.kind}>
+              {noteLabel(n)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <button
+        type="button"
+        className="btn btn--primary cal-shift__commit"
+        disabled={delta === 0 || !plan.upserts.length}
+        onClick={commit}
+      >
+        <CampIcon.Check />
+        {extendMode ? "Extend & shift" : "Shift day"}
+      </button>
+    </FloatingLayer>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "@/lib/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
 import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/locations";
+import { requestConfirm } from "./ConfirmDialog";
 import { normalizeHexColor } from "@/lib/color";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";
@@ -468,11 +469,15 @@ export function useActivityLibrary({
   // custom event (denormalized title kept) in one batch so the DB, the .ics
   // feed, and Print all converge on reality.
   const deleteActivity = useCallback(
-    (activity: Activity): boolean => {
+    async (activity: Activity): Promise<boolean> => {
       if (!requireStaff("delete activities")) return false;
-      if (!window.confirm("Delete “" + activity.title + "”? Calendar events using it become plain events.")) {
-        return false;
-      }
+      const ok = await requestConfirm({
+        title: "Delete “" + activity.title + "”?",
+        body: "Calendar events using it become plain events.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return false;
       const orphaned = Object.values(events).filter((event) => event.activityId === activity.id);
       if (orphaned.length) {
         commitEvents(

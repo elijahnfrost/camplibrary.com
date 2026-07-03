@@ -6,10 +6,25 @@ import { ANONYMOUS_SESSION, isAdminEmail, isClerkAuthUsable, isLocalHost, LOCAL_
 import { getBackendEnvStatus } from "./env";
 import { withRetries } from "./once";
 
-// True when the current request is served from a loopback host. The request's
-// host is read from the NextRequest when available, otherwise from the inbound
-// headers. Scoped to localhost so it cannot grant access on a deployed server.
+// True only for the local `next dev` server. Next sets NODE_ENV to
+// "development" solely for the dev server; every Vercel build — production and
+// preview deployments alike — runs as "production", and the test runner uses
+// "test", so this can never be true on a deployment or in unit tests. We honor
+// it (in addition to the loopback-host check below) because a Conductor preview
+// or LAN access can reach the dev server under a non-loopback hostname such as
+// "<machine>.local:55010", which isLocalHost would otherwise reject — leaving
+// the local view stuck as anonymous.
+function isLocalDevServer(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
+// True when the current request may use the localhost staff bypass: either the
+// process is the local dev server, or the request is served from a loopback
+// host. The host is read from the NextRequest when available, otherwise from the
+// inbound headers. Both paths are scoped so they can never grant access on a
+// deployed server.
 async function isLocalRequest(request?: NextRequest): Promise<boolean> {
+  if (isLocalDevServer()) return true;
   const fromRequest = request?.headers.get("host");
   if (fromRequest != null) return isLocalHost(fromRequest);
   try {

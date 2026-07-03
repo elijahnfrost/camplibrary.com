@@ -3,10 +3,30 @@
 // on screen AND in print so the live preview matches the printout). The body is
 // shared with the public RunSheetView so the two can't drift again.
 
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
 import { RunSheetBody } from "../RunSheetBody";
 
-export function PrintRunSheet({ activity, runDoc }: { activity: Activity; runDoc: RunDoc }) {
-  return <RunSheetBody activity={activity} runDoc={runDoc} variant="print" />;
+export function PrintRunSheet({
+  activity,
+  runDoc,
+  kitStock,
+  materialCatalog,
+}: {
+  activity: Activity;
+  runDoc: RunDoc;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+}) {
+  return (
+    <RunSheetBody
+      activity={activity}
+      runDoc={runDoc}
+      variant="print"
+      kitStock={kitStock}
+      materialCatalog={materialCatalog}
+    />
+  );
 }

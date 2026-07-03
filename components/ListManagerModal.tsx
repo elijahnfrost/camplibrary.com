@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { CampIcon } from "./icons";
+import { requestConfirm } from "./ConfirmDialog";
 import { Modal } from "./Modal";
 import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
@@ -498,10 +499,11 @@ export function CampDayStructure({
 //   • UNDOABLE actions never confirm — the calendar's event deletes all fire an
 //     Undo toast, so a stray delete is one tap to recover. A confirm there would
 //     be noise.
-//   • NON-undoable vocabulary deletes confirm via window.confirm — removing a
-//     theme / camp / location / guidance band / dietary entry has no undo and can
-//     touch every event that used it, so it asks first. (This matches the
-//     existing themes / camps / locations delete precedent in CampApp.)
+//   • NON-undoable vocabulary deletes confirm via requestConfirm (themed dialog,
+//     ConfirmDialog.tsx) — removing a theme / camp / location / guidance band /
+//     dietary entry has no undo and can touch every event that used it, so it
+//     asks first. (This matches the existing themes / camps / locations delete
+//     precedent in CampApp.)
 // The guidance-band and dietary-entry row deletes below are non-undoable, so
 // they confirm here, at the click site, exactly like the camps/locations rows.
 export function GuidesSection({
@@ -576,10 +578,14 @@ export function GuidesSection({
               type="button"
               className="icon-btn manager__rowbtn manager__rowbtn--danger"
               aria-label={"Delete band " + band.label}
-              onClick={() => {
-                if (window.confirm("Delete the “" + (band.label || "untitled") + "” guidance band? This can't be undone.")) {
-                  onDelete(band.id);
-                }
+              onClick={async () => {
+                const ok = await requestConfirm({
+                  title: "Delete the “" + (band.label || "untitled") + "” guidance band?",
+                  body: "This can't be undone.",
+                  confirmLabel: "Delete",
+                  danger: true,
+                });
+                if (ok) onDelete(band.id);
               }}
             >
               <CampIcon.Trash />
@@ -639,10 +645,14 @@ export function DietarySection({
               type="button"
               className="icon-btn manager__rowbtn manager__rowbtn--danger"
               aria-label={"Delete " + entry.label}
-              onClick={() => {
-                if (window.confirm("Delete the “" + (entry.label || "untitled") + "” dietary entry? This can't be undone.")) {
-                  onDelete(entry.id);
-                }
+              onClick={async () => {
+                const ok = await requestConfirm({
+                  title: "Delete the “" + (entry.label || "untitled") + "” dietary entry?",
+                  body: "This can't be undone.",
+                  confirmLabel: "Delete",
+                  danger: true,
+                });
+                if (ok) onDelete(entry.id);
               }}
             >
               <CampIcon.Trash />

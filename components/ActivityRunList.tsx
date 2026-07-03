@@ -33,6 +33,7 @@ import { coverage, materialTagId, resolveRefs, type ResolvedRef } from "@/lib/ma
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { isStocked, nextStockState, type StockState } from "@/lib/kitStock";
 import {
+  MAX_ACTIVITY_DURATION_MIN,
   mintMaterialRow,
   renameMaterialRow,
   validateForm,
@@ -964,7 +965,7 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           ariaLabel="Prep effort"
         />
       </div>
-      <div className="ledger__row rldetail__row">
+      <div className={"ledger__row rldetail__row rldetail__row--minutes" + (v.durationInvalid ? " is-invalid" : "")}>
         <span className="ledger__label">Minutes</span>
         <div className="rldetail__minutes">
           <input
@@ -977,6 +978,11 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           />
           <span className="rldetail__minunit" aria-hidden="true">min</span>
         </div>
+        {v.durationInvalid && (
+          <span className="rldetail__grouperr rldetail__grouperr--minutes" role="alert">
+            Enter a whole number of minutes, up to {MAX_ACTIVITY_DURATION_MIN}.
+          </span>
+        )}
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Ages</span>
@@ -2744,6 +2750,14 @@ export function ActivityRunList({
             </Fragment>
           ))}
         </ul>
+
+        {/* An override cleared down to {blocks: []} is a supported empty state
+            (see lib/runListResolve.ts) — say so in read mode rather than
+            showing a bare, contentless rail. Edit mode already has its own
+            affordance (the "Add a block" button just below). */}
+        {!editable && doc.blocks.length === 0 && (
+          <p className="rl-empty">This run sheet is empty.</p>
+        )}
 
         {editable && (
           <div className="rl-addwrap">

@@ -8,18 +8,36 @@
 // public /run page are ONE document system — same typography, spacing, and item
 // styling. The old bespoke `@media print` `.print-*` grey CSS is gone.
 
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import type { Activity } from "@/lib/types";
 import type { RunDoc } from "@/lib/runList";
 import { RunSheetBody } from "./RunSheetBody";
 
-export function ActivityBookPrint({ activity, runDoc }: { activity: Activity; runDoc: RunDoc }) {
+export function ActivityBookPrint({
+  activity,
+  runDoc,
+  kitStock,
+  materialCatalog,
+}: {
+  activity: Activity;
+  runDoc: RunDoc;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+}) {
   // Color + styled so the book gets the brand cover/spine treatment and the
   // category accents; the existing `.app:has(.print-root)` chrome-hiding rules
   // make this the only thing that prints (display:none on screen).
   return (
     <div className="print-root" aria-hidden="true">
       <div className="print-doc print-doc--color print-doc--styled">
-        <RunSheetBody activity={activity} runDoc={runDoc} variant="print" />
+        <RunSheetBody
+          activity={activity}
+          runDoc={runDoc}
+          variant="print"
+          kitStock={kitStock}
+          materialCatalog={materialCatalog}
+        />
       </div>
     </div>
   );

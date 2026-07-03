@@ -21,6 +21,7 @@ import {
   type Camp,
 } from "@/lib/camps";
 import { useLocalStorage } from "@/lib/store";
+import { requestConfirm } from "./ConfirmDialog";
 
 const activeCampStorage = (value: unknown, fallback: string | null): string | null =>
   typeof value === "string" || value === null ? (value as string | null) : fallback;
@@ -74,7 +75,7 @@ export function useCamps({
   );
 
   const createCamp = useCallback(
-    (name: string): Camp | null => {
+    async (name: string): Promise<Camp | null> => {
       const trimmed = name.trim().slice(0, MAX_CAMP_NAME);
       if (!trimmed) return null;
       const camp: Camp = {
@@ -89,22 +90,25 @@ export function useCamps({
       setStoredActiveCampId(camp.id);
       // First camp only: offer to bring the existing (unscoped) schedule into
       // it, so a returning user's calendar becomes their first camp rather than
-      // appearing empty. A one-time, explicitly-confirmed adoption.
+      // appearing empty. A one-time, explicitly-confirmed adoption. This confirm
+      // stacks on top of the camps ListManagerModal (a leaf dialog) — fine, the
+      // dialog stack in useDialogFocus resolves Escape ordering.
       if (isFirst) {
         const unscoped = Object.values(events).filter((e) => !e.campId);
-        if (
-          unscoped.length &&
-          window.confirm(
-            "Move your " +
+        if (unscoped.length) {
+          const ok = await requestConfirm({
+            title:
+              "Move your " +
               unscoped.length +
               " existing event" +
               (unscoped.length === 1 ? "" : "s") +
               " into “" +
               trimmed +
-              "”?"
-          )
-        ) {
-          for (const event of unscoped) upsertEvent({ ...event, campId: camp.id });
+              "”?",
+          });
+          if (ok) {
+            for (const event of unscoped) upsertEvent({ ...event, campId: camp.id });
+          }
         }
       }
       announce("Created " + trimmed);

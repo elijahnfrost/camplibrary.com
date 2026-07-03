@@ -6524,6 +6524,14 @@
       "context": "screen"
     },
     {
+      "id": "app/globals.css|.cmenu, .cselect__menu, .cdate__pop, .typepick__menu|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
+      "kind": "declaration",
+      "selector": ".cmenu, .cselect__menu, .cdate__pop, .typepick__menu",
+      "property": "border-radius",
+      "value": "var(--r-xl) var(--r-xl) 0 0",
+      "context": "screen"
+    },
+    {
       "id": "app/globals.css|.material-filter__search:focus-within|box-shadow|0 0 0 3px var(--accent-tint)|screen",
       "kind": "declaration",
       "selector": ".material-filter__search:focus-within",
@@ -6561,6 +6569,38 @@
       "selector": ".rl-row",
       "property": "padding",
       "value": "var(--s-2) 54px var(--s-2) var(--s-3)",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
+      "kind": "declaration",
+      "selector": ".cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu",
+      "property": "border-radius",
+      "value": "var(--r-xl) var(--r-xl) 0 0",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu, .subfeed__menu|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
+      "kind": "declaration",
+      "selector": ".cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu, .subfeed__menu",
+      "property": "border-radius",
+      "value": "var(--r-xl) var(--r-xl) 0 0",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.profilerow|border-radius|12px|screen",
+      "kind": "declaration",
+      "selector": ".profilerow",
+      "property": "border-radius",
+      "value": "12px",
+      "context": "screen"
+    },
+    {
+      "id": "app/globals.css|.profilerow__name|font-size|12.5px|screen",
+      "kind": "declaration",
+      "selector": ".profilerow__name",
+      "property": "font-size",
+      "value": "12.5px",
       "context": "screen"
     }
   ]
