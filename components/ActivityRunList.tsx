@@ -1000,6 +1000,7 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
             themes={themeKit.themes}
             onChange={(themeId) => set("themeId", themeId ?? "")}
             onCreate={themeKit.onCreate}
+            onManage={themeKit.onManage}
             ariaLabel="Activity theme"
           />
         </div>

@@ -365,7 +365,13 @@ export function AdminInviteCodes() {
                       type="button"
                       className="admin-action admin-action--danger"
                       disabled={!canDeactivate || isActionPending}
-                      onClick={() => void deactivateInvite(invite)}
+                      onClick={() => {
+                        // NOT undoable (the key stops working immediately) →
+                        // confirm, matching the theme/camp/location deletes.
+                        if (window.confirm("Remove " + label + "? The key stops working immediately.")) {
+                          void deactivateInvite(invite);
+                        }
+                      }}
                       aria-label={"Remove " + label}
                     >
                       <CampIcon.Trash />

@@ -209,7 +209,19 @@ export function SubscribeFeedButton({
                 type="button"
                 className="subfeed__reset"
                 disabled={resetting}
-                onClick={() => void ensureFeed(true)}
+                onClick={() => {
+                  // NOT undoable: rotating the secret kills the URL every
+                  // subscribed calendar is polling — so it confirms, per the
+                  // house rule (undoable actions never confirm; irreversible
+                  // ones do).
+                  if (
+                    window.confirm(
+                      "Reset the link? Anyone using the current link will stop receiving the schedule until you share the new one."
+                    )
+                  ) {
+                    void ensureFeed(true);
+                  }
+                }}
                 title="Generate a new link and stop the old one from working"
               >
                 {resetting ? "Resetting…" : "Reset link"}

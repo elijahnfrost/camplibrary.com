@@ -1110,7 +1110,9 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     color var(--t-fast) var(--ease);
 }
 .cal-view.is-open .cal-view__chev {
-  transform: rotate(180deg);
+  /* Right when collapsed, down when open — the one disclosure affordance used
+     by every collapsible (camps rail, manager sections). */
+  transform: rotate(90deg);
 }
 .cal-view__head:hover .sidesection__title,
 .cal-view__head:hover .cal-view__chev {

@@ -16,6 +16,10 @@ export interface ThemeKit {
   themes: Theme[];
   initialThemeId: string;
   onCreate: (label: string) => Theme | null;
+  /** Opens the Themes manager — surfaced as the picker's "Manage themes…"
+   *  footer (the one sanctioned path to vocabulary management), matching the
+   *  Library sidebar's theme picker. Absent = the footer doesn't render. */
+  onManage?: () => void;
 }
 
 export function ThemeField({
@@ -24,6 +28,7 @@ export function ThemeField({
   themes,
   onChange,
   onCreate,
+  onManage,
   ariaLabel = "Theme",
 }: {
   id?: string;
@@ -32,6 +37,7 @@ export function ThemeField({
   themes: Theme[];
   onChange: (themeId: string | null) => void;
   onCreate: (label: string) => Theme | null;
+  onManage?: () => void;
   ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -168,6 +174,25 @@ export function ThemeField({
                 <CampIcon.Plus />
               </span>
               <span className="themefield__picklabel">New theme…</span>
+            </button>
+          )}
+          {/* Rename/delete live in the Themes manager; this footer is the one
+              sanctioned path there (same affordance as the Library sidebar's
+              theme picker). */}
+          {onManage && (
+            <button
+              type="button"
+              role="menuitem"
+              className="typepick__option typepick__manage"
+              onClick={() => {
+                close();
+                onManage();
+              }}
+            >
+              <span className="typepick__swatch typepick__swatch--manage" aria-hidden="true">
+                <CampIcon.Pencil />
+              </span>
+              Manage themes…
             </button>
           )}
         </FloatingLayer>

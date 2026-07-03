@@ -1498,6 +1498,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               themes: lib.themes,
               initialThemeId: detailMode === "create" ? "" : lib.themeAssignments[detailActivity.id] ?? "",
               onCreate: lib.createTheme,
+              onManage: openThemesManager,
             }}
             ageUnit={ageUnit}
             onAgeUnit={setAgeUnit}

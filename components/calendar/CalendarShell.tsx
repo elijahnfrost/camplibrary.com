@@ -4965,7 +4965,7 @@ export function CalendarShell({
                   aria-expanded={viewRailOpen}
                 >
                   <span className="sidesection__title">View</span>
-                  <CampIcon.ChevronDown className="cal-view__chev" />
+                  <CampIcon.ChevronRight className="cal-view__chev" />
                 </button>
                 {viewRailOpen && (
                   <div className="sidesection__body cal-view__body">
@@ -4991,7 +4991,7 @@ export function CalendarShell({
                   aria-expanded={weatherRailOpen}
                 >
                   <span className="sidesection__title">Weather</span>
-                  <CampIcon.ChevronDown className="cal-view__chev" />
+                  <CampIcon.ChevronRight className="cal-view__chev" />
                 </button>
                 {weatherRailOpen && (
                   <div className="sidesection__body cal-view__body">
