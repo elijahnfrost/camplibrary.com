@@ -55,6 +55,7 @@ export function ShiftBar({
   closeMin,
   isToday,
   colorOf,
+  snapMin = SNAP_MIN,
   onCommit,
   onClose,
 }: {
@@ -69,6 +70,9 @@ export function ShiftBar({
   isToday: boolean;
   /** The card's title color for the extend target (matches its calendar tint). */
   colorOf: (event: CalendarEvent) => string;
+  /** The active camp's snap grid — chips, stepper, and the planner all ride it
+   *  (never hard-code 15). Defaults to the app grid for snap-less hosts. */
+  snapMin?: number;
   /** Commit the shift: the caller runs requireStaff, commitEvents(upserts, []),
    *  the undo-snapshot toast, and announce. */
   onCommit: (upserts: CalendarEvent[], summary: string) => void;
@@ -95,9 +99,9 @@ export function ShiftBar({
     if (!isToday || !extendTarget) return null;
     const raw = nowMinutes() - extendTarget.endMin;
     if (raw <= 0) return null;
-    const up = Math.ceil(raw / SNAP_MIN) * SNAP_MIN;
+    const up = Math.ceil(raw / snapMin) * snapMin;
     return up > 0 ? up : null;
-  }, [isToday, extendTarget]);
+  }, [isToday, extendTarget, snapMin]);
 
   // Recompute the plan on every delta / hold change. Pure and cheap.
   const plan = useMemo(
@@ -106,13 +110,13 @@ export function ShiftBar({
         date: target.date,
         cutoffMin: target.cutoffMin,
         deltaMin: delta,
-        snapMin: SNAP_MIN,
+        snapMin,
         closeMin,
         extendEventId: target.extendEventId,
         excludeIds: held,
         // No campId in-app: CalendarShell already hands us camp-filtered events.
       }),
-    [dayEvents, target.date, target.cutoffMin, target.extendEventId, delta, closeMin, held]
+    [dayEvents, target.date, target.cutoffMin, target.extendEventId, delta, closeMin, held, snapMin]
   );
 
   // The affected rows (before → after) for the compact list, plus the note lens.
@@ -174,7 +178,7 @@ export function ShiftBar({
     });
   };
 
-  const step = (dir: 1 | -1) => setDelta((d) => snapMinutes(d + dir * SNAP_MIN, SNAP_MIN));
+  const step = (dir: 1 | -1) => setDelta((d) => snapMinutes(d + dir * snapMin, snapMin));
 
   const noteLabel = (n: DayShiftNote): string => {
     const name = (id: string) => byId.get(id)?.title || "event";
@@ -234,7 +238,7 @@ export function ShiftBar({
 
         {/* Delta chips + a ± stepper stepping by the snap. */}
         <div className="cal-shift__deltas" role="group" aria-label="How much to shift">
-          {deltaChips(SNAP_MIN).map((d) => (
+          {deltaChips(snapMin).map((d) => (
             <button
               key={d}
               type="button"

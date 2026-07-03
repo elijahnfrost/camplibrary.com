@@ -1,10 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { Select } from "./floating/Select";
+import { DatePopover } from "./floating/DatePopover";
 import { ColorSwatchField } from "./floating/ColorField";
+import { MiniSeg } from "./primitives";
+import { type Camp, type CampSnapMin, type Weekday } from "@/lib/camps";
+import { todayKey } from "@/lib/calendar/dates";
+import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
+import {
+  DIETARY_LABEL_MAX,
+  type DietaryEntry,
+  type DietarySeverity,
+} from "@/lib/meals";
+import type { DateKey } from "@/lib/calendar/types";
+import type { DayWindow } from "@/lib/calendar/time";
 
 // A clean management screen for a user-definable list (camps, themes, locations).
 // Create at the top, then a list of rows — switch (camps), rename, delete, and
@@ -43,6 +55,8 @@ export function ListManagerModal({
   onSelect,
   hourOptions,
   onChangeHours,
+  renderRowExtra,
+  footer,
   onClose,
 }: {
   title: string;
@@ -66,6 +80,14 @@ export function ListManagerModal({
    *  an item's openMin/closeMin, the row shows an Open–Close editor. */
   hourOptions?: { value: number; label: string }[];
   onChangeHours?: (id: string, field: "open" | "close", value: number) => void;
+  /** Optional per-row extra content rendered UNDER the row's main line (and the
+   *  Open–Close editor) — the host composes richer per-item authoring here (the
+   *  camp manager's weekday hours / dated exceptions / snap). Collapsed sections
+   *  are the host's responsibility so the modal stays calm. */
+  renderRowExtra?: (item: ManagedItem) => ReactNode;
+  /** Optional content rendered after the whole list — global sections that aren't
+   *  per-item (the camp manager's guidance bands + dietary roster). */
+  footer?: ReactNode;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -241,12 +263,379 @@ export function ListManagerModal({
                       </div>
                     </div>
                   )}
+                  {renderRowExtra && renderRowExtra(item)}
                 </li>
               )
             )}
           </ul>
         )}
+        {footer}
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Camp day-structure authoring — composed into the camps manager (renderRowExtra
+// + footer). Kept beside ListManagerModal (its home surface) rather than a new
+// file: these are the manager's own richer per-item / global sections. Each is
+// COLLAPSED by default so the modal stays calm.
+// ---------------------------------------------------------------------------
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const SNAP_OPTIONS: { id: string; label: string }[] = [
+  { id: "5", label: "5m" },
+  { id: "10", label: "10m" },
+  { id: "15", label: "15m" },
+  { id: "30", label: "30m" },
+];
+const MEAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "None" },
+  { value: "breakfast", label: "Breakfast" },
+  { value: "am-snack", label: "AM snack" },
+  { value: "lunch", label: "Lunch" },
+  { value: "pm-snack", label: "PM snack" },
+  { value: "other", label: "Meal" },
+];
+
+// A collapsible sub-section with a chevron header — the shared shell for every
+// day-structure block so they all open/close the same way.
+function Collapsible({
+  label,
+  summary,
+  children,
+}: {
+  label: string;
+  summary?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={"manager__sect" + (open ? " is-open" : "")}>
+      <button type="button" className="manager__sect-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <CampIcon.ChevronRight className="manager__sect-chev" />
+        <span className="manager__sect-label">{label}</span>
+        {summary && <span className="manager__sect-summary">{summary}</span>}
+      </button>
+      {open && <div className="manager__sect-body">{children}</div>}
+    </div>
+  );
+}
+
+// Two open/close clock pills side by side (the override-window editor), sharing
+// the manager's hour options.
+function WindowPills({
+  window: win,
+  hourOptions,
+  onChange,
+  ariaPrefix,
+}: {
+  window: DayWindow;
+  hourOptions: { value: number; label: string }[];
+  onChange: (openMin: number, closeMin: number) => void;
+  ariaPrefix: string;
+}) {
+  return (
+    <span className="manager__hoursfield manager__hoursfield--inline">
+      <Select
+        value={win.startMin}
+        options={hourOptions}
+        onChange={(v) => onChange(v, win.endMin)}
+        ariaLabel={ariaPrefix + " open"}
+      />
+      <span className="manager__hoursdash" aria-hidden="true">&ndash;</span>
+      <Select
+        value={win.endMin}
+        options={hourOptions}
+        onChange={(v) => onChange(win.startMin, v)}
+        ariaLabel={ariaPrefix + " close"}
+      />
+    </span>
+  );
+}
+
+export function CampDayStructure({
+  camp,
+  hourOptions,
+  onSetWeekday,
+  onSetDate,
+  onSetSnap,
+}: {
+  camp: Camp;
+  hourOptions: { value: number; label: string }[];
+  onSetWeekday: (
+    id: string,
+    weekday: Weekday,
+    value: "default" | "closed" | { openMin: number; closeMin: number }
+  ) => void;
+  onSetDate: (
+    id: string,
+    date: DateKey,
+    value: "closed" | { openMin: number; closeMin: number } | null
+  ) => void;
+  onSetSnap: (id: string, snapMin: CampSnapMin) => void;
+}) {
+  const [newDate, setNewDate] = useState<DateKey>(todayKey());
+  const dateEntries = Object.entries(camp.dateHours ?? {}).sort(([a], [b]) => (a < b ? -1 : 1));
+  const snapValue = String(camp.snapMin ?? 15);
+
+  return (
+    <div className="manager__daystruct">
+      <Collapsible label="Weekly hours" summary="per-weekday open · close">
+        <ul className="manager__weekdays">
+          {WEEKDAY_LABELS.map((label, dow) => {
+            const raw = camp.weekdayHours?.[dow as Weekday];
+            const mode = raw === undefined ? "default" : raw === null ? "closed" : "custom";
+            const win: DayWindow = raw && raw !== null ? raw : { startMin: camp.openMin, endMin: camp.closeMin };
+            return (
+              <li key={dow} className="manager__weekday">
+                <span className="manager__weekday-name">{label}</span>
+                <MiniSeg
+                  options={[
+                    { id: "default", label: "Default" },
+                    { id: "closed", label: "Closed" },
+                    { id: "custom", label: "Custom" },
+                  ]}
+                  value={mode}
+                  onChange={(next) => {
+                    if (next === "default") onSetWeekday(camp.id, dow as Weekday, "default");
+                    else if (next === "closed") onSetWeekday(camp.id, dow as Weekday, "closed");
+                    else onSetWeekday(camp.id, dow as Weekday, { openMin: win.startMin, closeMin: win.endMin });
+                  }}
+                  ariaLabel={label + " hours mode"}
+                />
+                {mode === "custom" && (
+                  <WindowPills
+                    window={win}
+                    hourOptions={hourOptions}
+                    onChange={(openMin, closeMin) => onSetWeekday(camp.id, dow as Weekday, { openMin, closeMin })}
+                    ariaPrefix={label}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Collapsible>
+
+      <Collapsible
+        label="Dated exceptions"
+        summary={dateEntries.length ? dateEntries.length + " set" : "holidays · special days"}
+      >
+        <ul className="manager__dates">
+          {dateEntries.map(([date, win]) => (
+            <li key={date} className="manager__dateexc">
+              <span className="manager__dateexc-date">{date}</span>
+              {win === null ? (
+                <span className="manager__dateexc-closed">Closed</span>
+              ) : (
+                <WindowPills
+                  window={win}
+                  hourOptions={hourOptions}
+                  onChange={(openMin, closeMin) => onSetDate(camp.id, date, { openMin, closeMin })}
+                  ariaPrefix={date}
+                />
+              )}
+              <button
+                type="button"
+                className="icon-btn manager__rowbtn"
+                aria-label={"Toggle closed on " + date}
+                title={win === null ? "Set custom hours" : "Set closed"}
+                onClick={() =>
+                  onSetDate(
+                    camp.id,
+                    date,
+                    win === null ? { openMin: camp.openMin, closeMin: camp.closeMin } : "closed"
+                  )
+                }
+              >
+                <CampIcon.Calendar />
+              </button>
+              <button
+                type="button"
+                className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                aria-label={"Remove exception on " + date}
+                onClick={() => onSetDate(camp.id, date, null)}
+              >
+                <CampIcon.Trash />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="manager__dateadd">
+          <DatePopover value={newDate} onChange={setNewDate} ariaLabel="Exception date" />
+          <button
+            type="button"
+            className="btn btn--ghost manager__dateadd-btn"
+            onClick={() => onSetDate(camp.id, newDate, { openMin: camp.openMin, closeMin: camp.closeMin })}
+          >
+            Add hours
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost manager__dateadd-btn"
+            onClick={() => onSetDate(camp.id, newDate, "closed")}
+          >
+            Add closed
+          </button>
+        </div>
+      </Collapsible>
+
+      <div className="manager__snaprow">
+        <span className="manager__snaplabel">Snap grid</span>
+        <MiniSeg
+          options={SNAP_OPTIONS}
+          value={snapValue}
+          onChange={(v) => onSetSnap(camp.id, Number(v) as CampSnapMin)}
+          ariaLabel="Camp snap grid"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function GuidesSection({
+  guides,
+  hourOptions,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  guides: GuideBand[];
+  hourOptions: { value: number; label: string }[];
+  onAdd: () => void;
+  onUpdate: (id: string, patch: Partial<GuideBand>) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Collapsible label="Guidance bands" summary={guides.length ? guides.length + " band" + (guides.length === 1 ? "" : "s") : "soft day-structure frames"}>
+      <ul className="manager__guides">
+        {guides.map((band) => (
+          <li key={band.id} className="manager__guide">
+            <input
+              className="input manager__guide-label"
+              value={band.label}
+              maxLength={GUIDE_LABEL_MAX}
+              aria-label="Band label"
+              onChange={(e) => onUpdate(band.id, { label: e.target.value })}
+            />
+            <span className="manager__guide-times">
+              <Select
+                value={band.startMin}
+                options={hourOptions}
+                onChange={(v) => onUpdate(band.id, { startMin: v, endMin: Math.max(v + 15, band.endMin) })}
+                ariaLabel="Band start"
+              />
+              <span className="manager__hoursdash" aria-hidden="true">&ndash;</span>
+              <Select
+                value={band.endMin}
+                options={hourOptions.filter((o) => o.value > band.startMin)}
+                onChange={(v) => onUpdate(band.id, { endMin: v })}
+                ariaLabel="Band end"
+              />
+            </span>
+            <span className="manager__guide-days">
+              {WEEKDAY_LABELS.map((label, dow) => {
+                const on = band.weekdays.includes(dow);
+                return (
+                  <button
+                    type="button"
+                    key={dow}
+                    className={"manager__daytog" + (on ? " is-on" : "")}
+                    aria-pressed={on}
+                    aria-label={label + (on ? " on" : " off")}
+                    onClick={() => {
+                      const next = on
+                        ? band.weekdays.filter((d) => d !== dow)
+                        : [...band.weekdays, dow].sort((a, b) => a - b);
+                      if (next.length) onUpdate(band.id, { weekdays: next });
+                    }}
+                  >
+                    {label[0]}
+                  </button>
+                );
+              })}
+            </span>
+            <Select
+              value={band.mealKind ?? ""}
+              options={MEAL_OPTIONS}
+              onChange={(v) => onUpdate(band.id, { mealKind: (v || undefined) as GuideBand["mealKind"] })}
+              ariaLabel="Band meal tag"
+            />
+            <button
+              type="button"
+              className="icon-btn manager__rowbtn manager__rowbtn--danger"
+              aria-label={"Delete band " + band.label}
+              onClick={() => onDelete(band.id)}
+            >
+              <CampIcon.Trash />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
+        <CampIcon.Plus />
+        Add band
+      </button>
+    </Collapsible>
+  );
+}
+
+export function DietarySection({
+  dietary,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  dietary: DietaryEntry[];
+  onAdd: () => void;
+  onUpdate: (id: string, patch: Partial<DietaryEntry>) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Collapsible label="Dietary roster" summary={dietary.length ? dietary.length + " entr" + (dietary.length === 1 ? "y" : "ies") : "allergies · avoidances"}>
+      <ul className="manager__diet">
+        {dietary.map((entry) => (
+          <li key={entry.id} className="manager__dietrow">
+            <input
+              className="input manager__diet-label"
+              value={entry.label}
+              maxLength={DIETARY_LABEL_MAX}
+              aria-label="Dietary label"
+              onChange={(e) => onUpdate(entry.id, { label: e.target.value })}
+            />
+            <MiniSeg
+              options={[
+                { id: "note", label: "Note" },
+                { id: "avoid", label: "Avoid" },
+                { id: "severe", label: "Severe" },
+              ]}
+              value={entry.severity}
+              onChange={(v) => onUpdate(entry.id, { severity: v as DietarySeverity })}
+              ariaLabel="Severity"
+            />
+            <input
+              className="input manager__diet-detail"
+              value={entry.detail ?? ""}
+              placeholder="Detail (optional)"
+              aria-label="Dietary detail"
+              onChange={(e) => onUpdate(entry.id, { detail: e.target.value })}
+            />
+            <button
+              type="button"
+              className="icon-btn manager__rowbtn manager__rowbtn--danger"
+              aria-label={"Delete " + entry.label}
+              onClick={() => onDelete(entry.id)}
+            >
+              <CampIcon.Trash />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
+        <CampIcon.Plus />
+        Add entry
+      </button>
+    </Collapsible>
   );
 }

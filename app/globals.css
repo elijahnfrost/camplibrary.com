@@ -1403,6 +1403,164 @@ body {
   color: var(--danger);
 }
 
+/* ---------- camp day-structure authoring (the camps manager sections) ----------
+   Per-row weekday hours / dated exceptions / snap, plus the global guidance-bands
+   and dietary-roster sections in the footer. Every block is a COLLAPSIBLE with a
+   chevron header so the modal stays calm; open reveals a quiet body. */
+.manager__daystruct {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__sections {
+  padding: var(--s-3) var(--s-4) 0;
+  margin-top: var(--s-3);
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__sect {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.manager__sect-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.manager__sect-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+.manager__sect.is-open .manager__sect-chev {
+  transform: rotate(90deg);
+}
+.manager__sect-label {
+  flex: 1 1 auto;
+}
+.manager__sect-summary {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.manager__sect-body {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.manager__hoursfield--inline {
+  flex-wrap: wrap;
+}
+.manager__weekdays,
+.manager__dates,
+.manager__guides,
+.manager__diet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__weekday,
+.manager__dateexc,
+.manager__guide,
+.manager__dietrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+}
+.manager__weekday-name,
+.manager__dateexc-date {
+  flex: none;
+  min-width: 3ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.manager__dateexc-closed {
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.manager__dateadd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.manager__snaprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+.manager__snaplabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.manager__guide-label,
+.manager__diet-label {
+  flex: 1 1 8ch;
+  min-width: 6ch;
+}
+.manager__diet-detail {
+  flex: 1 1 10ch;
+  min-width: 8ch;
+}
+.manager__guide-times {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.manager__guide-days {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.manager__daytog {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.manager__daytog.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+  color: var(--accent-ink);
+}
+.manager__addbtn {
+  align-self: flex-start;
+}
+
 /* Mini segmented pill (Where, Ages). */
 /* ============================================================================
    Sliding segmented controls (.seg-slide)

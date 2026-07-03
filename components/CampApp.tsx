@@ -15,10 +15,21 @@ import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { catalogNameFor } from "@/lib/materialCatalog";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
-import { formatEventDateLabel } from "@/lib/calendar/dates";
+import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
-import { campDayWindow, hourOptionMinutes } from "@/lib/camps";
-import type { CalendarEvent } from "@/lib/calendar/types";
+import {
+  campDayWindow,
+  clampOverrideWindow,
+  hourOptionMinutes,
+  OVERRIDE_EARLIEST_OPEN_MIN,
+  OVERRIDE_LATEST_CLOSE_MIN,
+  type Camp,
+  type CampSnapMin,
+  type Weekday,
+} from "@/lib/camps";
+import { createDietaryId, setMenuNote, type DietaryEntry } from "@/lib/meals";
+import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
+import type { CalendarEvent, DateKey, MealKind } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
@@ -35,9 +46,16 @@ import { Filters } from "./Filters";
 import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
 import { MaterialsTab } from "./MaterialsTab";
-import { ListManagerModal } from "./ListManagerModal";
+import {
+  CampDayStructure,
+  DietarySection,
+  GuidesSection,
+  ListManagerModal,
+} from "./ListManagerModal";
 import { Modal } from "./Modal";
-import { LoadingVeil } from "./primitives";
+import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
+import { Select } from "./floating/Select";
+import { DatePopover } from "./floating/DatePopover";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
@@ -397,6 +415,130 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     () => hourOptionMinutes().map((m) => ({ value: m, label: formatClock(m) })),
     []
   );
+  // The WIDER clock options (5:00–22:00, 15-min steps) for the day-structure
+  // OVERRIDE editors — weekday hours, dated exceptions, and guidance bands can
+  // reach the wider override bounds (a late finale), where the base 6:00–20:00
+  // range would clip and the Select couldn't represent a stored 20:30 close.
+  const overrideHourOptions = useMemo(() => {
+    const out: { value: number; label: string }[] = [];
+    for (let m = OVERRIDE_EARLIEST_OPEN_MIN; m <= OVERRIDE_LATEST_CLOSE_MIN; m += 15) {
+      out.push({ value: m, label: formatClock(m) });
+    }
+    return out;
+  }, []);
+
+  // Write (or clear) one (date, mealKind) menu note on the meals doc — the meal
+  // editor's "Menu note" row. Pure setMenuNote updater; a blank clears the slot.
+  const setMenuNoteFor = useCallback(
+    (date: DateKey, mealKind: MealKind, text: string) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => setMenuNote(prev, date, mealKind, text));
+    },
+    [cloud, requireStaff]
+  );
+
+  // ---- Per-camp day-structure mutators (weekday hours / dated exceptions / snap)
+  // and the guides + dietary docs. All write straight through cloud.setDoc — the
+  // camps mutators in useCamps.ts stay lean; these day-structure edits (a rarely
+  // touched authoring surface) live with the manager UI that drives them. Every
+  // window is forced through clampOverrideWindow so a payload can't escape bounds.
+  const setCampWeekdayHours = useCallback(
+    (id: string, weekday: Weekday, value: "default" | "closed" | { openMin: number; closeMin: number }) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const weekdayHours = { ...(c.weekdayHours ?? {}) };
+          if (value === "default") delete weekdayHours[weekday];
+          else if (value === "closed") weekdayHours[weekday] = null;
+          else weekdayHours[weekday] = clampOverrideWindow(value.openMin, value.closeMin);
+          const next: Camp = { ...c };
+          if (Object.keys(weekdayHours).length) next.weekdayHours = weekdayHours;
+          else delete next.weekdayHours;
+          return next;
+        })
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const setCampDateHours = useCallback(
+    (id: string, date: DateKey, value: "closed" | { openMin: number; closeMin: number } | null) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const dateHours = { ...(c.dateHours ?? {}) };
+          if (value === null) delete dateHours[date];
+          else if (value === "closed") dateHours[date] = null;
+          else dateHours[date] = clampOverrideWindow(value.openMin, value.closeMin);
+          const next: Camp = { ...c };
+          if (Object.keys(dateHours).length) next.dateHours = dateHours;
+          else delete next.dateHours;
+          return next;
+        })
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const setCampSnap = useCallback(
+    (id: string, snapMin: CampSnapMin) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) => prev.map((c) => (c.id === id ? { ...c, snapMin } : c)));
+    },
+    [cloud, requireStaff]
+  );
+
+  // Guides doc mutators (add / update / delete a guidance band).
+  const addGuide = useCallback(() => {
+    if (!requireStaff("manage camps")) return;
+    const band: GuideBand = {
+      id: createGuideId(),
+      label: "New band",
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+      weekdays: [1, 2, 3, 4, 5],
+    };
+    cloud.setDoc("guides", (prev) => [...prev, band]);
+  }, [cloud, requireStaff]);
+  const updateGuide = useCallback(
+    (id: string, patch: Partial<GuideBand>) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("guides", (prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    },
+    [cloud, requireStaff]
+  );
+  const deleteGuide = useCallback(
+    (id: string) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("guides", (prev) => prev.filter((b) => b.id !== id));
+    },
+    [cloud, requireStaff]
+  );
+
+  // Dietary roster mutators (add / update / delete an entry on the meals doc).
+  const addDietary = useCallback(() => {
+    if (!requireStaff("edit menus")) return;
+    const entry: DietaryEntry = { id: createDietaryId(), label: "New entry", severity: "note" };
+    cloud.setDoc("meals", (prev) => ({ ...prev, dietary: [...prev.dietary, entry] }));
+  }, [cloud, requireStaff]);
+  const updateDietary = useCallback(
+    (id: string, patch: Partial<DietaryEntry>) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => ({
+        ...prev,
+        dietary: prev.dietary.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }));
+    },
+    [cloud, requireStaff]
+  );
+  const deleteDietary = useCallback(
+    (id: string) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => ({ ...prev, dietary: prev.dietary.filter((e) => e.id !== id) }));
+    },
+    [cloud, requireStaff]
+  );
+
   // The camp manager (add / switch / rename / delete) — reached from the calendar
   // view dropdown's "Manage camps…" entry. Camps are a rarely-used option, so
   // they no longer occupy a permanent header pill. Opening is ungated (switching
@@ -952,6 +1094,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onManageLocations={openLocationsManager}
                 onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
+                activeCamp={campKit.activeCamp}
+                meals={cloud.docs.meals}
+                guides={cloud.docs.guides}
+                onSetMenuNote={setMenuNoteFor}
+                onManageDietary={() => setCampsManagerOpen(true)}
                 headerActions={
                   <SubscribeFeedButton
                     activeCampId={campKit.activeCampId}
@@ -1124,6 +1271,36 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 campKit.deleteCamp(item.id);
               }
             }}
+            renderRowExtra={(item) => {
+              const camp = campKit.camps.find((c) => c.id === item.id);
+              if (!camp) return null;
+              return (
+                <CampDayStructure
+                  camp={camp}
+                  hourOptions={overrideHourOptions}
+                  onSetWeekday={setCampWeekdayHours}
+                  onSetDate={setCampDateHours}
+                  onSetSnap={setCampSnap}
+                />
+              );
+            }}
+            footer={
+              <div className="manager__sections">
+                <GuidesSection
+                  guides={cloud.docs.guides}
+                  hourOptions={overrideHourOptions}
+                  onAdd={addGuide}
+                  onUpdate={updateGuide}
+                  onDelete={deleteGuide}
+                />
+                <DietarySection
+                  dietary={cloud.docs.meals.dietary}
+                  onAdd={addDietary}
+                  onUpdate={updateDietary}
+                  onDelete={deleteDietary}
+                />
+              </div>
+            }
             onClose={() => setCampsManagerOpen(false)}
           />
         )}

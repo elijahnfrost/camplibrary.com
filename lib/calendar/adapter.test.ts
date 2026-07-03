@@ -87,6 +87,16 @@ describe("toFcEvent", () => {
       toFcEvent(event(), BY_ID, undefined, "custom", undefined, "1/2").extendedProps?.legLabel
     ).toBe("1/2");
   });
+
+  it("threads the meal kind into extendedProps for the meal glyph", () => {
+    // Absent → undefined (so a plain card never draws the meal glyph).
+    expect(toFcEvent(event(), BY_ID).extendedProps?.mealKind).toBeUndefined();
+    // Present → the exact kind, keyed later by the dietary badge + menu note.
+    expect(toFcEvent(event({ mealKind: "lunch" }), BY_ID).extendedProps?.mealKind).toBe("lunch");
+    expect(toFcEvent(event({ mealKind: "am-snack" }), BY_ID).extendedProps?.mealKind).toBe(
+      "am-snack"
+    );
+  });
 });
 
 describe("splitDayLegLabels", () => {
@@ -169,6 +179,49 @@ describe("fromFcDates round-trip", () => {
     expect(back.date).toBe("2026-06-12");
     expect(back.startMin).toBe(10 * 60 + 30);
     expect(back.endMin).toBe(10 * 60 + 30);
+  });
+
+  it("snaps to a coarser camp grid when a snap is threaded", () => {
+    // A drop at 9:10 with a 30-min grid floors the START to 9:00 and the END to
+    // the nearest 30 (10:10 → 10:00), so both land on the coarse grid.
+    const moved = fromFcDates(
+      new Date(2026, 5, 12, 9, 10),
+      new Date(2026, 5, 12, 10, 10),
+      false,
+      event(),
+      30
+    );
+    expect(moved.startMin % 30).toBe(0);
+    expect(moved.endMin % 30).toBe(0);
+    expect(moved.startMin).toBe(9 * 60);
+  });
+
+  it("snaps to a finer camp grid when a 5-min snap is threaded", () => {
+    const moved = fromFcDates(
+      new Date(2026, 5, 12, 9, 5),
+      new Date(2026, 5, 12, 9, 20),
+      false,
+      event(),
+      5
+    );
+    expect(moved.startMin).toBe(9 * 60 + 5);
+    expect(moved.endMin).toBe(9 * 60 + 20);
+  });
+
+  it("keeps at least one snap slot of length on a coarse grid resize", () => {
+    const tiny = fromFcDates(
+      new Date(2026, 5, 11, 9, 0),
+      new Date(2026, 5, 11, 9, 1),
+      false,
+      event(),
+      30
+    );
+    expect(tiny.endMin - tiny.startMin).toBeGreaterThanOrEqual(30);
+  });
+
+  it("defaults to the 15-min grid when no snap is threaded (back-compat)", () => {
+    const moved = fromFcDates(new Date(2026, 5, 12, 9, 8), new Date(2026, 5, 12, 10, 0), false, event());
+    expect(moved.startMin).toBe(9 * 60 + 15);
   });
 });
 

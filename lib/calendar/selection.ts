@@ -62,7 +62,7 @@ export function moveDelta(before: CalendarEvent, after: CalendarEvent): MoveDelt
 // exactly the per-day clamp the single-event drop path (fromFcDates) applies. An
 // all-day event only shifts its day. Returns a fresh event with a bumped
 // updatedAt (the last-write-wins store needs it to re-accept the row).
-export function applyMoveDelta(event: CalendarEvent, delta: MoveDelta): CalendarEvent {
+export function applyMoveDelta(event: CalendarEvent, delta: MoveDelta, snap?: number): CalendarEvent {
   const date: DateKey = delta.dayDelta ? addDays(event.date, delta.dayDelta) : event.date;
   if (event.allDay) {
     return { ...event, date, updatedAt: Date.now() };
@@ -71,7 +71,7 @@ export function applyMoveDelta(event: CalendarEvent, delta: MoveDelta): Calendar
   // Clamp the start so the whole block stays inside the day, then snap to grid.
   const maxStart = MINUTES_PER_DAY - duration;
   const rawStart = Math.min(Math.max(0, event.startMin + delta.minDelta), Math.max(0, maxStart));
-  const startMin = snapMinutes(rawStart);
+  const startMin = snapMinutes(rawStart, snap);
   const endMin = Math.min(MINUTES_PER_DAY, startMin + duration);
   return { ...event, date, startMin, endMin, updatedAt: Date.now() };
 }

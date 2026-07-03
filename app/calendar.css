@@ -1508,6 +1508,130 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
 }
+/* ---------- meal preset chips (QuickAdd create empty state) ----------
+   A first-class shortcut for the day's meals, shown only before any typing so it
+   never intrudes on the fast type-to-place path. A quiet eyebrow + a row of soft
+   chips; each pre-fills the editor. A "tag them instead" hint (when same-titled
+   untagged events exist) routes the retro-tag bulk so a chip never double-books. */
+.quickadd__meals {
+  padding: var(--s-3) var(--qa-gx) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.quickadd__meals-eyebrow {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.quickadd__mealchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.quickadd__mealchip {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  cursor: pointer;
+}
+.quickadd__mealchip:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+}
+.quickadd__mealhint {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  color: var(--amber);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- meal editor: read-only dietary panel ----------
+   Pinned at the top of a meal event's editor so the highest-stakes constraints
+   (severe first) are seen before anything else. Quiet card with severity-coded
+   rows and a "Manage…" link to the roster editor. */
+.quickadd__diet {
+  margin: var(--s-3) var(--qa-gx) 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+}
+.quickadd__diet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.quickadd__diet-title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.quickadd__diet-manage {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.quickadd__diet-list {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.quickadd__diet-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink);
+}
+.quickadd__diet-sev {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.quickadd__diet-row--avoid .quickadd__diet-sev {
+  background: var(--amber);
+}
+.quickadd__diet-row--severe .quickadd__diet-sev {
+  background: var(--danger);
+}
+.quickadd__diet-row--severe .quickadd__diet-label {
+  font-weight: 600;
+}
+.quickadd__diet-detail {
+  color: var(--ink-soft);
+}
+.quickadd__diet-empty {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+}
+
 .quickadd__searchform {
   display: contents;
 }
@@ -2210,6 +2334,97 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   border: 1px solid color-mix(in srgb, var(--cal-tint, var(--ink-soft)) 45%, transparent);
   color: var(--ink-soft);
   opacity: 0.9;
+}
+
+/* ---------- meal glyph + severe-dietary badge ----------
+   A meal block (lunch, AM/PM snack) wears a small fork+spoon glyph beside the
+   pin/repeat glyphs, sharing their muted, subtle treatment. When the camp has any
+   SEVERE dietary constraint on file, a meal card ALSO shows a compact red count
+   badge — a persistent reminder to check the roster before serving. */
+.cal-card__meal,
+.cal-chip__meal {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+.cal-chip__meal {
+  width: 11px;
+  height: 11px;
+}
+.cal-card__diet {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--hand-sc);
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+/* ---------- guidance bands + closed-day shading (FC background events) ----------
+   A guidance band is a soft, recurring time frame drawn BEHIND the grid as a
+   FullCalendar background event. Quiet wash + a small inline label riding the top
+   edge, so it shapes the day without competing with real blocks. Non-interactive
+   (a click passes through to create). Closed-day shading is the out-of-window
+   margins each day (before open / after close) — a muted diagonal wash so
+   placing on closed time reads as "outside hours" without being blocked. */
+.fc .fc-bg-event.cal-band,
+.fc .fc-bg-event.cal-closed {
+  /* Non-interactive v1: clicks pass through to the grid so a band/shaded area
+     still creates when clicked (dateClick / select already except bg events). */
+  pointer-events: none;
+}
+.fc .fc-bg-event.cal-band {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  opacity: 1;
+}
+.cal-band__inner {
+  position: relative;
+  height: 100%;
+  padding: 2px 6px;
+}
+.cal-band__label {
+  font-family: var(--hand-sc);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--ink-soft) 82%, var(--accent));
+  opacity: 0.9;
+}
+.fc .fc-bg-event.cal-closed {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--ink-soft) 10%, transparent),
+    color-mix(in srgb, var(--ink-soft) 10%, transparent) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  opacity: 1;
+}
+
+/* ---------- "Mark as meal" picker (retro-tag) ----------
+   The cursor-anchored meal-kind picker (single event OR multi-select). Shares the
+   cselect option vocabulary; the leading meal glyph reads as the tag it applies. */
+.cal-mealpick__glyph {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  color: var(--ink-soft);
+}
+.cal-mealpick__clear {
+  color: var(--ink-soft);
 }
 
 /* ---------- the Repeat control inside QuickAdd ----------

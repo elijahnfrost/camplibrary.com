@@ -13,6 +13,7 @@ import type {
   EventClickArg,
   EventContentArg,
   EventDropArg,
+  EventInput,
   EventMountArg,
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
@@ -48,9 +49,19 @@ import {
   nextFreeStartForDay,
   nowMinutes,
   snapDurationMin,
+  snapDurationString,
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
+import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
+import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
+import {
+  dietaryBySeverity,
+  menuNoteFor,
+  setMenuNote,
+  type DietaryEntry,
+  type MealsDoc,
+} from "@/lib/meals";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { nextStockState, type StockState } from "@/lib/kitStock";
@@ -62,7 +73,13 @@ import {
   type KitConflict,
 } from "@/lib/calendar/kitConflicts";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
-import { normalizeCalendarEvent, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import {
+  MEAL_KINDS,
+  normalizeCalendarEvent,
+  type CalendarEvent,
+  type DateKey,
+  type MealKind,
+} from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
 import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
 import { yToMinutes } from "@/lib/calendar/dragTime";
@@ -199,11 +216,23 @@ type MenuState =
   // An empty-slot right-click inside a timed day column: one item that opens the
   // day-shift card at the clicked date + minute.
   | { kind: "shift"; date: DateKey; cutoffMin: number; point: { x: number; y: number } };
-// A bulk Color… / Location… menu item opens its picker cursor-anchored at the
-// same point (the floating-picker pattern), carrying the ids it acts on.
+// A bulk Color… / Location… / Meal menu item opens its picker cursor-anchored at
+// the same point (the floating-picker pattern), carrying the ids it acts on. The
+// meal picker also carries the current mealKind (single-event retro-tag) so the
+// active row reads as selected; undefined = a mixed/untagged selection.
 type BulkPickerState =
   | { kind: "color"; ids: string[]; point: { x: number; y: number } }
-  | { kind: "location"; ids: string[]; point: { x: number; y: number } };
+  | { kind: "location"; ids: string[]; point: { x: number; y: number } }
+  | { kind: "meal"; ids: string[]; current?: MealKind; point: { x: number; y: number } };
+
+// The human labels for each meal kind — the retro-tag picker rows + a menu hint.
+const MEAL_KIND_LABELS: Record<MealKind, string> = {
+  breakfast: "Breakfast",
+  "am-snack": "AM snack",
+  lunch: "Lunch",
+  "pm-snack": "PM snack",
+  other: "Meal",
+};
 // A non-undo toast button (label + click). The escalation wave needs a toast to
 // carry MORE than one — "Moved this Tue only · [All] [Following]" — so the toast
 // holds an ordered `actions` array. The legacy single `action` is still accepted
@@ -235,6 +264,10 @@ export type BulkEditChanges = {
   allDay?: boolean;
   dayShift?: number;
   minShift?: number;
+  // Meal tag: presence (`"mealKind" in changes`) means "set this field"; the
+  // value `undefined` clears it (un-tag), a MealKind sets it. Same presence-vs-
+  // clear semantics as `color`.
+  mealKind?: MealKind | undefined;
 };
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -310,6 +343,11 @@ export function CalendarShell({
   onManageLocations,
   onCreateActivity,
   dayWindow,
+  activeCamp,
+  meals,
+  guides = [],
+  onSetMenuNote,
+  onManageDietary,
   headerActions,
   themeOf,
   kitStock = {},
@@ -362,6 +400,27 @@ export function CalendarShell({
    *  stretches this outward around events. Computed by CampApp from the active
    *  camp's hours, which now live on the (synced) camp object. */
   dayWindow: DayWindow;
+  /** The active camp itself — the source of per-day hours (resolveDayWindow, for
+   *  the union window + closed-day shading) and the snap grid (campSnapMin). Null
+   *  when no camp is active, in which case every day uses the classic 8:00–18:00
+   *  band and the default 15-min snap (identical to today's behavior). */
+  activeCamp: Camp | null;
+  /** The meals sidecar doc: the camp-wide dietary roster + date-keyed menu notes.
+   *  Drives the meal card's dietary badge, the editor's read-only dietary panel,
+   *  and the (date, mealKind) menu-note row. */
+  meals: MealsDoc;
+  /** The guidance bands (soft, recurring day-structure frames). Expanded over the
+   *  rendered strip into FullCalendar background events. Empty = none drawn. */
+  guides?: GuideBand[];
+  /** Write (or clear) one (date, mealKind) menu note on the meals doc — the
+   *  editor's "Menu note" row. Keyed by date + mealKind, NOT stored on the event
+   *  (so regenerating a meal series never erases a season of menus). Absent for
+   *  hosts that don't wire meals. */
+  onSetMenuNote?: (date: DateKey, mealKind: MealKind, text: string) => void;
+  /** Open the dietary roster manager (the camp manager's Dietary section) — the
+   *  "Manage…" link on a meal editor's dietary panel. Absent for hosts without
+   *  meals. */
+  onManageDietary?: () => void;
   /** Header-cluster slot for camp-scoped actions composed by CampApp (where the
    *  camp data lives) — currently the Subscribe / .ics feed pill. */
   headerActions?: ReactNode;
@@ -862,19 +921,68 @@ export function CalendarShell({
     return fromDateKey(addDays(visibleRange.start, mid));
   }, [visibleRange]);
 
-  // The base window is the active camp's hours (drop-off → pickup), or the classic
-  // 8:00–18:00 band with no active camp — passed in as `dayWindow`. Auto-extend
-  // only ever stretches it outward around events in the rendered STRIP (stable
-  // while you scroll, so the grid hours don't jitter), not the live visible
-  // sub-range — a stray 6am event elsewhere shouldn't stretch every day forever.
+  // The live snap grid the active camp offers (5 / 10 / 15 / 30), or the app
+  // default (15) with no camp. Threaded into FullCalendar's snapDuration, the
+  // editor's start/end/length steps, and every re-snap call site so placement and
+  // editing share ONE grid. slotDuration stays a fixed 15-min slat density — the
+  // snap is about where things LAND, not how dense the grid is drawn.
+  const snap = useMemo(() => campSnapMin(activeCamp), [activeCamp]);
+  const snapDurationStr = useMemo(() => snapDurationString(snap), [snap]);
+
+  // The per-day resolved windows across the rendered strip (dateKey → open window,
+  // or null = CLOSED). Honors the camp's dated/weekday overrides via
+  // resolveDayWindow. Feeds BOTH the shared grid union (below) and the closed-day
+  // shading events — one source so the grid and the shading always agree.
+  const stripDays = useMemo(() => {
+    const out: DateKey[] = [];
+    if (!stripStart) return out;
+    for (let i = 0; i < STRIP_DAYS; i += 1) out.push(addDays(stripStart, i));
+    return out;
+  }, [stripStart]);
+  const dayWindows = useMemo(() => {
+    const map = new Map<DateKey, DayWindow | null>();
+    for (const date of stripDays) map.set(date, resolveDayWindow(activeCamp, date));
+    return map;
+  }, [stripDays, activeCamp]);
+
+  // The shared grid window: the UNION of every OPEN day's resolved window across
+  // the rendered strip (a closed/null day contributes nothing), folded outward
+  // around event extents exactly as effectiveWindow does — so the one slotMinTime/
+  // slotMaxTime pair covers a strip whose days have different hours, and no event
+  // ever clips. With no active camp (or no open days in the strip) this is just
+  // effectiveWindow(scoped, dayWindow) — identical to the previous behavior. Kept
+  // as ONE window (gridStart/gridEnd stay a single shared pair) so the three
+  // %-positioned overlays that resolve against them keep working unchanged.
   const window_ = useMemo(() => {
     const stripEnd = stripStart ? addDays(stripStart, STRIP_DAYS) : null;
     const scoped =
       stripStart && stripEnd
         ? healedEvents.filter((event) => event.date >= stripStart && event.date < stripEnd)
         : healedEvents;
-    return effectiveWindow(scoped, dayWindow);
-  }, [healedEvents, stripStart, dayWindow]);
+    // Base = the union of the strip's OPEN day windows. If a camp is active and at
+    // least one strip day is open, start from that union; otherwise fall back to
+    // the passed-in dayWindow (the classic band / camp base hours).
+    let base: DayWindow | null = null;
+    if (activeCamp) {
+      for (const win of dayWindows.values()) {
+        if (!win) continue; // a closed day widens nothing
+        base = base
+          ? { startMin: Math.min(base.startMin, win.startMin), endMin: Math.max(base.endMin, win.endMin) }
+          : { startMin: win.startMin, endMin: win.endMin };
+      }
+    }
+    return effectiveWindow(scoped, base ?? dayWindow);
+  }, [healedEvents, stripStart, dayWindow, activeCamp, dayWindows]);
+
+  // The grid is DRAWN from the enclosing whole hour so the hourly slot labels —
+  // and the darker hour gridlines — land on real clock hours even when camp
+  // hours open on a half-hour like 7:30. FullCalendar anchors slotLabelInterval
+  // at slotMinTime, so a 7:30 start would otherwise label 7:30 / 8:30 / 9:30.
+  // window_ itself (which the editor's start/length pickers read) is untouched.
+  // Kept ABOVE the background-events memo (bgEvents) because the closed-day
+  // shading margins resolve against this one shared grid pair.
+  const gridStart = useMemo(() => Math.floor(window_.startMin / 60) * 60, [window_]);
+  const gridEnd = useMemo(() => Math.ceil(window_.endMin / 60) * 60, [window_]);
 
   // Re-tints every event by the active "Color by" mode. A colorMode change
   // recomputes this memo, which (because each EventInput now carries a new
@@ -888,26 +996,84 @@ export function CalendarShell({
   // once across the whole set (a tiny pure grouping in the adapter) so the card
   // renderer can chip a leg without re-scanning the store.
   const legLabels = useMemo(() => splitDayLegLabels(healedEvents), [healedEvents]);
+  // Background events for the timed strip: guidance bands (soft day-structure
+  // frames) + closed-day shading (the out-of-window margins each day, and a full
+  // wash for a closed day). These are FullCalendar display:"background" events —
+  // in FC v6 they DO run eventContent (via EventContainer's customGenerator) and
+  // they let dateClick / select pass through (isValidDateDownEl explicitly excepts
+  // .fc-bg-event), so a band/shaded area still creates when clicked. Non-
+  // interactive otherwise (no drag/resize). Skipped entirely in Month (a soft
+  // time band has no meaning on a whole-day cell). Expanded over the STABLE strip
+  // horizon (anchor ± ~60 days) so it recomputes only when the guides/camp/strip
+  // anchor changes — never per scroll frame.
+  const bgEvents = useMemo<EventInput[]>(() => {
+    if (activeView === "dayGridMonth" || !stripStart) return [];
+    const out: EventInput[] = [];
+    const horizonStart = addDays(stripStart, -60);
+    const horizonEndExclusive = addDays(stripStart, STRIP_DAYS + 60);
+    // Guidance bands — one background event per (band, date) hit.
+    if (guides.length) {
+      for (const { band, date } of guideBandsForRange(guides, horizonStart, horizonEndExclusive)) {
+        const dayStart = fromDateKey(date);
+        out.push({
+          id: "guide:" + band.id + ":" + date,
+          start: new Date(dayStart.getTime() + band.startMin * 60_000),
+          end: new Date(dayStart.getTime() + band.endMin * 60_000),
+          display: "background",
+          classNames: ["cal-band"],
+          title: band.label,
+          extendedProps: { bgKind: "band", mealKind: band.mealKind },
+        });
+      }
+    }
+    // Closed-day shading — the out-of-window margins each day (before open, after
+    // close), and a full-column wash for a fully closed (null) day. Only when a
+    // camp is active (dayWindows carries the per-day resolution). Informs, never
+    // blocks — clicking shaded time still places an event.
+    if (activeCamp) {
+      for (const date of stripDays) {
+        const win = dayWindows.get(date);
+        const dayStart = fromDateKey(date);
+        const shade = (fromMin: number, toMin: number) => {
+          if (toMin <= fromMin) return;
+          out.push({
+            id: "closed:" + date + ":" + fromMin,
+            start: new Date(dayStart.getTime() + fromMin * 60_000),
+            end: new Date(dayStart.getTime() + toMin * 60_000),
+            display: "background",
+            classNames: ["cal-closed"],
+            extendedProps: { bgKind: "closed" },
+          });
+        };
+        if (win === null) {
+          // A closed day: wash the whole drawn column.
+          shade(gridStart, gridEnd);
+        } else if (win) {
+          // Shade only the margins narrower than the drawn grid.
+          shade(gridStart, win.startMin);
+          shade(win.endMin, gridEnd);
+        }
+      }
+    }
+    return out;
+    // gridStart/gridEnd feed the closed-day margins; they change only when the
+    // union window changes (a coarse, non-per-frame event).
+  }, [activeView, stripStart, stripDays, dayWindows, guides, activeCamp, gridStart, gridEnd]);
+
   const fcEvents = useMemo(
-    () =>
-      healedEvents
+    () => [
+      ...healedEvents
         .filter((event) => activeView === "dayGridMonth" || !idsInAStop.has(event.id))
         .map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id])),
-    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels]
+      ...bgEvents,
+    ],
+    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents]
   );
 
   const scrollTime = useMemo(() => {
     const anchor = Math.max(window_.startMin, Math.min(nowMinutes() - 90, window_.endMin - 120));
     return minutesToTimeString(anchor);
   }, [window_]);
-
-  // The grid is DRAWN from the enclosing whole hour so the hourly slot labels —
-  // and the darker hour gridlines — land on real clock hours even when camp
-  // hours open on a half-hour like 7:30. FullCalendar anchors slotLabelInterval
-  // at slotMinTime, so a 7:30 start would otherwise label 7:30 / 8:30 / 9:30.
-  // window_ itself (which the editor's start/length pickers read) is untouched.
-  const gridStart = useMemo(() => Math.floor(window_.startMin / 60) * 60, [window_]);
-  const gridEnd = useMemo(() => Math.ceil(window_.endMin / 60) * 60, [window_]);
 
   // Destructive/undoable toasts get a longer window than informational ones.
   const showToast = useCallback((next: ToastState, durationMs = 6000) => {
@@ -1309,11 +1475,17 @@ export function CalendarShell({
   // whole series is one batch write, so a single Undo removes it.
   const createSeries = useCallback(
     (draft: EditorDraft, rule: RecurrenceRule, existing?: CalendarEvent) => {
-      const template = buildTemplate(draft, existing?.campId);
+      // buildTemplate carries pinned (a template field); mealKind is NOT a
+      // SeriesTemplate field, so a meal series materializes it by post-processing
+      // the built occurrences below — this keeps the recurrence module untouched
+      // while every row of a meal series still carries its tag. (mealKind is
+      // allowlisted in normalizeCalendarEvent + CUSTOMIZABLE_FIELDS, so it round-
+      // trips and a later this/following/all edit preserves it like any field.)
+      const template = buildTemplate(draft, existing?.campId, draft.pinned);
       const seriesId = crypto.randomUUID();
       const anchorId = draft.id ?? crypto.randomUUID();
       const dates = recurrenceDates(draft.date, rule);
-      const occurrences = buildSeriesEvents(
+      let occurrences = buildSeriesEvents(
         template,
         dates,
         seriesId,
@@ -1322,6 +1494,10 @@ export function CalendarShell({
         draft.date,
         anchorId
       );
+      if (draft.mealKind) {
+        const mealKind = draft.mealKind;
+        occurrences = occurrences.map((occurrence) => ({ ...occurrence, mealKind }));
+      }
       upsertEvents(occurrences);
       setSheet(null);
       announce("Added repeating " + template.title);
@@ -1408,6 +1584,14 @@ export function CalendarShell({
       else delete event.locations;
       if (draft.note) event.note = draft.note;
       else delete event.note;
+      // Meal tag + pin ride the draft (seeded by a meal preset chip on create, or
+      // carried off the edited row): the draft's value wins, including a clear. A
+      // meal preset chip is the ONLY create path that sets these; a plain edit
+      // carries them through unchanged (draftFromEvent seeds them off the event).
+      if (draft.mealKind) event.mealKind = draft.mealKind;
+      else delete event.mealKind;
+      if (draft.pinned) event.pinned = true;
+      else delete event.pinned;
 
       // Editing an event that ALREADY belongs to a series: commit at an instant
       // default scope (no this/following/all dialog). Rule UNTOUCHED → "this" (a
@@ -1682,9 +1866,17 @@ export function CalendarShell({
           }
           touchedFields.push("allDay", "startMin", "endMin");
         }
+        // Meal tag: set a MealKind, or clear it (un-tag). Rides the same presence-
+        // vs-clear rule as color — "mealKind" in changes means "this edit touches
+        // the field", and the value decides set vs clear.
+        if ("mealKind" in changes) {
+          if (changes.mealKind) next.mealKind = changes.mealKind;
+          else delete next.mealKind;
+          touchedFields.push("mealKind");
+        }
         // A date/time shift rides last so it composes with an all-day change.
         if (shift) {
-          next = applyMoveDelta(next, shift);
+          next = applyMoveDelta(next, shift, snap);
           touchedFields.push("date", "startMin", "endMin");
         }
         // Durability: on a SERIES member, stamp the touched fields into `custom`
@@ -1711,7 +1903,7 @@ export function CalendarShell({
         onUndo: () => commitEvents(before, []),
       });
     },
-    [announce, byId, commitEvents, events, requireStaff, showToast]
+    [announce, byId, commitEvents, events, requireStaff, showToast, snap]
   );
 
   // Delete a wider slice of a repeating series — the "Delete entire series…"
@@ -2323,6 +2515,73 @@ export function CalendarShell({
     });
   }, [requireStaff]);
 
+  // Tap a meal preset chip → PRE-FILL the editor (no instant commit): title, meal
+  // tag, pinned intent (a meal holds its slot on a day-shift), a sensible span
+  // clamped into the day's visible window, and a Mon–Fri weekly repeat defaulting
+  // until +8 weeks. The operator reviews the draft and hits the normal commit.
+  const applyMealPreset = useCallback(
+    (kind: MealKind, defaultStart: number, defaultLen: number) => {
+      if (!requireStaff("plan the calendar")) return;
+      const date = focusDateRef.current;
+      // Clamp the span into the day window so a preset never seeds off-grid /
+      // outside the drawn day (the window auto-extends around events elsewhere).
+      const win = resolveDayWindow(activeCamp, date) ?? window_;
+      const start = snapMinutes(Math.max(win.startMin, Math.min(defaultStart, win.endMin - defaultLen)), snap);
+      const end = Math.min(win.endMin, start + defaultLen);
+      const until = addDays(date, 7 * 8); // +8 weeks
+      const rule: RecurrenceRule = { freq: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], until };
+      setSheet({
+        draft: {
+          date,
+          startMin: start,
+          durationMin: Math.max(snap, end - start),
+          allDay: false,
+          title: MEAL_KIND_LABELS[kind],
+          explicitDuration: true,
+          mealKind: kind,
+          pinned: true,
+          recurrence: rule,
+        },
+        pickTime: true,
+      });
+    },
+    [requireStaff, activeCamp, window_, snap]
+  );
+
+  // The meal preset chips shown in QuickAdd's create empty state, plus — per chip
+  // — a count of same-titled UNTAGGED events already on the calendar so the editor
+  // can offer to tag those instead of double-booking. Only surfaced when meals are
+  // wired (onSetMenuNote present). Each chip's onApply pre-fills; onTagExisting
+  // runs the retro-tag bulk over the untagged matches.
+  const mealPresets = useMemo(() => {
+    if (!onSetMenuNote) return undefined;
+    const specs: { kind: MealKind; start: number; len: number }[] = [
+      { kind: "lunch", start: 12 * 60, len: 30 },
+      { kind: "am-snack", start: 10 * 60, len: 15 },
+      { kind: "pm-snack", start: 15 * 60, len: 15 },
+    ];
+    return specs.map((spec) => {
+      const label = MEAL_KIND_LABELS[spec.kind];
+      const lower = label.toLowerCase();
+      const untaggedIds = healedEvents
+        .filter((event) => !event.mealKind && event.title.trim().toLowerCase() === lower)
+        .map((event) => event.id);
+      return {
+        kind: spec.kind,
+        label,
+        existingUntagged: untaggedIds.length,
+        onApply: () => applyMealPreset(spec.kind, spec.start, spec.len),
+        onTagExisting: () => {
+          setSheet(null);
+          applyBulkEdit(untaggedIds, { mealKind: spec.kind });
+        },
+      };
+    });
+    // applyBulkEdit is stable enough (it's a useCallback); listing healedEvents +
+    // applyMealPreset keeps the counts + handlers fresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onSetMenuNote, healedEvents, applyMealPreset, applyBulkEdit]);
+
   // --- FullCalendar callbacks -------------------------------------------
 
   const onSelect = useCallback(
@@ -2378,13 +2637,15 @@ export function CalendarShell({
         return;
       }
       if (!requireStaff("plan the calendar")) return;
-      const startMin = snapMinutes(minutesOfDay(info.date), SNAP_MIN);
+      const startMin = snapMinutes(minutesOfDay(info.date), snap);
       // Smart default: a tap that lands in a TIGHT gap squeezed between two timed
       // events reads as "there's no room for a block here" → seed a 0-min reminder
       // length. A tap in open space keeps the normal default block length. Only a
-      // default — the Length picker still switches freely.
+      // default — the Length picker still switches freely. The gap threshold rides
+      // the snap so a coarse camp grid still recognizes a "no room" gap.
       const dateKey = toDateKey(info.date);
-      const tightGap = !info.allDay && isTightGapBetweenEvents(healedEvents, dateKey, startMin);
+      const tightGap =
+        !info.allDay && isTightGapBetweenEvents(healedEvents, dateKey, startMin, Math.max(30, snap));
       // A single tap gives no span — the chosen activity's recommended length applies
       // (or 0 = reminder, in a tight gap).
       setSheet({
@@ -2401,7 +2662,7 @@ export function CalendarShell({
         pickTime: false,
       });
     },
-    [clearSelection, healedEvents, requireStaff, setStoredView]
+    [clearSelection, healedEvents, requireStaff, setStoredView, snap]
   );
 
   // Slot posture: a picked activity (or a custom title) creates immediately,
@@ -2891,7 +3152,7 @@ export function CalendarShell({
         info.revert();
         return;
       }
-      const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
+      const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing, snap);
       // GROUP MOVE: the grabbed event was part of a multi-selection. FullCalendar
       // moved only the grabbed one — so compute its delta and apply the SAME
       // date+time shift to every OTHER selected event, committing them all
@@ -2920,7 +3181,7 @@ export function CalendarShell({
           // Each member is a date/time shift. On a SERIES member, stamp the move
           // into `custom` (+ origDate) off the PRE-move row so a later regeneration
           // preserves it — a bulk gesture is a durable per-occurrence exception.
-          let moved = id === existing.id ? { ...next, updatedAt: Date.now() } : applyMoveDelta(ev, delta);
+          let moved = id === existing.id ? { ...next, updatedAt: Date.now() } : applyMoveDelta(ev, delta, snap);
           if (moved.seriesId) {
             const stamped = applyCustomStamp(ev, ["date", "startMin", "endMin"]);
             moved = { ...moved };
@@ -2990,7 +3251,7 @@ export function CalendarShell({
         });
       }
     },
-    [announce, commitEvents, events, placementWarning, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, commitEvents, events, placementWarning, removeEvent, requireStaff, showToast, upsertEvent, snap]
   );
 
   const onEventResize = useCallback(
@@ -3000,7 +3261,7 @@ export function CalendarShell({
         info.revert();
         return;
       }
-      const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
+      const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing, snap);
       // Resizing a repeating occurrence commits "this" instantly with an escalation
       // toast, mirroring the drag and the editor save — no scope dialog.
       if (existing.seriesId) {
@@ -3020,7 +3281,7 @@ export function CalendarShell({
         });
       }
     },
-    [announce, events, placementWarning, requireStaff, showToast, upsertEvent]
+    [announce, events, placementWarning, requireStaff, showToast, upsertEvent, snap]
   );
 
   const onEventReceive = useCallback(
@@ -3037,7 +3298,7 @@ export function CalendarShell({
       // A month-cell drop means "put it on this day", not "make it all-day":
       // place it at the day's next free time like the tap-to-place flow.
       let allDay = info.event.allDay;
-      let startMin = allDay ? 0 : snapMinutes(minutesOfDay(start), SNAP_MIN);
+      let startMin = allDay ? 0 : snapMinutes(minutesOfDay(start), snap);
       const monthDrop = allDay && info.view.type === "dayGridMonth";
       if (monthDrop) {
         const dayEvents = healedEvents.filter((event) => event.date === date);
@@ -3074,11 +3335,30 @@ export function CalendarShell({
         );
       }
     },
-    [announce, byId, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_]
+    [announce, byId, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_, snap]
   );
+
+  // The dietary roster sorted for display (severe first) and the count of SEVERE
+  // (anaphylaxis / medical) entries. A meal card wears a compact red count badge
+  // when any severe entry exists, so the highest-stakes constraints are never
+  // buried behind a meal. Read live through a ref inside renderEventContent (a
+  // stable FC-memo callback); severeDietaryCount re-arms the memo only when the
+  // number actually changes, not on every meals-doc touch.
+  const dietarySorted = useMemo(() => dietaryBySeverity(meals), [meals]);
+  const severeDietaryCount = useMemo(
+    () => dietarySorted.filter((entry) => entry.severity === "severe").length,
+    [dietarySorted]
+  );
+  const severeDietaryCountRef = useRef(severeDietaryCount);
+  severeDietaryCountRef.current = severeDietaryCount;
 
   // Tint flows through a CSS variable so the stylesheet can mix it with paper.
   const onEventDidMount = useCallback((info: EventMountArg) => {
+    // Background events (guidance bands + closed-day shading) are non-interactive:
+    // don't stamp a data-event-id (they aren't in the store, so the contextmenu /
+    // selection resolvers would otherwise dead-end on their id and swallow a
+    // click). Their pointer-events are off in CSS so a click lands on the grid.
+    if (info.event.display === "background") return;
     const tint = info.event.extendedProps.tint;
     if (typeof tint === "string") info.el.style.setProperty("--cal-tint", tint);
     // The theme tint rides a second channel so the badge dot can carry the
@@ -3091,6 +3371,21 @@ export function CalendarShell({
   }, []);
 
   const renderEventContent = useCallback((arg: EventContentArg) => {
+    // Background events (guidance bands + closed-day shading) render through THIS
+    // same generator in FC v6 (EventContainer's customGenerator runs for bg segs).
+    // A band shows a small, quiet inline label riding on the wash; the closed
+    // shade is a plain wash with no content. Both are non-interactive; a click
+    // passes through to dateClick (FC excepts .fc-bg-event from its block list).
+    const bgKind = arg.event.extendedProps.bgKind;
+    if (bgKind === "band") {
+      return arg.event.title ? (
+        <div className="cal-band__inner" title={arg.event.title}>
+          <span className="cal-band__label">{arg.event.title}</span>
+        </div>
+      ) : null;
+    }
+    if (bgKind === "closed") return null;
+
     // A secondary theme dot, drawn only when the event's activity carries a
     // theme. The category color stays the spine (--cal-tint); theme is an
     // accent dot, never a replacement, and is labelled so it never reads as
@@ -3117,6 +3412,23 @@ export function CalendarShell({
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
+    // A meal block wears a small, quiet meal glyph beside the pin/repeat glyphs
+    // (threaded via extendedProps.mealKind by the adapter). When the camp has any
+    // SEVERE dietary constraint on file, meal cards ALSO show a compact red count
+    // badge — a persistent reminder to check the roster before serving. The count
+    // is read live through a ref so this stays a stable FC-memo callback.
+    const isMeal = typeof arg.event.extendedProps.mealKind === "string";
+    const severeCount = severeDietaryCountRef.current;
+    const dietaryBadge =
+      isMeal && severeCount > 0 ? (
+        <span
+          className="cal-card__diet"
+          title={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s") + " on file"}
+          aria-label={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s")}
+        >
+          <span aria-hidden="true">⚠</span> {severeCount}
+        </span>
+      ) : null;
     // Where the block happens (gym, field…), shown under the time on taller
     // cards. The card is a size container, so a short block simply clips it.
     const locationText = arg.event.extendedProps.location;
@@ -3144,6 +3456,8 @@ export function CalendarShell({
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
           {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
+          {isMeal && <MealGlyph className="cal-chip__meal" />}
+          {dietaryBadge}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
           {customized && <EditedTickGlyph className="cal-chip__edited" />}
@@ -3163,6 +3477,8 @@ export function CalendarShell({
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
           {legLabel && <span className="cal-card__leg">{legLabel}</span>}
+          {isMeal && <MealGlyph className="cal-card__meal" />}
+          {dietaryBadge}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
           {customized && <EditedTickGlyph className="cal-card__edited" />}
@@ -3176,7 +3492,10 @@ export function CalendarShell({
         )}
       </div>
     );
-  }, []);
+    // severeDietaryCount is read live via the ref; the value is a dep only so the
+    // FC memo re-arms (and meal badges repaint) when the count actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [severeDietaryCount]);
 
   // Paint the multi-selection onto FullCalendar's (non-React) event DOM. The
   // cards aren't ours to render a className onto, so — like the contextmenu id
@@ -4213,7 +4532,7 @@ export function CalendarShell({
           eventMaxStack={4}
           eventShortHeight={46}
           eventMinHeight={0}
-          snapDuration="00:15:00"
+          snapDuration={snapDurationStr}
           slotDuration="00:15:00"
           slotLabelInterval="01:00:00"
           slotMinTime={minutesToTimeString(gridStart)}
@@ -4253,6 +4572,7 @@ export function CalendarShell({
       canEdit,
       gridStart,
       gridEnd,
+      snapDurationStr,
       scrollTime,
       fcEvents,
       onDatesSet,
@@ -4404,6 +4724,11 @@ export function CalendarShell({
           dayEvents={healedEvents}
           byId={byId}
           window={window_}
+          snap={snap}
+          meals={meals}
+          mealPresets={mealPresets}
+          onSetMenuNote={onSetMenuNote}
+          onManageDietary={onManageDietary}
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
@@ -4625,6 +4950,7 @@ export function CalendarShell({
               target={shiftBar}
               dayEvents={dayEvents}
               closeMin={window_.endMin}
+              snapMin={snap}
               isToday={shiftBar.date === todayKey()}
               colorOf={stopDotColor}
               onCommit={commitDayShift}
@@ -4688,6 +5014,20 @@ export function CalendarShell({
                   label: "Duplicate",
                   icon: <CampIcon.Copy />,
                   onSelect: () => duplicateEvent(ev),
+                },
+                // Retro-tag as a meal — opens the meal-kind picker at the cursor
+                // (ContextMenu has no nested submenu, so this is a secondary
+                // FloatingLayer). Writes mealKind via applyBulkEdit([id], …) so a
+                // series member's tag is a durable this-edit. Reads "Change meal…"
+                // once tagged.
+                {
+                  label: ev.mealKind ? "Change meal…" : "Mark as meal…",
+                  icon: <MealGlyph />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setMenu(null);
+                    setBulkPicker({ kind: "meal", ids: [ev.id], current: ev.mealKind, point });
+                  },
                 },
                 // Split days — "Add second run today" clones this event's identity
                 // onto the next free slot of the same day, sharing a fresh linkId so
@@ -4862,6 +5202,17 @@ export function CalendarShell({
                   },
                 },
                 {
+                  // Bulk retro-tag the whole selection as a meal (or clear it) —
+                  // opens the same meal-kind picker; no single "current" tag across
+                  // a heterogeneous set, so nothing reads as preselected.
+                  label: "Mark as meal…",
+                  icon: <MealGlyph />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setBulkPicker({ kind: "meal", ids, point });
+                  },
+                },
+                {
                   label: allAreAllDay ? "Make timed" : "Make all day",
                   icon: <CampIcon.Clock />,
                   onSelect: () => setSelectionAllDay(ids, !allAreAllDay),
@@ -4931,6 +5282,54 @@ export function CalendarShell({
               onManageLocations();
             }}
           />
+        </FloatingLayer>
+      )}
+      {/* "Mark as meal" — the retro-tag picker (single event OR a multi-select).
+          Tapping a kind writes mealKind through applyBulkEdit, which respects
+          series stamping (applyCustomStamp) exactly like the other bulk edits, so
+          tagging one occurrence of a repeating meal is a durable this-edit. "Not a
+          meal" clears the tag. NEVER creates events — it only tags the ones
+          already on the calendar. */}
+      {bulkPicker?.kind === "meal" && (
+        <FloatingLayer
+          anchor={{ kind: "point", x: bulkPicker.point.x, y: bulkPicker.point.y }}
+          onClose={() => setBulkPicker(null)}
+          className="typepick__menu cselect__menu cal-mealpick"
+          role="listbox"
+          ariaLabel="Mark as meal"
+        >
+          {MEAL_KINDS.map((kind) => {
+            const on = bulkPicker.current === kind;
+            return (
+              <button
+                type="button"
+                key={kind}
+                className={"cselect__option" + (on ? " is-selected" : "")}
+                role="option"
+                aria-selected={on}
+                onClick={() => {
+                  applyBulkEdit(bulkPicker.ids, { mealKind: kind });
+                  setBulkPicker(null);
+                }}
+              >
+                <MealGlyph className="cal-mealpick__glyph" />
+                <span className="cselect__optlabel">{MEAL_KIND_LABELS[kind]}</span>
+                {on && <CampIcon.Check className="cselect__optcheck" />}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="cselect__option cal-mealpick__clear"
+            role="option"
+            aria-selected={false}
+            onClick={() => {
+              applyBulkEdit(bulkPicker.ids, { mealKind: undefined });
+              setBulkPicker(null);
+            }}
+          >
+            <span className="cselect__optlabel">Not a meal</span>
+          </button>
         </FloatingLayer>
       )}
 
@@ -5074,6 +5473,18 @@ function KitGlyph({ className }: { className?: string }) {
       <path d="M4 9h16l-1.2 9.5a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9L4 9z" />
       <path d="M8.5 9 12 4.5 15.5 9" />
       <path d="M9.5 12.5v3.5M14.5 12.5v3.5" />
+    </svg>
+  );
+}
+
+// A meal block's card glyph — a small fork + spoon, so a lunch/snack event reads
+// as a meal at a glance. Inlined on the icon set's 24×24 stroke grid (icons.tsx
+// is owned elsewhere), tone from the card's own color like the pin/repeat glyphs.
+function MealGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
+      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
     </svg>
   );
 }
