@@ -240,12 +240,7 @@ body {
    text (catalog meta, schedule times, blurbs, steps, form fields) in the quiet
    sans so it stays legible at small sizes and clears WCAG AA. */
 .deck-card__meta,
-.cat-stamps,
 .stamp,
-.detail__blurb,
-.steps,
-.safety,
-.facts__v,
 .input,
 .textarea,
 .select {
@@ -614,24 +609,22 @@ body {
 .filtertrigger__active::-webkit-scrollbar {
   display: none;
 }
-/* Shared dimension group — desktop rail AND mobile sheet render these. */
-.filtergroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.filtergroup__label {
-  font-family: var(--hand-sc);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.filtergroup__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+/* Pill-recipe survey (2026-07-03 sweep): the app has several "small labeled
+   pill" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min,
+   6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not
+   --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day
+   icon-button, no border), .quickadd__mealchip (a selectable rectangular
+   button, --r-md, --hand not --hand-sc — not visually a pill at all),
+   .book-print-chip (36px-tall clickable control sized to match its header
+   siblings), .admin-status (static per-state badge, no min-height/cursor),
+   and .theme-badge (swatch + label, no border/background at all). Each was
+   checked for a safe merge into this shared .chip base and rejected: every
+   one carries a DELIBERATE size, radius, or interaction difference (touch
+   target, click vs static, or genuinely non-pill shape) that a shared class
+   would either break or require per-site overrides to preserve — i.e. fewer
+   than 3 were byte-for-byte redundant, so consolidating further risked a
+   visible regression for no real de-duplication win. Left as-is; revisit only
+   if a recipe's own job changes. */
 .chip {
   flex: none;
   display: inline-flex;
@@ -684,23 +677,6 @@ body {
 }
 .chip.is-on:focus-visible {
   outline-color: var(--ink);
-}
-/* The "All" option is the cleared/resting state — selected, but quiet, so an
-   unfiltered view never reads as a wall of accent. */
-.chip--all.is-on {
-  background: var(--chrome-well);
-  color: var(--ink);
-  border-color: var(--ink-soft);
-}
-.chip--all.is-on:hover {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-  border-color: var(--ink-soft);
-}
-.chip--all.is-on:active {
-  background: color-mix(in srgb, var(--ink) 12%, var(--chrome-well));
-}
-.chip--all.is-on:focus-visible {
-  outline-color: var(--accent);
 }
 /* ---------- the switch ledger (desktop rails) ----------
    Every filter dimension is ONE ledger line: small-caps label on the left, a
@@ -1030,9 +1006,6 @@ body {
 .rlv-theme {
   margin-top: var(--s-3);
 }
-.cal-popover__theme {
-  margin-top: var(--s-2);
-}
 
 /* The editor's theme control: a pill trigger (the sidebar `.typepick` look, so it
    reads as the same family as the Type/Ages pickers) + a floating menu that
@@ -1128,9 +1101,6 @@ body {
 .themefield__rowbtn:hover {
   background: var(--chrome-well);
   color: var(--ink);
-}
-.themefield__rowbtn--danger:hover {
-  color: var(--danger);
 }
 .themefield__rowbtn:disabled {
   opacity: 0.5;
@@ -2468,12 +2438,6 @@ body {
   padding: 2px 7px;
   white-space: nowrap;
 }
-.stamp--accent {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent-ink);
-}
-
 /* ---------- stretched-button cards (no nested interactives) ----------
    A card's primary action is one real <button class="stretch"> whose ::after
    covers the whole (position:relative) container; secondary controls (the star)
@@ -2526,23 +2490,6 @@ body {
 .deck-card__open:focus-visible,
 .cat-row__open:focus-visible {
   outline: none;
-}
-
-.meter {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-.meter i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  border: 1.4px solid var(--ink-soft);
-  display: block;
-}
-.meter i.on {
-  background: var(--accent);
-  border-color: var(--accent-ink);
 }
 
 /* ---------- bookmark (save) ---------- */
@@ -2858,9 +2805,6 @@ body {
 }
 
 /* ---------- auth controls ---------- */
-.auth-required {
-  gap: 14px;
-}
 .auth-route {
   min-height: 100dvh;
   display: grid;
@@ -2923,12 +2867,6 @@ body {
 .auth-form__subsection {
   color: var(--ink);
 }
-.auth-form__account-email {
-  margin: -6px 0 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
 .auth-form__hint a {
   color: var(--accent-ink);
   text-decoration-thickness: 1.5px;
@@ -2975,14 +2913,6 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--hand);
-}
-.admin-page__head {
-  width: min(100%, 1120px);
-  margin: 0 auto 22px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
 }
 .admin-page__grid {
   width: min(100%, 1120px);
@@ -3108,10 +3038,6 @@ body {
   border-color: var(--line);
   background: var(--paper-2);
   color: var(--ink-soft);
-}
-.admin-status--used,
-.admin-status--revoked {
-  opacity: 0.62;
 }
 .admin-table__status {
   display: flex;
@@ -3381,15 +3307,6 @@ body {
   padding: 14px 12px 8px;
   gap: 8px;
 }
-.overlay__bar-spacer {
-  flex: 1;
-}
-/* Right-aligned cluster in an overlay title bar (e.g. Reset + Close). */
-.overlay__bar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
 .overlay__handle {
   position: absolute;
   top: 8px;
@@ -3410,57 +3327,6 @@ body {
   display: none;
 }
 
-/* ---------- detail ---------- */
-.detail__hero {
-  position: relative;
-  height: 208px;
-  border-bottom: 1.5px solid var(--ink);
-  background: var(--paper);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.detail__ribbon {
-  position: absolute;
-  /* tuck the top under the page edge so the ribbon reads as hanging FROM the
-     top — clips away the top outline and the gap above it. Kept clear of the
-     24px corner radius so the clip stays a clean horizontal line. */
-  top: -6px;
-  right: 26px;
-  z-index: 2;
-  --ribbon-w: 34px;
-}
-.detail__mono {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 104px;
-  color: var(--ink-soft);
-  position: relative;
-  line-height: 1;
-}
-.detail__pad {
-  padding: 20px 22px 28px;
-}
-.detail__eyebrow {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 6px;
-}
-.detail__eyebrow-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  margin-bottom: 6px;
-}
-.detail__eyebrow-row .detail__eyebrow {
-  flex: 1;
-  min-width: 0;
-  margin-bottom: 0;
-}
 .book-print-chip {
   flex: none;
   display: inline-flex;
@@ -3518,98 +3384,6 @@ body {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.detail__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 46px;
-  line-height: 1;
-  color: var(--ink);
-  margin: 0;
-}
-.detail__blurb {
-  font-family: var(--script);
-  font-weight: 500;
-  font-size: 25px;
-  line-height: 1.1;
-  color: var(--ink-soft);
-  margin-top: 15px;
-}
-.detail__stamps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 16px;
-}
-.facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border: 1.5px solid var(--ink);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 22px;
-}
-.facts__cell {
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  border-right: 1.5px solid var(--line-soft);
-  border-bottom: 1.5px solid var(--line-soft);
-}
-.facts__cell:nth-child(even) {
-  border-right: 0;
-}
-.facts__cell:nth-last-child(-n + 2) {
-  border-bottom: 0;
-}
-.facts__k {
-  font-family: var(--hand-sc);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.facts__v {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 24px;
-  line-height: 0.8;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.facts__v small {
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.block {
-  margin-top: 24px;
-}
-.block__label {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  border-top: 2px dashed var(--line);
-  padding-top: 12px;
-  margin-bottom: 12px;
-}
-.block__num {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--accent);
-}
-.block__name {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
 }
 /* ---------- materials kit checklist ---------- */
 .matkit {
@@ -3870,82 +3644,6 @@ body {
   display: inline-flex;
   gap: var(--s-3);
 }
-/* The flat step list / notes prose / safety callout were retired when the
-   instruction document moved to the Run List (.rl); see the Run List section. */
-.detail__actions {
-  flex: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
-  border-top: 1.5px solid var(--line);
-  background: var(--paper);
-}
-.detail__owner {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-.detail__owner-btn {
-  flex: 1;
-}
-.detail__owner-btn svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.detail__owner-btn--danger {
-  color: var(--clay);
-  border-color: color-mix(in srgb, var(--clay) 45%, var(--line));
-}
-
-.book-spread {
-  min-height: 100%;
-  padding: 14px;
-  display: grid;
-  gap: 0;
-  box-sizing: border-box;
-}
-.book-page {
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: color-mix(in srgb, var(--card) 72%, var(--paper));
-  border: 1.5px solid var(--ink);
-}
-.book-page--summary {
-  border-radius: 16px 16px 0 0;
-}
-.book-page--instructions {
-  border-top: 0;
-  border-radius: 0 0 16px 16px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-.book-page .detail__hero {
-  height: 156px;
-  flex: none;
-}
-.book-page .detail__pad {
-  padding: 18px 20px 24px;
-}
-.book-page .detail__title {
-  font-size: clamp(32px, 5vw, 42px);
-}
-.book-page .detail__blurb {
-  font-family: var(--text);
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--ink);
-}
-
 /* ---------- activity playbooks ---------- */
 .playbook {
   container: playbook / inline-size;
@@ -4096,8 +3794,7 @@ body {
 .playbook-field__zone--c-ink {
   stroke: color-mix(in srgb, var(--ink) 64%, transparent);
 }
-.playbook-field__zlabel,
-.playbook-field__label {
+.playbook-field__zlabel {
   font-family: var(--hand-sc);
   font-size: 3px;
   letter-spacing: 0.04em;
@@ -4297,16 +3994,6 @@ body {
   stroke-linejoin: round;
 }
 
-.book-page--instructions .playbook__intro {
-  padding: 0 0 12px;
-}
-.book-page--instructions .playbook__frames {
-  padding: 14px 0 0;
-}
-.book-page--instructions .playbook-field {
-  min-height: 250px;
-}
-
 @media (min-width: 560px) {
   .playbook__intro {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -4334,20 +4021,6 @@ body {
   font-family: var(--text);
   font-size: 11px;
   color: var(--ink-faint);
-}
-
-.pb-editwrap {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-.pb-editwrap__actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.pb-add {
-  margin-top: 12px;
 }
 
 .pbe {
@@ -4633,22 +4306,6 @@ body {
   border-top: 1px dashed var(--line-soft);
   padding-top: 10px;
 }
-.form__playbook {
-  display: grid;
-  gap: 10px;
-}
-.form__blockgrid {
-  display: grid;
-  gap: 12px;
-}
-.form__runlist {
-  margin-top: -2px;
-  padding: 10px 0 2px;
-}
-.form__runlist .rl-toolbar {
-  padding-top: 0;
-}
-
 /* ---------- empty states ---------- */
 .empty {
   padding: 60px 32px;
@@ -4685,12 +4342,6 @@ body {
 }
 
 /* ---------- add form ---------- */
-.form {
-  padding: 16px 18px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
 .field {
   display: flex;
   flex-direction: column;
@@ -4855,135 +4506,6 @@ body {
   font-size: 10px;
   letter-spacing: 0.04em;
 }
-.row2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.form__section {
-  font-family: var(--script);
-  font-weight: 700;
-  /* Match the read-mode book headings (.rl-heading__t: 23px/ink) so a section
-     like "Details" or "How to play" reads identically opening vs editing. */
-  font-size: 23px;
-  line-height: 1;
-  color: var(--ink);
-  margin-top: 8px;
-  padding-bottom: 9px;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.form__section:first-child {
-  margin-top: 0;
-}
-/* The Details section: a responsive grid of plain form fields (these used to
-   live inside the run-list editor as a draggable block — never again). */
-.form__grid {
-  display: grid;
-  gap: 12px 20px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-}
-.form__grid .field {
-  margin: 0;
-}
-.form__wide {
-  grid-column: 1 / -1;
-}
-/* The age-section header carries the label on the left and the Grades⇄Ages
-   caption toggle on the right, on one line. */
-.form__agehead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  flex-wrap: wrap;
-}
-.form__runlist {
-  min-width: 0;
-}
-.form--activity .form__runlist {
-  grid-column: 1 / -1;
-}
-.form--activity .rl {
-  --rl-node-size: 30px;
-  --rl-detail-node-size: 28px;
-  --rl-block-gap: 18px;
-  --rl-detail-gap: 14px;
-}
-/* Steps-only editor in the form: the collapse/expand toolbar is viewer
-   ergonomics, not authoring — hide it here. */
-.form--activity .rl-toolbar {
-  display: none;
-}
-.form--activity .rl-block,
-.form--activity .rl-addwrap {
-  gap: calc(var(--s-4) + var(--s-1));
-}
-.form--activity .rl-row {
-  padding-right: calc(var(--s-5) + var(--s-1));
-}
-.form--activity .rl-rowtools {
-  opacity: 1;
-  pointer-events: auto;
-}
-.form--activity .rl-rail {
-  display: none;
-}
-.form--activity .rl-block--heading {
-  gap: var(--s-0);
-}
-.form--activity .rl-block--heading > .rl-node {
-  display: none;
-}
-.form__editbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 12px;
-  border: 1.5px solid var(--wood-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--amber) 12%, var(--card));
-}
-.form__editbar span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--hand);
-  font-size: 15px;
-  color: var(--wood);
-}
-.field__hint {
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: var(--hand);
-  font-size: 13px;
-  color: var(--ink-faint);
-  margin-left: 4px;
-}
-.chiprow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.chip--lg {
-  font-size: 12px;
-  padding: 8px 14px;
-  border-radius: 16px;
-}
-
-/* ---------- picker ---------- */
-.picker__head {
-  padding: 4px 18px 8px;
-}
-.picker__q {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 28px;
-  color: var(--ink);
-  line-height: 0.85;
-}
-
 /* ---------- misc ---------- */
 .fadein {
   animation: cl-enter 240ms var(--ease-overlay) both;
@@ -5006,113 +4528,6 @@ body {
     animation: none;
   }
 }
-.label {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.catalog__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0 2px;
-}
-.sortbtn {
-  background: transparent;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 4px 11px;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.sortbtn:hover {
-  background: var(--paper-2);
-}
-.sortbtn:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-
-/* ---------- approval rating ---------- */
-.approval {
-  margin-top: 18px;
-}
-.approval__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 9px;
-}
-.approval__row .meter i {
-  width: 8px;
-  height: 8px;
-}
-.approval__word {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 21px;
-  line-height: 1;
-}
-.approval__num {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
-.approval__scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 5px;
-  font-family: var(--hand-sc);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.rating-range {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 22px;
-  background: transparent;
-  cursor: pointer;
-  margin: 0;
-}
-.rating-range::-webkit-slider-runnable-track {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
-}
-.rating-range::-moz-range-track {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
-}
-.rating-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  margin-top: -8.5px;
-  border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--ink);
-}
-.rating-range::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--ink);
-}
-
 /* Mobile: one search field for the library, stacked under the view switch.
    The toolbar is the page's first row (no page-title bar above it), so it
    carries the notch clearance and hosts the auth pill beside the switcher.
@@ -5748,39 +5163,8 @@ body {
     margin-inline: auto;
   }
 
-  .form {
-    max-width: 680px;
-    margin-inline: auto;
-    padding: 22px 32px 36px;
-  }
   .empty {
     padding: 90px 32px;
-  }
-
-  .detail__title {
-    font-size: 46px;
-  }
-}
-
-@media (min-width: 1000px) {
-                    .form {
-    max-width: 920px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-    gap: 18px 24px;
-  }
-  .form__section,
-  .form > .form__grid,
-  .form > .form__editbar,
-  .form .field:has(.textarea),
-  .form > .btn--block,
-  .form > div[style] {
-    grid-column: 1 / -1;
-  }
-  .form > .btn--block {
-    width: min(360px, 100%);
-    justify-self: end;
   }
 }
 
@@ -5801,11 +5185,6 @@ body {
   .overlay--viewer {
     top: max(12px, env(safe-area-inset-top));
     overflow: visible;
-    background: transparent;
-  }
-  .overlay--viewer .detail__actions {
-    padding: 8px 18px calc(16px + env(safe-area-inset-bottom));
-    border: 0;
     background: transparent;
   }
 }
@@ -5878,35 +5257,6 @@ body {
     max-width: 940px;
     padding: 26px 40px 76px;
   }
-}
-
-/* ============================================================
- * Book viewer — edit mode
- * The reading view flips into editing in place, without leaving the
- * book: a bottom sheet on phones, a centered card on larger screens.
- * The embedded form stays a single calm column, overriding the
- * page-level multi-column "Add" form.
- * ============================================================ */
-.overlay--viewer .form {
-  display: flex;
-  flex-direction: column;
-  grid-template-columns: none;
-  max-width: none;
-  margin-inline: 0;
-}
-/* The add/edit activity form inside the sheet: a calm centered column whose
-   fields actually fill it (the page-level grid's align-items: start would
-   otherwise shrink-wrap every input). */
-.overlay--viewer .form--activity {
-  align-items: stretch;
-  width: 100%;
-  max-width: 720px;
-  margin-inline: auto;
-}
-.overlay--viewer .form > .btn--block {
-  width: 100%;
-  min-width: 0;
-  margin-left: 0;
 }
 
 /* ============================================================
@@ -6838,46 +6188,6 @@ body {
   line-height: 1.4;
   color: var(--ink-faint);
 }
-.rlv-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  margin-top: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.rlv-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.rlv-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  font-family: var(--hand-sc);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  border: 1.3px solid var(--line);
-  border-radius: 5px;
-  padding: 3px 9px;
-  background: var(--card);
-}
-.rlv-chip svg {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.75;
-}
-
 /* ---------- compact dot rating ---------- */
 .ratingdots {
   display: inline-flex;
@@ -8038,9 +7348,6 @@ button.rl-node--pick:focus-visible {
   background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
   color: var(--ink);
 }
-.rl-iconbtn--quiet {
-  cursor: default;
-}
 /* Advertises that the whole row drags — sized like its sibling icon buttons. */
 .rl-grip {
   width: 26px;
@@ -8109,50 +7416,6 @@ button.rl-node--pick:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.rl-vid__thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 7px;
-  background: var(--ink);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.rl-vid__thumb::before {
-  content: "";
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 3px solid var(--paper);
-  background: rgba(243, 236, 221, 0.12);
-}
-.rl-vid__thumb::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-36%, -50%);
-  border-left: 15px solid var(--paper);
-  border-top: 9px solid transparent;
-  border-bottom: 9px solid transparent;
-}
-.rl-vid__tag {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--paper);
-}
-.rl-vid__fields {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .rl-vid__url {
   display: block;
@@ -8370,27 +7633,6 @@ button.rl-node--pick:focus-visible {
   display: block;
   margin-top: 6px;
   padding-left: calc(var(--rl-node-size) + 16px);
-}
-.rl-addnode {
-  flex: none;
-  width: var(--rl-node-size, 34px);
-  height: var(--rl-node-size, 34px);
-  border-radius: 50%;
-  border: 1.6px dashed var(--line);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-faint);
-  background: var(--rl-bg);
-  z-index: 1;
-}
-.rl-addnode svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
 }
 .rl-addmain {
   flex: 1;
@@ -8666,8 +7908,7 @@ button.rl-node--pick:focus-visible {
   .rl-addwrap {
     gap: 16px;
   }
-  .rl-node,
-  .rl-addnode {
+  .rl-node {
     font-size: 17px;
   }
 }
@@ -9107,19 +8348,6 @@ button.rl-node--pick:focus-visible {
     opacity: 1;
     pointer-events: auto;
   }
-}
-
-/* ---- add/edit sheet header (always-visible escape hatch) ---- */
-.sheet-head {
-  padding: var(--s-5) var(--page-x) 0;
-  margin-bottom: 0;
-}
-.sheet-head__title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
 }
 
 /* ---- run-list video detail: clean caption + link (no fake player) ---- */
@@ -10396,31 +9624,11 @@ button.rl-node--pick:focus-visible {
   color: var(--ink-faint);
 }
 
-/* "More options" — the set-once / niche settings folded behind ONE ledger row,
-   the Library "Available kit" pattern: a <summary> that IS a ledger row (label
-   left, chevron right) expanding a sub-ledger. Keeps the resting rail short. */
-.prail__more {
-  width: 100%;
-}
-.prail__moresum {
-  cursor: pointer;
-  list-style: none;
-  /* It's the last row of the Format ledger; the Materials row above is the
-     divider, and an open panel reads as one unit with the summary. */
-  border-bottom: 0;
-}
-.prail__moresum::-webkit-details-marker {
-  display: none;
-}
 .prail__morestate {
   display: inline-flex;
   align-items: center;
   color: var(--ink-faint);
   transition: color var(--t-fast) var(--ease);
-}
-.prail__moresum:hover .ledger__label,
-.prail__moresum:hover .prail__morestate {
-  color: var(--ink);
 }
 .prail__morestate svg {
   flex: none;
@@ -10432,19 +9640,6 @@ button.rl-node--pick:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: transform var(--t-fast) var(--ease);
-}
-.prail__more[open] > .prail__moresum .prail__morestate svg {
-  transform: rotate(180deg);
-}
-/* The folded sub-ledger sits flush under the summary (the kit panel's rhythm). */
-.prail__morepanel {
-  margin-top: var(--s-2);
-  animation: prail-reveal var(--t-fast) var(--ease);
-}
-@media (prefers-reduced-motion: reduce) {
-  .prail__morepanel {
-    animation: none;
-  }
 }
 @keyframes prail-reveal {
   from {

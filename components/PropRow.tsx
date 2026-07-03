@@ -6,7 +6,6 @@
 // Pure presentational — no state — so it composes into any client surface.
 
 import type { CSSProperties, FC, ReactNode } from "react";
-import { CampIcon } from "./icons";
 
 type IconCmp = FC<{ className?: string }>;
 
@@ -42,37 +41,3 @@ export function PropRow({
   );
 }
 
-// The shared axis → glyph map. One source of truth so an axis wears the SAME
-// icon wherever it appears (a property, a filter, a setting, a chip).
-export const AxisIcon: Record<string, IconCmp> = {
-  type: CampIcon.Tag,
-  theme: CampIcon.Sparkles,
-  grades: CampIcon.Users,
-  ages: CampIcon.Users,
-  group: CampIcon.Users,
-  where: CampIcon.Sun,
-  time: CampIcon.Clock,
-  length: CampIcon.Clock,
-  minutes: CampIcon.Clock,
-  date: CampIcon.Calendar,
-  kit: CampIcon.Box,
-  materials: CampIcon.Box,
-  energy: CampIcon.Bolt,
-  prep: CampIcon.Tool,
-  rating: CampIcon.Star,
-  starred: CampIcon.Bookmark,
-  location: CampIcon.Pin,
-  place: CampIcon.Pin,
-  color: CampIcon.Palette,
-  colorby: CampIcon.Palette,
-  repeat: CampIcon.Repeat,
-  daynote: CampIcon.Note,
-  fieldnotes: CampIcon.Flag,
-  sort: CampIcon.Sort,
-  weather: CampIcon.Sun,
-  weekend: CampIcon.Calendar,
-  weekstart: CampIcon.Calendar,
-  days: CampIcon.Calendar,
-  camps: CampIcon.Home,
-  allday: CampIcon.Clock,
-};

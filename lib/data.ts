@@ -115,11 +115,6 @@ export function durLabel(a: Pick<Activity, "durationMin">): string {
   return a.durationMin + " min";
 }
 
-// Compact one-line descriptor used on calendar events and library rows.
-export function activityMeta(a: Pick<Activity, "type" | "place" | "ages" | "durationMin" | "energy">): string {
-  return code(a) + " · " + durLabel(a) + " · " + ENERGY[a.energy];
-}
-
 // Category color is centralized here so calendar events, chips, and open slots
 // share one earthy source of truth.
 const CATEGORY_TINTS: Record<CategoryId, string> = {

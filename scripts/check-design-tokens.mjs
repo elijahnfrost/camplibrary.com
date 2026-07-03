@@ -5,9 +5,15 @@ import path from "node:path";
 import process from "node:process";
 
 const ROOT = process.cwd();
-const CSS_FILE = "app/globals.css";
+// All CSS files the token gate covers. Originally globals.css only; extended
+// (2026-07-03 sweep, css-system-2) to calendar.css and the public run-sheet
+// share page's stylesheet so hardcoded values there stop drifting silently.
+const CSS_FILES = [
+  "app/globals.css",
+  "app/calendar.css",
+  "app/run/[token]/[activityId]/runsheet.css",
+];
 const BASELINE_FILE = "scripts/design-token-baseline.json";
-const cssPath = path.join(ROOT, CSS_FILE);
 const baselinePath = path.join(ROOT, BASELINE_FILE);
 
 const CHECKED_PROPS = new Set([
@@ -136,7 +142,7 @@ function isAllowedDeclaration(property, value, inPrint) {
   return rules.some((rule) => rule.test(normalized));
 }
 
-function parseCss(css) {
+function parseCss(css, cssFile) {
   const violations = [];
   const stack = [];
   let pendingPrelude = [];
@@ -169,7 +175,8 @@ function parseCss(css) {
 
         if (!ALLOWED_MEDIA.has(query) && !hasTokenExempt && !exemptNext) {
           violations.push({
-            id: [CSS_FILE, "@media", "media", query, "screen"].join("|"),
+            file: cssFile,
+            id: [cssFile, "@media", "media", query, "screen"].join("|"),
             kind: "media",
             line: lineNumber,
             selector: "@media",
@@ -200,7 +207,8 @@ function parseCss(css) {
               const selector = selectorFromStack(stack);
               const context = inPrint ? "print" : "screen";
               violations.push({
-                id: [CSS_FILE, selector, property, value, context].join("|"),
+                file: cssFile,
+                id: [cssFile, selector, property, value, context].join("|"),
                 kind: "declaration",
                 line: lineNumber,
                 selector,
@@ -249,10 +257,11 @@ function readBaseline() {
 function writeBaseline(violations) {
   const baseline = {
     schema: "camplibrary-design-token-baseline-v1",
-    generatedFrom: CSS_FILE,
+    generatedFrom: CSS_FILES,
     note: "Existing off-scale CSS values. The checker fails only for new IDs not listed here.",
     violations: violations.map((violation) => ({
       id: violation.id,
+      file: violation.file,
       kind: violation.kind,
       selector: violation.selector,
       property: violation.property,
@@ -264,8 +273,10 @@ function writeBaseline(violations) {
   fs.writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
 }
 
-const css = fs.readFileSync(cssPath, "utf8");
-const violations = parseCss(css);
+const violations = CSS_FILES.flatMap((cssFile) => {
+  const css = fs.readFileSync(path.join(ROOT, cssFile), "utf8");
+  return parseCss(css, cssFile);
+});
 const baseline = readBaseline();
 
 if (baseline === null) {
@@ -286,7 +297,7 @@ if (newViolations.length > 0) {
   console.error(`New design token violations: ${newViolations.length}`);
   for (const violation of newViolations.slice(0, 25)) {
     console.error(
-      `${CSS_FILE}:${violation.line} ${violation.selector} { ${violation.property}: ${violation.value}; } ${violation.message}`,
+      `${violation.file}:${violation.line} ${violation.selector} { ${violation.property}: ${violation.value}; } ${violation.message}`,
     );
   }
   if (newViolations.length > 25) {

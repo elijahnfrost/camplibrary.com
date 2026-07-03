@@ -594,5 +594,3 @@ export function useActivityLibrary({
     setLocationColor,
   };
 }
-
-export type ActivityLibrary = ReturnType<typeof useActivityLibrary>;

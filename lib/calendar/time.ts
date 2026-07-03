@@ -134,15 +134,6 @@ export function effectiveWindow(
   return { startMin, endMin };
 }
 
-// 15-minute start options across a window, for the editor's start dropdown.
-export function startOptions(window: DayWindow): { value: number; label: string }[] {
-  const options: { value: number; label: string }[] = [];
-  for (let m = window.startMin; m < window.endMin; m += SNAP_MIN) {
-    options.push({ value: m, label: formatClock(m) });
-  }
-  return options;
-}
-
 // First free start that fits `durationMin` among a day's timed events,
 // scanning the snap grid from `notBeforeMin`, then earlier slots as fallback.
 export function nextFreeStartForDay(

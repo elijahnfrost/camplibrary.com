@@ -260,5 +260,3 @@ export function useCamps({
     commitEvents: stampingCommitEvents,
   };
 }
-
-export type CampKit = ReturnType<typeof useCamps>;

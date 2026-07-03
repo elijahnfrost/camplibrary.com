@@ -226,10 +226,6 @@ export function formatPrecip(value: number, units: WeatherUnits): string {
   const rounded = isInch ? value.toFixed(2) : value.toFixed(1);
   return isInch ? rounded + '"' : rounded + " mm";
 }
-export function formatWind(value: number, units: WeatherUnits): string {
-  return Math.round(value) + " " + units.wind;
-}
-
 // The span of dates the loaded forecast actually covers (earliest → latest day
 // with data), so the UI can show how far the weather reaches. Null when empty.
 export function forecastCoverage(data: WeatherData): { start: string; end: string } | null {

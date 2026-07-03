@@ -130,14 +130,6 @@ export function playbookId(prefix: string): string {
   return prefix + "-" + stamp + "-" + pieceSeq.toString(36);
 }
 
-export function newPlayer(team: PlaybookTeamId, x = 50, y = 50): PlaybookPlayer {
-  return { id: playbookId("p"), team, x, y };
-}
-
-export function newFlag(team: PlaybookTeamId, x = 50, y = 50): PlaybookFlag {
-  return { id: playbookId("f"), team, x, y };
-}
-
 export function newMarker(
   color: PlaybookColorId = "teal",
   shape: PlaybookMarkerShape = "circle",
