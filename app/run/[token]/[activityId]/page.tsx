@@ -18,7 +18,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const metadata: Metadata = {
-  title: "Run sheet · Camp Library",
+  // The root layout's title template already appends "· Camp Library" — a
+  // literal suffix here doubled it (R1: "Run sheet · Camp Library · Camp
+  // Library"). Matches this route's own not-found.tsx sibling.
+  title: "Run sheet",
   robots: { index: false, follow: false }, // a secret-token page; keep it out of search.
 };
 

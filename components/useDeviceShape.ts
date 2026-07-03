@@ -38,6 +38,22 @@ export type DeviceShape = {
 // SSR / first render assumes the desk so the sidebar rail portals stay mounted
 // (matches the prior `useState(true)` default); corrected in a layout effect
 // before paint, so phones/tablets never flash desk chrome.
+//
+// GAP-5 status: useLayoutEffect (not useEffect) is the fix — React guarantees
+// it runs synchronously after DOM mutations commit but before the browser
+// paints, so once hydration has completed there is no visible frame of desk
+// chrome on a phone/tablet. Two residual gaps remain that a hook alone can't
+// close, and would need a CSS media-query-driven initial state (out of scope
+// for this pass — no CSS edits here):
+//   1. Pre-hydration window: the raw SSR HTML (desktop-shaped) is what paints
+//      first, for however long it takes JS to download/parse/hydrate on that
+//      device. On a fast device this is imperceptible; on a slow phone/slow
+//      network it is a real, if brief, flash of desk chrome.
+//   2. JS-disabled / hydration failure: with no client JS at all, SERVER_SHAPE
+//      (desktop) is permanent — there is no correction path.
+// Both are inherent to "decide layout from JS-only state" without a
+// server-side UA hint or a CSS-only fallback; useLayoutEffect closes the gap
+// for every render after hydration, which is the achievable fix here.
 const SERVER_SHAPE: DeviceShape = {
   isPhone: false,
   isTablet: false,

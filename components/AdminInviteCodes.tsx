@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CampIcon } from "./icons";
 import { requestConfirm } from "./ConfirmDialog";
 import type { InviteCodeRecord as ServerInviteCodeRecord } from "@/lib/server/inviteCodes";
@@ -107,6 +107,13 @@ export function AdminInviteCodes() {
   const [invites, setInvites] = useState<InviteCodeRecord[]>([]);
   const [form, setForm] = useState<InviteForm>(initialForm);
   const [createdCode, setCreatedCode] = useState("");
+  // "idle" = default "Copy" label; "copied" = the Clipboard promise actually
+  // resolved (a transient confirmation, reverted after 1.6s); "manual" = the
+  // API is unavailable or the write rejected, so the code was selected
+  // instead — never claims success it didn't earn (GAP-8).
+  const [codeCopyState, setCodeCopyState] = useState<"idle" | "copied" | "manual">("idle");
+  const codeTextRef = useRef<HTMLElement | null>(null);
+  const codeCopyRevertRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState("");
@@ -145,6 +152,38 @@ export function AdminInviteCodes() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (codeCopyRevertRef.current) clearTimeout(codeCopyRevertRef.current);
+    };
+  }, []);
+
+  // Honest copy for the newly-created invite key: only claims success once the
+  // Clipboard promise actually resolves. Falls back to selecting the (visible)
+  // code text via the Selection API — there's no <input> here, just the
+  // <strong> the code is already rendered in — and asking for the keyboard
+  // shortcut when the API is unavailable or rejects. Same contract as
+  // RunShareButton / SubscribeFeedButton (GAP-8).
+  async function copyCreatedCode(code: string) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(code);
+      setCodeCopyState("copied");
+    } catch {
+      const node = codeTextRef.current;
+      const selection = window.getSelection();
+      if (node && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      setCodeCopyState("manual");
+    }
+    if (codeCopyRevertRef.current) clearTimeout(codeCopyRevertRef.current);
+    codeCopyRevertRef.current = setTimeout(() => setCodeCopyState("idle"), 1600);
+  }
+
   function update<K extends keyof InviteForm>(key: K, value: InviteForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -158,6 +197,7 @@ export function AdminInviteCodes() {
 
     setSaving(true);
     setCreatedCode("");
+    setCodeCopyState("idle");
     setError("");
     try {
       const response = await fetch("/api/invite-codes", {
@@ -282,10 +322,15 @@ export function AdminInviteCodes() {
         {createdCode && (
           <div className="admin-code">
             <span className="admin-code__label">New key</span>
-            <strong>{createdCode}</strong>
-            <button type="button" className="btn btn--ghost" onClick={() => void navigator.clipboard.writeText(createdCode)}>
-              Copy
+            <strong ref={codeTextRef}>{createdCode}</strong>
+            <button type="button" className="btn btn--ghost" onClick={() => void copyCreatedCode(createdCode)}>
+              {codeCopyState === "copied" ? "Copied" : "Copy"}
             </button>
+            {codeCopyState === "manual" && (
+              <span className="admin-code__label" role="status">
+                Press ⌘C to copy
+              </span>
+            )}
           </div>
         )}
 

@@ -63,6 +63,7 @@ import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { InviteSignUp } from "./InviteSignUp";
 import { ProfileControl } from "./ProfileControl";
 import { StaffSignIn } from "./StaffSignIn";
+import { TabBoundary } from "./TabBoundary";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
 import { useDeviceShape } from "./useDeviceShape";
@@ -1275,6 +1276,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
           {tab === "library" && <h1 className="sr-only">Library</h1>}
 
           {tab === "library" && (
+            <TabBoundary>
             <LibraryTab
               collection={collection}
               onCollection={setCollection}
@@ -1341,9 +1343,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onPendingAddHandled: () => {},
               }}
             />
+            </TabBoundary>
           )}
 
           {tab === "calendar" && (
+            <TabBoundary>
             <div className="app__scroll">
               <CalendarShell
                 events={calendarEvents}
@@ -1391,9 +1395,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 }
               />
             </div>
+            </TabBoundary>
           )}
 
           {tab === "print" && (
+            <TabBoundary>
             <PrintTab
               data={printData}
               activeCampId={campKit.activeCampId}
@@ -1401,6 +1407,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               printHost={printHost}
               announce={setLiveMsg}
             />
+            </TabBoundary>
           )}
 
           {tab === "admin" && (
