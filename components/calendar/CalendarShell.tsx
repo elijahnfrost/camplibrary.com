@@ -814,18 +814,13 @@ export function CalendarShell({
     openStopRef.current = (ids: string[], anchor: DOMRect) => {
       setMenu(null);
       setWxPopover(null);
-      if (ids.length === 1) {
-        const ev = events[ids[0]];
-        if (ev) {
-          setStopPopover(null);
-          if (!requireStaff("plan the calendar")) return;
-          setSheet({ draft: draftFromEvent(healEvent(ev, byId)), pickTime: true });
-          return;
-        }
-      }
+      // ONE entry point regardless of size: a stop click always opens the
+      // popover (title · time · Edit/Delete · "Add to this time"), never the
+      // full editor directly. The old split — 1 reminder → editor, 2+ →
+      // popover — gave the same tap two different outcomes with no cue.
       setStopPopover({ ids, anchor });
     };
-  }, [events, byId, requireStaff]);
+  }, []);
 
   // Which days carry at least one event in the active camp — the mini-month
   // dots each of these so the sidebar previews where the schedule is busy.
@@ -2890,6 +2885,15 @@ export function CalendarShell({
         touchMultiRef.current = true;
         suppressNextTapRef.current = true;
         setMenu(null);
+        // The arm must be FELT the moment it fires — the React-driven ring
+        // paints a deferred frame later, so a finger still on the card gets no
+        // cue that the hold "took". Paint the ring synchronously on the live
+        // card (the selection effect re-asserts it) and give a short haptic
+        // where the platform offers one.
+        grid
+          .querySelector(`[data-event-id="${typeof CSS !== "undefined" ? CSS.escape(id) : id}"]`)
+          ?.classList.add("cal-event--selected");
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(10);
         setSelection((prev) => {
           const next = new Set(prev);
           next.add(id);
@@ -4602,6 +4606,17 @@ export function CalendarShell({
         onOpenSettings={() => setSettingsOpen(true)}
         onAdd={openAddSheet}
         actions={headerActions}
+        colorLens={
+          colorMode === "custom"
+            ? undefined
+            : colorMode === "type"
+              ? "Type"
+              : colorMode === "rating"
+                ? "Rating"
+                : colorMode === "location"
+                  ? "Location"
+                  : "Theme"
+        }
       />
       <div className="calshell__body">
         <div
@@ -5004,6 +5019,17 @@ export function CalendarShell({
                   },
                 },
                 {
+                  // Inline color for ONE event — the audit's "recoloring means
+                  // opening the editor" gap. Reuses the bulk picker body with a
+                  // single-id set, so both entry points share one write path.
+                  label: "Color…",
+                  icon: <CampIcon.Palette />,
+                  onSelect: () => {
+                    if (!requireStaff("change the calendar")) return;
+                    setBulkPicker({ kind: "color", ids: [ev.id], point });
+                  },
+                },
+                {
                   // Pin / unpin — SERIES-WIDE and scope-free (a partially-pinned
                   // series is unrepresentable). Commits instantly, no dialog.
                   label: ev.pinned ? "Unpin" : "Pin in place",
@@ -5248,7 +5274,9 @@ export function CalendarShell({
           ariaLabel="Color for selected events"
         >
           <ColorPickerBody
-            value={undefined}
+            // A single-event pick shows the event's current color as selected;
+            // a heterogeneous bulk set has no one "current", so nothing preselects.
+            value={bulkPicker.ids.length === 1 ? events[bulkPicker.ids[0]]?.color : undefined}
             fallback={categoryTint(undefined)}
             onCommit={(hex) => {
               applyBulkEdit(bulkPicker.ids, { color: hex });

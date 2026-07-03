@@ -71,6 +71,21 @@
   text-overflow: ellipsis;
 }
 /* The control cluster — pushed to the right edge, with the actions following. */
+/* The "Color by" lens pill — the one cue that card colors are currently a
+   COMPUTED axis (type/rating/location/theme), not stored per-event paint. Quiet
+   chip in the title's voice; disappears in custom mode. */
+.calhead__lens {
+  align-self: center;
+  margin-left: var(--s-4);
+  padding: 2px var(--s-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
 .calhead__controls {
   display: flex;
   align-items: center;

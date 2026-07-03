@@ -25,6 +25,7 @@ export function CalendarHeader({
   onOpenSettings,
   onAdd,
   actions,
+  colorLens,
 }: {
   title: string;
   view: ViewKey;
@@ -38,10 +39,20 @@ export function CalendarHeader({
   /** Camp-scoped actions composed by CampApp (the Subscribe / .ics feed pill);
    *  sits at the head of the controls cluster as a peer to the view switch. */
   actions?: ReactNode;
+  /** The active "Color by" lens label ("Location", "Rating"…) when the calendar
+   *  is coloring by a COMPUTED axis rather than stored per-event colors. Both
+   *  render in the same visual language, so this pill is the one cue declaring
+   *  "these colors are a lens, not your paint". Absent in custom mode. */
+  colorLens?: string;
 }) {
   return (
     <div className="calhead">
       <h2 className="calhead__title">{title}</h2>
+      {colorLens && (
+        <span className="calhead__lens" title={"Cards are colored by " + colorLens.toLowerCase() + " — event colors are not shown"}>
+          By {colorLens.toLowerCase()}
+        </span>
+      )}
       <div className="calhead__controls">
         {actions}
         <ViewSwitch view={view} onView={onView} />
