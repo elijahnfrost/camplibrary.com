@@ -102,6 +102,10 @@ export function QuickAdd({
   onOpenActivity,
   onTogglePin,
   pinned = false,
+  onApplyAll,
+  onApplyFollowing,
+  onResetOccurrence,
+  onRestoreSkip,
   onRecoverTime,
   onClose,
 }: {
@@ -148,6 +152,19 @@ export function QuickAdd({
   onTogglePin?: () => void;
   /** Whether this event is currently pinned (drives the footer label). */
   pinned?: boolean;
+  /** Durable recurrence escalation (edit posture, a THIS-customized series member
+   *  only): apply this occurrence's overrides to the whole series / from here on,
+   *  or reset it back to a plain series member. All IMMEDIATE — they commit
+   *  through CalendarShell and close the sheet, so they sit among the footer
+   *  actions, not the draft controls. Absent on plain events / non-customized
+   *  members (the touch twin of the right-click escalation items). */
+  onApplyAll?: () => void;
+  onApplyFollowing?: () => void;
+  onResetOccurrence?: () => void;
+  /** Restore a skipped occurrence from the RepeatField's "Skipped dates" ledger
+   *  (edit posture, a series member). Wired to CalendarShell's restore path;
+   *  IMMEDIATE + closes the sheet. Absent = no skips / not a series member. */
+  onRestoreSkip?: (date: DateKey) => void;
   /** Open the day-shift card for this event (edit posture, timed non-reminder).
    *  `extend` true = "Running long" (grow this end + slide the rest); false =
    *  "Shift day from here". Closes the sheet first, then opens the bar. */
@@ -732,7 +749,12 @@ export function QuickAdd({
               {/* Repeat rides last (edit-only): its lead row carries the axis
                   icon, its detail rows indent beneath it. */}
               {isEdit && (
-                <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+                <RepeatField
+                  value={recurrence}
+                  startDate={date}
+                  onChange={setRecurrence}
+                  onRestoreSkip={onRestoreSkip}
+                />
               )}
               {/* Recover time — the TOUCH door into the day-shift card (right-click
                   isn't available on a tap). Two quiet inline actions: "Running long"
@@ -797,6 +819,27 @@ export function QuickAdd({
                 <button type="button" className="btn btn--ghost quickadd__pin" onClick={onTogglePin}>
                   <PinGlyph />
                   {pinned ? "Unpin" : "Pin in place"}
+                </button>
+              )}
+              {/* Durable recurrence escalation (a THIS-customized series member on
+                  touch, where there's no right-click) — immediate, closing the
+                  sheet. Only rendered when this occurrence carries overrides. */}
+              {isEdit && onApplyFollowing && (
+                <button type="button" className="btn btn--ghost quickadd__applyfrom" onClick={onApplyFollowing}>
+                  <CampIcon.Repeat />
+                  Apply from here on
+                </button>
+              )}
+              {isEdit && onApplyAll && (
+                <button type="button" className="btn btn--ghost quickadd__applyall" onClick={onApplyAll}>
+                  <CampIcon.Repeat />
+                  Apply to all
+                </button>
+              )}
+              {isEdit && onResetOccurrence && (
+                <button type="button" className="btn btn--ghost quickadd__resetocc" onClick={onResetOccurrence}>
+                  <CampIcon.Reset />
+                  Reset to series
                 </button>
               )}
               {isEdit && onDelete && (

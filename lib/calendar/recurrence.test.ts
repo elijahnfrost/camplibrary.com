@@ -8,6 +8,7 @@ import {
   normalizeRecurrence,
   planBulkSeriesRemovals,
   planOccurrenceEdit,
+  planResetOccurrence,
   planRestoreOccurrence,
   planSeriesDelete,
   planSeriesEdit,
@@ -950,6 +951,88 @@ describe("applyCustomStamp", () => {
     const series = customSeries();
     const stamped = applyCustomStamp(series[1], ["notARealField"]);
     expect(stamped).toBe(series[1]);
+  });
+});
+
+describe("planResetOccurrence", () => {
+  it("rebuilds a customized row from the nearest clean sibling's template fields", () => {
+    const series = customSeries(); // a0..a4, times 540/600, title "Morning meeting"
+    // a2 (2026-06-23) carries a customized time + title.
+    series[2] = {
+      ...series[2],
+      startMin: 900,
+      endMin: 960,
+      title: "Moved late",
+      custom: ["startMin", "endMin", "title"],
+    };
+    const plan = planResetOccurrence(series, series[2]);
+    expect(plan.removes).toEqual([]);
+    expect(plan.upserts).toHaveLength(1);
+    const row = plan.upserts[0];
+    // Identity + slot kept.
+    expect(row.id).toBe("a2");
+    expect(row.date).toBe("2026-06-23");
+    expect(row.seriesId).toBe("series-1");
+    // Template fields restored from a clean sibling (the untouched 540/600 meeting).
+    expect(row.startMin).toBe(540);
+    expect(row.endMin).toBe(600);
+    expect(row.title).toBe("Morning meeting");
+    // Exception bookkeeping cleared.
+    expect(row.custom).toBeUndefined();
+    expect(row.origDate).toBeUndefined();
+  });
+
+  it("clears origDate + custom on a date-moved reset, keeping the live date", () => {
+    const series = customSeries();
+    series[1] = {
+      ...series[1],
+      date: "2026-06-28",
+      origDate: "2026-06-22",
+      startMin: 900,
+      endMin: 960,
+      custom: ["date", "startMin", "endMin"],
+    };
+    const plan = planResetOccurrence(series, series[1]);
+    const row = plan.upserts[0];
+    expect(row.date).toBe("2026-06-28"); // where it currently lives
+    expect(row.origDate).toBeUndefined();
+    expect(row.custom).toBeUndefined();
+    expect(row.startMin).toBe(540); // adopted the clean template time
+  });
+
+  it("strips the exception in place when there is no clean sibling", () => {
+    // A lone occurrence carrying a customization: nothing fresher to adopt.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-21" };
+    const [only] = buildSeriesEvents(
+      { ...template, startMin: 900, endMin: 960 },
+      ["2026-06-21"],
+      "series-1",
+      rule,
+      counter(),
+      "2026-06-21",
+      "solo"
+    );
+    const customized: CalendarEvent = { ...only, custom: ["startMin", "endMin"] };
+    const plan = planResetOccurrence([customized], customized);
+    const row = plan.upserts[0];
+    expect(row.id).toBe("solo");
+    expect(row.custom).toBeUndefined();
+    // Values are kept (no fresher template), but it's no longer an exception.
+    expect(row.startMin).toBe(900);
+  });
+
+  it("a reset row regenerates normally on a later all-edit (no longer preserved)", () => {
+    const series = customSeries();
+    series[2] = { ...series[2], startMin: 900, endMin: 960, custom: ["startMin", "endMin"] };
+    const reset = planResetOccurrence(series, series[2]).upserts[0];
+    const afterReset = series.map((e) => (e.id === reset.id ? reset : e));
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed", startMin: 480, endMin: 540 };
+    const plan = planSeriesEdit(afterReset, afterReset[0], renamed, afterReset[0].date, rule, "all", counter());
+    // The formerly-customized row now takes the new template time like any plain row.
+    const row = plan.upserts.find((e) => e.date === "2026-06-23")!;
+    expect(row.startMin).toBe(480);
+    expect(row.title).toBe("Renamed");
   });
 });
 

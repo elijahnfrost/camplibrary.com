@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Activity } from "../types";
 import { CUSTOM_NEUTRAL, LOCATION_TINTS, categoryTint, ratingColor } from "../data";
 import type { Theme } from "../themes";
-import { fromFcDates, healEvent, toFcEvent } from "./adapter";
+import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent } from "./adapter";
 import type { CalendarEvent } from "./types";
 
 const ACTIVITY: Activity = {
@@ -71,6 +71,52 @@ describe("toFcEvent", () => {
     // Absent → false (so a plain card never draws the pin), present → true.
     expect(toFcEvent(event(), BY_ID).extendedProps?.pinned).toBe(false);
     expect(toFcEvent(event({ pinned: true }), BY_ID).extendedProps?.pinned).toBe(true);
+  });
+
+  it("threads a `customized` tick from a series member's custom list", () => {
+    // No custom fields → false (plain card, no tick); a non-empty list → true.
+    expect(toFcEvent(event(), BY_ID).extendedProps?.customized).toBe(false);
+    expect(toFcEvent(event({ custom: ["startMin"] }), BY_ID).extendedProps?.customized).toBe(true);
+    // An empty list is not "customized".
+    expect(toFcEvent(event({ custom: [] }), BY_ID).extendedProps?.customized).toBe(false);
+  });
+
+  it("threads a split-day leg label when one is supplied", () => {
+    expect(toFcEvent(event(), BY_ID).extendedProps?.legLabel).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, "1/2").extendedProps?.legLabel
+    ).toBe("1/2");
+  });
+});
+
+describe("splitDayLegLabels", () => {
+  it("labels the ordered legs of a same-day linked pair", () => {
+    const a = event({ id: "a", linkId: "L", startMin: 540 });
+    const b = event({ id: "b", linkId: "L", startMin: 840 });
+    const labels = splitDayLegLabels([b, a]); // out of order in
+    expect(labels).toEqual({ a: "1/2", b: "2/2" });
+  });
+
+  it("orders three legs by start time", () => {
+    const a = event({ id: "a", linkId: "L", startMin: 900 });
+    const b = event({ id: "b", linkId: "L", startMin: 540 });
+    const c = event({ id: "c", linkId: "L", startMin: 720 });
+    expect(splitDayLegLabels([a, b, c])).toEqual({ b: "1/3", c: "2/3", a: "3/3" });
+  });
+
+  it("labels nothing for a lone linkId (sibling deleted) or unlinked events", () => {
+    const lone = event({ id: "a", linkId: "L" });
+    const plain = event({ id: "b" });
+    expect(splitDayLegLabels([lone, plain])).toEqual({});
+  });
+
+  it("keeps two same-day linkIds and a cross-day link separate", () => {
+    const a = event({ id: "a", linkId: "L", date: "2026-06-11", startMin: 540 });
+    const b = event({ id: "b", linkId: "L", date: "2026-06-11", startMin: 840 });
+    // Same linkId, DIFFERENT day → not a pair (each is a lone leg on its day).
+    const c = event({ id: "c", linkId: "L", date: "2026-06-12", startMin: 540 });
+    const labels = splitDayLegLabels([a, b, c]);
+    expect(labels).toEqual({ a: "1/2", b: "2/2" });
   });
 });
 

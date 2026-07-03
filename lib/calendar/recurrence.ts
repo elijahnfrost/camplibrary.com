@@ -873,6 +873,50 @@ export function planRestoreOccurrence(
   return { upserts: [...cleared, restored], removes: [] };
 }
 
+// "Reset to series" (P3): rebuild ONE customized occurrence back to a plain
+// series member, discarding its per-field overrides. The template is the nearest
+// NON-customized sibling (by date distance) — the freshest picture of what an
+// untouched occurrence looks like right now (its title/time/color/… as the rest
+// of the series carries them). With no clean sibling (every row is customized, or
+// it's a lone occurrence) we fall back to stripping the row's own custom fields
+// in place: keep identity (id/date/seriesId/rule) but drop the `custom`/`origDate`
+// bookkeeping, so the row still reads as whatever it currently shows minus the
+// exception status. One upsert, no removes. A no-op-safe helper: returns just the
+// target reset when it carries no series. The reset row regenerates normally on a
+// later following/all edit (it's no longer preserved, so the template wins).
+export function planResetOccurrence(
+  series: CalendarEvent[],
+  target: CalendarEvent
+): SeriesEditPlan {
+  // The freshest clean sibling — a same-series row that is NOT itself customized,
+  // nearest to the target by date. Its fields are the series template as it lives.
+  const clean = series
+    .filter((event) => event.id !== target.id && event.seriesId === target.seriesId && !isCustomized(event))
+    .sort((a, b) => Math.abs(daySpan(a.date, target.date)) - Math.abs(daySpan(b.date, target.date)))[0];
+
+  let row: CalendarEvent;
+  if (clean) {
+    // Rebuild from the clean sibling's template fields, but keep the target's own
+    // identity + slot (id / date / seriesId / rule). Every customizable field is
+    // taken from the sibling; anything the sibling doesn't carry is cleared.
+    row = {
+      ...clean,
+      id: target.id,
+      date: target.date,
+      seriesId: target.seriesId,
+      recurrence: target.recurrence,
+      updatedAt: Date.now(),
+    };
+  } else {
+    // No clean sibling: strip the exception status in place, keeping the row's
+    // current visible values (there is no fresher template to adopt).
+    row = { ...target, updatedAt: Date.now() };
+  }
+  delete row.custom;
+  delete row.origDate;
+  return { upserts: [row], removes: [] };
+}
+
 // Bulk-delete durability (rule 7): given the full event map values and a set of
 // ids to delete, group the ids by seriesId and produce a SINGLE plan that skips
 // series members durably (their slots become exdates on the surviving rows, so a

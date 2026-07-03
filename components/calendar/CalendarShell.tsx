@@ -16,7 +16,7 @@ import type {
   EventMountArg,
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
-import { fromFcDates, healEvent, toFcEvent } from "@/lib/calendar/adapter";
+import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent } from "@/lib/calendar/adapter";
 import {
   addDays,
   daySpan,
@@ -62,7 +62,7 @@ import {
   type KitConflict,
 } from "@/lib/calendar/kitConflicts";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
-import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { normalizeCalendarEvent, type CalendarEvent, type DateKey } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
 import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
 import { yToMinutes } from "@/lib/calendar/dragTime";
@@ -73,12 +73,19 @@ import {
   rangeSelection,
 } from "@/lib/calendar/selection";
 import {
+  applyCustomStamp,
   buildSeriesEvents,
   eventsInSeries,
+  planBulkSeriesRemovals,
+  planOccurrenceEdit,
+  planResetOccurrence,
+  planRestoreOccurrence,
   planSeriesDelete,
   planSeriesEdit,
   planSeriesSkip,
+  planSeriesSkipMany,
   recurrenceDates,
+  rulesEqual,
   type RecurrenceRule,
   type SeriesScope,
   type SeriesTemplate,
@@ -197,11 +204,20 @@ type MenuState =
 type BulkPickerState =
   | { kind: "color"; ids: string[]; point: { x: number; y: number } }
   | { kind: "location"; ids: string[]; point: { x: number; y: number } };
+// A non-undo toast button (label + click). The escalation wave needs a toast to
+// carry MORE than one — "Moved this Tue only · [All] [Following]" — so the toast
+// holds an ordered `actions` array. The legacy single `action` is still accepted
+// and folded into that array (compat for the existing "Save to library" caller),
+// so migration is additive.
+type ToastAction = { label: string; onClick: () => void };
 type ToastState = {
   message: string;
   onUndo?: () => void;
-  /** An optional second, non-undo action (e.g. "Save to library" after a one-off). */
-  action?: { label: string; onClick: () => void };
+  /** Legacy single action (e.g. "Save to library" after a one-off). Folded into
+   *  `actions` at render — kept so existing call sites need no change. */
+  action?: ToastAction;
+  /** Ordered escalation / secondary actions rendered before Undo. */
+  actions?: ToastAction[];
 };
 // Editing or deleting one occurrence of a repeating event first asks the scope
 // (this / following / all). The pending action is held here until the user picks.
@@ -234,6 +250,31 @@ function endMinForDraft(startMin: number, durationMin: number, allDay: boolean):
   if (allDay) return 0;
   if (durationMin <= 0) return startMin;
   return Math.min(MINUTES_PER_DAY, startMin + snapDurationMin(durationMin));
+}
+
+// A key-order-independent JSON serializer (recurses into nested objects, keeps
+// array order). Used for the escalation staleness fingerprint below.
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return "{" + keys.map((k) => JSON.stringify(k) + ":" + stableStringify(obj[k])).join(",") + "}";
+}
+
+// A CANONICAL fingerprint of a stored row for the escalation staleness check:
+// stableStringify of every field except `updatedAt` (the last-write-wins clock,
+// which a re-commit always bumps). BOTH sides are re-normalized first, because the
+// `expected` rows are the raw plan output while the live rows were rebuilt by
+// normalizeCalendarEvent on commit (which may drop empty/absent fields and reorder
+// keys) — passing both through the same normalizer makes the comparison apples-to-
+// apples, so a value the this-commit wrote reads as unchanged and escalation stays
+// enabled. A row that fails to normalize (shouldn't happen for a stored row)
+// fingerprints as its raw self.
+function rowFingerprint(event: CalendarEvent): string {
+  const normalized = normalizeCalendarEvent(event) ?? event;
+  const { updatedAt: _updatedAt, ...rest } = normalized;
+  return stableStringify(rest);
 }
 
 const boolStorage = (value: unknown, fallback: boolean) =>
@@ -568,6 +609,20 @@ export function CalendarShell({
   // that handler's click branch to skip opening the editor when a drag just ended.
   const beginReminderDragRef = useRef<(marker: HTMLElement, e: PointerEvent) => void>(() => {});
   const remDraggedRef = useRef(false);
+  // The instant "this"-scope commit for a series-member gesture (drag / resize /
+  // rail-drag). Declared as a ref so the reminder rail-drag effect (above the
+  // callback's declaration) can invoke it without a use-before-declaration cycle;
+  // kept fresh in an effect once commitThisEdit exists.
+  const commitThisEditRef = useRef<
+    (existing: CalendarEvent, next: CalendarEvent, verb: string) => void
+  >(() => {});
+  // Same deal for the editor-save "following" (rule changed/cleared) commit and the
+  // instant "skip this day" delete — saveDraft / deleteEvent sit above their
+  // declarations, so they invoke through refs kept fresh once the callbacks exist.
+  const commitFollowingEditRef = useRef<
+    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => void
+  >(() => {});
+  const commitSkipThisRef = useRef<(event: CalendarEvent) => void>(() => {});
   // The weather detail card (click an hour chip or a day-header summary). Mutually
   // exclusive with the event menu (an effect below closes it whenever one
   // of those opens). openWxRef gives the imperative hour-chip click + the React
@@ -602,6 +657,12 @@ export function CalendarShell({
     setSheet(null);
     setShiftBar(next);
   });
+  // The "Skip days…" picker (a series member's context menu): a small floating
+  // card listing the series' upcoming occurrence dates as toggle chips → one
+  // batch skip. Holds the seriesId it acts on + the cursor point it opened at.
+  const [skipPicker, setSkipPicker] = useState<{ seriesId: string; point: { x: number; y: number } } | null>(
+    null
+  );
   // Shift/Cmd-click (and touch long-press) multi-selection, Finder/Notion
   // semantics: the SET of selected event ids, plus a FIXED anchor that a
   // shift-click re-extends the range from. Selection is purely a view affordance
@@ -618,6 +679,14 @@ export function CalendarShell({
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const focusDateRef = useRef<DateKey>(todayKey());
+  // The LIVE event map, read by escalation closures that outlive their creating
+  // render (a toast's [All]/[Following] button, or an escalate-delete). Those
+  // closures capture the `escalateSeries` instance from toast-creation time, whose
+  // own `events` would be stale by the time the user clicks — so the staleness
+  // check and the "current live rows" snapshot must read this ref, not the closed-
+  // over `events`, or a foreign write between the toast and the click goes unseen.
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
 
   // Coarse pointers (phones) default to Day; everything else to Week.
   useEffect(() => {
@@ -815,12 +884,16 @@ export function CalendarShell({
   // Stop members are pulled out of FC in the TIMED views (the overlay draws them).
   // Month has no stop overlay, so there they stay real FC chips — otherwise
   // stacked same-start events and every 0-min reminder would vanish from Month.
+  // Split-day leg labels ("1/2 · 2/2") for every same-day linked pair, computed
+  // once across the whole set (a tiny pure grouping in the adapter) so the card
+  // renderer can chip a leg without re-scanning the store.
+  const legLabels = useMemo(() => splitDayLegLabels(healedEvents), [healedEvents]);
   const fcEvents = useMemo(
     () =>
       healedEvents
         .filter((event) => activeView === "dayGridMonth" || !idsInAStop.has(event.id))
-        .map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors)),
-    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView]
+        .map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id])),
+    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels]
   );
 
   const scrollTime = useMemo(() => {
@@ -941,7 +1014,9 @@ export function CalendarShell({
           updatedAt: Date.now(),
         };
         if (original.seriesId) {
-          setScopePrompt({ mode: "edit", event: original, draft: draftFromEvent(next) });
+          // A recurring reminder commits "this" instantly with an escalation toast
+          // (no scope dialog), matching the drag/resize gestures.
+          commitThisEditRef.current(original, next, "Moved");
           return;
         }
         upsertEvent(next);
@@ -960,7 +1035,7 @@ export function CalendarShell({
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onCancel);
     };
-  }, [events, gridStart, gridEnd, requireStaff, stopDotColor, setScopePrompt, upsertEvent, announce, showToast]);
+  }, [events, gridStart, gridEnd, requireStaff, stopDotColor, upsertEvent, announce, showToast]);
 
   // The drag-create selection box is kept visible while QuickAdd is open
   // (unselectAuto is off); clear it whenever the sheet closes — saved,
@@ -1177,6 +1252,58 @@ export function CalendarShell({
     [byId]
   );
 
+  // A SeriesTemplate lifted straight off a concrete row (not an editor draft) —
+  // the escalation path re-runs planSeriesEdit with the row's CURRENT values as
+  // the new template, so this mirrors buildTemplate but reads the fields directly.
+  // Used only for "Apply to all / from here on" escalation and the toast buttons.
+  const templateFromEvent = useCallback((row: CalendarEvent): SeriesTemplate => {
+    const template: SeriesTemplate = {
+      startMin: row.allDay ? 0 : row.startMin,
+      endMin: row.allDay ? 0 : row.endMin,
+      allDay: Boolean(row.allDay),
+      kind: row.kind,
+      title: row.title,
+    };
+    if (row.activityId) template.activityId = row.activityId;
+    if (row.campId) template.campId = row.campId;
+    if (row.color) template.color = row.color;
+    if (row.locations?.length) template.locations = row.locations;
+    if (row.note) template.note = row.note;
+    if (row.pinned) template.pinned = true;
+    return template;
+  }, []);
+
+  // The escalation staleness check (rule 2a). A toast's [All]/[Following] button
+  // — or the durable context-menu escalation — may only re-plan against the
+  // pre-gesture snapshot if the live store still reflects the this-commit it made:
+  // every affected series row in the store must EITHER match the expected
+  // post-commit state (same id → same JSON) OR be untouched (not in the expected
+  // set, so a foreign add is fine as long as it didn't rewrite one of ours). We
+  // detect a FOREIGN write by comparing each expected row against the live row of
+  // the same id: if a row we wrote was since changed by someone else, we refuse.
+  // Rows the this-commit REMOVED must still be absent. Pure — reads the live map.
+  const seriesUnchangedSince = useCallback(
+    (expected: CalendarEvent[], removedIds: string[], seriesId: string): boolean => {
+      const live = eventsRef.current; // the LIVE map (see eventsRef rationale)
+      const expectedById = new Map(expected.map((row) => [row.id, row]));
+      for (const [id, row] of expectedById) {
+        const liveRow = live[id];
+        if (!liveRow) return false; // our row vanished (a foreign delete)
+        if (rowFingerprint(liveRow) !== rowFingerprint(row)) return false;
+      }
+      // A row this commit removed must not have been resurrected.
+      for (const id of removedIds) {
+        if (live[id]) return false;
+      }
+      // No foreign row may have JOINED the series since (a concurrent add).
+      for (const liveRow of Object.values(live)) {
+        if (liveRow.seriesId === seriesId && !expectedById.has(liveRow.id)) return false;
+      }
+      return true;
+    },
+    []
+  );
+
   // Materialize a brand-new repeating event into one occurrence per date. The
   // anchor (the event you were composing) keeps its id; the rest are fresh. The
   // whole series is one batch write, so a single Undo removes it.
@@ -1247,16 +1374,6 @@ export function CalendarShell({
     (draft: EditorDraft) => {
       if (!requireStaff("plan the calendar")) return;
       const existing = draft.id ? events[draft.id] : undefined;
-      // Editing an event that already belongs to a series → ask the scope first.
-      if (existing?.seriesId) {
-        setScopePrompt({ mode: "edit", event: existing, draft });
-        return;
-      }
-      // A new (or previously one-off) event gaining a repeat → build the series.
-      if (draft.recurrence) {
-        createSeries(draft, draft.recurrence, existing);
-        return;
-      }
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
       const startMin = draft.allDay ? 0 : draft.startMin;
       const endMin = endMinForDraft(draft.startMin, draft.durationMin, draft.allDay);
@@ -1291,6 +1408,27 @@ export function CalendarShell({
       else delete event.locations;
       if (draft.note) event.note = draft.note;
       else delete event.note;
+
+      // Editing an event that ALREADY belongs to a series: commit at an instant
+      // default scope (no this/following/all dialog). Rule UNTOUCHED → "this" (a
+      // per-occurrence exception via commitThisEdit, with an escalation toast).
+      // Rule CHANGED or CLEARED → "following" (collapsing to "all" at the anchor)
+      // via commitFollowingEdit. The pattern the editor stages rides on the draft.
+      if (existing?.seriesId) {
+        if (rulesEqual(existing.recurrence, draft.recurrence)) {
+          // Keep the series fields on the this-edit row (planOccurrenceEdit reads
+          // the target's own rule; the patched `event` carries them via the spread).
+          commitThisEditRef.current(existing, event, draft.id ? "Updated" : "Moved");
+        } else {
+          commitFollowingEditRef.current({ mode: "edit", event: existing, draft });
+        }
+        return;
+      }
+      // A new (or previously one-off) event gaining a repeat → build the series.
+      if (draft.recurrence) {
+        createSeries(draft, draft.recurrence, existing);
+        return;
+      }
       upsertEvent(event);
       setSheet(null);
       announce((draft.id ? "Updated " : "Added ") + (isReminder ? "reminder " : "") + event.title);
@@ -1343,23 +1481,53 @@ export function CalendarShell({
   const deleteEvent = useCallback(
     (event: CalendarEvent) => {
       if (!requireStaff("change the calendar")) return;
-      // A repeating event asks the scope (this / following / all) before deleting.
+      // A repeating event skips THIS day instantly (a durable exdate), with a toast
+      // offering to escalate to "Delete following" / "Delete all" — no scope dialog.
       if (event.seriesId) {
-        setScopePrompt({ mode: "delete", event });
+        commitSkipThisRef.current(event);
         return;
       }
       removeEvent(event.id);
       setSheet(null);
-      showToast(
-        {
-          message: "Deleted " + (event.title || "event"),
-          onUndo: () => upsertEvent({ ...event, updatedAt: Date.now() }),
-        },
-        8000
-      );
+      // A split-day leg carries a linkId shared with its sibling on the same day.
+      // Deleting one leg leaves the other; the toast offers "Delete both" to remove
+      // the sibling too (rule 8).
+      const sibling = event.linkId
+        ? healedEvents.find(
+            (e) => e.id !== event.id && e.linkId === event.linkId && e.date === event.date
+          )
+        : undefined;
+      const toastState: ToastState = {
+        message: "Deleted " + (event.title || "event"),
+        onUndo: () => upsertEvent({ ...event, updatedAt: Date.now() }),
+      };
+      if (sibling) {
+        toastState.actions = [
+          {
+            label: "Delete both",
+            onClick: () => {
+              if (!requireStaff("change the calendar")) return;
+              removeEvent(sibling.id);
+              announce("Deleted both runs");
+              showToast(
+                {
+                  message: "Deleted both runs",
+                  onUndo: () =>
+                    upsertEvents([
+                      { ...event, updatedAt: Date.now() },
+                      { ...sibling, updatedAt: Date.now() },
+                    ]),
+                },
+                8000
+              );
+            },
+          },
+        ];
+      }
+      showToast(toastState, 8000);
       announce("Deleted " + event.title);
     },
-    [announce, removeEvent, requireStaff, showToast, upsertEvent]
+    [announce, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, upsertEvents]
   );
 
   // Pin / unpin an event in place — SCOPE-FREE and SERIES-WIDE (an adversarial
@@ -1426,22 +1594,29 @@ export function CalendarShell({
     [announce, commitEvents, events, requireStaff, showToast]
   );
 
-  // Bulk-delete the whole multi-selection as ONE undoable step. Each occurrence
-  // is treated as a plain single-day delete — we deliberately do NOT pop the
-  // recurring this/following/all dialog here (a bulk delete is predictable: what
-  // you selected is exactly what goes), and the single Undo restores them all.
+  // Bulk-delete the whole multi-selection as ONE undoable step. We deliberately do
+  // NOT pop the recurring this/following/all dialog (a bulk delete is predictable:
+  // what you selected is exactly what goes). But it must be DURABLE: a selected
+  // series member becomes a real skip (its slot exdated on every survivor) via
+  // planBulkSeriesRemovals, so a later "all"/"following" edit can't resurrect it;
+  // plain rows are just removed. All in ONE commit; the single Undo restores the
+  // exact pre-delete rows (removed occurrences AND the survivors whose exdates
+  // changed).
   const deleteSelection = useCallback(() => {
     if (!requireStaff("change the calendar")) return;
-    // Snapshot the live events for the selected ids, skipping any that no longer
-    // exist, so Undo can restore the exact rows (color/series fields and all).
+    const ids = [...selection].filter((id) => events[id]);
+    if (!ids.length) return;
+    const allRows = Object.values(events).map((event) => healEvent(event, byId));
+    const plan = planBulkSeriesRemovals(allRows, ids);
+    // Snapshot the exact live rows the plan touches so Undo restores them verbatim
+    // (survivors' pre-edit exdates + the removed occurrences).
+    const touched = new Set([...plan.upserts.map((e) => e.id), ...plan.removes]);
     const before: CalendarEvent[] = [];
-    for (const id of selection) {
-      const event = events[id];
-      if (event) before.push(healEvent(event, byId));
+    for (const id of touched) {
+      const live = events[id];
+      if (live) before.push(healEvent(live, byId));
     }
-    if (!before.length) return;
-    const ids = before.map((event) => event.id);
-    removeEvents(ids);
+    commitEvents(plan.upserts, plan.removes);
     clearSelection();
     setSheet(null);
     const count = ids.length;
@@ -1450,13 +1625,13 @@ export function CalendarShell({
     showToast(
       {
         message: label,
-        // Restore every removed row in one step (stamp updatedAt so the
+        // Restore every touched row in one step (stamp updatedAt so the
         // last-write-wins store re-accepts them after the delete).
-        onUndo: () => upsertEvents(before.map((event) => ({ ...event, updatedAt: Date.now() }))),
+        onUndo: () => commitEvents(before.map((event) => ({ ...event, updatedAt: Date.now() })), []),
       },
       8000
     );
-  }, [announce, byId, clearSelection, events, removeEvents, requireStaff, selection, showToast, upsertEvents]);
+  }, [announce, byId, clearSelection, commitEvents, events, requireStaff, selection, showToast]);
 
   // Apply a bulk edit across the whole selection in ONE undoable commit. Only the
   // fields the panel actually TOUCHED are applied (the "leave unchanged unless
@@ -1476,16 +1651,23 @@ export function CalendarShell({
         const live = events[id];
         if (!live) continue;
         const original = healEvent(live, byId);
+        // The customizable-field names this edit touches on THIS row — stamped
+        // into a series member's `custom` (via applyCustomStamp) so a later
+        // "all"/"following" regeneration preserves the bulk change instead of
+        // rebuilding it away. Built alongside the value writes below.
+        const touchedFields: string[] = [];
         let next: CalendarEvent = { ...original };
         if ("color" in changes) {
           if (changes.color) next.color = changes.color;
           else delete next.color;
+          touchedFields.push("color");
         }
         // Multi-location set (the merged model): a non-empty array replaces the
         // event's places; an empty array (or absent value) clears them.
         if ("locations" in changes) {
           if (changes.locations && changes.locations.length) next.locations = changes.locations;
           else delete next.locations;
+          touchedFields.push("locations");
         }
         if ("allDay" in changes && changes.allDay !== undefined) {
           if (changes.allDay) {
@@ -1498,9 +1680,21 @@ export function CalendarShell({
             next.startMin = DEFAULT_PLANNING_START_MIN;
             next.endMin = Math.min(MINUTES_PER_DAY, DEFAULT_PLANNING_START_MIN + DEFAULT_DURATION_MIN);
           }
+          touchedFields.push("allDay", "startMin", "endMin");
         }
         // A date/time shift rides last so it composes with an all-day change.
-        if (shift) next = applyMoveDelta(next, shift);
+        if (shift) {
+          next = applyMoveDelta(next, shift);
+          touchedFields.push("date", "startMin", "endMin");
+        }
+        // Durability: on a SERIES member, stamp the touched fields into `custom`
+        // (and origDate when the date moved) BEFORE writing updatedAt, off the
+        // PRE-edit row so origDate captures the slot it used to occupy.
+        if (next.seriesId && touchedFields.length) {
+          const stamped = applyCustomStamp(original, touchedFields);
+          if (stamped.custom) next.custom = stamped.custom;
+          if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+        }
         next.updatedAt = Date.now();
         before.push(original);
         after.push(next);
@@ -1520,69 +1714,14 @@ export function CalendarShell({
     [announce, byId, commitEvents, events, requireStaff, showToast]
   );
 
-  // Commit a scoped edit of a repeating event once the user picks this/following/
-  // all. The whole affected slice is replaced in one batch; Undo snapshots the
-  // pre-edit series and restores it (clearing whatever the edit produced).
-  const commitSeriesEdit = useCallback(
-    (prompt: Extract<ScopePrompt, { mode: "edit" }>, scope: SeriesScope) => {
-      const seriesId = prompt.event.seriesId;
-      if (!seriesId) return;
-      const before = eventsInSeries(events, seriesId);
-      // Carry the edited row's pin through the regeneration (the editor never
-      // stages pinned, so it must ride off the row) — a pinned series stays
-      // pinned across a following/all edit.
-      const template = buildTemplate(prompt.draft, prompt.event.campId, prompt.event.pinned);
-      const plan = planSeriesEdit(
-        before,
-        prompt.event,
-        template,
-        prompt.draft.date,
-        prompt.draft.recurrence,
-        scope,
-        () => crypto.randomUUID()
-      );
-      // One atomic commit (regenerated occurrences upserted, old ones removed) so
-      // the whole scoped edit is a single undo step.
-      commitEvents(plan.upserts, plan.removes);
-      setScopePrompt(null);
-      setSheet(null);
-      announce("Updated " + template.title);
-      const beforeIds = new Set(before.map((event) => event.id));
-      const newIds = plan.upserts.map((event) => event.id).filter((id) => !beforeIds.has(id));
-      const scopeNote = scope === "this" ? "" : scope === "all" ? " · all events" : " · this & following";
-      showToast(
-        {
-          message: "Updated " + template.title + scopeNote,
-          // Restore the pre-edit series and drop the occurrences the edit added,
-          // in one step (mirrors the single-commit edit above).
-          onUndo: () => commitEvents(before, newIds),
-        },
-        8000
-      );
-    },
-    [announce, buildTemplate, commitEvents, events]
-  );
-
+  // Delete a wider slice of a repeating series — the "Delete entire series…"
+  // safety hatch (following / all). "This"-scope deletes have their own instant
+  // skip path (commitSkipThis / deleteEvent), so this only handles the wider two.
   const commitSeriesDelete = useCallback(
     (event: CalendarEvent, scope: SeriesScope) => {
       const seriesId = event.seriesId;
       if (!seriesId) return;
       const series = eventsInSeries(events, seriesId);
-      if (scope === "this") {
-        // Skip a single occurrence: remove it AND record its date as an exdate on
-        // the surviving occurrences, so a later "all"/"following" edit doesn't
-        // resurrect it (the EXDATE-survives-edits guarantee). One atomic step.
-        const plan = planSeriesSkip(series, event);
-        commitEvents(plan.upserts, plan.removes);
-        setScopePrompt(null);
-        setSheet(null);
-        announce("Skipped " + (event.title || "event"));
-        showToast(
-          { message: "Skipped this day", onUndo: () => commitEvents(series, []) },
-          8000
-        );
-        return;
-      }
       const ids = planSeriesDelete(series, event, scope);
       const before = series.filter((occurrence) => ids.includes(occurrence.id));
       removeEvents(ids);
@@ -1597,7 +1736,460 @@ export function CalendarShell({
         8000
       );
     },
-    [announce, commitEvents, events, removeEvents, upsertEvents]
+    [announce, events, removeEvents, showToast, upsertEvents]
+  );
+
+  // ---- instant-scope recurrence gestures (the P3 wave) ----------------------
+  // Routine gestures on a series member commit IMMEDIATELY at a default scope (no
+  // this/following/all dialog): a toast then offers to ESCALATE the same edit to a
+  // wider scope. The escalation re-plans planSeriesEdit against the PRE-GESTURE
+  // snapshot (so this-then-all ≡ all directly — the escalate-equivalence contract)
+  // and commits as a SECOND undoable step, guarded by a staleness check so a
+  // foreign write in between can't silently clobber the series.
+
+  // Run one escalation to `scope` from a captured pre-gesture snapshot. Verifies
+  // the this-commit still stands (seriesUnchangedSince), then re-plans + commits.
+  // `escalatedRow` is the row whose current values become the new template (the
+  // committed this-edit's row); `draftDate`/`rule` describe the pattern to apply.
+  const escalateSeries = useCallback(
+    (opts: {
+      seriesId: string;
+      snapshot: CalendarEvent[];
+      expected: CalendarEvent[];
+      removed: string[];
+      escalatedRow: CalendarEvent;
+      draftDate: DateKey;
+      rule: RecurrenceRule | undefined;
+      scope: SeriesScope;
+      title: string;
+    }) => {
+      if (!requireStaff("change the calendar")) return;
+      if (!seriesUnchangedSince(opts.expected, opts.removed, opts.seriesId)) {
+        showToast({ message: "Series changed — edit it directly" });
+        return;
+      }
+      // Find the target in the SNAPSHOT (planSeriesEdit reasons over the snapshot).
+      const target =
+        opts.snapshot.find((row) => row.id === opts.escalatedRow.id) ?? opts.snapshot[0];
+      if (!target) return;
+      const template = templateFromEvent(opts.escalatedRow);
+      // "All" from an anchor edit collapses in planSeriesEdit already; here scope is
+      // passed straight through.
+      const plan = planSeriesEdit(
+        opts.snapshot,
+        target,
+        template,
+        opts.draftDate,
+        opts.rule,
+        opts.scope,
+        () => crypto.randomUUID()
+      );
+      // Snapshot the CURRENT live rows the escalation touches (read the LIVE map,
+      // not the closed-over `events` — this closure outlives its creating render),
+      // so Undo restores the exact state that existed just before this second
+      // commit (the this-edit result), not the pre-gesture one.
+      const live = eventsRef.current;
+      const touchedIds = new Set([...plan.upserts.map((e) => e.id), ...plan.removes]);
+      const beforeLive: CalendarEvent[] = [];
+      for (const id of touchedIds) {
+        const row = live[id];
+        if (row) beforeLive.push(row);
+      }
+      const addedIds = plan.upserts.map((e) => e.id).filter((id) => !live[id]);
+      commitEvents(plan.upserts, plan.removes);
+      const scopeNote = opts.scope === "all" ? " · all events" : " · this & following";
+      announce("Updated " + opts.title + scopeNote);
+      showToast(
+        {
+          message: "Updated " + opts.title + scopeNote,
+          onUndo: () => commitEvents(beforeLive, addedIds),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, requireStaff, seriesUnchangedSince, showToast, templateFromEvent]
+  );
+
+  // Commit a "this" occurrence edit instantly (drag / resize / rail-drag / editor
+  // save with the rule untouched). Builds `next` off the gesture, runs
+  // planOccurrenceEdit, commits ONE row, and raises a toast whose [All]/[Following]
+  // buttons escalate the SAME edit from the pre-gesture snapshot. `dayLabel` names
+  // the occurrence's weekday for the toast ("Moved this Tue only").
+  const commitThisEdit = useCallback(
+    (existing: CalendarEvent, next: CalendarEvent, verb: string) => {
+      const seriesId = existing.seriesId;
+      if (!seriesId) return;
+      const snapshot = eventsInSeries(events, seriesId);
+      const plan = planOccurrenceEdit(snapshot, existing, next);
+      commitEvents(plan.upserts, plan.removes);
+      setScopePrompt(null);
+      setSheet(null);
+      const committed = plan.upserts[0] ?? next;
+      const title = existing.title || "event";
+      const weekday = fromDateKey(committed.date).toLocaleDateString(undefined, { weekday: "short" });
+      announce(verb + " " + title + " — this " + weekday + " only");
+      // The rule for an escalation is the target's own denormalized rule.
+      const rule = existing.recurrence;
+      const draftDate = committed.date;
+      const escalate = (scope: SeriesScope) => () =>
+        escalateSeries({
+          seriesId,
+          snapshot,
+          expected: plan.upserts,
+          removed: plan.removes,
+          escalatedRow: committed,
+          draftDate,
+          rule,
+          scope,
+          title,
+        });
+      showToast(
+        {
+          message: verb + " this " + weekday + " only",
+          actions: [
+            { label: "All", onClick: escalate("all") },
+            { label: "Following", onClick: escalate("following") },
+          ],
+          onUndo: () => commitEvents([existing], plan.upserts.map((e) => e.id).filter((id) => id !== existing.id)),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, escalateSeries, events, showToast]
+  );
+  // Keep the rail-drag's ref fresh (see commitThisEditRef declaration).
+  useEffect(() => {
+    commitThisEditRef.current = commitThisEdit;
+  }, [commitThisEdit]);
+
+  // Commit an editor save whose RULE CHANGED at "following" (collapsing to "all"
+  // when the edited row is the series anchor = earliest). Toast: "Updated from here
+  // on" + [Whole series]. The rule-CLEARED case keeps the same planner branch
+  // (planSeriesEdit with rule undefined) at "following".
+  const commitFollowingEdit = useCallback(
+    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => {
+      const seriesId = prompt.event.seriesId;
+      if (!seriesId) return;
+      const snapshot = eventsInSeries(events, seriesId);
+      // Collapse "following" to "all" when the edited row is the earliest (its
+      // "following" span already covers the whole series, and "all" reads cleaner).
+      const isAnchor = snapshot.length > 0 && snapshot[0].id === prompt.event.id;
+      const scope: SeriesScope = isAnchor ? "all" : "following";
+      const template = buildTemplate(prompt.draft, prompt.event.campId, prompt.event.pinned);
+      const plan = planSeriesEdit(
+        snapshot,
+        prompt.event,
+        template,
+        prompt.draft.date,
+        prompt.draft.recurrence,
+        scope,
+        () => crypto.randomUUID()
+      );
+      commitEvents(plan.upserts, plan.removes);
+      setScopePrompt(null);
+      setSheet(null);
+      const beforeIds = new Set(snapshot.map((e) => e.id));
+      const newIds = plan.upserts.map((e) => e.id).filter((id) => !beforeIds.has(id));
+      const cleared = !prompt.draft.recurrence;
+      const message = cleared
+        ? scope === "all"
+          ? "Stopped repeating"
+          : "Stopped repeating from here on"
+        : scope === "all"
+          ? "Updated all events"
+          : "Updated from here on";
+      announce(message);
+      const toastState: ToastState = {
+        message,
+        onUndo: () => commitEvents(snapshot, newIds),
+      };
+      // Offer the wider "Whole series" escalation only when we didn't already run
+      // "all" (an anchor edit, or a "following" that started at the first row).
+      if (scope !== "all") {
+        toastState.actions = [
+          {
+            label: "Whole series",
+            onClick: () =>
+              escalateSeries({
+                seriesId,
+                snapshot,
+                expected: plan.upserts,
+                removed: plan.removes,
+                escalatedRow: plan.upserts.find((e) => e.id === prompt.event.id) ?? prompt.event,
+                draftDate: prompt.draft.date,
+                rule: prompt.draft.recurrence,
+                scope: "all",
+                title: template.title,
+              }),
+          },
+        ];
+      }
+      showToast(toastState, 8000);
+    },
+    [announce, buildTemplate, commitEvents, escalateSeries, events, showToast]
+  );
+  useEffect(() => {
+    commitFollowingEditRef.current = commitFollowingEdit;
+  }, [commitFollowingEdit]);
+
+  // Commit an instant "skip this day" delete of a series member (planSeriesSkip,
+  // a durable exdate). Toast: "Skipped this day" + [Delete following] [Delete all].
+  const commitSkipThis = useCallback(
+    (event: CalendarEvent) => {
+      const seriesId = event.seriesId;
+      if (!seriesId) return;
+      const snapshot = eventsInSeries(events, seriesId);
+      const plan = planSeriesSkip(snapshot, event);
+      commitEvents(plan.upserts, plan.removes);
+      setScopePrompt(null);
+      setSheet(null);
+      announce("Skipped " + (event.title || "event"));
+      // Escalation here is a wider DELETE, not an edit — re-plan planSeriesDelete
+      // against the snapshot, guarded by the same staleness check. Restore-on-undo
+      // snapshots the LIVE rows being removed (the this-skip already ran, so the
+      // survivors carry fresh exdates and the skipped target is already gone) — so
+      // Undo restores exactly what THIS commit removed, cleanly layered on the skip.
+      const escalateDelete = (scope: "following" | "all") => () => {
+        if (!requireStaff("change the calendar")) return;
+        if (!seriesUnchangedSince(plan.upserts, plan.removes, seriesId)) {
+          showToast({ message: "Series changed — edit it directly" });
+          return;
+        }
+        const live = eventsRef.current;
+        const ids = planSeriesDelete(snapshot, event, scope).filter((id) => live[id]);
+        if (!ids.length) return;
+        const before = ids.map((id) => live[id]);
+        removeEvents(ids);
+        announce("Deleted " + ids.length + (ids.length === 1 ? " event" : " events"));
+        showToast(
+          {
+            message: "Deleted " + ids.length + (ids.length === 1 ? " event" : " events"),
+            onUndo: () => upsertEvents(before),
+          },
+          8000
+        );
+      };
+      showToast(
+        {
+          message: "Skipped this day",
+          actions: [
+            { label: "Delete following", onClick: escalateDelete("following") },
+            { label: "Delete all", onClick: escalateDelete("all") },
+          ],
+          onUndo: () => commitEvents(snapshot, []),
+        },
+        8000
+      );
+    },
+    [
+      announce,
+      commitEvents,
+      events,
+      removeEvents,
+      requireStaff,
+      seriesUnchangedSince,
+      showToast,
+      upsertEvents,
+    ]
+  );
+  useEffect(() => {
+    commitSkipThisRef.current = commitSkipThis;
+  }, [commitSkipThis]);
+
+  // ---- durable escalation, reset, skip-days, split-day (rules 3/5/6/8) -------
+
+  // Escalate a CUSTOMIZED row's current state to a wider scope durably (the
+  // right-click / editor "Apply to all occurrences" / "Apply from here on"). Unlike
+  // the toast escalation this reads the LIVE series (the customization is already
+  // stored), so no staleness guard is needed — planSeriesEdit regenerates that
+  // scope from the row's own values as the new template. One undoable commit.
+  const applyRowScope = useCallback(
+    (row: CalendarEvent, scope: "all" | "following") => {
+      if (!requireStaff("change the calendar")) return;
+      const seriesId = row.seriesId;
+      if (!seriesId) return;
+      const before = eventsInSeries(events, seriesId);
+      const target = before.find((e) => e.id === row.id) ?? row;
+      const template = templateFromEvent(target);
+      const plan = planSeriesEdit(
+        before,
+        target,
+        template,
+        target.date,
+        target.recurrence,
+        scope,
+        () => crypto.randomUUID()
+      );
+      commitEvents(plan.upserts, plan.removes);
+      setMenu(null);
+      setSheet(null);
+      const beforeIds = new Set(before.map((e) => e.id));
+      const newIds = plan.upserts.map((e) => e.id).filter((id) => !beforeIds.has(id));
+      const scopeNote = scope === "all" ? " · all events" : " · this & following";
+      const title = target.title || "event";
+      announce("Updated " + title + scopeNote);
+      showToast(
+        {
+          message: "Applied to " + (scope === "all" ? "all events" : "this & following"),
+          onUndo: () => commitEvents(before, newIds),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, requireStaff, showToast, templateFromEvent]
+  );
+
+  // Reset a customized occurrence back to a plain series member (rule 5) — drop
+  // its per-field overrides, rebuilding from the freshest clean sibling. One
+  // upsert; undoable to the pre-reset row.
+  const resetOccurrence = useCallback(
+    (row: CalendarEvent) => {
+      if (!requireStaff("change the calendar")) return;
+      const seriesId = row.seriesId;
+      if (!seriesId) return;
+      const series = eventsInSeries(events, seriesId);
+      const before = series.find((e) => e.id === row.id) ?? row;
+      const plan = planResetOccurrence(series, before);
+      commitEvents(plan.upserts, plan.removes);
+      setMenu(null);
+      setSheet(null);
+      announce("Reset " + (row.title || "event") + " to the series");
+      showToast(
+        {
+          message: "Reset to series",
+          onUndo: () => commitEvents([before], []),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Restore a skipped day (rule 6): mint a fresh occurrence back onto `date` and
+  // strip it from every survivor's exdates. Threaded to the RepeatField's "Skipped
+  // dates" restore rows AND the skip-days picker. One undoable commit.
+  const restoreOccurrence = useCallback(
+    (seriesId: string, date: DateKey) => {
+      if (!requireStaff("change the calendar")) return;
+      const series = eventsInSeries(events, seriesId);
+      if (!series.length) return;
+      const plan = planRestoreOccurrence(series, date, () => crypto.randomUUID());
+      const touched = new Set([...plan.upserts.map((e) => e.id), ...plan.removes]);
+      const before: CalendarEvent[] = [];
+      for (const id of touched) {
+        const live = events[id];
+        if (live) before.push(live);
+      }
+      const addedIds = plan.upserts.map((e) => e.id).filter((id) => !events[id]);
+      commitEvents(plan.upserts, plan.removes);
+      announce("Restored " + date);
+      showToast(
+        {
+          message: "Restored this day",
+          onUndo: () => commitEvents(before, addedIds),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Batch "skip these days" from the skip-days picker (rule 6): union every chosen
+  // date into every survivor's exdates + remove the concrete rows on those days.
+  // One commit, one undo.
+  const skipManyDays = useCallback(
+    (seriesId: string, dates: DateKey[]) => {
+      if (!requireStaff("change the calendar")) return;
+      if (!dates.length) return;
+      const series = eventsInSeries(events, seriesId);
+      const plan = planSeriesSkipMany(series, dates);
+      const touched = new Set([...plan.upserts.map((e) => e.id), ...plan.removes]);
+      const before: CalendarEvent[] = [];
+      for (const id of touched) {
+        const live = events[id];
+        if (live) before.push(live);
+      }
+      commitEvents(plan.upserts, plan.removes);
+      setSkipPicker(null);
+      const count = plan.removes.length;
+      announce("Skipped " + count + (count === 1 ? " day" : " days"));
+      showToast(
+        {
+          message: "Skipped " + count + (count === 1 ? " day" : " days"),
+          onUndo: () => commitEvents(before, []),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, requireStaff, showToast]
+  );
+
+  // "Add second run today" (split days, rule 8): clone this event's IDENTITY at
+  // the next free slot on its own day, sharing a fresh linkId (the target gains it
+  // too). On a SERIES member the target's linkId is stamped via planOccurrenceEdit
+  // (custom:["linkId"]) so the leg marker survives regeneration; a plain event just
+  // takes the linkId inline. One commit, one undo. No auto-fan of identity edits.
+  const addSecondRun = useCallback(
+    (event: CalendarEvent) => {
+      if (!requireStaff("plan the calendar")) return;
+      if (event.allDay) return; // a timed event only
+      const linkId = crypto.randomUUID();
+      const span = event.endMin - event.startMin;
+      const duration = span <= 0 ? 0 : snapDurationMin(span);
+      const dayEvents = healedEvents.filter((e) => e.date === event.date);
+      const free = nextFreeStartForDay(dayEvents, Math.max(duration, 1), event.endMin, window_);
+      const startMin = free ?? event.startMin;
+      // The clone shares identity (title/activityId/kind/color/locations/mealKind/
+      // pinned) but NOT seriesId/recurrence/custom/origDate/note — a fresh one-off
+      // leg. It carries the shared linkId.
+      const clone: CalendarEvent = {
+        id: crypto.randomUUID(),
+        date: event.date,
+        startMin,
+        endMin: duration <= 0 ? startMin : Math.min(MINUTES_PER_DAY, startMin + duration),
+        kind: event.kind,
+        title: event.title,
+        linkId,
+        updatedAt: Date.now(),
+      };
+      if (event.activityId) clone.activityId = event.activityId;
+      if (event.campId) clone.campId = event.campId;
+      if (event.color) clone.color = event.color;
+      if (event.locations?.length) clone.locations = [...event.locations];
+      if (event.mealKind) clone.mealKind = event.mealKind;
+      if (event.pinned) clone.pinned = true;
+      if (event.allDay) clone.allDay = true;
+
+      const upserts: CalendarEvent[] = [clone];
+      const removes: string[] = [];
+      const before: CalendarEvent[] = [];
+      // Stamp the TARGET with the same linkId. On a series member this is a durable
+      // this-edit (custom:["linkId"]); on a plain event, a plain inline write.
+      if (event.seriesId) {
+        const series = eventsInSeries(events, event.seriesId);
+        const next: CalendarEvent = { ...event, linkId, updatedAt: Date.now() };
+        const plan = planOccurrenceEdit(series, event, next);
+        upserts.push(...plan.upserts);
+        removes.push(...plan.removes);
+        before.push(event);
+      } else {
+        upserts.push({ ...event, linkId, updatedAt: Date.now() });
+        before.push(event);
+      }
+      commitEvents(upserts, removes);
+      setMenu(null);
+      setSheet(null);
+      announce("Added a second run of " + (event.title || "event"));
+      showToast(
+        {
+          message: "Added second run",
+          // Undo: drop the clone, restore the target's pre-link row.
+          onUndo: () => commitEvents(before, [clone.id]),
+        },
+        8000
+      );
+    },
+    [announce, commitEvents, events, healedEvents, requireStaff, showToast, window_]
   );
 
   // Duplicate an event: clone it onto the next free slot of the same day so the
@@ -1623,9 +2215,14 @@ export function CalendarShell({
         updatedAt: Date.now(),
       };
       // A duplicate is a standalone one-off, never a phantom member of the
-      // original's series — drop the recurrence so it isn't tied to it.
+      // original's series — drop the recurrence + its exception bookkeeping
+      // (custom/origDate) so it isn't tied to it, and drop the split-day linkId so
+      // the copy isn't spuriously a leg of the original's linked pair.
       delete copy.seriesId;
       delete copy.recurrence;
+      delete copy.custom;
+      delete copy.origDate;
+      delete copy.linkId;
       upsertEvent(copy);
       announce("Duplicated " + (event.title || "event"));
       showToast({
@@ -1677,6 +2274,9 @@ export function CalendarShell({
         };
         delete copy.seriesId;
         delete copy.recurrence;
+        delete copy.custom;
+        delete copy.origDate;
+        delete copy.linkId;
         copies.push(copy);
         dayEventsFor(copy.date).push(copy);
       }
@@ -2317,7 +2917,17 @@ export function CalendarShell({
         for (const id of groupIds) {
           const ev = events[id];
           if (!ev) continue;
-          upserts.push(id === existing.id ? { ...next, updatedAt: Date.now() } : applyMoveDelta(ev, delta));
+          // Each member is a date/time shift. On a SERIES member, stamp the move
+          // into `custom` (+ origDate) off the PRE-move row so a later regeneration
+          // preserves it — a bulk gesture is a durable per-occurrence exception.
+          let moved = id === existing.id ? { ...next, updatedAt: Date.now() } : applyMoveDelta(ev, delta);
+          if (moved.seriesId) {
+            const stamped = applyCustomStamp(ev, ["date", "startMin", "endMin"]);
+            moved = { ...moved };
+            if (stamped.custom) moved.custom = stamped.custom;
+            if (stamped.origDate !== undefined) moved.origDate = stamped.origDate;
+          }
+          upserts.push(moved);
         }
         if (upserts.length) {
           const before = upserts
@@ -2342,6 +2952,13 @@ export function CalendarShell({
       if (info.jsEvent?.altKey || altDragRef.current) {
         info.revert();
         const copy: CalendarEvent = { ...next, id: crypto.randomUUID(), updatedAt: Date.now() };
+        // A copy is a standalone one-off — shed the series + exception + link
+        // bookkeeping so it isn't a phantom member/leg of the original.
+        delete copy.seriesId;
+        delete copy.recurrence;
+        delete copy.custom;
+        delete copy.origDate;
+        delete copy.linkId;
         upsertEvent(copy);
         announce("Copied " + (existing.title || "event"));
         showToast({
@@ -2350,14 +2967,14 @@ export function CalendarShell({
         });
         return;
       }
-      // A repeating occurrence: ask the scope (this / following / all) — the same
-      // choice the editor offers — instead of silently rewriting only this one
-      // day. Route the new geometry through the existing scoped-edit flow as a
-      // draft. Revert FC's optimistic move first: the scoped commit re-renders the
-      // series, and a cancelled prompt then leaves the occurrence where it was.
+      // A repeating occurrence commits "this" INSTANTLY (a per-occurrence
+      // exception) with a toast offering [All]/[Following] escalation — no scope
+      // dialog. Revert FC's optimistic single-day move first (keeping the
+      // revert-before-commit contract): commitThisEdit re-renders the series from
+      // the store, so the occurrence lands via the plan, not FC's transient move.
       if (existing.seriesId) {
         info.revert();
-        setScopePrompt({ mode: "edit", event: existing, draft: draftFromEvent(next) });
+        commitThisEditRef.current(existing, next, "Moved");
         return;
       }
       upsertEvent(next);
@@ -2384,11 +3001,11 @@ export function CalendarShell({
         return;
       }
       const next = fromFcDates(info.event.start, info.event.end, info.event.allDay, existing);
-      // Resizing a repeating occurrence asks the scope too, mirroring the drag
-      // and the editor — so "all events" can adopt the new length in one step.
+      // Resizing a repeating occurrence commits "this" instantly with an escalation
+      // toast, mirroring the drag and the editor save — no scope dialog.
       if (existing.seriesId) {
         info.revert();
-        setScopePrompt({ mode: "edit", event: existing, draft: draftFromEvent(next) });
+        commitThisEditRef.current(existing, next, "Resized");
         return;
       }
       upsertEvent(next);
@@ -2491,6 +3108,12 @@ export function CalendarShell({
     // carries a small pin glyph beside the recurrence loop. Threaded through the
     // adapter's extendedProps like `repeats`, so it repaints on every data change.
     const pinned = arg.event.extendedProps.pinned === true;
+    // A "this"-customized series member carries a small "edited" tick beside the
+    // repeat loop — the visible mark of a per-occurrence exception (rule 5).
+    const customized = arg.event.extendedProps.customized === true;
+    // A split-day leg ("1/2 · 2/2") — one leg of a same-day linked pair (rule 8).
+    const legLabelRaw = arg.event.extendedProps.legLabel;
+    const legLabel = typeof legLabelRaw === "string" && legLabelRaw ? legLabelRaw : null;
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
@@ -2520,8 +3143,10 @@ export function CalendarShell({
         <div className="cal-chip" ref={paint}>
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
+          {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
+          {customized && <EditedTickGlyph className="cal-chip__edited" />}
         </div>
       );
     }
@@ -2537,8 +3162,10 @@ export function CalendarShell({
         <span className="cal-card__line">
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
+          {legLabel && <span className="cal-card__leg">{legLabel}</span>}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
+          {customized && <EditedTickGlyph className="cal-card__edited" />}
         </span>
         {!arg.event.allDay && <span className="cal-card__time">{arg.timeText}</span>}
         {location && (
@@ -3183,6 +3810,12 @@ export function CalendarShell({
     if (menu || sheet || scopePrompt || wxPopover || stopPopover) setShiftBar(null);
   }, [menu, sheet, scopePrompt, wxPopover, stopPopover]);
 
+  // The skip-days picker is likewise mutually exclusive with the editor / other
+  // anchored surfaces (it opens FROM the menu, which closes on select).
+  useEffect(() => {
+    if (sheet || scopePrompt || shiftBar || stopPopover) setSkipPicker(null);
+  }, [sheet, scopePrompt, shiftBar, stopPopover]);
+
   // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
   // each hour block. The chips live INSIDE FullCalendar's own day columns
   // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
@@ -3813,6 +4446,41 @@ export function CalendarShell({
                 }
               : undefined
           }
+          onApplyAll={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId && events[sheet.draft.id]?.custom?.length
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing) applyRowScope(healEvent(existing, byId), "all");
+                }
+              : undefined
+          }
+          onApplyFollowing={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId && events[sheet.draft.id]?.custom?.length
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing) applyRowScope(healEvent(existing, byId), "following");
+                }
+              : undefined
+          }
+          onResetOccurrence={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId && events[sheet.draft.id]?.custom?.length
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing) resetOccurrence(healEvent(existing, byId));
+                }
+              : undefined
+          }
+          onRestoreSkip={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId
+              ? (date) => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing?.seriesId) {
+                    setSheet(null);
+                    restoreOccurrence(existing.seriesId, date);
+                  }
+                }
+              : undefined
+          }
           pinned={Boolean(sheet.draft.id && events[sheet.draft.id]?.pinned)}
           onRecoverTime={
             sheet.draft.id
@@ -4021,6 +4689,51 @@ export function CalendarShell({
                   icon: <CampIcon.Copy />,
                   onSelect: () => duplicateEvent(ev),
                 },
+                // Split days — "Add second run today" clones this event's identity
+                // onto the next free slot of the same day, sharing a fresh linkId so
+                // the two read as legs of one unit (rule 8). Timed events only.
+                ...(isTimed
+                  ? [
+                      {
+                        label: "Add second run today",
+                        icon: <CampIcon.Copy />,
+                        onSelect: () => addSecondRun(ev),
+                      },
+                    ]
+                  : []),
+                // Durable recurrence escalation + reset + skip-days — only on a
+                // series member. "Apply to all / from here on" and "Reset to series"
+                // act on a THIS-customized row (custom?.length); "Skip days…" and
+                // "Delete entire series…" always show for a member.
+                ...(ev.seriesId
+                  ? [
+                      {
+                        label: "Apply to all occurrences",
+                        icon: <CampIcon.Repeat />,
+                        separatorBefore: true,
+                        disabled: !ev.custom?.length,
+                        onSelect: () => applyRowScope(ev, "all"),
+                      },
+                      {
+                        label: "Apply from here on",
+                        icon: <CampIcon.Repeat />,
+                        disabled: !ev.custom?.length,
+                        onSelect: () => applyRowScope(ev, "following"),
+                      },
+                      {
+                        label: "Reset to series",
+                        icon: <CampIcon.Reset />,
+                        disabled: !ev.custom?.length,
+                        onSelect: () => resetOccurrence(ev),
+                      },
+                      {
+                        label: "Skip days…",
+                        icon: <CampIcon.Calendar />,
+                        onSelect: () =>
+                          setSkipPicker({ seriesId: ev.seriesId as string, point }),
+                      },
+                    ]
+                  : []),
                 // Day-shift doors, only for TIMED events. "Running long…" (extend
                 // this event's end + slide the rest) is hidden for a 0-min reminder;
                 // "Shift day from here…" (slide everything from this start) applies
@@ -4057,12 +4770,28 @@ export function CalendarShell({
                     ]
                   : []),
                 {
-                  label: "Delete",
+                  label: ev.seriesId ? "Skip this day" : "Delete",
                   icon: <CampIcon.Trash />,
                   danger: true,
                   separatorBefore: true,
                   onSelect: () => deleteEvent(ev),
                 },
+                // The deliberate safety hatch — the ONLY surviving use of the
+                // this/following/all scope dialog (delete-mode, following/all only).
+                ...(ev.seriesId
+                  ? [
+                      {
+                        label: "Delete entire series…",
+                        icon: <CampIcon.Trash />,
+                        danger: true,
+                        onSelect: () => {
+                          if (!requireStaff("change the calendar")) return;
+                          setMenu(null);
+                          setScopePrompt({ mode: "delete", event: ev });
+                        },
+                      },
+                    ]
+                  : []),
               ]}
             />
           );
@@ -4205,15 +4934,46 @@ export function CalendarShell({
         </FloatingLayer>
       )}
 
-      {scopePrompt && (
+      {/* The "Skip days…" picker — upcoming series occurrences as toggle chips.
+          Resolves the live series from the store so a stale seriesId self-closes;
+          a batch skip lands as one commit + undo. Cursor-anchored FloatingLayer. */}
+      {skipPicker &&
+        (() => {
+          const series = eventsInSeries(events, skipPicker.seriesId);
+          if (!series.length) return null;
+          const today = todayKey();
+          const upcoming = series
+            .filter((e) => e.date >= today)
+            .map((e) => e.date)
+            .sort();
+          const dates = upcoming.length ? upcoming : series.map((e) => e.date).sort();
+          return (
+            <FloatingLayer
+              anchor={{ kind: "point", x: skipPicker.point.x, y: skipPicker.point.y }}
+              onClose={() => setSkipPicker(null)}
+              className="cal-popover cal-skipdays"
+              role="dialog"
+              ariaLabel="Skip days"
+            >
+              <SkipDaysPicker
+                dates={dates}
+                onSkip={(chosen) => skipManyDays(skipPicker.seriesId, chosen)}
+                onClose={() => setSkipPicker(null)}
+              />
+            </FloatingLayer>
+          );
+        })()}
+
+      {/* The scope dialog survives ONLY as the deliberate "Delete entire series…"
+          safety hatch (a right-click item): its instant paths cover this/following/
+          all everywhere else. Delete-mode, following/all only ("this" has its own
+          instant skip). */}
+      {scopePrompt?.mode === "delete" && (
         <SeriesScopeDialog
-          action={scopePrompt.mode}
+          action="delete"
           title={scopePrompt.event.title}
-          onPick={(scope) =>
-            scopePrompt.mode === "edit"
-              ? commitSeriesEdit(scopePrompt, scope)
-              : commitSeriesDelete(scopePrompt.event, scope)
-          }
+          scopes={["following", "all"]}
+          onPick={(scope) => commitSeriesDelete(scopePrompt.event, scope)}
           onClose={() => setScopePrompt(null)}
         />
       )}
@@ -4238,33 +4998,40 @@ export function CalendarShell({
         </div>
       )}
 
-      {toast && (
-        <div className="calshell__toast" role="status">
-          <span>{toast.message}</span>
-          {toast.action && (
-            <button
-              type="button"
-              onClick={() => {
-                toast.action?.onClick();
-                setToast(null);
-              }}
-            >
-              {toast.action.label}
-            </button>
-          )}
-          {toast.onUndo && (
-            <button
-              type="button"
-              onClick={() => {
-                toast.onUndo?.();
-                setToast(null);
-              }}
-            >
-              Undo
-            </button>
-          )}
-        </div>
-      )}
+      {toast &&
+        (() => {
+          // Fold the legacy single `action` into the ordered `actions` list so
+          // both shapes render through one path (escalation buttons, then Undo).
+          const actions = [...(toast.action ? [toast.action] : []), ...(toast.actions ?? [])];
+          return (
+            <div className="calshell__toast" role="status">
+              <span>{toast.message}</span>
+              {actions.map((action, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    action.onClick();
+                    setToast(null);
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+              {toast.onUndo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.onUndo?.();
+                    setToast(null);
+                  }}
+                >
+                  Undo
+                </button>
+              )}
+            </div>
+          );
+        })()}
     </div>
   );
 }
@@ -4285,6 +5052,17 @@ function PinInPlaceIcon({ className }: { className?: string }) {
 // The card variant is the same glyph — a distinct name at the call site keeps the
 // two uses legible (a menu item's icon vs a card affordance).
 const CardPinGlyph = PinInPlaceIcon;
+
+// A tiny "edited" tick — a small pencil — worn by a "this"-customized series
+// member's card beside the repeat loop. Inlined on the icon set's 24×24 stroke
+// grid (icons.tsx is owned elsewhere), tone from the card's own color.
+function EditedTickGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M14 6l4 4L9 19l-4 1 1-4 8-9z" />
+    </svg>
+  );
+}
 
 // The Gather chip's glyph — a small supply crate/basket standing for the day's
 // kit. Inlined on the icon set's 24×24 grid (icons.tsx is owned elsewhere), the
@@ -4326,6 +5104,68 @@ function BulkLocationPicker({
       }}
       onManage={onManage}
     />
+  );
+}
+
+// The "Skip days…" picker body: the series' upcoming occurrence dates as toggle
+// chips, a live summary line ("adds N skips, computed now"), and a Skip button.
+// Owns its own working set so toggles stay checked while the card is open; commits
+// once on Skip. The dates come from the concrete rows (computed by the caller), so
+// this is display-only over a known list.
+function SkipDaysPicker({
+  dates,
+  onSkip,
+  onClose,
+}: {
+  dates: DateKey[];
+  onSkip: (dates: DateKey[]) => void;
+  onClose: () => void;
+}) {
+  const [chosen, setChosen] = useState<ReadonlySet<DateKey>>(() => new Set());
+  const toggle = (date: DateKey) =>
+    setChosen((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  const count = chosen.size;
+  return (
+    <div className="cal-skipdays__body">
+      <h3 className="cal-skipdays__title">Skip days</h3>
+      <div className="cal-skipdays__chips" role="group" aria-label="Upcoming occurrences">
+        {dates.map((date) => {
+          const on = chosen.has(date);
+          return (
+            <button
+              key={date}
+              type="button"
+              className={"cal-skipdays__chip" + (on ? " is-on" : "")}
+              aria-pressed={on}
+              onClick={() => toggle(date)}
+            >
+              {formatEventDateLabel(date)}
+            </button>
+          );
+        })}
+      </div>
+      <p className="cal-skipdays__summary" role="status">
+        {count ? "Adds " + count + (count === 1 ? " skip" : " skips") + ", computed now" : "Pick days to skip"}
+      </p>
+      <div className="cal-skipdays__foot">
+        <button type="button" className="btn btn--ghost" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={!count}
+          onClick={() => onSkip([...chosen])}
+        >
+          Skip {count || ""}
+        </button>
+      </div>
+    </div>
   );
 }
 

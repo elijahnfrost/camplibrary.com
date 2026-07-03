@@ -1778,7 +1778,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
-  gap: var(--s-5);
+  flex-wrap: wrap; /* the escalation toast can carry 2–3 actions + Undo */
+  justify-content: center;
+  gap: var(--s-3) var(--s-5);
+  max-width: min(92vw, 560px);
   background: var(--ink);
   color: var(--paper);
   border-radius: var(--r-md);
@@ -2174,6 +2177,41 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   height: 11px;
 }
 
+/* ---------- "edited" tick (a this-customized series member) ----------
+   A small pencil beside the recurrence loop marks a per-occurrence exception
+   (durably-overridden fields). Painted only when extendedProps.customized is set
+   (an event.custom list), so plain cards + non-customized members are untouched.
+   Shares the muted, subtle treatment of the repeat/pin glyphs. */
+.cal-card__edited,
+.cal-chip__edited {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: var(--ink-soft);
+  stroke: none;
+  opacity: 0.75;
+}
+.cal-chip__edited {
+  width: 11px;
+  height: 11px;
+}
+
+/* ---------- split-day leg chip ("1/2 · 2/2") ----------
+   One leg of a same-day linked pair carries a tiny ordinal chip so the two runs
+   read as legs of one unit. Quiet — a hairline pill, not a loud badge. */
+.cal-card__leg,
+.cal-chip__leg {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--r-round);
+  border: 1px solid color-mix(in srgb, var(--cal-tint, var(--ink-soft)) 45%, transparent);
+  color: var(--ink-soft);
+  opacity: 0.9;
+}
+
 /* ---------- the Repeat control inside QuickAdd ----------
    RepeatField renders bare .ledger__row lines now (no wrapper element); the
    parent ledger frames them. The weekday toggles sit on their own ledger row,
@@ -2218,6 +2256,111 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* The BLACKOUT toggles (Except row) reuse the weekday-toggle shape but paint the
+   "on" state as a struck-out / danger-tinted pill (a day REMOVED, not added), so
+   the two rows never read the same. */
+.repeatfield__day--except.is-on {
+  background: color-mix(in srgb, var(--danger, #b4552f) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--danger, #b4552f) 55%, var(--line));
+  color: var(--ink);
+  text-decoration: line-through;
+}
+
+/* Skipped-dates ledger — each exdate on its own row with a Restore link. */
+.repeatfield__skips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  width: 100%;
+}
+.repeatfield__skip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.repeatfield__skipdate {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.repeatfield__restore {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--accent-ink, var(--ink));
+  text-decoration: underline;
+}
+.repeatfield__restore:hover {
+  color: var(--ink);
+}
+.repeatfield__restore:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--r-xs, 3px);
+}
+
+/* ---------- skip-days picker (reuses the .cal-popover surface) ----------
+   The series' upcoming occurrences as toggle chips + a live summary and a commit
+   button. Rides the shared floating card, so it clamps/docks like the others. */
+.cal-skipdays__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 220px;
+  max-width: 300px;
+}
+.cal-skipdays__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.cal-skipdays__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.cal-skipdays__chip {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  padding: var(--s-1) var(--s-2);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.cal-skipdays__chip:hover {
+  border-color: var(--ink-soft);
+}
+.cal-skipdays__chip:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.cal-skipdays__chip.is-on {
+  background: color-mix(in srgb, var(--danger, #b4552f) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--danger, #b4552f) 55%, var(--line));
+  color: var(--ink);
+  text-decoration: line-through;
+}
+.cal-skipdays__summary {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.cal-skipdays__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
 }
 
 /* ---------- repeating edit/delete scope chooser ---------- */
