@@ -1,22 +1,8 @@
-// Camp Library — print-only meal labels (approved plan §H, "Meals on paper").
+// Camp Library — print-side meal labels (approved plan §H, "Meals on paper").
 //
-// The calendar shows a meal-flagged event with a small fork+spoon SVG glyph
-// (components/calendar/CalendarShell.tsx's MealGlyph) plus its human label in
-// a couple of places (CalendarTodayCard's MEAL_KIND_LABEL, CalendarShell's
-// MEAL_KIND_LABELS). Print can't import from components/calendar/* (off
-// limits), and lib/meals.ts is off limits to EDIT (a parallel branch is
-// landing a shared MEAL_KIND_LABELS constant there) — so this is a small,
-// local, print-only label map mirroring the same kebab-case MealKind values.
-//
-// TODO(meals-labels): once the shared MEAL_KIND_LABELS constant lands in
-// lib/meals.ts, replace this local map with an import of that instead.
+// Print can't import from components/calendar/* (client components), so this
+// module re-exports the ONE shared MealKind label map from lib/meals under the
+// name the print renderers consume. Wording is owned by lib/meals — never fork
+// it here (that drift is exactly what meals-4 cleaned up).
 
-import type { MealKind } from "@/lib/calendar/types";
-
-export const MEAL_KIND_LABEL: Record<MealKind, string> = {
-  breakfast: "Breakfast",
-  "am-snack": "AM snack",
-  lunch: "Lunch",
-  "pm-snack": "PM snack",
-  other: "Meal",
-};
+export { MEAL_KIND_LABELS as MEAL_KIND_LABEL } from "@/lib/meals";
