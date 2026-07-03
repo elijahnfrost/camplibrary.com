@@ -83,6 +83,11 @@ export interface PrintFormat {
   pageBreakPerDay: boolean;
   // A combined materials checklist across the whole range (a shopping list).
   materialsRollup: boolean;
+  // Narrow the roll-up (when a catalog + kit stock are available) to ONLY the
+  // materials that are missing or low across the printed range — a paper
+  // shopping list, not a full inventory recap. Default off: without stock
+  // data the coverage lens is "unset" and this would print nothing useful.
+  shoppingListOnly: boolean;
   // Show the activity's theme (e.g. "Ocean Week") next to each event.
   showThemes: boolean;
   // Print the title cover header. Off prints straight into the schedule.
@@ -125,6 +130,7 @@ export const DEFAULT_PRINT_FORMAT: PrintFormat = {
   includeEmptyDays: false,
   pageBreakPerDay: true,
   materialsRollup: false,
+  shoppingListOnly: false,
   showThemes: true,
   showCover: true,
   fontScale: "regular",
@@ -182,6 +188,7 @@ export const printFormatStorage: StorageValidator<PrintFormat> = (value, fallbac
     includeEmptyDays: bool(v.includeEmptyDays, fallback.includeEmptyDays),
     pageBreakPerDay: bool(v.pageBreakPerDay, fallback.pageBreakPerDay),
     materialsRollup: bool(v.materialsRollup, fallback.materialsRollup),
+    shoppingListOnly: bool(v.shoppingListOnly, fallback.shoppingListOnly),
     showThemes: bool(v.showThemes, fallback.showThemes),
     showCover: bool(v.showCover, fallback.showCover),
     fontScale: oneOf(v.fontScale, FONT_SCALES, fallback.fontScale),

@@ -44,6 +44,7 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "includeEmptyDays",
   "pageBreakPerDay",
   "materialsRollup",
+  "shoppingListOnly",
   "showThemes",
   "showCover",
   "fontScale",

@@ -9893,6 +9893,21 @@ button.rl-node--pick:focus-visible {
   flex-direction: column;
 }
 
+/* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
+   that sets a whole options bundle at once, not a separate mode). Wraps on a
+   narrow rail rather than overflowing; each button keeps the standard
+   .btn--ghost.btn--sm treatment so it reads as an action, not a toggle. */
+.prail__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+.prail__preset {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
 /* Range — the headerless lead widget (parallels the mini-month leading the
    calendar rail): quick-range pills, the inline range calendar, then a readout. */
 .prail__range {
@@ -10527,6 +10542,9 @@ button.rl-node--pick:focus-visible {
 .print-doc--mono .pd-rollup {
   border-left-color: #000;
 }
+.print-doc--mono .pd-shopping__item--missing .pd-shopping__status {
+  color: #000;
+}
 .pd-rollup__head {
   margin: 0 0 0.06in;
   font-family: var(--hand-sc);
@@ -10558,6 +10576,54 @@ button.rl-node--pick:focus-visible {
   margin-left: auto;
   font-size: var(--pd-fs-label);
   color: var(--ink-faint);
+}
+
+/* Shopping list — the "missing & low only" narrowing of the roll-up. Shares
+   the roll-up's checkbox-row vocabulary (.pd-rollup__box) but lays out as a
+   single column so the status + day chip have room; a "low" row dims to the
+   faint ink so "missing" reads as the more urgent row at a glance. */
+.pd-shopping {
+  margin-top: var(--pd-gap-sm);
+}
+.pd-shopping__head {
+  margin-top: 0;
+}
+.pd-shopping__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pd-gap-sm);
+  font-size: var(--pd-fs-ui);
+}
+.pd-shopping__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+.pd-shopping__label {
+  font-weight: 600;
+}
+.pd-shopping__item--low .pd-shopping__label {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.pd-shopping__status {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-shopping__item--missing .pd-shopping__status {
+  color: var(--accent-ink);
+}
+.pd-shopping__days {
+  margin-left: auto;
+  font-size: var(--pd-fs-label);
+  color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 /* Day sections + events */
@@ -10915,6 +10981,7 @@ button.rl-node--pick:focus-visible {
 .print-doc--plain .pd-event__theme,
 .print-doc--plain .pd-facts--inline,
 .print-doc--plain .pd-rollup__head,
+.print-doc--plain .pd-shopping__status,
 .print-doc--plain .pd-run-heading,
 .print-doc--plain .pd-runsheets__head,
 .print-doc--plain .pd-fact span,

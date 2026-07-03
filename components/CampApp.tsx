@@ -735,8 +735,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       resolveRunDoc: lib.resolveRunDoc,
       themeOf: lib.themeOf,
       camps: campKit.camps,
+      // Kit stock + catalog power the print shopping list (missing & low only).
+      kitStock: lib.kitStock,
+      materialCatalog: lib.materialCatalog,
     }),
-    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps]
+    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps, lib.kitStock, lib.materialCatalog]
   );
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
