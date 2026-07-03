@@ -212,6 +212,16 @@ export const CampIcon = {
       <path d="M14.5 9V4.5H5.5V15H9" />
     </>
   ),
+  // Three nodes + connecting lines — the standard "share" glyph (iOS/Android
+  // conventions differ; this triangle reads as platform-neutral "share").
+  Share: svg(
+    <>
+      <path d="M18 8.5a2.5 2.5 0 1 0-2.4-3.2" />
+      <path d="M18 19.5a2.5 2.5 0 1 0-2.4-1.8" />
+      <path d="M6 12a2.5 2.5 0 1 0 0 3.2" />
+      <path d="M8.2 13.3l7.2 4.1M15.4 6.9 8.2 10.7" />
+    </>
+  ),
   Close: svg(<path d="M6 6l12 12M18 6 6 18" />),
   ChevronLeft: svg(<path d="M15 5l-7 7 7 7" />, "chev-left"),
   ChevronRight: svg(<path d="M9 5l7 7-7 7" />, "chev-right"),

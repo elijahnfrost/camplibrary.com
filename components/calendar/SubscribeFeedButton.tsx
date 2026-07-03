@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { renderSVG } from "uqr";
 import { CampIcon } from "../icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 
@@ -18,6 +19,33 @@ type CampFeed = {
   googleAddUrl: string;
 };
 
+// Rendered only while the popover is open (see the `open` prop) — a QR nobody
+// is looking at isn't worth computing. uqr's renderSVG returns a plain SVG
+// string; the black/white fill colors are passed straight through as literal
+// attribute values, so CSS custom properties resolve fine there too. The tile
+// stays --card (near-white) regardless of surface, matching the popover, so
+// the code always has full light/dark contrast to scan.
+function FeedQrCode({ url, open }: { url: string; open: boolean }) {
+  const markup = useMemo(() => {
+    if (!open || !url) return null;
+    return renderSVG(url, { pixelSize: 4, border: 1, whiteColor: "var(--card)", blackColor: "var(--ink)" });
+  }, [open, url]);
+
+  if (!markup) return null;
+
+  return (
+    <div className="subfeed__qr">
+      <div
+        className="subfeed__qr-tile"
+        role="img"
+        aria-label={"QR code for the subscription link: " + url}
+        dangerouslySetInnerHTML={{ __html: markup }}
+      />
+      <p className="subfeed__qr-caption">Scan to subscribe on a phone</p>
+    </div>
+  );
+}
+
 export function SubscribeFeedButton({
   activeCampId,
   activeCampName,
@@ -33,6 +61,9 @@ export function SubscribeFeedButton({
   const [resetting, setResetting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  // Feature-detected once on mount so desktop browsers without the Web Share
+  // API (Safari/Chrome desktop) never show a button that would just fail.
+  const [canShare, setCanShare] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   // The feed per camp is stable once minted, so cache it for the session: a
   // reopen (or a camp round-trip) reuses it instead of re-POSTing and flashing
@@ -80,9 +111,20 @@ export function SubscribeFeedButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen, activeCampId]);
 
+  useEffect(() => {
+    setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function");
+  }, []);
+
   function copyUrl(url: string) {
     void navigator.clipboard?.writeText(url);
     setCopied(true);
+  }
+
+  function shareUrl(url: string) {
+    void navigator.share?.({
+      title: activeCampName ? activeCampName + " schedule" : "Camp schedule",
+      url,
+    });
   }
 
   // Anonymous visitors have no cloud account to attach a feed to.
@@ -139,6 +181,17 @@ export function SubscribeFeedButton({
                 >
                   {copied ? <CampIcon.Check /> : <CampIcon.Copy />}
                 </button>
+                {canShare && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => shareUrl(feed.url)}
+                    aria-label="Share subscription URL"
+                    title="Share…"
+                  >
+                    <CampIcon.Share />
+                  </button>
+                )}
               </div>
 
               <div className="subfeed__links">
@@ -149,6 +202,8 @@ export function SubscribeFeedButton({
                   Subscribe in Apple / Outlook
                 </a>
               </div>
+
+              <FeedQrCode url={feed.url} open={menuOpen} />
 
               <button
                 type="button"
