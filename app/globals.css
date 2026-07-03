@@ -7766,6 +7766,27 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
   cursor: text;
 }
+/* An optional, subdued qty/note per row (right of the name). Quiet by default so
+   the material name reads first; it firms up on focus like the other fields. */
+.rlmat__note {
+  flex: 0 1 12ch;
+  min-width: 6ch;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: 0 var(--s-1);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  outline: none;
+}
+.rlmat__note::placeholder {
+  color: var(--ink-faint);
+}
+.rlmat__note:focus {
+  border-bottom-color: var(--line);
+  color: var(--ink);
+}
 /* The per-row tools mirror the run-sheet rowtools: quiet by default, lit on
    hover/focus (always shown on touch via the run-sheet @media rule). */
 .rlmat__tools {

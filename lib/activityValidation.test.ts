@@ -141,16 +141,52 @@ describe("normalizeActivity forward compatibility", () => {
     const normalized = normalizeActivity({
       ...legacyActivity,
       // A newer client's field: a stale build must round-trip it, not erase it.
-      materialRefs: [{ id: "flour", note: "~2 cups per batch" }],
+      // Kept, but a leftover forward-compat field, since materialRefs is now a
+      // KNOWN validated optional (asserted below) rather than a raw passthrough.
+      someFutureField: { hello: "world" },
       // Malformed known optionals must NOT ride through the spread.
       altNames: "not-an-array",
       color: 123,
     });
     expect(normalized).not.toBeNull();
-    expect((normalized as unknown as Record<string, unknown>).materialRefs).toEqual([
-      { id: "flour", note: "~2 cups per batch" },
-    ]);
+    expect((normalized as unknown as Record<string, unknown>).someFutureField).toEqual({
+      hello: "world",
+    });
     expect(normalized?.altNames).toBeUndefined();
     expect(normalized?.color).toBeUndefined();
+  });
+
+  it("validates materialRefs as a known optional now: trims, clamps, drops junk", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      materialRefs: [
+        { id: "  flour  ", note: "  ~2 cups per batch  " },
+        { id: "salt" }, // no note → note field stays absent
+        { id: "" }, // empty id → dropped
+        { note: "orphan note" }, // no id → dropped
+        "junk", // non-record → dropped
+        { id: "x".repeat(120), note: "y".repeat(200) }, // over-length → clamped
+      ],
+    });
+    const refs = (normalized as unknown as Record<string, unknown>).materialRefs as Array<{
+      id: string;
+      note?: string;
+    }>;
+    expect(refs).toEqual([
+      { id: "flour", note: "~2 cups per batch" },
+      { id: "salt" },
+      { id: "x".repeat(80), note: "y".repeat(120) },
+    ]);
+  });
+
+  it("leaves materialRefs absent when no row survives (not an empty array)", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      materialRefs: [{ id: "" }, "junk", { note: "no id" }],
+    });
+    expect(normalized?.materialRefs).toBeUndefined();
+
+    expect(normalizeActivity({ ...legacyActivity, materialRefs: "nope" })?.materialRefs).toBeUndefined();
+    expect(normalizeActivity(legacyActivity)?.materialRefs).toBeUndefined();
   });
 });

@@ -31,9 +31,11 @@ import type { Activity, AgeGroupId } from "@/lib/types";
 import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
 import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
 import {
-  lines as splitList,
+  mintMaterialRow,
+  renameMaterialRow,
   validateForm,
   type FormState,
+  type MaterialFormRow,
 } from "@/lib/activityForm";
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
@@ -768,48 +770,55 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
   );
 }
 
-// The Materials block, in EDIT mode — a PROPER editable list of the kit items
-// (the same comma-separated `materials` string the form owns, surfaced one item
-// per row). Each row is honest about what it does: a drag grip + an inline
-// editable name + move up/down + remove, in the run-sheet sub-step vocabulary.
-// Reorder is local to this list (it never touches the run-doc drag model), via
-// HTML5 drag on the row OR the up/down buttons (touch/keyboard parity). An
-// "Add item" row at the foot grows the list. Clearing a row's text removes it,
-// the same "empty = gone" feel as a step.
+// The Materials block, in EDIT mode — a PROPER editable list of the kit items,
+// bound to the form's `materialRefs` rows (was a comma-joined string; the comma
+// is no longer a delimiter, so a label like "Flour, ~2 cups" is one row). Each
+// row is honest about what it does: a drag grip + an inline editable name + an
+// optional subdued qty/note + move up/down + remove, in the run-sheet sub-step
+// vocabulary. Reorder is local to this list (it never touches the run-doc drag
+// model), via HTML5 drag on the row OR the up/down buttons (touch/keyboard
+// parity). An "Add item" row at the foot grows the list. Clearing a row's name
+// removes it, the same "empty = gone" feel as a step.
+//
+// Row identity: a row minted THIS session re-slugs its id when renamed (no
+// stored references yet); a row that came from storage keeps its FROZEN id and a
+// rename only changes the display label (the mirror the empty catalog reads
+// back). renameMaterialRow (lib/activityForm) encodes that rule.
 function MaterialsEditor({
-  value,
+  rows,
   onChange,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  rows: MaterialFormRow[];
+  onChange: (rows: MaterialFormRow[]) => void;
 }) {
-  const items = splitList(value);
   const [draft, setDraft] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<{ index: number; pos: "before" | "after" } | null>(null);
   const dragIndexRef = useRef<number | null>(null);
 
-  const write = (next: string[]) => onChange(next.map((s) => s.trim()).filter(Boolean).join(", "));
-
   const commitDraft = () => {
-    const next = draft.trim();
-    if (!next) return;
-    write([...items, next]);
+    const row = mintMaterialRow(draft);
+    if (!row) return;
+    onChange([...rows, row]);
     setDraft("");
   };
-  const removeAt = (index: number) => write(items.filter((_, i) => i !== index));
+  const removeAt = (index: number) => onChange(rows.filter((_, i) => i !== index));
   const renameAt = (index: number, text: string) => {
-    const trimmed = text.trim();
     // Emptying a row removes it (mirrors clearing a step's text).
-    if (!trimmed) return removeAt(index);
-    write(items.map((item, i) => (i === index ? trimmed : item)));
+    const renamed = renameMaterialRow(rows[index], text);
+    if (!renamed) return removeAt(index);
+    onChange(rows.map((row, i) => (i === index ? renamed : row)));
+  };
+  const setNoteAt = (index: number, text: string) => {
+    const note = text.trim();
+    onChange(rows.map((row, i) => (i === index ? (note ? { ...row, note } : { ...row, note: undefined }) : row)));
   };
   const moveBy = (index: number, dir: -1 | 1) => {
     const swap = index + dir;
-    if (swap < 0 || swap >= items.length) return;
-    const next = [...items];
+    if (swap < 0 || swap >= rows.length) return;
+    const next = [...rows];
     [next[index], next[swap]] = [next[swap], next[index]];
-    write(next);
+    onChange(next);
   };
 
   // ---- HTML5 row drag (self-contained to this list) ----
@@ -822,29 +831,29 @@ function MaterialsEditor({
     let dest = pos === "after" ? toIndex + 1 : toIndex;
     if (from < dest) dest -= 1; // account for the removed source slot
     if (dest === from) return;
-    const next = [...items];
+    const next = [...rows];
     const [moved] = next.splice(from, 1);
     next.splice(Math.max(0, Math.min(next.length, dest)), 0, moved);
-    write(next);
+    onChange(next);
   };
 
   return (
     <div className="rlmat">
-      {items.length > 0 && (
+      {rows.length > 0 && (
         <ul className="rlmat__list">
-          {items.map((item, i) => {
+          {rows.map((row, i) => {
             const overState =
               overIndex && overIndex.index === i && dragIndex !== i
                 ? " is-over-" + overIndex.pos
                 : "";
             return (
               <li
-                key={i}
+                key={row.id + "@" + i}
                 className={"rlmat__item" + (dragIndex === i ? " is-dragging" : "") + overState}
                 draggable
                 onDragStart={(e) => {
                   // Don't hijack drags that start on the inline text/buttons.
-                  if ((e.target as HTMLElement).closest("button, .rl-ed")) {
+                  if ((e.target as HTMLElement).closest("button, .rl-ed, input")) {
                     e.preventDefault();
                     return;
                   }
@@ -884,11 +893,18 @@ function MaterialsEditor({
                 </span>
                 <Editable
                   className="rlmat__name"
-                  value={item}
+                  value={row.label}
                   editable
                   placeholder="Material"
                   ariaLabel={"Material " + (i + 1)}
                   onCommit={(v) => renameAt(i, v)}
+                />
+                <input
+                  className="input rlmat__note"
+                  value={row.note ?? ""}
+                  placeholder="qty / note"
+                  aria-label={"Note for " + row.label}
+                  onChange={(e) => setNoteAt(i, e.target.value)}
                 />
                 <div className="rlmat__tools">
                   <button
@@ -904,7 +920,7 @@ function MaterialsEditor({
                     type="button"
                     className="rl-iconbtn"
                     onClick={() => moveBy(i, 1)}
-                    disabled={i >= items.length - 1}
+                    disabled={i >= rows.length - 1}
                     aria-label="Move material down"
                   >
                     <CampIcon.ChevronDown />
@@ -913,7 +929,7 @@ function MaterialsEditor({
                     type="button"
                     className="rl-iconbtn"
                     onClick={() => removeAt(i)}
-                    aria-label={"Remove " + item}
+                    aria-label={"Remove " + row.label}
                   >
                     <CampIcon.Trash />
                   </button>
@@ -929,12 +945,12 @@ function MaterialsEditor({
         </span>
         <input
           className="input rlmat__add"
-          placeholder={items.length ? "Add a material…" : "flags, cones, pinnies"}
+          placeholder={rows.length ? "Add a material…" : "flags, cones, pinnies"}
           value={draft}
           aria-label="Add a material"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
+            if (e.key === "Enter") {
               e.preventDefault();
               commitDraft();
             }
@@ -2053,8 +2069,8 @@ export function ActivityRunList({
                     <div className="rl-body">
                       <div className="rl-time">{RUN_TOP_LABEL.materials}</div>
                       <MaterialsEditor
-                        value={editForm.materials}
-                        onChange={(value) => onEditFormChange({ ...editForm, materials: value })}
+                        rows={editForm.materialRefs}
+                        onChange={(materialRefs) => onEditFormChange({ ...editForm, materialRefs })}
                       />
                     </div>
                   </div>

@@ -1,4 +1,5 @@
-import type { Activity } from "./types";
+import type { Activity, MaterialRef } from "./types";
+import { catalogNameFor, type Material } from "./materialCatalog";
 
 export interface MaterialOption {
   id: string;
@@ -37,9 +38,14 @@ function stringTags(values: unknown): string[] {
   return Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [];
 }
 
-function rawMaterialTags(activity: Activity): string[] {
-  const materialTags = stringTags(activity.materialTags);
-  return materialTags.length ? materialTags : stringTags(activity.materials);
+function refArray(values: unknown): MaterialRef[] {
+  if (!Array.isArray(values)) return [];
+  return values.filter(
+    (value): value is MaterialRef =>
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { id?: unknown }).id === "string"
+  );
 }
 
 // "No materials", "No materials needed", "None" — sentinel labels that mean the
@@ -49,10 +55,64 @@ function isNoMaterialsId(id: string): boolean {
   return id === "none" || id.startsWith("no-material");
 }
 
-// The kit an activity genuinely needs. Sentinel "No materials" tags are dropped
-// so a no-kit song counts as needing nothing (and never matches a kit filter).
+// A resolved need: the join-key id, a human label, and an optional per-placement
+// note. `label` is what the UI shows; `id` is what the on-hand set/filter match.
+export interface ResolvedRef {
+  id: string;
+  label: string;
+  note?: string;
+}
+
+// THE single needs accessor. Resolves an activity's kit into ordered, deduped
+// { id, label, note? } rows with a strict three-tier precedence:
+//
+//   1. materialRefs (canonical) — id used directly, label via the catalog
+//      (catalogNameFor falls back to a humanized slug when the id is unknown,
+//      so a lazily-populated catalog still renders), note carried through.
+//   2. materialTags (curated) — whole string, id = materialTagId(tag),
+//      label = tag. Compact tag vocabulary ("Flags", not "2 flags").
+//   3. materials (free text) — whole string, id = materialTagId(string),
+//      label = the trimmed string. NO comma splitting: "Flour, ~2 cups" is ONE
+//      need, not three (killing the round-trip fragmentation bug).
+//
+// Only the first non-empty tier is used (refs win over tags win over free text),
+// matching the legacy materialTags-over-materials precedence but adding refs on
+// top. The "No materials" sentinel is filtered in EVERY tier, and rows are
+// deduped by id in first-seen order.
+export function resolveRefs(activity: Activity, catalog?: Material[]): ResolvedRef[] {
+  const seen = new Set<string>();
+  const out: ResolvedRef[] = [];
+  const push = (id: string, label: string, note?: string) => {
+    if (!id || isNoMaterialsId(id) || seen.has(id)) return;
+    seen.add(id);
+    out.push(note ? { id, label, note } : { id, label });
+  };
+
+  const refs = refArray(activity.materialRefs);
+  if (refs.length) {
+    refs.forEach((ref) => {
+      const id = materialTagId(ref.id);
+      const note = typeof ref.note === "string" ? compact(ref.note) : "";
+      push(id, catalogNameFor(catalog, id), note || undefined);
+    });
+    return out;
+  }
+
+  const tags = stringTags(activity.materialTags);
+  if (tags.length) {
+    tags.forEach((tag) => push(materialTagId(tag), compact(tag)));
+    return out;
+  }
+
+  stringTags(activity.materials).forEach((raw) => push(materialTagId(raw), compact(raw)));
+  return out;
+}
+
+// The kit an activity genuinely needs, as join-key ids. Reimplemented on top of
+// resolveRefs so all three tiers + sentinel filtering + dedupe stay in one place
+// (the catalog isn't needed — ids are the same regardless of labels).
 export function requiredMaterialTagIds(activity: Activity): string[] {
-  return unique(rawMaterialTags(activity).map(materialTagId).filter((id) => Boolean(id) && !isNoMaterialsId(id)));
+  return resolveRefs(activity).map((ref) => ref.id);
 }
 
 export interface MaterialNeed {
@@ -62,30 +122,29 @@ export interface MaterialNeed {
 
 // One row per distinct material an activity needs, in authored order, with a
 // human label. Ids match the global "materials I have" set, so the detail-view
-// checklist and the library "Available kit" filter stay in sync.
-export function materialNeedsForActivity(activity: Activity): MaterialNeed[] {
-  const seen = new Set<string>();
-  const out: MaterialNeed[] = [];
-  rawMaterialTags(activity).forEach((raw) => {
-    const id = materialTagId(raw);
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    out.push({ id, label: compact(raw) });
-  });
-  return out;
+// checklist and the library "Available kit" filter stay in sync. A thin view
+// over resolveRefs (drops the note — existing consumers only want id + label).
+export function materialNeedsForActivity(activity: Activity, catalog?: Material[]): MaterialNeed[] {
+  return resolveRefs(activity, catalog).map((ref) => ({ id: ref.id, label: ref.label }));
 }
 
-export function materialOptionsForActivities(activities: Activity[]): MaterialOption[] {
+// The global kit vocabulary: every distinct material id across the catalog, with
+// a first-seen label and per-activity usage count, sorted by label. Built on
+// resolveRefs so it uses the SAME three-tier precedence + sentinel filtering the
+// checklist does (a curated tag and a free-text label collapse to one id). An
+// optional catalog gives ref-tier entries their proper display name.
+export function materialOptionsForActivities(
+  activities: Activity[],
+  catalog?: Material[]
+): MaterialOption[] {
   const labels = new Map<string, string>();
   const counts = new Map<string, number>();
 
   activities.forEach((activity) => {
     const activityIds = new Set<string>();
-    rawMaterialTags(activity).forEach((raw) => {
-      const id = materialTagId(raw);
-      if (!id || isNoMaterialsId(id)) return;
-      if (!labels.has(id)) labels.set(id, compact(raw));
-      activityIds.add(id);
+    resolveRefs(activity, catalog).forEach((ref) => {
+      if (!labels.has(ref.id)) labels.set(ref.id, ref.label);
+      activityIds.add(ref.id);
     });
     activityIds.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
   });

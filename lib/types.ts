@@ -34,6 +34,19 @@ export interface ActivityLink {
   url: string;
 }
 
+// A reference from an activity to a kit item it needs. The canonical materials
+// model going forward: `id` is a materialTagId slug (the join key to the on-hand
+// set, the kit filter, and — eventually — the materials catalog), and `note` is
+// an optional per-placement qty/detail ("~2 cups per batch"). The legacy
+// `materials` free-text and `materialTags` arrays are kept as derived mirrors so
+// exports and older clients keep working; resolveRefs (lib/materials.ts) reads
+// materialRefs first, falling back to those mirrors. Optional + absent by
+// default, so existing literals/seeds need no backfill.
+export interface MaterialRef {
+  id: string;
+  note?: string;
+}
+
 export interface AgeGroup {
   id: AgeGroupId;
   label: string;
@@ -65,6 +78,10 @@ export interface Activity {
   blurb: string;
   materials: string[];
   materialTags?: string[];
+  // Canonical kit references (id + optional note). When present, the single
+  // source of truth for an activity's needs; `materials`/`materialTags` are
+  // derived mirrors kept for legacy consumers. resolveRefs prefers this tier.
+  materialRefs?: MaterialRef[];
   steps: string[];
   notes: string;
   safety: string;

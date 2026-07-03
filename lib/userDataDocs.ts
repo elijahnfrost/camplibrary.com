@@ -17,6 +17,7 @@ import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes
 import { normalizeCamps, type Camp } from "./camps";
 import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
 import { normalizeHexColor } from "./color";
+import { normalizeMaterialCatalog, type Material } from "./materialCatalog";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -26,6 +27,7 @@ export const USER_DOC_KEYS = [
   "playbookOverrides",
   "view",
   "availableMaterials",
+  "materialCatalog",
   "themes",
   "themeAssignments",
   "camps",
@@ -44,6 +46,7 @@ export type DocValueMap = {
   playbookOverrides: Record<string, ActivityPlaybookData>;
   view: LibraryView;
   availableMaterials: string[];
+  materialCatalog: Material[];
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
@@ -62,6 +65,9 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   playbookOverrides: "playbooks",
   view: "view",
   availableMaterials: "availableMaterials",
+  // Versioned name for the new doc (the catalog shape may evolve); the older
+  // docs predate the convention and keep their bare names.
+  materialCatalog: "materialCatalog.v1",
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
@@ -78,6 +84,7 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   playbookOverrides: () => ({}),
   view: () => "deck",
   availableMaterials: () => [],
+  materialCatalog: () => [],
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
@@ -182,6 +189,12 @@ export const locationColorsDoc: StorageValidator<Record<string, string>> = (valu
   return out;
 };
 
+// The materials catalog (names + substitution + flags for the kit vocabulary).
+// The pure validator lives in lib/materialCatalog.ts (isomorphic); it ignores
+// the fallback because normalizeMaterialCatalog always yields a clean array.
+export const materialCatalogDoc: StorageValidator<Material[]> = (value) =>
+  normalizeMaterialCatalog(value);
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -190,6 +203,7 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   playbookOverrides: playbookOverridesDoc,
   view: viewDoc,
   availableMaterials: stringArrayDoc,
+  materialCatalog: materialCatalogDoc,
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,

@@ -8,6 +8,7 @@ import type {
   ActivityMedia,
   AgeGroupId,
   CategoryId,
+  MaterialRef,
   Place,
   Prep,
 } from "./types";
@@ -53,6 +54,23 @@ function mediaArray(value: unknown): ActivityMedia[] {
       return title ? { title, url } : { url };
     })
     .filter((item): item is ActivityMedia => Boolean(item));
+}
+
+// Canonical kit references: an id (trimmed, ≤80) plus an optional note (trimmed,
+// ≤120). Malformed rows are dropped and empty-id rows can't ride through, so a
+// consumer only ever sees clean refs. Ids are NOT de-duped here — resolveRefs
+// dedupes at read time, and the form owns row identity — but the shape is clean.
+function materialRefArray(value: unknown): MaterialRef[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): MaterialRef | null => {
+      if (!isRecord(item)) return null;
+      const id = trimmedString(item.id).slice(0, 80);
+      if (!id) return null;
+      const note = trimmedString(item.note).slice(0, 120);
+      return note ? { id, note } : { id };
+    })
+    .filter((item): item is MaterialRef => Boolean(item));
 }
 
 function linkArray(value: unknown): ActivityLink[] {
@@ -204,6 +222,15 @@ export function normalizeActivity(value: unknown): Activity | null {
   delete activity.materialTags;
   if (Array.isArray(value.materialTags)) {
     activity.materialTags = stringArray(value.materialTags);
+  }
+
+  // Canonical kit references. Validated (id + optional note), attached only when
+  // at least one row survives — so a malformed payload leaves the field absent
+  // rather than an empty array, mirroring the other optionals.
+  delete activity.materialRefs;
+  if (Array.isArray(value.materialRefs)) {
+    const materialRefs = materialRefArray(value.materialRefs);
+    if (materialRefs.length) activity.materialRefs = materialRefs;
   }
 
   delete activity.color;
