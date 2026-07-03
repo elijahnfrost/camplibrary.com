@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import type { Camp } from "@/lib/camps";
 import { addDays, todayKey } from "@/lib/calendar/dates";
+import { normalizeMealsDoc } from "@/lib/meals";
 import { resolveCalendarFeedToken } from "@/lib/server/calendarFeeds";
 import { getBackendEnvStatus, getPublicEnv } from "@/lib/server/env";
 import { buildCalendarFeed } from "@/lib/server/icsFeed";
@@ -69,6 +70,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const appBaseUrl = (getPublicEnv("NEXT_PUBLIC_APP_URL") ?? new URL(request.url).origin).replace(/\/+$/, "");
   const feedUrl = `${appBaseUrl}/api/ics/${token}.ics`;
 
+  // meals-2: the dietary roster (severe entries only, joined at build time) so
+  // a meal-tagged event's ICS description carries the same safety-critical
+  // warning the live calendar's card badge already shows.
+  const dietary = normalizeMealsDoc(docs.meals).dietary;
+
   const ics = buildCalendarFeed({
     calendarName: campName ?? "Camp schedule",
     feedUrl,
@@ -76,6 +82,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     feedToken: token,
     events: events as StoredCalendarEvent[],
     campName,
+    dietary,
   });
 
   return new Response(ics, {

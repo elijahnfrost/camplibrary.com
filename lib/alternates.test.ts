@@ -132,15 +132,20 @@ describe("planPromote", () => {
     expect(out.locations).toEqual(["Fields"]);
   });
 
-  it("touches nothing but title/activityId/kind/locations/alternates", () => {
+  it("touches nothing but title/activityId/kind/locations/alternates/mealKind", () => {
     const e = event({ pinned: true, mealKind: "lunch", materialSubs: { p: "x" }, note: "hi" });
     const out = planPromote(e, 0, [{ title: "Alt", reason: "rain" }]);
     expect(out.startMin).toBe(e.startMin);
     expect(out.endMin).toBe(e.endMin);
     expect(out.pinned).toBe(true);
-    expect(out.mealKind).toBe("lunch");
     expect(out.materialSubs).toEqual({ p: "x" });
     expect(out.note).toBe("hi");
+  });
+
+  it("clears mealKind on promote — the swapped-in content isn't a meal (meals-8)", () => {
+    const e = event({ mealKind: "lunch" });
+    const out = planPromote(e, 0, [{ title: "Indoor games", reason: "rain" }]);
+    expect(out.mealKind).toBeUndefined();
   });
 
   it("is self-inverse: promote twice ≡ original (identity fields)", () => {

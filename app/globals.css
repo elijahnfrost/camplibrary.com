@@ -1362,10 +1362,17 @@ body {
 }
 .manager__create {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-3);
 }
+/* camps-8: a flex-basis (not just min-width:0) so the input claims real room
+   before the row ever wraps — measured live at 390px width, "Add camp" (icon +
+   label) plus gap took ~125px, leaving the input only 180px and clipping its
+   own placeholder ("e.g. Summer Day Car…"). flex-wrap above lets the button
+   drop to its own line on the narrowest phones instead of squeezing the input
+   below a usable width. */
 .manager__createinput {
-  flex: 1 1 auto;
+  flex: 1 1 220px;
   min-width: 0;
 }
 .manager__createbtn {
@@ -1566,8 +1573,19 @@ body {
   flex-direction: column;
   gap: var(--s-3);
 }
+/* camps-1 fix: the pair must wrap as ONE atomic unit onto a fresh line when its
+   row is tight (day name + MiniSeg already consume most of the row width) —
+   never split the Open/dash/Close trio across two lines mid-control, which is
+   what visually crashed into the row below it. flex-wrap:wrap HERE (on the
+   pair itself) is what caused that; the row's own wrap (.manager__weekday /
+   .manager__dateexc, both already flex-wrap:wrap) is what should absorb the
+   overflow instead — exactly how GuidesSection's own Select-dash-Select already
+   behaves without this modifier. min-width:0 lets the pair shrink to fit
+   alongside the row's other content before wrapping is ever needed. */
 .manager__hoursfield--inline {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: none;
+  min-width: 0;
 }
 .manager__weekdays,
 .manager__dates,
@@ -1588,6 +1606,17 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--s-2) var(--s-3);
+}
+/* meals-9: a read-only (non-staff) guidance-band/dietary row — inputs already
+   carry the native disabled/readOnly attribute, but MiniSeg (the severity
+   control) has no disabled prop of its own, so its buttons would otherwise
+   still look and behave clickable. Suppressing pointer-events here matches the
+   app's "non-navigating must not look interactive" rule without touching the
+   shared MiniSeg primitive. */
+.manager__guide.is-readonly .miniseg,
+.manager__dietrow.is-readonly .miniseg {
+  pointer-events: none;
+  opacity: 0.75;
 }
 .manager__weekday-name,
 .manager__dateexc-date {
@@ -1630,11 +1659,6 @@ body {
 .manager__diet-detail {
   flex: 1 1 10ch;
   min-width: 8ch;
-}
-.manager__guide-times {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
 }
 .manager__guide-days {
   display: inline-flex;
@@ -5481,17 +5505,22 @@ body {
   .camprail__pick:hover {
     color: var(--ink);
   }
+  /* camps-6: filled with the camp's derived identity tint (--camp-tint, set
+     inline per row) — the same "a colored dot IS the identity" convention
+     Themes/Locations rows use, rather than a blank outline. The active state
+     adds a ring around it instead of replacing the fill, so the tint stays
+     visible whether or not the row is the active camp. */
   .camprail__dot {
     flex: none;
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    border: 1.5px solid var(--line);
-    background: transparent;
+    border: 1.5px solid color-mix(in srgb, var(--camp-tint, var(--line)) 55%, transparent);
+    background: var(--camp-tint, transparent);
   }
   .camprail__row.is-active .camprail__dot {
-    border-color: var(--accent-ink);
-    background: var(--accent-ink);
+    /* token-exempt: a two-layer ring (page-color gap + accent ring) around the identity dot — no --e* elevation token expresses a same-plane focus/active ring (they're all drop-shadows for raised surfaces). */
+    box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--accent-ink);
   }
   .camprail__row.is-active .camprail__name {
     color: var(--ink);

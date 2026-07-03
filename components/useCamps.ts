@@ -69,9 +69,25 @@ export function useCamps({
       const target = camps.find((c) => c.id === id);
       if (!target) return;
       setStoredActiveCampId(id);
-      announce("Showing " + target.name);
+      // camps-2/J2: name the shared-event count in the switch announcement
+      // itself, so a user who switches camps on a mostly-legacy (pre-camps)
+      // calendar hears WHY the grid looks unchanged, instead of it silently
+      // reading as "the switcher does nothing." Only mentioned when there ARE
+      // any — an empty/all-scoped calendar keeps the plain "Showing X".
+      const sharedCount = Object.values(events).filter(
+        (e) => !e.campId || !campIds.has(e.campId)
+      ).length;
+      announce(
+        sharedCount > 0
+          ? "Showing " +
+              target.name +
+              " — " +
+              sharedCount +
+              (sharedCount === 1 ? " shared event visible everywhere" : " shared events visible everywhere")
+          : "Showing " + target.name
+      );
     },
-    [camps, setStoredActiveCampId, announce]
+    [camps, campIds, events, setStoredActiveCampId, announce]
   );
 
   const createCamp = useCallback(
@@ -143,11 +159,26 @@ export function useCamps({
   // Deleting a camp just drops it from the list — its events keep their (now
   // dangling) campId and fall back to "unscoped", so they stay on the calendar
   // and there is no per-event rewrite storm against the API.
+  //
+  // camps-4: deleting the ACTIVE camp silently re-points the whole calendar at
+  // a different camp (activeCampId's useMemo falls back to camps[0], and the
+  // effect that persists that new choice never announced it — unlike the
+  // explicit switchCamp path). Callers that delete from a surface where the
+  // deleted camp might be the active one pass `announce: true` so this speaks
+  // up exactly like switchCamp does; passing nothing keeps this silent (e.g. a
+  // future non-active-camp-aware caller), so existing behavior is unaffected
+  // unless a caller opts in.
   const deleteCamp = useCallback(
-    (id: string) => {
+    (id: string, opts?: { announce?: boolean }) => {
+      const wasActive = opts?.announce && id === activeCampId;
+      const remaining = camps.filter((c) => c.id !== id);
       setDoc("camps", (prev) => prev.filter((c) => c.id !== id));
+      if (wasActive) {
+        const next = remaining[0];
+        announce(next ? "Showing " + next.name : "No camps left — showing everything");
+      }
     },
-    [setDoc]
+    [camps, activeCampId, setDoc, announce]
   );
 
   // Show events belonging to the active camp PLUS unscoped/ambient events (no

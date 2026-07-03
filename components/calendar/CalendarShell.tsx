@@ -59,8 +59,7 @@ import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
 import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
 import {
   dietaryBySeverity,
-  menuNoteFor,
-  setMenuNote,
+  MEAL_KIND_LABELS,
   type DietaryEntry,
   type MealsDoc,
 } from "@/lib/meals";
@@ -229,14 +228,8 @@ type BulkPickerState =
   | { kind: "location"; ids: string[]; point: { x: number; y: number } }
   | { kind: "meal"; ids: string[]; current?: MealKind; point: { x: number; y: number } };
 
-// The human labels for each meal kind — the retro-tag picker rows + a menu hint.
-const MEAL_KIND_LABELS: Record<MealKind, string> = {
-  breakfast: "Breakfast",
-  "am-snack": "AM snack",
-  lunch: "Lunch",
-  "pm-snack": "PM snack",
-  other: "Meal",
-};
+// The human labels for each meal kind (the retro-tag picker rows + a menu hint)
+// now come from lib/meals.ts's MEAL_KIND_LABELS — the ONE canonical map (meals-4).
 // A non-undo toast button (label + click). The escalation wave needs a toast to
 // carry MORE than one — "Moved this Tue only · [All] [Following]" — so the toast
 // holds an ordered `actions` array. The legacy single `action` is still accepted
@@ -1115,7 +1108,7 @@ export function CalendarShell({
           display: "background",
           classNames: ["cal-band"],
           title: band.label,
-          extendedProps: { bgKind: "band", mealKind: band.mealKind },
+          extendedProps: { bgKind: "band" },
         });
       }
     }
@@ -1164,11 +1157,17 @@ export function CalendarShell({
           const glyph: AlternatesGlyph | undefined = resolved.length
             ? { rain: hasRainAlternate(resolved), count: resolved.length }
             : undefined;
-          return toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id], glyph);
+          // camps-2/J2: this event is "shared" (shows under every camp) when a
+          // camp IS active and the event doesn't belong to it — the only way an
+          // event reaches here at all with a camp active is via useCamps.filter-
+          // Events, which already lets through exactly the active camp's own
+          // events plus unscoped/dangling ones, so a plain id mismatch is enough.
+          const shared = Boolean(activeCamp) && event.campId !== activeCamp?.id;
+          return toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id], glyph, shared);
         }),
       ...bgEvents,
     ],
-    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents]
+    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents, activeCamp]
   );
 
   const scrollTime = useMemo(() => {
@@ -2007,6 +2006,38 @@ export function CalendarShell({
     [announce, byId, commitEvents, events, requireStaff, showToast, snap]
   );
 
+  // camps-2/J2: "Claim into <active camp>" — stamps campId onto every SHARED
+  // (unscoped/dangling) event in the selection, one undoable commit. Only ever
+  // offered when a camp is active (the context-menu items below gate on it);
+  // events already belonging to a DIFFERENT camp are left untouched (claiming is
+  // additive, never a forced re-assignment away from another camp).
+  const claimIntoActiveCamp = useCallback(
+    (ids: string[]) => {
+      if (!activeCamp) return;
+      if (!requireStaff("change the calendar")) return;
+      const before: CalendarEvent[] = [];
+      const after: CalendarEvent[] = [];
+      for (const id of ids) {
+        const live = events[id];
+        if (!live) continue;
+        const original = healEvent(live, byId);
+        if (original.campId) continue; // already scoped to a camp — leave it.
+        before.push(original);
+        after.push({ ...original, campId: activeCamp.id, updatedAt: Date.now() });
+      }
+      if (!after.length) return;
+      commitEvents(after, []);
+      const count = after.length;
+      const label = "Claimed " + count + (count === 1 ? " event" : " events") + " into " + activeCamp.name;
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents(before, []),
+      });
+    },
+    [activeCamp, announce, byId, commitEvents, events, requireStaff, showToast]
+  );
+
   // Swap a placement to one of its backup plans — the single self-inverse promote,
   // shared by QuickAdd's Backup rows, the "Swap to backup ▸" context menu, and the
   // Rain Review panel. planPromote does the pure swap (copy-on-write onto
@@ -2780,9 +2811,14 @@ export function CalendarShell({
   // runs the retro-tag bulk over the untagged matches.
   const mealPresets = useMemo(() => {
     if (!onSetMenuNote) return undefined;
+    // J3 (approved 2026-07-03): the quick-create chips cover all four TIMED meal
+    // kinds — Breakfast / AM snack / Lunch / PM snack. "Other" has no natural
+    // default time/length, so it stays reachable only via the Meal field/retro-tag
+    // picker, same as before.
     const specs: { kind: MealKind; start: number; len: number }[] = [
-      { kind: "lunch", start: 12 * 60, len: 30 },
+      { kind: "breakfast", start: 8 * 60, len: 20 },
       { kind: "am-snack", start: 10 * 60, len: 15 },
+      { kind: "lunch", start: 12 * 60, len: 30 },
       { kind: "pm-snack", start: 15 * 60, len: 15 },
     ];
     return specs.map((spec) => {
@@ -3663,6 +3699,21 @@ export function CalendarShell({
           <span aria-hidden="true">⚠</span> {severeCount}
         </span>
       ) : null;
+    // camps-2/J2: a small neutral "shared" badge on any event that shows under
+    // EVERY camp (no campId of its own) while a specific camp is active — so
+    // switching camps reads as "most of the calendar predates camps" rather
+    // than "the switcher does nothing." Quiet by design (a plain glyph, no
+    // color), distinct from the meal/backup badges which carry real signal.
+    const shared = arg.event.extendedProps.shared === true;
+    const sharedBadge = shared ? (
+      <span
+        className="cal-card__shared"
+        title="Shown under every camp (not assigned to one)"
+        aria-label="Shared across every camp"
+      >
+        <CampIcon.Users />
+      </span>
+    ) : null;
     // Where the block happens (gym, field…), shown under the time on taller
     // cards. The card is a size container, so a short block simply clips it.
     const locationText = arg.event.extendedProps.location;
@@ -3709,9 +3760,10 @@ export function CalendarShell({
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
           {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
-          {isMeal && <MealGlyph className="cal-chip__meal" />}
+          {isMeal && <CampIcon.Meal className="cal-chip__meal" />}
           {dietaryBadge}
           {altBadge}
+          {sharedBadge}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
           {customized && <EditedTickGlyph className="cal-chip__edited" />}
@@ -3731,9 +3783,10 @@ export function CalendarShell({
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
           {legLabel && <span className="cal-card__leg">{legLabel}</span>}
-          {isMeal && <MealGlyph className="cal-card__meal" />}
+          {isMeal && <CampIcon.Meal className="cal-card__meal" />}
           {dietaryBadge}
           {altBadge}
+          {sharedBadge}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
           {customized && <EditedTickGlyph className="cal-card__edited" />}
@@ -4983,6 +5036,7 @@ export function CalendarShell({
                       onWeekStart={setWeekStart}
                       onChangeView={changeView}
                       onOpenCamps={onOpenCamps}
+                      onOpenDietary={() => onManageDietary?.()}
                       subscribeControl={subscribeControl}
                     />
                   </div>
@@ -5049,7 +5103,21 @@ export function CalendarShell({
           meals={meals}
           mealPresets={mealPresets}
           onSetMenuNote={onSetMenuNote}
-          onManageDietary={onManageDietary}
+          // meals-5: close THIS sheet before opening the dietary roster modal —
+          // previously the roster modal rose stacked on top of the still-open
+          // meal editor (two independent Modal/scrim/focus-trap instances at
+          // once) because onManageDietary was forwarded raw with no onClose()
+          // call. useDialogFocus's stack still resolved Escape correctly, but
+          // the UX read as "open a manager → close it → the meal editor is
+          // still sitting there, unchanged" — a same-surface handoff instead.
+          onManageDietary={
+            onManageDietary
+              ? () => {
+                  setSheet(null);
+                  onManageDietary();
+                }
+              : undefined
+          }
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
@@ -5229,6 +5297,10 @@ export function CalendarShell({
                 setSettingsOpen(false);
                 onOpenCamps();
               }}
+              onOpenDietary={() => {
+                setSettingsOpen(false);
+                onManageDietary?.();
+              }}
               subscribeControl={subscribeControl}
             />
             <h3 className="calset__sheettitle">Weather</h3>
@@ -5396,6 +5468,21 @@ export function CalendarShell({
                     setSheet({ draft: draftFromEvent(ev), pickTime: true });
                   },
                 },
+                // camps-2/J2: only offered when a camp IS active and this event
+                // is one of the "shared" ones (no campId of its own) — claiming
+                // moves it out of every-camp visibility into just this one.
+                ...(activeCamp && !ev.campId
+                  ? [
+                      {
+                        label: "Claim into " + activeCamp.name,
+                        icon: <CampIcon.Home />,
+                        onSelect: () => {
+                          setMenu(null);
+                          claimIntoActiveCamp([ev.id]);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   // The right-click way into recurrence: opens the editor where the
                   // Repeat control lives (reads "Edit repeat…" once a rule is set).
@@ -5452,7 +5539,7 @@ export function CalendarShell({
                 // once tagged.
                 {
                   label: ev.mealKind ? "Change meal…" : "Mark as meal…",
-                  icon: <MealGlyph />,
+                  icon: <CampIcon.Meal />,
                   onSelect: () => {
                     if (!requireStaff("change the calendar")) return;
                     setMenu(null);
@@ -5609,12 +5696,36 @@ export function CalendarShell({
           // If EVERY selected event is already all-day, the toggle offers "Timed";
           // otherwise it offers "All day" (so a mixed set lands all-day first).
           const allAreAllDay = ids.every((id) => events[id]?.allDay);
+          // camps-2/J2: how many of the selected events are "shared" (no campId
+          // of their own) — the claim action only ever touches those, and is
+          // hidden entirely when none of the selection qualifies.
+          const claimableCount = activeCamp
+            ? ids.filter((id) => events[id] && !events[id].campId).length
+            : 0;
           return (
             <ContextMenu
               point={point}
               ariaLabel={count + " selected " + noun}
               onClose={() => setMenu(null)}
               items={[
+                ...(activeCamp && claimableCount > 0
+                  ? [
+                      {
+                        label:
+                          "Claim " +
+                          claimableCount +
+                          " " +
+                          (claimableCount === 1 ? "event" : "events") +
+                          " into " +
+                          activeCamp.name,
+                        icon: <CampIcon.Home />,
+                        onSelect: () => {
+                          setMenu(null);
+                          claimIntoActiveCamp(ids);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   label: "Color…",
                   icon: <CampIcon.Palette />,
@@ -5636,7 +5747,7 @@ export function CalendarShell({
                   // opens the same meal-kind picker; no single "current" tag across
                   // a heterogeneous set, so nothing reads as preselected.
                   label: "Mark as meal…",
-                  icon: <MealGlyph />,
+                  icon: <CampIcon.Meal />,
                   onSelect: () => {
                     if (!requireStaff("change the calendar")) return;
                     setBulkPicker({ kind: "meal", ids, point });
@@ -5744,7 +5855,7 @@ export function CalendarShell({
                   setBulkPicker(null);
                 }}
               >
-                <MealGlyph className="cal-mealpick__glyph" />
+                <CampIcon.Meal className="cal-mealpick__glyph" />
                 <span className="cselect__optlabel">{MEAL_KIND_LABELS[kind]}</span>
                 {on && <CampIcon.Check className="cselect__optcheck" />}
               </button>
@@ -5951,17 +6062,9 @@ function KitGlyph({ className }: { className?: string }) {
   );
 }
 
-// A meal block's card glyph — a small fork + spoon, so a lunch/snack event reads
-// as a meal at a glance. Inlined on the icon set's 24×24 stroke grid (icons.tsx
-// is owned elsewhere), tone from the card's own color like the pin/repeat glyphs.
-function MealGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
-      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
-    </svg>
-  );
-}
+// meals-10: the meal glyph (fork + spoon) moved to components/icons.tsx as
+// CampIcon.Meal — it was duplicated verbatim here AND in QuickAdd.tsx as two
+// independently hand-inlined copies. Consumers below now import CampIcon.Meal.
 
 // The backup-plan glyph on a rain-reason placement — a small umbrella, on the
 // CampIcon 24×24 line grid (icons.tsx is owned elsewhere, so it's inlined here).

@@ -11,18 +11,9 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useTodayNowNext } from "@/lib/calendar/nowNext";
 import { formatClockCompact } from "@/lib/calendar/time";
 import { durLabel, effectiveEventColor } from "@/lib/data";
+import { MEAL_KIND_LABELS } from "@/lib/meals";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
-
-// Short display labels for the meal-flagged event indicator — trivially derived
-// from the kebab-case MealKind values already on the event.
-const MEAL_KIND_LABEL: Record<string, string> = {
-  breakfast: "Breakfast",
-  "am-snack": "AM Snack",
-  lunch: "Lunch",
-  "pm-snack": "PM Snack",
-  other: "Meal",
-};
 
 // One Now/Next row: time + title with the same 3px category spine (--cal-tint)
 // the calendar rail, catalog rows, and placed event cards use. Activity-backed
@@ -41,7 +32,7 @@ function NowNextRow({
   const tint = activity ? effectiveEventColor(event, activity) : event.color ?? "var(--line)";
   const time = event.allDay ? "All day" : formatClockCompact(event.startMin);
   const meta = activity ? activity.type + " · " + durLabel(activity) : "Custom block";
-  const mealLabel = event.mealKind ? MEAL_KIND_LABEL[event.mealKind] ?? "Meal" : null;
+  const mealLabel = event.mealKind ? MEAL_KIND_LABELS[event.mealKind] : null;
   const body = (
     <>
       <span className={"caltoday__badge caltoday__badge--" + status}>{status === "now" ? "Now" : "Next"}</span>

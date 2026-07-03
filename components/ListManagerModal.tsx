@@ -49,6 +49,7 @@ export function ListManagerModal({
   createPlaceholder = "Name",
   createLabel = "Add",
   emptyHint,
+  hideCreate = false,
   onCreate,
   onRename,
   onDelete,
@@ -68,6 +69,10 @@ export function ListManagerModal({
   createPlaceholder?: string;
   createLabel?: string;
   emptyHint?: string;
+  /** Hide the create row + empty-item-list state entirely — for a manager
+   *  whose whole content is a `footer` section with no per-item rows of its
+   *  own (the dietary roster's dedicated modal: DietarySection IS the modal). */
+  hideCreate?: boolean;
   onCreate: (label: string) => void;
   onRename: (id: string, label: string) => void;
   onDelete: (item: ManagedItem) => void;
@@ -140,105 +145,117 @@ export function ListManagerModal({
       <div className="overlay__body manager">
         {intro && <p className="manager__intro">{intro}</p>}
 
-        <form
-          className="manager__create"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create();
-          }}
-        >
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-          <input
-            className="input manager__createinput"
-            value={draft}
-            autoFocus
-            placeholder={createPlaceholder}
-            aria-label={createPlaceholder}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <button type="submit" className="btn btn--primary manager__createbtn" disabled={!draft.trim()}>
-            <CampIcon.Plus />
-            {createLabel}
-          </button>
-        </form>
+        {!hideCreate && (
+          <form
+            className="manager__create"
+            onSubmit={(e) => {
+              e.preventDefault();
+              create();
+            }}
+          >
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <input
+              className="input manager__createinput"
+              value={draft}
+              autoFocus
+              placeholder={createPlaceholder}
+              aria-label={createPlaceholder}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <button type="submit" className="btn btn--primary manager__createbtn" disabled={!draft.trim()}>
+              <CampIcon.Plus />
+              {createLabel}
+            </button>
+          </form>
+        )}
 
-        {items.length === 0 ? (
+        {hideCreate ? null : items.length === 0 ? (
           <p className="manager__empty">{emptyHint}</p>
         ) : (
           <ul className="manager__list">
-            {items.map((item) =>
-              editingId === item.id ? (
-                <li key={item.id} className="manager__row">
-                  <form
-                    className="manager__rowedit"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      commitRename(item.id);
-                    }}
-                  >
-                    {renderSwatch(item, true)}
-                    {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-                    <input
-                      className="input manager__editinput"
-                      value={editDraft}
-                      autoFocus
-                      aria-label={"Rename " + item.label}
-                      onChange={(e) => setEditDraft(e.target.value)}
-                      onBlur={() => commitRename(item.id)}
-                    />
-                    <button type="submit" className="icon-btn manager__rowbtn" aria-label="Save name">
-                      <CampIcon.Check />
-                    </button>
-                  </form>
-                </li>
-              ) : (
+            {items.map((item) => {
+              const isEditing = editingId === item.id;
+              // camps-7: rename used to REPLACE the whole <li> with just the
+              // rename form — unmounting the hours row AND renderRowExtra's
+              // CampDayStructure (whose Weekly-hours/Dated-exceptions
+              // Collapsibles hold their own open state) while renaming, so
+              // clicking the pencil silently collapsed whatever a user had
+              // expanded. The rename form now renders ALONGSIDE the row's main
+              // line instead of instead of it — the hours editor and
+              // renderRowExtra content stay mounted (and stay open) through a
+              // rename.
+              return (
                 <li
                   key={item.id}
                   className={"manager__row" + (onSelect && item.id === activeId ? " is-active" : "")}
                 >
-                  <div className="manager__rowmain">
-                    {onSelect ? (
-                      <button
-                        type="button"
-                        className="manager__pick"
-                        aria-current={item.id === activeId ? "true" : undefined}
-                        onClick={() => onSelect(item.id)}
-                      >
-                        {renderSwatch(item, false)}
-                        <span className="manager__label">{item.label}</span>
-                        {item.id === activeId && (
-                          <span className="manager__active">
-                            <CampIcon.Check />
-                            Active
-                          </span>
-                        )}
-                      </button>
-                    ) : (
-                      <span className="manager__pick manager__pick--static">
-                        {renderSwatch(item, true)}
-                        <span className="manager__label">{item.label}</span>
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="icon-btn manager__rowbtn"
-                      aria-label={"Rename " + item.label}
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setEditDraft(item.label);
+                  {isEditing ? (
+                    <form
+                      className="manager__rowedit"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        commitRename(item.id);
                       }}
                     >
-                      <CampIcon.Pencil />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn manager__rowbtn manager__rowbtn--danger"
-                      aria-label={"Delete " + item.label}
-                      onClick={() => onDelete(item)}
-                    >
-                      <CampIcon.Trash />
-                    </button>
-                  </div>
+                      {renderSwatch(item, true)}
+                      {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+                      <input
+                        className="input manager__editinput"
+                        value={editDraft}
+                        autoFocus
+                        aria-label={"Rename " + item.label}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        onBlur={() => commitRename(item.id)}
+                      />
+                      <button type="submit" className="icon-btn manager__rowbtn" aria-label="Save name">
+                        <CampIcon.Check />
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="manager__rowmain">
+                      {onSelect ? (
+                        <button
+                          type="button"
+                          className="manager__pick"
+                          aria-current={item.id === activeId ? "true" : undefined}
+                          onClick={() => onSelect(item.id)}
+                        >
+                          {renderSwatch(item, false)}
+                          <span className="manager__label">{item.label}</span>
+                          {item.id === activeId && (
+                            <span className="manager__active">
+                              <CampIcon.Check />
+                              Active
+                            </span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="manager__pick manager__pick--static">
+                          {renderSwatch(item, true)}
+                          <span className="manager__label">{item.label}</span>
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="icon-btn manager__rowbtn"
+                        aria-label={"Rename " + item.label}
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEditDraft(item.label);
+                        }}
+                      >
+                        <CampIcon.Pencil />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                        aria-label={"Delete " + item.label}
+                        onClick={() => onDelete(item)}
+                      >
+                        <CampIcon.Trash />
+                      </button>
+                    </div>
+                  )}
                   {hourOptions && onChangeHours && item.openMin != null && item.closeMin != null && (
                     <div className="manager__rowhours">
                       <div className="manager__hoursfield">
@@ -266,8 +283,8 @@ export function ListManagerModal({
                   )}
                   {renderRowExtra && renderRowExtra(item)}
                 </li>
-              )
-            )}
+              );
+            })}
           </ul>
         )}
         {footer}
@@ -290,15 +307,6 @@ const SNAP_OPTIONS: { id: string; label: string }[] = [
   { id: "15", label: "15m" },
   { id: "30", label: "30m" },
 ];
-const MEAL_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "None" },
-  { value: "breakfast", label: "Breakfast" },
-  { value: "am-snack", label: "AM snack" },
-  { value: "lunch", label: "Lunch" },
-  { value: "pm-snack", label: "PM snack" },
-  { value: "other", label: "Meal" },
-];
-
 // A collapsible sub-section with a chevron header — the shared shell for every
 // day-structure block so they all open/close the same way.
 function Collapsible({
@@ -507,45 +515,56 @@ export function CampDayStructure({
 // The guidance-band and dietary-entry row deletes below are non-undoable, so
 // they confirm here, at the click site, exactly like the camps/locations rows.
 export function GuidesSection({
+  label = "Guidance bands",
   guides,
   hourOptions,
+  canEdit = true,
   onAdd,
   onUpdate,
   onDelete,
 }: {
+  /** meals-1: the camps modal now shows this as "Day structure — guidance
+   *  bands" so it reads as camp-scheduling vocabulary rather than a meals
+   *  concept (a caller-supplied override; defaults to the plain original
+   *  label for any other consumer). */
+  label?: string;
   guides: GuideBand[];
   hourOptions: { value: number; label: string }[];
+  /** meals-9: gate the row's inputs/Add/Delete like every other editable
+   *  surface in the app gates itself at the UI layer (not just the mutation
+   *  callback) — a signed-out visitor otherwise sees fully-interactive-looking
+   *  controls that silently no-op (via requireStaff) on commit. Defaults true
+   *  so existing callers that don't pass it keep today's behavior. */
+  canEdit?: boolean;
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<GuideBand>) => void;
   onDelete: (id: string) => void;
 }) {
   return (
-    <Collapsible label="Guidance bands" summary={guides.length ? guides.length + " band" + (guides.length === 1 ? "" : "s") : "soft day-structure frames"}>
+    <Collapsible label={label} summary={guides.length ? guides.length + " band" + (guides.length === 1 ? "" : "s") : "soft day-structure frames"}>
       <ul className="manager__guides">
         {guides.map((band) => (
-          <li key={band.id} className="manager__guide">
+          <li key={band.id} className={"manager__guide" + (canEdit ? "" : " is-readonly")}>
             <input
               className="input manager__guide-label"
               value={band.label}
               maxLength={GUIDE_LABEL_MAX}
               aria-label="Band label"
+              readOnly={!canEdit}
+              disabled={!canEdit}
               onChange={(e) => onUpdate(band.id, { label: e.target.value })}
             />
-            <span className="manager__guide-times">
-              <Select
-                value={band.startMin}
-                options={hourOptions}
-                onChange={(v) => onUpdate(band.id, { startMin: v, endMin: Math.max(v + 15, band.endMin) })}
-                ariaLabel="Band start"
-              />
-              <span className="manager__hoursdash" aria-hidden="true">&ndash;</span>
-              <Select
-                value={band.endMin}
-                options={hourOptions.filter((o) => o.value > band.startMin)}
-                onChange={(v) => onUpdate(band.id, { endMin: v })}
-                ariaLabel="Band end"
-              />
-            </span>
+            {/* camps-11: the same "pick a start time, a dash, pick an end time"
+                control as the camp's own Weekly-hours/Dated-exceptions rows —
+                reuse WindowPills instead of a second hand-rolled Select-dash-
+                Select, so a future fix to one (like the camps-1 wrap crash)
+                can never leave this one un-inherited again. */}
+            <WindowPills
+              window={{ startMin: band.startMin, endMin: band.endMin }}
+              hourOptions={hourOptions}
+              onChange={(startMin, endMin) => canEdit && onUpdate(band.id, { startMin, endMin })}
+              ariaPrefix={"Band " + (band.label || "untitled")}
+            />
             <span className="manager__guide-days">
               {WEEKDAY_LABELS.map((label, dow) => {
                 const on = band.weekdays.includes(dow);
@@ -556,7 +575,9 @@ export function GuidesSection({
                     className={"manager__daytog" + (on ? " is-on" : "")}
                     aria-pressed={on}
                     aria-label={label + (on ? " on" : " off")}
+                    disabled={!canEdit}
                     onClick={() => {
+                      if (!canEdit) return;
                       const next = on
                         ? band.weekdays.filter((d) => d !== dow)
                         : [...band.weekdays, dow].sort((a, b) => a - b);
@@ -568,46 +589,47 @@ export function GuidesSection({
                 );
               })}
             </span>
-            <Select
-              value={band.mealKind ?? ""}
-              options={MEAL_OPTIONS}
-              onChange={(v) => onUpdate(band.id, { mealKind: (v || undefined) as GuideBand["mealKind"] })}
-              ariaLabel="Band meal tag"
-            />
-            <button
-              type="button"
-              className="icon-btn manager__rowbtn manager__rowbtn--danger"
-              aria-label={"Delete band " + band.label}
-              onClick={async () => {
-                const ok = await requestConfirm({
-                  title: "Delete the “" + (band.label || "untitled") + "” guidance band?",
-                  body: "This can't be undone.",
-                  confirmLabel: "Delete",
-                  danger: true,
-                });
-                if (ok) onDelete(band.id);
-              }}
-            >
-              <CampIcon.Trash />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                aria-label={"Delete band " + band.label}
+                onClick={async () => {
+                  const ok = await requestConfirm({
+                    title: "Delete the “" + (band.label || "untitled") + "” guidance band?",
+                    body: "This can't be undone.",
+                    confirmLabel: "Delete",
+                    danger: true,
+                  });
+                  if (ok) onDelete(band.id);
+                }}
+              >
+                <CampIcon.Trash />
+              </button>
+            )}
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
-        <CampIcon.Plus />
-        Add band
-      </button>
+      {canEdit && (
+        <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
+          <CampIcon.Plus />
+          Add band
+        </button>
+      )}
     </Collapsible>
   );
 }
 
 export function DietarySection({
   dietary,
+  canEdit = true,
   onAdd,
   onUpdate,
   onDelete,
 }: {
   dietary: DietaryEntry[];
+  /** meals-9: same UI-layer gating as GuidesSection above — see its comment. */
+  canEdit?: boolean;
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<DietaryEntry>) => void;
   onDelete: (id: string) => void;
@@ -616,12 +638,14 @@ export function DietarySection({
     <Collapsible label="Dietary roster" summary={dietary.length ? dietary.length + " entr" + (dietary.length === 1 ? "y" : "ies") : "allergies · avoidances"}>
       <ul className="manager__diet">
         {dietary.map((entry) => (
-          <li key={entry.id} className="manager__dietrow">
+          <li key={entry.id} className={"manager__dietrow" + (canEdit ? "" : " is-readonly")}>
             <input
               className="input manager__diet-label"
               value={entry.label}
               maxLength={DIETARY_LABEL_MAX}
               aria-label="Dietary label"
+              readOnly={!canEdit}
+              disabled={!canEdit}
               onChange={(e) => onUpdate(entry.id, { label: e.target.value })}
             />
             <MiniSeg
@@ -631,7 +655,7 @@ export function DietarySection({
                 { id: "severe", label: "Severe" },
               ]}
               value={entry.severity}
-              onChange={(v) => onUpdate(entry.id, { severity: v as DietarySeverity })}
+              onChange={(v) => canEdit && onUpdate(entry.id, { severity: v as DietarySeverity })}
               ariaLabel="Severity"
             />
             <input
@@ -639,31 +663,37 @@ export function DietarySection({
               value={entry.detail ?? ""}
               placeholder="Detail (optional)"
               aria-label="Dietary detail"
+              readOnly={!canEdit}
+              disabled={!canEdit}
               onChange={(e) => onUpdate(entry.id, { detail: e.target.value })}
             />
-            <button
-              type="button"
-              className="icon-btn manager__rowbtn manager__rowbtn--danger"
-              aria-label={"Delete " + entry.label}
-              onClick={async () => {
-                const ok = await requestConfirm({
-                  title: "Delete the “" + (entry.label || "untitled") + "” dietary entry?",
-                  body: "This can't be undone.",
-                  confirmLabel: "Delete",
-                  danger: true,
-                });
-                if (ok) onDelete(entry.id);
-              }}
-            >
-              <CampIcon.Trash />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                aria-label={"Delete " + entry.label}
+                onClick={async () => {
+                  const ok = await requestConfirm({
+                    title: "Delete the “" + (entry.label || "untitled") + "” dietary entry?",
+                    body: "This can't be undone.",
+                    confirmLabel: "Delete",
+                    danger: true,
+                  });
+                  if (ok) onDelete(entry.id);
+                }}
+              >
+                <CampIcon.Trash />
+              </button>
+            )}
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
-        <CampIcon.Plus />
-        Add entry
-      </button>
+      {canEdit && (
+        <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
+          <CampIcon.Plus />
+          Add entry
+        </button>
+      )}
     </Collapsible>
   );
 }

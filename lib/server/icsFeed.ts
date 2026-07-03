@@ -1,4 +1,6 @@
 import ical, { ICalCalendarMethod } from "ical-generator";
+import { dietaryBySeverity, mealKindLabel, type DietaryEntry, type MealsDoc } from "@/lib/meals";
+import { MEAL_KINDS, type MealKind } from "@/lib/calendar/types";
 import type { StoredCalendarEvent } from "./userData";
 
 // Pure iCalendar (RFC 5545) builder for the subscribable feed. No DB, no auth —
@@ -25,9 +27,30 @@ export type CalendarFeedInput = {
   events: StoredCalendarEvent[];
   /** Optional LOCATION applied to every event (the camp name). */
   campName?: string | null;
+  /** meals-2: the camp-wide dietary roster — surfaced only as a DESCRIPTION
+   *  line on meal-tagged events ("Severe allergies on roster: …"), never as a
+   *  standalone calendar entry. Absent/undefined = no dietary line anywhere
+   *  (a feed built for a host with no meals wiring). */
+  dietary?: DietaryEntry[];
 };
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MEAL_KIND_SET = new Set<string>(MEAL_KINDS);
+
+// A short "Severe allergies on roster: nuts (Ella), …" line for a meal event's
+// DESCRIPTION, joining just the roster's SEVERE entries (the life-safety tier)
+// — avoid/note entries are camp trivia by comparison and would bury the
+// highest-stakes line in a long feed description. Undefined when there are no
+// severe entries on file, so a meal with a clean roster gets no extra line.
+function severeDietaryLine(dietary: DietaryEntry[] | undefined): string | undefined {
+  if (!dietary || !dietary.length) return undefined;
+  const severe = dietaryBySeverity({ dietary, menuNotes: {} } as MealsDoc).filter(
+    (entry) => entry.severity === "severe"
+  );
+  if (!severe.length) return undefined;
+  const names = severe.map((entry) => (entry.detail ? `${entry.label} (${entry.detail})` : entry.label));
+  return `Severe allergies on roster: ${names.join(", ")}.`;
+}
 
 // A floating timestamp: wall-clock (date + minute-of-day) packed into UTC
 // components so ical-generator emits it verbatim (see the gotcha above).
@@ -66,6 +89,9 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
   });
 
   const campLocation = input.campName?.trim() || undefined;
+  // meals-2: computed ONCE per feed build (not per event) — the severe-roster
+  // line is identical across every meal event in this feed.
+  const severeLine = severeDietaryLine(input.dietary);
 
   for (const event of input.events) {
     if (!DATE_KEY_PATTERN.test(event.date)) continue; // defensive: skip malformed rows.
@@ -90,10 +116,26 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
         ? runSheetUrl(input.appBaseUrl, input.feedToken, event.activityId)
         : null;
 
+    // meals-2: meals reach the ICS feed. A meal-tagged event (mealKind) gets a
+    // "🍴 Lunch" SUMMARY prefix (follows the common ical convention of a leading
+    // emoji glyph for an at-a-glance category, same idea as the calendar's own
+    // fork+spoon card glyph) and, when the roster has any SEVERE entry on file,
+    // a DESCRIPTION line naming them — the one piece of this feature with real
+    // safety stakes, previously invisible to anyone reading the subscribed
+    // calendar or a printed/offline copy of it.
+    const mealKind =
+      typeof event.mealKind === "string" && MEAL_KIND_SET.has(event.mealKind)
+        ? (event.mealKind as MealKind)
+        : null;
+    const summary = (event.title.trim() || "Untitled") + (mealKind ? ` (${mealKindLabel(mealKind)})` : "");
+    const descriptionLines: string[] = [];
+    if (link) descriptionLines.push(`Run sheet: ${link}`);
+    if (mealKind && severeLine) descriptionLines.push(severeLine);
+
     cal.createEvent({
       id: `${event.id}@camplibrary`,
       sequence: sequenceFromUpdatedAt(event.updatedAt),
-      summary: event.title.trim() || "Untitled",
+      summary: mealKind ? `🍴 ${summary}` : summary,
       ...(timed
         ? {
             start: floatingAt(event.date, event.startMin as number),
@@ -101,7 +143,8 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
             floating: true,
           }
         : { start: dayAt(event.date), allDay: true }),
-      ...(link ? { url: link, description: `Run sheet: ${link}` } : {}),
+      ...(link ? { url: link } : {}),
+      ...(descriptionLines.length ? { description: descriptionLines.join("\n") } : {}),
       ...(eventLocation ? { location: eventLocation } : {}),
     });
   }

@@ -7,15 +7,16 @@
 // each expanded (band, date) hit onto a FullCalendar BACKGROUND event; this
 // module holds only the pure data + validation, so it imports no FC types.
 //
-// A band recurs on chosen weekdays, optionally bounded by from/until dates, and
-// may carry a mealKind so a "Lunch" band and its meal glyph read as one thing.
+// A band recurs on chosen weekdays, optionally bounded by from/until dates.
+// (A band's meal tag was removed — meals-3 — since nothing downstream ever read
+// it: renderEventContent's bgKind==="band" branch returns before reaching the
+// meal-glyph/dietary-badge logic, so a "Band meal tag" had zero observable
+// effect. A band names itself ("Lunch 12:00–12:45") instead.)
 // Isomorphic: validators run on the client (hydrate) AND on untrusted server
 // payloads, so no "use client" and no Date.now()/randomness in the validators.
 
 import { addDays, daySpan, fromDateKey } from "./dates";
-import { isDateKey, MEAL_KINDS, type DateKey, type MealKind } from "./types";
-
-const MEAL_KIND_SET = new Set<string>(MEAL_KINDS);
+import { isDateKey, type DateKey } from "./types";
 
 export const GUIDE_LABEL_MAX = 60;
 const MINUTES_PER_DAY = 1440;
@@ -41,8 +42,6 @@ export interface GuideBand {
   // `untilKey` = last date (inclusive). Absent = unbounded on that side.
   fromKey?: DateKey;
   untilKey?: DateKey;
-  // Optional meal tie-in, so a "Lunch" band and the meal glyph read as one.
-  mealKind?: MealKind;
 }
 
 function normalizeWeekdays(raw: unknown): number[] {
@@ -83,9 +82,6 @@ function normalizeGuideBand(raw: unknown): GuideBand | null {
   const band: GuideBand = { id, label, startMin, endMin, weekdays };
   if (isDateKey(v.fromKey)) band.fromKey = v.fromKey;
   if (isDateKey(v.untilKey)) band.untilKey = v.untilKey;
-  if (typeof v.mealKind === "string" && MEAL_KIND_SET.has(v.mealKind)) {
-    band.mealKind = v.mealKind as MealKind;
-  }
   return band;
 }
 

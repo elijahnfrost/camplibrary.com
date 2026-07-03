@@ -5,7 +5,7 @@
 // activity-domain state is in useActivityLibrary and persistence in
 // lib/cloudStore (localStorage for anon, cloud-synced once signed in).
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import type { Activity, LibraryCollection, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
@@ -19,6 +19,7 @@ import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import {
   campDayWindow,
+  campTint,
   clampOverrideWindow,
   hourOptionMinutes,
   OVERRIDE_EARLIEST_OPEN_MIN,
@@ -197,23 +198,23 @@ function StaffPromptModal({
 // The desktop sidebar's ONE entry point into camps: a collapsed-by-default
 // section under the calendar rail (mirrors the calendar's own View/Weather
 // disclosures). Picking a camp switches it inline. The deep editor (per-camp
-// hours, guidance bands, dietary roster, rename, delete) is too rich for a 260px
-// rail, so ONE quiet "Manage camps…" footer row hands off to the existing
-// ListManagerModal — there's no per-row Edit pencil anymore. "New camp" stays
-// as an additive shortcut (it reads as part of the list, not a manage action).
+// hours, guidance bands, rename, delete) is too rich for a 260px rail, so ONE
+// quiet "Manage camps…" footer row hands off to the existing ListManagerModal —
+// there's no per-row Edit pencil anymore. camps-5/7: "New camp" was removed —
+// it opened the exact same modal as "Manage camps…" with no lighter/faster path
+// of its own, so keeping both only implied two actions where there was one; a
+// user who wants a new camp opens the manager, whose create field autofocuses.
 function CampsRail({
   camps,
   activeCampId,
   onSwitch,
   onManage,
-  onNew,
 }: {
   camps: Camp[];
   activeCampId: string | null;
   onSwitch: (id: string) => void;
-  /** Opens the camp manager (rename / delete / per-camp hours + roster). */
+  /** Opens the camp manager (rename / delete / per-camp hours). */
   onManage: () => void;
-  onNew: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -244,7 +245,14 @@ function CampsRail({
                       onClick={() => onSwitch(camp.id)}
                       aria-pressed={active}
                     >
-                      <span className="camprail__dot" aria-hidden="true" />
+                      {/* camps-6: a stable per-camp identity tint (derived, not
+                          stored — see lib/camps.ts campTint), the same leading-
+                          swatch anatomy Themes/Locations rows use. */}
+                      <span
+                        className="camprail__dot"
+                        style={{ "--camp-tint": campTint(camp.id, camps) } as CSSProperties}
+                        aria-hidden="true"
+                      />
                       <span className="camprail__name">{camp.name}</span>
                     </button>
                   </li>
@@ -254,12 +262,9 @@ function CampsRail({
           ) : (
             <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
           )}
-          <button type="button" className="camprail__new" onClick={onNew}>
-            <CampIcon.Plus />
-            New camp
-          </button>
           {/* The ONE manage entry — a quiet footer row (typepick__manage voice)
-              that opens the full camp editor. Replaces the per-row Edit pencils. */}
+              that opens the full camp editor. Replaces the per-row Edit pencils
+              and the old separate "New camp" shortcut. */}
           <button type="button" className="camprail__manage" onClick={onManage}>
             Manage camps…
           </button>
@@ -655,6 +660,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // a permanent header pill. Opening is ungated (switching is a local view
   // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
+  // meals-1: the dietary roster's OWN modal — moved out of the Camps manager
+  // (a staff member managing allergies has no reason to land on a screen titled
+  // "Camps" with camp-hours copy). Reached from the calendar's View settings
+  // ("Dietary roster" row, beside "Manage camps…") and from the meal editor's
+  // "Manage…" link (QuickAdd's onManageDietary prop, wired below).
+  const [dietaryManagerOpen, setDietaryManagerOpen] = useState(false);
 
   // The Library holds two collections behind one tab: the activity catalog
   // (Activities) and the kit inventory (Materials — formerly a top-level tab).
@@ -1136,19 +1147,20 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             )}
             {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
             {/* The ONE entry point into camps on desktop — a collapsed-by-default
-                section below the calendar rail. The deep editor (hours, guidance
-                bands, dietary roster) still opens as the existing camps modal;
-                this section only picks the active camp or hands off to it. Sits
-                INSIDE the shared scroll zone (not a fixed-to-bottom sibling), so a
-                long camp roster scrolls with the rest of the rail instead of
-                overlapping it. */}
+                section below the calendar rail. The deep editor (hours, rename,
+                delete) still opens as the existing camps modal — guidance bands
+                and the dietary roster moved OUT of it (see CalendarViewSettings'
+                "Day structure" row and the new Dietary roster modal); this
+                section only picks the active camp or hands off to the hours
+                editor. Sits INSIDE the shared scroll zone (not a fixed-to-bottom
+                sibling), so a long camp roster scrolls with the rest of the rail
+                instead of overlapping it. */}
             {tab === "calendar" && isDesktop && (
               <CampsRail
                 camps={campKit.camps}
                 activeCampId={campKit.activeCampId}
                 onSwitch={campKit.switchCamp}
                 onManage={() => setCampsManagerOpen(true)}
-                onNew={() => setCampsManagerOpen(true)}
               />
             )}
             {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
@@ -1293,7 +1305,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 meals={cloud.docs.meals}
                 guides={cloud.docs.guides}
                 onSetMenuNote={setMenuNoteFor}
-                onManageDietary={() => setCampsManagerOpen(true)}
+                onManageDietary={() => setDietaryManagerOpen(true)}
                 // Only wire the Subscribe control when signed in — anonymous
                 // visitors have no feed, and gating here keeps the rail/sheet
                 // section wrapper from rendering an empty box.
@@ -1450,6 +1462,9 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               label: c.name,
               openMin: c.openMin,
               closeMin: c.closeMin,
+              // camps-6: a stable per-camp identity tint (derived, not stored),
+              // rendered as the same static swatch dot Themes rows use.
+              tint: campTint(c.id, campKit.camps),
             }))}
             activeId={campKit.activeCampId}
             createPlaceholder="e.g. Summer Day Camp"
@@ -1477,7 +1492,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 confirmLabel: "Delete",
                 danger: true,
               });
-              if (ok) campKit.deleteCamp(item.id);
+              if (ok) campKit.deleteCamp(item.id, { announce: true });
             }}
             renderRowExtra={(item) => {
               const camp = campKit.camps.find((c) => c.id === item.id);
@@ -1493,23 +1508,53 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               );
             }}
             footer={
+              // meals-1: the Dietary roster moved OUT of this modal (its own
+              // "Dietary roster" row lives in Calendar View settings now, next
+              // to "Manage camps…"). Guidance bands stay here for now, but with
+              // a clearer label — "Day structure" reads as camp-scheduling
+              // vocabulary, not a meals concept, matching where it lives.
               <div className="manager__sections">
                 <GuidesSection
+                  label="Day structure — guidance bands"
                   guides={cloud.docs.guides}
                   hourOptions={overrideHourOptions}
+                  canEdit={isSignedIn}
                   onAdd={addGuide}
                   onUpdate={updateGuide}
                   onDelete={deleteGuide}
                 />
-                <DietarySection
-                  dietary={cloud.docs.meals.dietary}
-                  onAdd={addDietary}
-                  onUpdate={updateDietary}
-                  onDelete={deleteDietary}
-                />
               </div>
             }
             onClose={() => setCampsManagerOpen(false)}
+          />
+        )}
+        {dietaryManagerOpen && (
+          <ListManagerModal
+            title="Dietary roster"
+            intro="Allergies and avoidances staff must honor at every meal — shared across all camps. Severe entries always sort first."
+            items={[]}
+            createPlaceholder=""
+            createLabel=""
+            onCreate={() => {}}
+            onRename={() => {}}
+            onDelete={() => {}}
+            // A create/list surface with no per-item rows of its own — the roster
+            // itself is the modal's whole content, so the create form is hidden
+            // and DietarySection (a footer-only section, per its existing shape)
+            // carries everything. items=[] + emptyHint keeps ListManagerModal's
+            // "no items" branch quiet rather than showing a stray empty state.
+            emptyHint=""
+            hideCreate
+            footer={
+              <DietarySection
+                dietary={cloud.docs.meals.dietary}
+                canEdit={isSignedIn}
+                onAdd={addDietary}
+                onUpdate={updateDietary}
+                onDelete={deleteDietary}
+              />
+            }
+            onClose={() => setDietaryManagerOpen(false)}
           />
         )}
         {locationsManagerOpen && (

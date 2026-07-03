@@ -1734,6 +1734,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__diet-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: var(--s-2);
   font-family: var(--hand);
   font-size: var(--fs-meta);
@@ -1751,6 +1752,25 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 .quickadd__diet-row--severe .quickadd__diet-sev {
   background: var(--danger);
+}
+/* meals-7: the visible tier word beside the dot — quiet/uppercase-eyebrow
+   voice for "Note", amber for "Avoid", and bold danger-red for "Severe" so the
+   text itself (not just the dot) carries the severity for anyone who can't
+   reliably distinguish the color alone. */
+.quickadd__diet-tier {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.quickadd__diet-row--avoid .quickadd__diet-tier {
+  color: var(--amber);
+}
+.quickadd__diet-row--severe .quickadd__diet-tier {
+  color: var(--danger);
+  font-weight: 700;
 }
 .quickadd__diet-row--severe .quickadd__diet-label {
   font-weight: 600;
@@ -2618,6 +2638,25 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand-sc);
   font-size: 0.58rem;
   line-height: 1;
+}
+
+/* ---------- "shared" badge (camps-2/J2) ----------
+   A quiet, NEUTRAL glyph (no color, unlike the meal/backup badges which carry
+   real signal) marking an event with no campId of its own — it shows under
+   every camp. Painted only while a specific camp is active (extendedProps.shared
+   is only ever true in that case), so single-camp users never see it. Shares
+   the muted treatment of the pin/repeat/meal glyphs so it reads as quiet
+   metadata, not a warning. One class for both the month chip and the timed
+   card (same size in both, like .cal-card__diet above). */
+.cal-card__shared {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-faint);
+  opacity: 0.8;
 }
 
 /* ---------- guidance bands + closed-day shading (FC background events) ----------

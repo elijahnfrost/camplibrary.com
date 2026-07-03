@@ -31,6 +31,39 @@ const SEVERITY_RANK: Record<DietarySeverity, number> = { severe: 2, avoid: 1, no
 
 const MEAL_KIND_SET = new Set<string>(MEAL_KINDS);
 
+// The ONE canonical MealKind → label map. Every surface that shows a meal kind
+// (calendar cards, the retro-tag/guide-band pickers, the Today card, ICS/print)
+// reads from here so the vocabulary can never drift the way it did across four
+// independently hand-rolled copies (CalendarShell/QuickAdd/ListManagerModal/
+// CalendarTodayCard each spelled "other"/"AM snack" slightly differently).
+export const MEAL_KIND_LABELS: Record<MealKind, string> = {
+  breakfast: "Breakfast",
+  "am-snack": "AM snack",
+  lunch: "Lunch",
+  "pm-snack": "PM snack",
+  other: "Meal",
+};
+
+export function mealKindLabel(kind: MealKind): string {
+  return MEAL_KIND_LABELS[kind];
+}
+
+// meals-7: the ONE canonical DietarySeverity → visible tier word, matching the
+// MiniSeg labels the roster's edit view already uses ("Note"/"Avoid"/"Severe").
+// The read-only dietary panel (QuickAdd's meal editor) showed severity by color
+// alone — a colored dot with no text — which fails anyone who can't reliably
+// tell amber from gray at a glance, and reads as unlabeled trivia rather than a
+// safety-critical tier for the "severe" entries that matter most.
+export const DIETARY_SEVERITY_LABELS: Record<DietarySeverity, string> = {
+  note: "Note",
+  avoid: "Avoid",
+  severe: "Severe",
+};
+
+export function dietarySeverityLabel(severity: DietarySeverity): string {
+  return DIETARY_SEVERITY_LABELS[severity];
+}
+
 export const DIETARY_LABEL_MAX = 80;
 export const DIETARY_DETAIL_MAX = 280;
 export const MENU_NOTE_MAX = 280;

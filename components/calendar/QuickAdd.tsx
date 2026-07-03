@@ -13,7 +13,7 @@ import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
 import { type AlternateRef, type CalendarEvent, type DateKey, type MealKind } from "@/lib/calendar/types";
-import { dietaryBySeverity, type DietaryEntry, type MealsDoc } from "@/lib/meals";
+import { dietaryBySeverity, dietarySeverityLabel, type DietaryEntry, type MealsDoc } from "@/lib/meals";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { coverage } from "@/lib/materials";
@@ -603,6 +603,11 @@ export function QuickAdd({
                     className={"quickadd__diet-row quickadd__diet-row--" + entry.severity}
                   >
                     <span className="quickadd__diet-sev" aria-hidden="true" />
+                    {/* meals-7: a visible tier word beside the color dot — the
+                        edit-mode twin (ListManagerModal's DietarySection) already
+                        shows this via its MiniSeg ("Note"/"Avoid"/"Severe"); this
+                        read-only panel showed severity by color alone. */}
+                    <span className="quickadd__diet-tier">{dietarySeverityLabel(entry.severity)}</span>
                     <span className="quickadd__diet-label">{entry.label}</span>
                     {entry.detail && <span className="quickadd__diet-detail">{entry.detail}</span>}
                   </li>
@@ -938,7 +943,7 @@ export function QuickAdd({
                   save path deletes an absent mealKind, so choosing None clears it.
                   Edit-only, non-reminder (a reminder isn't a meal block). */}
               {isEdit && !isReminder && (
-                <PropRow icon={QuickAddMealGlyph} label="Meal">
+                <PropRow icon={CampIcon.Meal} label="Meal">
                   <Select
                     id="quickadd-meal"
                     value={mealKind ?? ""}
@@ -1136,17 +1141,9 @@ export function QuickAdd({
   );
 }
 
-// The Meal axis glyph (a fork + spoon) for the editor's Meal row. Mirrors the
-// MealGlyph the calendar cards/menus use; icons.tsx is owned elsewhere, so it's
-// inlined on the icon set's 24×24 stroke grid.
-function QuickAddMealGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
-      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
-    </svg>
-  );
-}
+// meals-10: the Meal axis glyph moved to components/icons.tsx as CampIcon.Meal
+// (it was duplicated verbatim here and in CalendarShell.tsx as two
+// independently hand-inlined copies before this centralized it).
 
 // A small inline umbrella for the "Backup plans" axis row. icons.tsx is owned
 // elsewhere (no umbrella glyph), so it's inlined on the icon set's 24×24 grid.

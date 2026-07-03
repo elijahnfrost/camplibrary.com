@@ -107,12 +107,22 @@ export function hasRainAlternate(list: readonly AlternateRef[]): boolean {
 // backup (title + optional activityId + the primary's locations, if any). The
 // alternate's own locations become the event's places when it carries them;
 // otherwise the event keeps its places. The post-swap list is written to
-// event.alternates (copy-on-write). NOTHING else is touched — times, pinned,
-// mealKind, materialSubs, note, series fields all ride through untouched.
+// event.alternates (copy-on-write). Times, pinned, materialSubs, note, series
+// fields all ride through untouched.
 //
-// Self-inverse: promote(promote(e, i), i) ≡ e (the demoted primary sits back at
-// slot i, so promoting it again restores the original). updatedAt is left to the
-// caller (this stays deterministic).
+// meals-8: mealKind is the ONE exception — it's CLEARED on promote. A meal-
+// tagged placement swapped to a backup plan (a rain/overflow indoor-games
+// block, say) is no longer a meal: Activity carries no mealKind of its own, so
+// whatever swaps in is non-meal content by construction, and the swapped-in
+// block should stop wearing the meal glyph / counting toward the severe-
+// dietary badge / reading as "already tagged" to the retro-tag hint. This is
+// still self-inverse for every OTHER field — see below.
+//
+// Self-inverse (for every field but mealKind): promote(promote(e, i), i) ≡ e
+// (the demoted primary sits back at slot i, so promoting it again restores the
+// original — except a demoted primary that WAS meal-tagged does not silently
+// regain its tag on the second promote; re-tagging is a deliberate, separate
+// action). updatedAt is left to the caller (this stays deterministic).
 export function planPromote(
   event: CalendarEvent,
   index: number,
@@ -146,5 +156,9 @@ export function planPromote(
   if (alt.locations && alt.locations.length) {
     next.locations = [...alt.locations];
   }
+  // meals-8: clear the meal tag — the swapped-in content isn't a meal (see the
+  // doc comment above). Un-tagging also implicitly clears the retro-tag "already
+  // tagged" hint and the card's dietary badge for this placement.
+  delete next.mealKind;
   return next;
 }

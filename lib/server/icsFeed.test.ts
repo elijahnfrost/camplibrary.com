@@ -28,6 +28,15 @@ function vevents(ics: string): string[] {
   return ics.split("BEGIN:VEVENT").slice(1).map((part) => part.split("END:VEVENT")[0]);
 }
 
+// RFC 5545 folds any line over 75 octets onto a continuation line starting
+// with a single space ("\r\n "). A long DESCRIPTION (run-sheet link + the
+// severe-dietary line) legitimately folds mid-string, which would otherwise
+// break a naive .toContain on the raw feed. Unfold before asserting on
+// substrings that might straddle a fold boundary.
+function unfold(ics: string): string {
+  return ics.replace(/\r\n /g, "");
+}
+
 describe("buildCalendarFeed", () => {
   it("emits a valid VCALENDAR shell with a refresh interval and calendar name", () => {
     const ics = buildCalendarFeed({ ...base, events: [event({})] });
@@ -115,5 +124,71 @@ describe("buildCalendarFeed", () => {
       events: [event({ location: "Playground" } as Partial<StoredCalendarEvent>)],
     });
     expect(ics).toContain("LOCATION:Playground");
+  });
+
+  // meals-2: meal glyph + severe-dietary warning reach the ICS feed (previously
+  // the live calendar was the ONLY surface where meals had any visible effect).
+  it("prefixes a meal-tagged event's summary with a fork+spoon glyph and its kind", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ title: "Lunch", mealKind: "lunch" } as Partial<StoredCalendarEvent>)],
+    });
+    expect(ics).toContain("SUMMARY:🍴 Lunch (Lunch)");
+  });
+
+  it("leaves a non-meal event's summary untouched", () => {
+    const ics = buildCalendarFeed({ ...base, events: [event({ title: "Capture the Flag" })] });
+    const body = vevents(ics)[0];
+    expect(body).toContain("SUMMARY:Capture the Flag");
+    expect(body).not.toContain("🍴");
+  });
+
+  it("adds a severe-dietary description line to a meal event when the roster has one", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ title: "Lunch", mealKind: "lunch" } as Partial<StoredCalendarEvent>)],
+      dietary: [
+        { id: "d1", label: "nuts", severity: "severe", detail: "Ella" },
+        { id: "d2", label: "gluten", severity: "note" },
+      ],
+    });
+    expect(unfold(ics)).toContain("Severe allergies on roster: nuts (Ella).");
+  });
+
+  it("omits the dietary line on a non-meal event even when severe entries are on file", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ title: "Capture the Flag" })],
+      dietary: [{ id: "d1", label: "nuts", severity: "severe" }],
+    });
+    const body = vevents(ics)[0];
+    expect(body).not.toContain("Severe allergies");
+  });
+
+  it("omits the dietary line on a meal event when the roster has no severe entries", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [event({ title: "Lunch", mealKind: "lunch" } as Partial<StoredCalendarEvent>)],
+      dietary: [{ id: "d1", label: "gluten", severity: "avoid" }],
+    });
+    const body = vevents(ics)[0];
+    expect(body).not.toContain("Severe allergies");
+  });
+
+  it("joins the run-sheet link and the dietary line as two description lines", () => {
+    const ics = buildCalendarFeed({
+      ...base,
+      events: [
+        event({
+          title: "Lunch",
+          mealKind: "lunch",
+          activityId: "meal-lunch",
+        } as Partial<StoredCalendarEvent>),
+      ],
+      dietary: [{ id: "d1", label: "nuts", severity: "severe" }],
+    });
+    const unfolded = unfold(ics);
+    expect(unfolded).toContain("Run sheet: https://camplibrary.com/run/tok/meal-lunch");
+    expect(unfolded).toContain("Severe allergies on roster: nuts.");
   });
 });
