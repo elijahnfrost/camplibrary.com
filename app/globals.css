@@ -10002,32 +10002,6 @@ button.rl-node--pick:focus-visible {
   flex-direction: column;
 }
 
-/* Break-sheet download — a quiet footer row at the bottom of the controls rail
-   (moved here from the print header so the head keeps one primary action). Set
-   apart from the option groups above it by a dashed rule, in the rail's quiet
-   ledger voice. */
-.prail__docdownload {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin-top: var(--s-4);
-  padding-top: var(--s-4);
-  border-top: 1.5px dashed var(--line-soft);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  text-decoration: none;
-  transition: color var(--t-fast) var(--ease);
-}
-.prail__docdownload:hover {
-  color: var(--ink);
-}
-.prail__docdownload .ledger__ic {
-  color: var(--ink-faint);
-}
-
 /* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
    that sets a whole options bundle at once, not a separate mode). Wraps on a
    narrow rail rather than overflowing; each button keeps the standard
@@ -10779,6 +10753,30 @@ button.rl-node--pick:focus-visible {
   border-top-color: #000;
   color: #000;
 }
+/* Dietary line (approved plan §H, "Meals on paper") — a compact SEVERE-only
+   roster reminder under the day heading, in the app's --danger tone so it
+   reads as an alert even in the print doc's otherwise-quiet ink palette. */
+.pd-day__dietary {
+  margin: 0 0 var(--pd-gap-md);
+  font-size: var(--pd-fs-meta);
+  color: var(--danger-ink);
+}
+.pd-day__dietary-kicker {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--danger-ink);
+}
+.print-doc--mono .pd-day__dietary,
+.print-doc--mono .pd-day__dietary-kicker {
+  color: #000;
+}
+.print-doc--plain .pd-day__dietary-kicker {
+  font-family: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
 .pd-events {
   list-style: none;
   margin: 0;
@@ -10827,7 +10825,8 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
 }
 .pd-event__type,
-.pd-event__theme {
+.pd-event__theme,
+.pd-event__meal {
   font-family: var(--hand-sc);
   font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
@@ -10854,6 +10853,28 @@ button.rl-node--pick:focus-visible {
 .print-doc--mono .pd-event__theme {
   color: #000;
   background: transparent;
+  border-color: #000;
+}
+/* Meal badge (approved plan §H, "Meals on paper") — a quiet outline chip like
+   .pd-event__theme (not filled like .pd-event__type), since it's informational
+   rather than a category; the fork+spoon glyph rides inline at cap height. */
+.pd-event__meal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.03in;
+  color: var(--ink-soft);
+}
+.pd-event__mealicon {
+  width: 0.11in;
+  height: 0.11in;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.print-doc--mono .pd-event__meal {
+  color: #000;
   border-color: #000;
 }
 .pd-event__blurb {
@@ -11120,6 +11141,7 @@ button.rl-node--pick:focus-visible {
 .print-doc--plain .pd-event__time,
 .print-doc--plain .pd-event__type,
 .print-doc--plain .pd-event__theme,
+.print-doc--plain .pd-event__meal,
 .print-doc--plain .pd-facts--inline,
 .print-doc--plain .pd-rollup__head,
 .print-doc--plain .pd-shopping__status,
@@ -11701,11 +11723,28 @@ button.rl-node--pick:focus-visible {
   color: var(--ink-soft);
 }
 .pd-tl__name {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 0.04in;
   font-family: var(--hand);
   font-weight: 700;
   font-size: calc(9.5pt);
   line-height: 1.05;
+}
+/* Meal glyph (approved plan §H, "Meals on paper") — rides inline on the title
+   line so it survives even on a short block, unlike the type/theme lines
+   below which need their own row and so get hidden below a height threshold. */
+.pd-tl__mealicon {
+  flex: none;
+  width: 0.11in;
+  height: 0.11in;
+  align-self: center;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-soft);
 }
 .pd-tl__type {
   display: inline-block;
@@ -11715,6 +11754,24 @@ button.rl-node--pick:focus-visible {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--ink-faint);
+}
+/* Theme label (print-5: "Show themes" now works on the timeline too) — same
+   small-caps line as .pd-tl__type, tinted with the theme's own color like the
+   agenda's .pd-event__theme, so a themed week reads the same in both layouts. */
+.pd-tl__theme {
+  display: block;
+  margin-top: 0.01in;
+  font-family: var(--hand-sc);
+  font-size: calc(6.8pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.print-doc--color .pd-tl__theme {
+  color: var(--pd-tint, var(--ink-faint));
+}
+.print-doc--mono .pd-tl__theme {
+  color: #000;
 }
 /* Short blocks shed their time/type lines so the title always survives — the
    drop is decided from geometry in CalendarTimeline (not an @container query, so
@@ -11748,6 +11805,7 @@ button.rl-node--pick:focus-visible {
 /* Plain: drop the small-caps decoration to a text-first grid. */
 .print-doc--plain .pd-tl__time,
 .print-doc--plain .pd-tl__type,
+.print-doc--plain .pd-tl__theme,
 .print-doc--plain .pd-tl__hour,
 .print-doc--plain .pd-tl__alldaytag {
   font-family: var(--text);

@@ -37,14 +37,17 @@ const PAGED_BREAKS = `
 
 // The "Page N of M" footer — a Paged.js @page margin box (browsers don't honor
 // margin boxes for window.print(), so the real-print footer is left to the print
-// dialog's own headers/footers; this makes the PREVIEW show the numbering the
-// toggle promises). Only emitted when the doc is numbered.
+// dialog's own headers/footers). This is a permanent feature of the paginated
+// WYSIWYG preview itself (there's no user-facing "page numbers" setting — the
+// actual printout never shows one, since window.print()'s own header/footer is
+// the browser's call), always emitted so the preview always shows how many
+// pages the current options will produce.
 const PAGED_FOOTER = `
 @page { @bottom-right { content: "Page " counter(page) " of " counter(pages); font-family: var(--hand-sc); font-size: 8pt; color: #8a7f6a; } }
 `;
 
-function pagedCss(numbered: boolean): string {
-  return `@page { size: 8.5in 11in; margin: 0.45in; }\n${PAGED_BREAKS}${numbered ? PAGED_FOOTER : ""}`;
+function pagedCss(): string {
+  return `@page { size: 8.5in 11in; margin: 0.45in; }\n${PAGED_BREAKS}${PAGED_FOOTER}`;
 }
 
 type Status = "loading" | "paged" | "fallback";
@@ -110,7 +113,7 @@ export function PagedPreview({
         // Clone: Paged.js's parser mutates the nodes it's handed.
         const flow = await previewer.preview(
           doc.cloneNode(true),
-          [{ "paged-doc": pagedCss(options.pageNumbers) }],
+          [{ "paged-doc": pagedCss() }],
           holder
         );
 

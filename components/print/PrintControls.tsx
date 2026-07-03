@@ -8,12 +8,12 @@
 // view over it.
 //
 // Kept deliberately UNCLUTTERED: a headerless range widget leads (the mini-month's
-// role), then a single "Format" section holds only the handful of choices you make
-// per print — Layout, Detail, Color, and the two appendix toggles. Everything
-// set-once or niche (Paper, pagination, theme/all-day/empty toggles, cover title,
-// camp) folds behind ONE "More options" row — the Library "Available kit" pattern
-// (a summary that IS a ledger row, expanding a sub-ledger). So the resting rail is
-// short, and the rest is one tap away — never a wall of equal-weight switches.
+// role), then a handful of collapsible groups hold the choices you make per
+// print — Layout/Detail/Color lead OPEN (most-changed); Page setup, Content,
+// and Appendix fold closed (set-once or niche) — the Library "Available kit"
+// pattern (a summary that IS a ledger row, expanding a sub-ledger). So the
+// resting rail is short, and the rest is one tap away — never a wall of
+// equal-weight switches.
 
 import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
 import { addDays, fromDateKey, startOfWeek, todayKey, toDateKey } from "@/lib/calendar/dates";
@@ -28,7 +28,6 @@ import type {
   PrintLayout,
   PrintOptions,
   ScheduleDetail,
-  TimelineDensity,
 } from "@/lib/print/options";
 import { normalizeSearchText, searchTokens } from "@/lib/activityFilters";
 import { MAX_PRINT_DAYS, type ScheduleDay } from "@/lib/print/schedule";
@@ -38,26 +37,6 @@ import { MiniRangeCalendar } from "./MiniRangeCalendar";
 
 type Patch = Partial<PrintOptions>;
 type IconCmp = FC<{ className?: string }>;
-
-// The printable "break sheet" PDF (a ready-made handout), one per color mode.
-// It's a static download — separate from the schedule Print/Export pipeline — so
-// it lives as a quiet footer row in this controls rail rather than a header
-// action competing with Export PDF. Keyed by the active color choice.
-const BREAK_SHEET_PDFS: Record<
-  PrintOptions["color"],
-  { href: string; download: string; description: string }
-> = {
-  color: {
-    href: "/documents/summertime-thrills-break-sheet-color.pdf",
-    download: "summertime-thrills-break-sheet-color.pdf",
-    description: "colored",
-  },
-  mono: {
-    href: "/documents/summertime-thrills-break-sheet-bw.pdf",
-    download: "summertime-thrills-break-sheet-bw.pdf",
-    description: "black and white",
-  },
-};
 
 // The cover title pushes upstream on a short debounce so each keystroke doesn't
 // reconcile the whole live preview. The local value stays responsive; it also
@@ -165,11 +144,18 @@ function CollapsibleGroup({
   title,
   icon: Icon,
   defaultOpen = false,
+  badge,
+  badgeLabel,
   children,
 }: {
   title: string;
   icon?: IconCmp;
   defaultOpen?: boolean;
+  // print-15: an active-state count shown on the COLLAPSED header, so a group
+  // that rests closed (like Content) doesn't hide the fact that it's no
+  // longer at its all-in default. Omitted (0/undefined) renders nothing.
+  badge?: number;
+  badgeLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -178,6 +164,11 @@ function CollapsibleGroup({
         <span className="prail__grouptitle">
           {Icon && <Icon className="ledger__ic" />}
           {title}
+          {Boolean(badge) && (
+            <span className="filtertrigger__count" aria-label={badgeLabel} title={badgeLabel}>
+              {badge}
+            </span>
+          )}
         </span>
         <span className="prail__morestate" aria-hidden="true">
           <CampIcon.ChevronDown />
@@ -215,12 +206,6 @@ const LAYOUT_OPTIONS: { id: PrintLayout; label: string; ariaLabel: string }[] = 
   { id: "timeline", label: "Timeline", ariaLabel: "A blocked-out day grid by duration" },
 ];
 
-const DENSITY_OPTIONS: { id: TimelineDensity; label: string }[] = [
-  { id: "compact", label: "Compact" },
-  { id: "cozy", label: "Cozy" },
-  { id: "roomy", label: "Roomy" },
-];
-
 const FONT_SCALE_OPTIONS: { id: FontScale; label: string }[] = [
   { id: "small", label: "Small" },
   { id: "regular", label: "Regular" },
@@ -233,8 +218,11 @@ const DOC_DENSITY_OPTIONS: { id: DocDensity; label: string }[] = [
   { id: "airy", label: "Airy" },
 ];
 
+// print-8: ONE name for this section everywhere it appears — the umbrella
+// "Shopping list" (matching the Content/Appendix toggles below), not the old
+// third label "Materials list" this reorder panel used only for itself.
 const SECTION_LABEL: Record<DocSection, string> = {
-  rollup: "Materials list",
+  rollup: "Shopping list",
   schedule: "Schedule",
   appendix: "Run sheets",
 };
@@ -250,18 +238,36 @@ function rangeReadout(start: DateKey, end: DateKey): string {
 // append a full sheet for, additive to the "Full run sheets" toggle. Modeled on
 // the QuickAdd / kit search — a filtered list to add from, removable chips for the
 // current picks. Searches only what's scheduled in the current range/camp.
+// The search results cap — raised from the old hard 6 (print-2/print-12): with
+// the "N selected" chips row now showing every pick regardless of range/cap
+// (below), a slightly wider results list means fewer legitimately-matching
+// activities get silently hidden while still keeping the list scannable.
+const RUN_SHEET_RESULT_CAP = 12;
+
 function RunSheetPicker({
   activities,
   selected,
+  byId,
   onChange,
 }: {
+  // The range/camp-SCOPED pool to search when adding a new pick.
   activities: Activity[];
   selected: string[];
+  // The FULL catalog — used to resolve already-picked ids so a pick that has
+  // fallen out of the current date range/camp scope still shows (and can
+  // still be removed) instead of silently vanishing from the picker while
+  // still printing (print-2 + print-12).
+  byId: Record<string, Activity>;
   onChange: (ids: string[]) => void;
 }) {
   const [query, setQuery] = useState("");
   const selectedSet = new Set(selected);
-  const picked = activities.filter((a) => selectedSet.has(a.id));
+  // Resolved via the FULL catalog (not the scoped `activities` list), in pick
+  // order, so an out-of-range pick still shows up as a removable chip instead
+  // of disappearing while it keeps silently printing.
+  const picked = selected
+    .map((id) => byId[id])
+    .filter((a): a is Activity => Boolean(a));
   // Multi-word + accent-/case-insensitive, matching the rest of the app's
   // search. Picking a run sheet is name-based, so the haystack stays title +
   // alt-names (not the full play-detail haystack the Library searches).
@@ -273,12 +279,16 @@ function RunSheetPicker({
           const hay = normalizeSearchText(a.title + " " + (a.altNames ?? []).join(" "));
           return tokens.every((token) => hay.includes(token));
         })
-        .slice(0, 6)
+        .slice(0, RUN_SHEET_RESULT_CAP)
     : [];
 
   return (
     <div className="prail__runsheets">
-      <span className="ledger__label"><CampIcon.Note className="ledger__ic" />Individual run sheets</span>
+      <span className="ledger__label">
+        <CampIcon.Note className="ledger__ic" />
+        Individual run sheets
+        {picked.length > 0 && <span className="filtertrigger__count">{picked.length}</span>}
+      </span>
       {picked.length > 0 && (
         <div className="prail__rschips">
           {picked.map((a) => (
@@ -288,6 +298,7 @@ function RunSheetPicker({
               className="chip is-on prail__rschip"
               onClick={() => onChange(selected.filter((id) => id !== a.id))}
               aria-label={"Remove " + a.title}
+              title={a.title}
             >
               {a.title}
               <CampIcon.Close />
@@ -348,7 +359,7 @@ function RunSheetPicker({
 }
 
 // Section order: a tiny ordered ledger with up/down nudges, so cover-relative
-// sections (Materials list / Schedule / Run sheets) can be reordered without a
+// sections (Shopping list / Schedule / Run sheets) can be reordered without a
 // drag library. The cover is toggled separately (it always leads). Order persists.
 function SectionOrder({ order, onChange }: { order: DocSection[]; onChange: (order: DocSection[]) => void }) {
   const move = (from: number, to: number) => {
@@ -479,12 +490,28 @@ function ContentPicker({
 // bundles cover the two most common "just print the thing" asks: the day's
 // paper run sheets for the counselors on shift, and a light week-at-a-glance
 // agenda for the office wall.
+//
+// print-7: a preset must reset EVERY piece of per-print state a prior session
+// could have left behind — not just the fields it cares about — or "just
+// print the thing" can silently print filtered/empty (a leftover camp filter,
+// excluded days/events, or individually-picked run sheets from a previous
+// print). RESET_FIELDS below is spread into every bundle's patch so a preset
+// can never forget one; `campId: null` is the documented "no filter" default
+// (see PrintOptions.campId).
+const RESET_FIELDS: Patch = {
+  campId: null,
+  excludedDays: [],
+  excludedEventIds: [],
+  runSheetIds: [],
+};
+
 const PRESET_BUNDLES: { id: string; label: string; ariaLabel: string; patch: () => Patch }[] = [
   {
     id: "today-runsheets",
     label: "Today's run sheets",
     ariaLabel: "Set up today's run sheets: today's date, full run sheets on, minimal schedule detail",
     patch: () => ({
+      ...RESET_FIELDS,
       start: todayKey(),
       end: todayKey(),
       layout: "agenda",
@@ -497,6 +524,7 @@ const PRESET_BUNDLES: { id: string; label: string; ariaLabel: string; patch: () 
     label: "This week — agenda",
     ariaLabel: "Set up this week's agenda: this week's dates, agenda layout, run sheets off",
     patch: () => ({
+      ...RESET_FIELDS,
       ...thisWeekRange(),
       layout: "agenda",
       scheduleDetail: "summary",
@@ -531,6 +559,7 @@ export function PrintControls({
   scheduledActivities,
   scheduleDays,
   byId,
+  announce,
 }: {
   options: PrintOptions;
   onChange: (patch: Patch) => void;
@@ -540,7 +569,17 @@ export function PrintControls({
   // the content picker can show every day/event as a toggle.
   scheduleDays: ScheduleDay[];
   byId: Record<string, Activity>;
+  // The same live-region announcer the print/export actions use — reused here
+  // (print-11) so a clamped date-range pick gets the same visible feedback
+  // mechanism instead of failing silently.
+  announce: (message: string) => void;
 }) {
+  // print-15: the combined count for the Content group's collapsed-header
+  // badge — every excluded day PLUS every individually-excluded event (an
+  // event inside an already-excluded day still counts; it's still "excluded",
+  // just redundantly so — simplest to read, and it can never under-report).
+  const exclusionCount = options.excludedDays.length + options.excludedEventIds.length;
+
   const rangeDays = (() => {
     const lo = fromDateKey(options.start).getTime();
     const hi = fromDateKey(options.end).getTime();
@@ -596,6 +635,7 @@ export function PrintControls({
           onChange={(range) => onChange(range)}
           maxDays={MAX_PRINT_DAYS}
           today={todayKey()}
+          onClamped={(maxDays) => announce("Range limited to " + maxDays + " days")}
         />
         <div className="prail__readout">
           <span className="prail__readout-range">{rangeReadout(options.start, options.end)}</span>
@@ -606,8 +646,11 @@ export function PrintControls({
       </div>
 
       {/* Layout — the choices you actually make per print: the day's shape
-          (Layout + its context-sensitive Spacing/Detail), color, and text size.
-          Leads OPEN, since it's the most-changed group. */}
+          (Layout, and — agenda only — Detail), color, and text size. Leads
+          OPEN, since it's the most-changed group. Spacing merged into Page
+          setup's single Density control (print-6) — it now drives BOTH the
+          doc-wide padding AND (while Layout=Timeline) the timeline row height,
+          so it doesn't need its own context-sensitive slot here anymore. */}
       <CollapsibleGroup title="Layout" icon={CampIcon.List} defaultOpen>
         <Row label="Layout" icon={CampIcon.List}>
           <MiniSeg
@@ -617,18 +660,9 @@ export function PrintControls({
             onChange={(layout) => onChange({ layout })}
           />
         </Row>
-        {/* Context-sensitive: a timeline has Spacing (grid height); an agenda has
-            Detail (per-event richness). Only the one that applies shows. */}
-        {options.layout === "timeline" ? (
-          <MenuPicker
-            label="Spacing"
-            icon={CampIcon.Sort}
-            options={DENSITY_OPTIONS}
-            value={options.timelineDensity}
-            ariaLabel="Timeline spacing"
-            onChange={(timelineDensity) => onChange({ timelineDensity })}
-          />
-        ) : (
+        {/* Context-sensitive: per-event Detail only applies to the agenda list
+            (the timeline shows title/time/type on the block itself). */}
+        {options.layout !== "timeline" && (
           <MenuPicker
             label="Detail"
             icon={CampIcon.Heading}
@@ -673,12 +707,17 @@ export function PrintControls({
             onChange={(style) => onChange({ style })}
           />
         </Row>
+        {/* ONE density knob for the whole document (print-6 merged the old
+            timeline-only "Spacing" control in here): it tightens/loosens every
+            page's paddings everywhere, AND — while Layout=Timeline — the
+            timeline grid's row height, so "Tight" always means "fits more on
+            a page" in either layout. */}
         <MenuPicker
           label="Density"
           icon={CampIcon.Sort}
           options={DOC_DENSITY_OPTIONS}
           value={options.density}
-          ariaLabel="Spacing density of the printed page"
+          ariaLabel="Spacing density of the printed page, including the timeline row height"
           onChange={(density) => onChange({ density })}
         />
         <Row label="A page per day" icon={CampIcon.Calendar}>
@@ -686,13 +725,6 @@ export function PrintControls({
             on={options.pageBreakPerDay}
             ariaLabel="Start each day on a new page"
             onChange={(pageBreakPerDay) => onChange({ pageBreakPerDay })}
-          />
-        </Row>
-        <Row label="Page numbers" icon={CampIcon.List}>
-          <ToggleSwitch
-            on={options.pageNumbers}
-            ariaLabel="Show a page-number footer"
-            onChange={(pageNumbers) => onChange({ pageNumbers })}
           />
         </Row>
         <Row label="Title cover" icon={CampIcon.BookOpen}>
@@ -713,8 +745,15 @@ export function PrintControls({
       {/* Content — what appears in the schedule: the optional camp scope, the
           all-day / empty-day / theme display gates, then the per-day/per-event
           include picker. Defaults to all in; unchecking adds to the ephemeral
-          exclusion sets. Set-once, so CLOSED. */}
-      <CollapsibleGroup title="Content" icon={CampIcon.Filter}>
+          exclusion sets. Set-once, so CLOSED — but print-15 adds a count badge
+          on the collapsed header for the days+events currently excluded, so a
+          non-default exclusion state is never silently hidden behind the fold. */}
+      <CollapsibleGroup
+        title="Content"
+        icon={CampIcon.Filter}
+        badge={exclusionCount}
+        badgeLabel={exclusionCount + " excluded"}
+      >
         {/* Context-sensitive: the camp scope only appears when there's more than
             one camp to choose between. */}
         {camps.length > 0 && (
@@ -748,13 +787,18 @@ export function PrintControls({
             onChange={(showThemes) => onChange({ showThemes })}
           />
         </Row>
+        {/* print-8: ONE name for this section — "Shopping list" is the
+            umbrella (this is the narrower "missing & low only" variant of
+            it), matching the Appendix toggle below and the Document-sections
+            entry above. */}
         <Row label="Shopping list — missing & low only" icon={CampIcon.Box}>
           <ToggleSwitch
             on={options.shoppingListOnly}
-            ariaLabel="Narrow the materials list to only what's missing or low"
-            // Turning this on only does something once the materials list
-            // itself is on — flip that along with it so the checkbox reads as
-            // "yes, print the narrowed list" without a second trip to Appendix.
+            ariaLabel="Narrow the shopping list to only what's missing or low"
+            // Turning this on only does something once the umbrella shopping
+            // list itself is on — flip that along with it so the checkbox
+            // reads as "yes, print the narrowed list" without a second trip
+            // to Appendix.
             onChange={(shoppingListOnly) =>
               onChange({ shoppingListOnly, materialsRollup: shoppingListOnly ? true : options.materialsRollup })
             }
@@ -790,42 +834,39 @@ export function PrintControls({
             onChange={(appendRunSheets) => onChange({ appendRunSheets })}
           />
         </Row>
-        {/* Context-sensitive: the per-activity sheet picker only matters once
-            run sheets are turned on AND there's something scheduled to pick. */}
-        {options.appendRunSheets && scheduledActivities.length > 0 && (
+        {/* Individually-picked run sheets print ADDITIVELY to "Full run
+            sheets" (see SchedulePrintDocument's runSheetActivities) — so the
+            picker shows whenever there's something to search OR something
+            already picked, independent of the "Full run sheets" toggle above.
+            Gating this on `appendRunSheets` (as before) hid existing picks —
+            and their remove affordance — the moment that toggle was off,
+            which is the same "picks go invisible" failure mode print-2 +
+            print-12 fix for the out-of-range case. */}
+        {(scheduledActivities.length > 0 || options.runSheetIds.length > 0) && (
           <RunSheetPicker
             activities={scheduledActivities}
             selected={options.runSheetIds}
+            byId={byId}
             onChange={(runSheetIds) => onChange({ runSheetIds })}
           />
         )}
-        <Row label="Shopping list (combined)" icon={CampIcon.Box}>
+        {/* The umbrella toggle — print-8 renamed from "Shopping list
+            (combined)" to just "Shopping list" (the narrower variant above
+            already says "missing & low only", so it doesn't need the umbrella
+            to also say "combined"). Turning this OFF also turns off the
+            narrower toggle: leaving `shoppingListOnly: true` set but inert
+            would be the same kind of stale-flag trap print-7 fixed for
+            presets — better to keep the two toggles honestly in sync. */}
+        <Row label="Shopping list" icon={CampIcon.Box}>
           <ToggleSwitch
             on={options.materialsRollup}
-            ariaLabel="Include a combined shopping list"
-            onChange={(materialsRollup) => onChange({ materialsRollup })}
+            ariaLabel="Include a shopping list"
+            onChange={(materialsRollup) =>
+              onChange({ materialsRollup, shoppingListOnly: materialsRollup ? options.shoppingListOnly : false })
+            }
           />
         </Row>
       </CollapsibleGroup>
-
-      {/* The ready-made "break sheet" handout — a quiet footer download, moved out
-          of the print header so the head keeps one primary action (Export PDF).
-          Follows the active color choice. */}
-      {(() => {
-        const pdf = BREAK_SHEET_PDFS[options.color];
-        return (
-          <a
-            className="prail__docdownload"
-            href={pdf.href}
-            download={pdf.download}
-            aria-label={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
-            title={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
-          >
-            <CampIcon.Export className="ledger__ic" />
-            <span>Break sheet PDF</span>
-          </a>
-        );
-      })()}
     </div>
   );
 }
