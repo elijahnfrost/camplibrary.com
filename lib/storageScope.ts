@@ -14,6 +14,8 @@ export const SCOPED_STORAGE_KEYS = [
   "schedulePlans",
   "ratings",
   "calendarEvents.v1",
+  "meals.v1",
+  "guides.v1",
 ] as const;
 
 type StorageLike = {
