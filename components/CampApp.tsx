@@ -748,8 +748,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
   // Desktop sidebar omits Home (the brand mark is Home). The mobile tab bar
   // keeps Home, since mobile has no persistent brand mark to tap.
+  // ONE in-app path to invite codes (the Account card's "Manage invite codes"
+  // button; /admin stays as the server-gated deep link) — the sidebar tab only
+  // APPEARS while you're actually on the admin surface, so it still has a nav
+  // highlight + back target but no longer duplicates the entry point.
   const navTabs = useMemo(
-    () => (isAdmin || tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
+    () => (tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
     [isAdmin, tab]
   );
   // The phone tab bar is the three working surfaces: Library / Calendar / Staff.

@@ -262,13 +262,16 @@ export function DetailSheet({
                 />
                 {showOwnerActions && !isCreate && (
                   <>
-                    {/* Duplicate works for built-ins too (it forks a custom copy). */}
+                    {/* Duplicate works for built-ins too (it forks a custom copy).
+                        Named "in library" to disambiguate from the calendar's
+                        Duplicate, which places a copy on the grid — this one
+                        creates the library fork and navigates to the catalog. */}
                     <button
                       type="button"
                       className="rlv-headbtn"
                       onClick={() => onDuplicate(a)}
-                      aria-label="Duplicate activity"
-                      title="Duplicate activity"
+                      aria-label="Duplicate in library"
+                      title="Duplicate in library"
                     >
                       <CampIcon.Copy />
                     </button>
