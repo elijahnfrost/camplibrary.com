@@ -1007,6 +1007,21 @@ export function summarizeRecurrence(rule: RecurrenceRule): string {
   return "Repeats " + cadence + exceptPart + " until " + untilLabel;
 }
 
+// Does this rule's expansion from `startDate` actually get cut short by the
+// MAX_SERIES_OCCURRENCES / MAX_SCAN_DAYS / MAX_UNIT_STEPS backstops, before it
+// reaches `until`? Compares the raw (pre-exdate) occurrence count against the
+// cap AND checks whether the last emitted date still falls short of `until` —
+// a rule can legitimately emit fewer than the cap and still reach `until` (e.g.
+// a short weekly span), so count alone isn't sufficient. Pure, so RepeatField
+// can surface a quiet inline note without duplicating the cap logic itself.
+export function recurrenceIsTruncated(startDate: DateKey, rule: RecurrenceRule): boolean {
+  if (!isDateKey(startDate)) return false;
+  const raw = rawRecurrenceDates(startDate, rule);
+  if (raw.length < MAX_SERIES_OCCURRENCES) return false;
+  const last = raw[raw.length - 1];
+  return last < rule.until;
+}
+
 function monthlyAnchorPart(rule: RecurrenceRule): string {
   if (rule.nthWeekday) {
     const ord = ORDINAL_LABELS[rule.nthWeekday.week] ?? "";

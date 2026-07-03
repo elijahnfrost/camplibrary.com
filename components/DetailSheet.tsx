@@ -462,7 +462,10 @@ export function DetailSheet({
               {/* The per-placement "day note" rides up here with the date chip —
                   the heads-up written on THIS calendar event, so it's reconciled
                   with the run sheet instead of stranded on the calendar. Distinct
-                  from the evergreen Field-notes log further down the sheet. */}
+                  from the evergreen Field-notes log further down the sheet — see
+                  the hint below, which names that distinction explicitly
+                  (event-detail-9: the two looked like the same kind of "note"
+                  with no visual cue that they persist at different scopes). */}
               {eventContext?.note && (
                 <div className="rlv-daynote">
                   <span className="rlv-daynote__label">
@@ -471,6 +474,21 @@ export function DetailSheet({
                   </span>
                   <p className="rlv-daynote__text">{eventContext.note}</p>
                 </div>
+              )}
+              {/* event-detail-9: opened from a calendar event, this "Day note" is
+                  per-placement (this occurrence only), but the Field Notes log
+                  further down the sheet is per-ACTIVITY — a note typed there
+                  shows on every future placement of this activity, camp-wide.
+                  The two sat adjacent with identical "note" framing and no cue
+                  distinguishing them; this one-line hint names the scope
+                  difference explicitly. Only shown when field-note capture is
+                  actually reachable from here (onSaveRunDoc wired) and this
+                  sheet was opened FROM an event (eventContext present) — the
+                  library-opened view has no adjacent day note to confuse it with. */}
+              {eventContext && onSaveRunDoc && (
+                <p className="rlv-fieldnote-hint">
+                  Field notes below save to the library activity (every placement) — not just today.
+                </p>
               )}
 
               <h2 className="rlv-title">{a.title}</h2>
