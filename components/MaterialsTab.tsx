@@ -1,9 +1,9 @@
 "use client";
 
-// Camp Library — the Materials tab.
+// Camp Library — the Materials collection (inside the Library tab).
 //
-// A light top-level surface for reviewing what the camp has on hand. It reads
-// ONE vocabulary — the union of the catalog's named entries and the materials
+// A light surface for reviewing what the camp has on hand. It reads ONE
+// vocabulary — the union of the catalog's named entries and the materials
 // derived from every activity's kit — and shows it in two presentations off the
 // same list:
 //
@@ -17,14 +17,19 @@
 //    carries an overflow menu (rename / consumable / archive) and a "Used by N
 //    activities →" jump into the pre-filtered Library.
 //
+// This collection now shares the Library toolbar's search field and Add button
+// (see LibraryTab) and the sidebar's filter-rail contract (see CampApp's
+// materials ledger) instead of owning its own header/search/hint — the two
+// collections behind the Library tab read as one surface, not two.
+//
 // Every mutation flows through useActivityLibrary's staff-gated setters, so an
 // anonymous/read-only visitor's taps are inert (the gate returns false).
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Activity } from "@/lib/types";
 import { coverage, materialOptionsForActivities } from "@/lib/materials";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import { isStocked, type StockState } from "@/lib/kitStock";
+import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/kitStock";
 import { normalizeSearchText } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
 import { requestConfirm } from "./ConfirmDialog";
@@ -53,7 +58,8 @@ interface MaterialRow {
 // Build the unified vocabulary: catalog entries (non-archived) UNION the
 // activity-derived options, keyed by id. The catalog name always wins; usage
 // count comes from the derived options (a catalog-only entry no activity uses
-// counts 0). Sorted by usage desc, then name, so the busiest kit leads.
+// counts 0). Sorted by usage desc, then name, so the busiest kit leads by
+// default (see `sortRows` for the alphabetical alternative).
 function buildRows(
   activities: Activity[],
   catalog: Material[],
@@ -89,11 +95,16 @@ function buildRows(
   return rows;
 }
 
+function sortRows(rows: MaterialRow[], sort: MaterialSort): MaterialRow[] {
+  if (sort === "az") return [...rows].sort((a, b) => a.name.localeCompare(b.name));
+  return rows; // buildRows already sorts usage-desc
+}
+
 // The explicit 3-way control every row shows — Have / Low / Out, all visible
 // at once (replaces the old tap-to-cycle button, which hid the other two
 // states until you tapped through them). A row with no state yet renders
 // with none selected; MiniSeg's active index is just -1, no bespoke case
-// needed. Kept local (not the sidebar's KitFilter instance) since options are
+// needed. Kept local (not the sidebar's stock-filter MiniSeg) since options are
 // per-row identical but the value differs per row.
 const STOCK_OPTIONS: { id: StockState; label: string; ariaLabel: string }[] = [
   { id: "have", label: "Have", ariaLabel: "Have" },
@@ -110,11 +121,22 @@ export function MaterialsTab({
   catalog,
   kitStock,
   onSetStockState,
+  onAddMaterial,
   onRename,
   onSetConsumable,
   onSetArchived,
   onBrowseMaterial,
   canEdit,
+  query,
+  onQuery,
+  stockFilter,
+  onStockFilter,
+  restockOnly,
+  onRestockOnly,
+  sort,
+  announce,
+  pendingAdd,
+  onPendingAddHandled,
 }: {
   activities: Activity[];
   catalog: Material[];
@@ -122,6 +144,9 @@ export function MaterialsTab({
    *  the UNSET signal that puts the tab in Setup mode. */
   kitStock: Record<string, StockState>;
   onSetStockState: (id: string, state: StockState) => void;
+  /** Mint a brand-new catalog entry with no activity reference yet — returns
+   *  the new id, or null if the name was blank or already existed. */
+  onAddMaterial: (name: string) => string | null;
   onRename: (id: string, name: string) => void;
   onSetConsumable: (id: string, name: string, consumable: boolean) => void;
   onSetArchived: (id: string, name: string, archived: boolean) => void;
@@ -130,21 +155,48 @@ export function MaterialsTab({
   /** False for anonymous/read-only visitors — the taps are inert either way (the
    *  staff gate blocks the write), but we present read-only affordances. */
   canEdit: boolean;
+  /** The toolbar's search field value — lifted to CampApp so the same field
+   *  drives both collections (see LibraryTab). */
+  query: string;
+  /** Clears the toolbar search (the empty state's "Clear search" recovery). */
+  onQuery: (query: string) => void;
+  /** The sidebar ledger's Have/Low/Out filter row. */
+  stockFilter: MaterialStockFilter;
+  /** Clears the stock filter (the empty state's "Clear filters" recovery). */
+  onStockFilter: (v: MaterialStockFilter) => void;
+  /** The sidebar ledger's "Restock only" toggle (low/out rows only). */
+  restockOnly: boolean;
+  /** Clears the restock-only toggle (the empty state's "Clear filters" recovery). */
+  onRestockOnly: (v: boolean) => void;
+  /** The sidebar ledger's sort control. */
+  sort: MaterialSort;
+  /** The app's one shared live-region announcer (mirrors the Activities
+   *  collection's filtered-count announcements). */
+  announce: (message: string) => void;
+  /** Bumped by the toolbar's Add button — opens a fresh blank row in rename
+   *  mode so typing a name mints the entry (the Materials "Add" entry point). */
+  pendingAdd?: number;
+  onPendingAddHandled?: () => void;
 }) {
-  const [query, setQuery] = useState("");
   // The row whose overflow menu is open, anchored at the ⋯ button's point.
   const [menu, setMenu] = useState<{ row: MaterialRow; point: { x: number; y: number } } | null>(null);
-  // Inline rename: the id being renamed + its live draft text.
-  const [renaming, setRenaming] = useState<{ id: string; draft: string } | null>(null);
+  // Inline rename: the id being renamed + its live draft text. Also doubles as
+  // the "Add" flow's inline naming step (see the pendingAdd effect below).
+  const [renaming, setRenaming] = useState<{ id: string; draft: string; isNew?: boolean } | null>(null);
 
-  const rows = useMemo(() => buildRows(activities, catalog, kitStock), [activities, catalog, kitStock]);
+  const allRows = useMemo(() => buildRows(activities, catalog, kitStock), [activities, catalog, kitStock]);
 
   // UNSET ({}) → Setup presentation. The first stock write makes the map
   // non-empty, so this flips to normal mode on the very next render.
   const isSetup = Object.keys(kitStock).length === 0;
 
   const q = normalizeSearchText(query.trim());
-  const visible = useMemo(() => rows.filter((r) => matchesQuery(r.name, q)), [rows, q]);
+  const rows = useMemo(() => {
+    let out = allRows.filter((r) => matchesQuery(r.name, q));
+    if (stockFilter !== "all") out = out.filter((r) => r.state === stockFilter);
+    if (restockOnly) out = out.filter((r) => r.state === "low" || r.state === "out");
+    return sortRows(out, sort);
+  }, [allRows, q, stockFilter, restockOnly, sort]);
 
   // Coverage-based readiness across ALL activities — the honest "N ready" count
   // the progress line reports (mirrors the library's Can-run lens).
@@ -152,14 +204,42 @@ export function MaterialsTab({
     () => activities.filter((a) => coverage(a, kitStock, catalog).state === "ready").length,
     [activities, kitStock, catalog]
   );
-  const markedCount = useMemo(() => rows.filter((r) => r.state !== undefined).length, [rows]);
+  const markedCount = useMemo(() => allRows.filter((r) => r.state !== undefined).length, [allRows]);
 
   // Restock (normal mode): the low/out rows, pinned on top for a one-tap return
-  // to Have. Search-filtered like the main list so it stays in step.
+  // to Have. Search/filter-matched like the main list so it stays in step —
+  // but never doubled with the "Restock only" toggle already on (that would
+  // just render the same rows twice).
   const restock = useMemo(
-    () => visible.filter((r) => r.state === "low" || r.state === "out"),
-    [visible]
+    () => (restockOnly ? [] : rows.filter((r) => r.state === "low" || r.state === "out")),
+    [rows, restockOnly]
   );
+
+  // Announce the visible-count change to assistive tech, mirroring the
+  // Activities collection (CampApp's libraryItems effect) — skips the first
+  // render so only a real narrowing/widening speaks.
+  const prevCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const count = rows.length;
+    if (prevCountRef.current !== null && prevCountRef.current !== count) {
+      announce(count + (count === 1 ? " material" : " materials"));
+    }
+    prevCountRef.current = count;
+  }, [rows.length, announce]);
+
+  // The toolbar's Add button bumps `pendingAdd` — mint a fresh blank entry and
+  // open it straight in rename mode, reusing the exact inline-rename input
+  // every row already has (no second "new item" UI to maintain). A blank
+  // placeholder name keeps the birth-slug collision-free until the user types
+  // a real one and commits.
+  const pendingAddRef = useRef(pendingAdd);
+  useEffect(() => {
+    if (pendingAdd === undefined || pendingAdd === pendingAddRef.current) return;
+    pendingAddRef.current = pendingAdd;
+    const id = onAddMaterial("New material " + Date.now());
+    if (id) setRenaming({ id, draft: "", isNew: true });
+    onPendingAddHandled?.();
+  }, [pendingAdd, onAddMaterial, onPendingAddHandled]);
 
   const openMenu = (row: MaterialRow, event: React.MouseEvent) => {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -171,6 +251,9 @@ export function MaterialsTab({
     if (!renaming) return;
     const trimmed = renaming.draft.trim();
     if (trimmed) onRename(renaming.id, trimmed);
+    // A freshly-minted row abandoned with no name typed is left carrying its
+    // placeholder — harmless (it's just an unused catalog entry) and avoids a
+    // separate "cancel = delete" path this surface doesn't otherwise have.
     setRenaming(null);
   };
 
@@ -178,7 +261,7 @@ export function MaterialsTab({
   // touches rows that have no state yet, so it never overwrites a deliberate Low/
   // Out the user already set.
   const markVisibleHave = () => {
-    for (const row of visible) {
+    for (const row of rows) {
       if (row.state === undefined) onSetStockState(row.id, "have");
     }
   };
@@ -186,7 +269,7 @@ export function MaterialsTab({
   // Opt-in head start: mark the top ~40 by usage as Have. Data-driven — surfaced
   // as a button, never applied by default.
   const seedMostUsed = () => {
-    for (const row of rows.slice(0, MOST_USED_SEED_COUNT)) {
+    for (const row of allRows.slice(0, MOST_USED_SEED_COUNT)) {
       onSetStockState(row.id, "have");
     }
   };
@@ -197,7 +280,11 @@ export function MaterialsTab({
     return (
       <li key={row.id} className={"matrow" + stateClass}>
         <span className="matrow__dot" aria-hidden="true">
-          {isStocked(row.state) && <CampIcon.Check />}
+          {/* Have reads as satisfied (check); Low reads as thin/warning (minus) —
+              the same glyph split the run-sheet's own material checklist uses,
+              so the two surfaces sharing this data agree on iconography. */}
+          {row.state === "have" && <CampIcon.Check />}
+          {row.state === "low" && <CampIcon.Minus />}
         </span>
         <span className="matrow__body">
           {isRenaming ? (
@@ -205,8 +292,9 @@ export function MaterialsTab({
               className="matrow__rename"
               value={renaming.draft}
               autoFocus
-              aria-label={"Rename " + row.name}
-              onChange={(e) => setRenaming({ id: row.id, draft: e.target.value })}
+              placeholder={renaming.isNew ? "Name this material…" : undefined}
+              aria-label={renaming.isNew ? "Name the new material" : "Rename " + row.name}
+              onChange={(e) => setRenaming({ ...renaming, draft: e.target.value })}
               onBlur={commitRename}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -271,15 +359,10 @@ export function MaterialsTab({
   return (
     <div className="app__scroll">
       <div className="materials-tab">
-        <header className="materials-tab__head">
-          <div className="materials-tab__heading">
-            <h1 className="materials-tab__title">Materials</h1>
-            <p className="materials-tab__scope">
-              {markedCount} of {rows.length} marked · {readyCount}{" "}
-              {readyCount === 1 ? "activity" : "activities"} ready
-            </p>
-          </div>
-        </header>
+        <p className="materials-tab__scope">
+          {markedCount} of {allRows.length} marked · {readyCount}{" "}
+          {readyCount === 1 ? "activity" : "activities"} ready
+        </p>
 
         {isSetup && (
           <div className="materials-setup">
@@ -291,26 +374,28 @@ export function MaterialsTab({
                 library can show what you can run right now.
               </p>
               <div className="materials-setup__actions">
-                {canEdit && rows.length > 0 && (
+                {canEdit && allRows.length > 0 && (
                   <button type="button" className="btn btn--primary" onClick={seedMostUsed}>
                     Start from your most-used kit
                   </button>
                 )}
-                {canEdit && visible.length > 0 && (
+                {canEdit && rows.length > 0 && (
                   <button type="button" className="btn btn--ghost" onClick={markVisibleHave}>
                     Mark visible as Have
                   </button>
                 )}
-                {canEdit && (
+                {canEdit && allRows.length > 0 && (
                   <button
                     type="button"
                     className="btn btn--quiet"
                     onClick={() => {
                       // "Skip — mark as you go" just marks the busiest row Have,
                       // which flips the tab into normal mode; every later tap then
-                      // writes normally. (There's no "unset presentation" toggle to
-                      // hold — the map's emptiness IS the mode.)
-                      if (rows[0]) onSetStockState(rows[0].id, "have");
+                      // writes normally. Guarded by allRows.length so it never
+                      // renders as a dead-end button with nothing to mark (a
+                      // fresh catalog has no rows yet — see the Add entry point
+                      // above instead).
+                      if (allRows[0]) onSetStockState(allRows[0].id, "have");
                     }}
                     title="Mark one item to leave setup; keep marking the rest as you go"
                   >
@@ -321,31 +406,6 @@ export function MaterialsTab({
             </div>
           </div>
         )}
-
-        <label className="searchfield materials-tab__search">
-          <CampIcon.Search />
-          <input
-            className="searchfield__input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search materials"
-            aria-label="Search materials"
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {query && (
-            <button
-              type="button"
-              className="searchfield__clear"
-              onClick={() => setQuery("")}
-              aria-label="Clear materials search"
-            >
-              <CampIcon.Close />
-            </button>
-          )}
-        </label>
 
         {!isSetup && restock.length > 0 && (
           <section className="materials-section materials-section--restock">
@@ -361,12 +421,39 @@ export function MaterialsTab({
           {!isSetup && restock.length > 0 && (
             <h2 className="materials-section__title">All materials</h2>
           )}
-          {visible.length > 0 ? (
-            <ul className="matlist">{visible.map(renderRow)}</ul>
+          {rows.length > 0 ? (
+            <ul className="matlist">{rows.map(renderRow)}</ul>
           ) : (
-            <p className="materials-empty">
-              {query ? "No materials match “" + query + "”." : "No materials yet. Add kit to an activity and it shows up here."}
-            </p>
+            // Say WHY it's empty and offer the one-tap way back — the same
+            // shape as the Activities collection's empty state (materials-8/11).
+            <div className="materials-empty">
+              {query ? (
+                <>
+                  <p className="materials-empty__title">Nothing matches &ldquo;{query}&rdquo;.</p>
+                  <button type="button" className="btn btn--quiet" onClick={() => onQuery("")}>
+                    Clear search
+                  </button>
+                </>
+              ) : allRows.length === 0 ? (
+                <p className="materials-empty__title">
+                  No materials yet. Add kit to an activity, or use Add above.
+                </p>
+              ) : (
+                <>
+                  <p className="materials-empty__title">No materials match these filters.</p>
+                  <button
+                    type="button"
+                    className="btn btn--quiet"
+                    onClick={() => {
+                      onStockFilter("all");
+                      onRestockOnly(false);
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </section>
       </div>

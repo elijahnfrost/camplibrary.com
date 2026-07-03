@@ -26,6 +26,17 @@
 
 export type StockState = "have" | "low" | "out";
 
+// The Materials collection's sidebar ledger controls (shared between
+// components/Filters.tsx's MaterialsFilters rail and components/MaterialsTab.tsx
+// so both sides of the same filter contract agree on shape without a circular
+// import between the two components).
+/** Which rows show in the main list. "all" is the default (no narrowing);
+ *  have/low/out isolate one state. */
+export type MaterialStockFilter = "all" | StockState;
+/** The list order — usage-desc (the historical default) or alphabetical,
+ *  mirroring the Activities Sort row's A–Z option. */
+export type MaterialSort = "usage" | "az";
+
 // The closed value whitelist. A stored value outside this set is dropped (the
 // key becomes "never reviewed" again), so renderers only ever see clean states.
 const STOCK_STATES: readonly StockState[] = ["have", "low", "out"];

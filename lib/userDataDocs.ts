@@ -96,7 +96,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   ratings: () => ({}),
   runLists: () => ({}),
   playbookOverrides: () => ({}),
-  view: () => "deck",
+  // Shelf is the Library's default landing view (core app identity) — a
+  // stored preference (any of the three) always wins over this default.
+  view: () => "shelf",
   availableMaterials: () => [],
   materialCatalog: () => [],
   // {} is the first-class UNSET state — an untouched account keeps the lens inert.

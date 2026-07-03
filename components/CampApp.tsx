@@ -13,6 +13,7 @@ import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { catalogNameFor } from "@/lib/materialCatalog";
+import type { MaterialSort, MaterialStockFilter } from "@/lib/kitStock";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
@@ -45,7 +46,7 @@ import { usePreviewAuth } from "./AuthControls";
 import { ConfirmHost, requestConfirm } from "./ConfirmDialog";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
-import { Filters } from "./Filters";
+import { Filters, MaterialsFilters } from "./Filters";
 import { LibraryTab } from "./LibraryTab";
 import {
   CampDayStructure,
@@ -658,10 +659,26 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
 
   // The Library holds two collections behind one tab: the activity catalog
   // (Activities) and the kit inventory (Materials — formerly a top-level tab).
-  // A seg at the far left of the Library toolbar switches between them; the
-  // filter rail applies only to Activities, and search/Add hide under Materials
-  // (which has its own search).
+  // A seg at the far left of the Library toolbar switches between them; the ONE
+  // toolbar contract (collection seg + search + Add) renders identically for
+  // both — only the Shelf/Deck/Catalog view switch and the Activities filter
+  // rail are Activities-only.
   const [collection, setCollection] = useState<LibraryCollection>("activities");
+
+  // Materials filter state — the sidebar ledger's Have/Low/Out row, "Restock
+  // only" toggle, and sort control (materials-16's real filter rail, replacing
+  // the old bare hint), plus the collection's own search query (lifted so the
+  // ONE shared toolbar search field can drive either collection — see
+  // LibraryTab). Lives here, not in MaterialsTab, for the same reason the
+  // Activities filters do: the desktop rail renders in the sidenav, outside
+  // LibraryTab.
+  const [materialsQuery, setMaterialsQuery] = useState("");
+  const [materialsStockFilter, setMaterialsStockFilter] = useState<MaterialStockFilter>("all");
+  const [materialsRestockOnly, setMaterialsRestockOnly] = useState(false);
+  const [materialsSort, setMaterialsSort] = useState<MaterialSort>("usage");
+  // Bumped by the toolbar's Add button while Materials is active — tells
+  // MaterialsTab to mint a fresh row and open it in rename mode.
+  const [materialsPendingAdd, setMaterialsPendingAdd] = useState(0);
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
@@ -874,13 +891,24 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   }, []);
 
   // The Materials view's "Used by N activities →" jump: narrow the Library to
-  // one material and land on the Activities collection. Reset the category
-  // filter to All so a stale Type filter can't hide the material's activities.
-  // The chip in the Filters rail dismisses it back to null. Lands on the
-  // Activities collection so the narrowed catalog is what's shown.
+  // one material and land on the Activities collection. The row promises an
+  // EXACT count ("Used by 3 →"), so every OTHER filter that could hide some of
+  // those activities is cleared too (materials-4) — not just Type, which was
+  // the only one reset before. A stale Age/Place/Theme/Starred/Duration/search
+  // left on from a prior Library session used to silently shrink the landed
+  // list below the promised count with no explanation; now the jump always
+  // shows exactly what it promised. The chip in the Filters rail dismisses the
+  // material narrowing back to null on its own.
   const browseMaterial = useCallback((id: string) => {
     setMaterialId(id);
     setCats(ALL_CATEGORY_IDS);
+    setPlace("All");
+    setAge("All");
+    setTheme("All");
+    setStarredOnly(false);
+    setMinutesRange(null);
+    setKitLens("all");
+    setQuery("");
     setCollection("activities");
     setTab("library");
   }, []);
@@ -932,6 +960,18 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     setDetailMode("create");
     setDetailNonce((n) => n + 1);
     setDetail(activityFromForm(BLANK_FORM, "draft-activity"));
+  }
+
+  // The Library toolbar's ONE Add button — Activities creates a new activity;
+  // Materials mints a fresh catalog entry and opens it in rename mode (see
+  // MaterialsTab's pendingAdd effect). Gives Materials the same always-visible
+  // Add entry point Activities has (materials-9).
+  function handleLibraryAdd() {
+    if (collection === "materials") {
+      setMaterialsPendingAdd((n) => n + 1);
+      return;
+    }
+    openAddActivity();
   }
 
   // Edit: open the SAME surface on the existing activity, straight in edit mode.
@@ -1095,9 +1135,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               these renders at a time (gated by `tab`), so there's never more
               than one scrollbar. */}
           <div className="sidenav__scroll">
-            {/* The filter rail belongs to the Activities collection only — the
-                Materials collection has its own search and no library filters, so
-                the rail shows a one-line hint there instead. */}
+            {/* Each Library collection gets its own filter rail in the same
+                sidebar slot — Activities' full ledger, or Materials' smaller
+                Have/Low/Out + Restock-only + Sort ledger (materials-16: this
+                used to be a bare one-line hint here). */}
             {tab === "library" && collection === "activities" && (
               <Filters
                 variant="rail"
@@ -1130,9 +1171,14 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               />
             )}
             {tab === "library" && collection === "materials" && (
-              <p className="sidenav__railhint">
-                Reviewing your kit. Switch to Activities to browse and filter the library.
-              </p>
+              <MaterialsFilters
+                stockFilter={materialsStockFilter}
+                onStockFilter={setMaterialsStockFilter}
+                restockOnly={materialsRestockOnly}
+                onRestockOnly={setMaterialsRestockOnly}
+                sort={materialsSort}
+                onSort={setMaterialsSort}
+              />
             )}
             {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
             {/* The ONE entry point into camps on desktop — a collapsed-by-default
@@ -1197,9 +1243,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         <main className="app__main" id="main">
           {veil != null && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
-          {/* Materials renders its own visible <h1>; the Activities collection
-              gets an sr-only one. */}
-          {tab === "library" && collection === "activities" && <h1 className="sr-only">Library</h1>}
+          {/* Both Library collections share one sr-only page title now — the
+              toolbar's collection seg already visibly names which one is
+              showing, so a second, visible "Materials" heading was redundant
+              (materials-7). */}
+          {tab === "library" && <h1 className="sr-only">Library</h1>}
 
           {tab === "library" && (
             <LibraryTab
@@ -1241,20 +1289,31 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
               onContextMenu={(activity, e) => libMenu.open(e, activity)}
-              onAdd={openAddActivity}
+              onAdd={handleLibraryAdd}
               hasLoaded={cloud.hasLoaded}
               // The Materials collection mounts the existing MaterialsTab content
-              // in place of the browse views (see collection === "materials").
+              // below the shared toolbar (see collection === "materials").
               materials={{
                 activities: lib.all,
                 catalog: lib.materialCatalog,
                 kitStock: lib.kitStock,
                 onSetStockState: lib.setStockState,
+                onAddMaterial: lib.addMaterial,
                 onRename: lib.renameMaterial,
                 onSetConsumable: lib.setMaterialConsumable,
                 onSetArchived: lib.setMaterialArchived,
                 onBrowseMaterial: browseMaterial,
                 canEdit: isSignedIn,
+                query: materialsQuery,
+                onQuery: setMaterialsQuery,
+                stockFilter: materialsStockFilter,
+                onStockFilter: setMaterialsStockFilter,
+                restockOnly: materialsRestockOnly,
+                onRestockOnly: setMaterialsRestockOnly,
+                sort: materialsSort,
+                announce: setLiveMsg,
+                pendingAdd: materialsPendingAdd,
+                onPendingAddHandled: () => {},
               }}
             />
           )}

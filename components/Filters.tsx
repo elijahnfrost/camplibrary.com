@@ -6,6 +6,7 @@ import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
 import type { MaterialOption } from "@/lib/materials";
+import type { MaterialSort, MaterialStockFilter } from "@/lib/kitStock";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
@@ -642,6 +643,87 @@ function LedgerFilters({
           />
         </div>
       </FilterGroup>
+    </div>
+  );
+}
+
+// The Materials collection's sidebar rail — a real filter ledger (materials-16)
+// in place of the old bare one-line hint, built on the SAME ledger-row/MiniSeg/
+// ToggleSwitch vocabulary as LedgerFilters above so the rail reads as one family
+// whichever collection is active. Deliberately smaller than the Activities
+// ledger (Materials has fewer dimensions worth filtering): a Have/Low/Out stock
+// row, a "Restock only" toggle, and a sort control.
+export function MaterialsFilters({
+  stockFilter,
+  onStockFilter,
+  restockOnly,
+  onRestockOnly,
+  sort,
+  onSort,
+}: {
+  stockFilter: MaterialStockFilter;
+  onStockFilter: (v: MaterialStockFilter) => void;
+  restockOnly: boolean;
+  onRestockOnly: (v: boolean) => void;
+  sort: MaterialSort;
+  onSort: (v: MaterialSort) => void;
+}) {
+  const anyOn = stockFilter !== "all" || restockOnly;
+  const clearAll = () => {
+    onStockFilter("all");
+    onRestockOnly(false);
+  };
+  return (
+    <div className="sidesection sidefilters-rail">
+      {anyOn && (
+        <div className="sidefilters__clear">
+          <button type="button" className="sidesection__action" onClick={clearAll}>
+            Clear all
+          </button>
+        </div>
+      )}
+      <div className="sidesection__body sidefilters">
+        <div className="filtergroups">
+          <FilterGroup title="Kit" defaultOpen>
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Stock</span>
+              <MiniSeg
+                ariaLabel="Filter materials by stock state"
+                value={stockFilter}
+                onChange={onStockFilter}
+                options={[
+                  { id: "all" as MaterialStockFilter, label: "All" },
+                  { id: "have" as MaterialStockFilter, label: "Have" },
+                  { id: "low" as MaterialStockFilter, label: "Low" },
+                  { id: "out" as MaterialStockFilter, label: "Out" },
+                ]}
+              />
+            </div>
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Bolt className="ledger__ic" />Restock only</span>
+              <ToggleSwitch
+                on={restockOnly}
+                onChange={onRestockOnly}
+                ariaLabel="Show only materials that need restocking"
+              />
+            </div>
+          </FilterGroup>
+          <FilterGroup title="Sort & display">
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Sort className="ledger__ic" />Sort</span>
+              <MiniSeg
+                ariaLabel="Sort materials"
+                value={sort}
+                onChange={onSort}
+                options={[
+                  { id: "usage" as MaterialSort, label: "Usage" },
+                  { id: "az" as MaterialSort, label: "A–Z" },
+                ]}
+              />
+            </div>
+          </FilterGroup>
+        </div>
+      </div>
     </div>
   );
 }

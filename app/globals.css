@@ -397,19 +397,28 @@ body {
   --seg-gap: var(--s-1);
   --seg-radius: var(--r-sm);
 }
-.viewswitch button.is-active {
+/* .is-active (the calendar's ViewSwitch, a plain toggle-group) and .is-on (the
+   Library toolbar's two switches, built on the shared MiniSeg radiogroup) are
+   the same visual state on this shell — one bespoke class per control family,
+   painted identically so Day/Week/Month and Shelf/Deck/Catalog read as one
+   control vocabulary despite the ARIA-pattern difference between them. */
+.viewswitch button.is-active,
+.viewswitch button.is-on {
   /* Green is painted by the sliding thumb; the active label just goes light. */
   background: transparent;
   color: var(--on-accent);
 }
-.viewswitch button.is-active:hover {
+.viewswitch button.is-active:hover,
+.viewswitch button.is-on:hover {
   background: transparent;
   color: var(--on-accent);
 }
-.viewswitch button.is-active:active {
+.viewswitch button.is-active:active,
+.viewswitch button.is-on:active {
   background: transparent;
 }
-.viewswitch button.is-active:focus-visible {
+.viewswitch button.is-active:focus-visible,
+.viewswitch button.is-on:focus-visible {
   outline-color: var(--on-accent);
   outline-offset: -3px;
 }
@@ -421,16 +430,6 @@ body {
    toolbar grid: it sits in row-1 col-1 beside the browse-view switch. */
 .collseg {
   margin: 0 18px;
-}
-
-/* The Materials collection has no library filter rail — a one-line hint sits
-   where the filters would, in the sidebar's quiet ledger voice. */
-.sidenav__railhint {
-  margin: var(--s-6) 18px 0;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  line-height: 1.5;
-  color: var(--ink-faint);
 }
 
 /* ---------- canonical search field ----------
@@ -5092,7 +5091,13 @@ body {
 
 /* Mobile: one search field for the library, stacked under the view switch.
    The toolbar is the page's first row (no page-title bar above it), so it
-   carries the notch clearance and hosts the auth pill beside the switcher. */
+   carries the notch clearance and hosts the auth pill beside the switcher.
+   The collection seg (.collseg) and the 3-way browse-view switch used to be
+   two unplaced grid items landing in the SAME row, where the view switch's
+   wider intrinsic size squeezed the collseg down to two clipped, overlapping
+   labels (library-2). Both now get an EXPLICIT row of their own — a min-width
+   guard on top, so neither switch is ever squeezed by the other's content
+   width regardless of auto-placement specifics. */
 .toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5100,11 +5105,35 @@ body {
   gap: 10px;
   padding: max(14px, calc(8px + env(safe-area-inset-top))) 18px 2px;
 }
+/* Scoped to the touch-shell tiers (phone + iPad-portrait) ONLY — >=1024px
+   switches .toolbar to flex (see the desktop blocks below) where .collseg /
+   .viewswitch already have their own working sizing rules; without this guard
+   these higher-specificity grid-placement selectors would outrank and stomp
+   those flex rules' min-width/width instead of just being no-ops. */
+@media (max-width: 1023px) {
+  .toolbar .collseg {
+    grid-row: 1;
+    grid-column: 1;
+    /* Two icon+label pills need at least this much to read cleanly — never let
+       a sibling's auto-placement width squeeze it below it. */
+    min-width: 190px;
+    width: auto;
+    justify-self: start;
+    margin: 0;
+  }
+  .toolbar .viewswitch:not(.collseg) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+}
 .toolbar__auth {
   display: flex;
   align-items: center;
-  /* Last in the DOM but beside the switcher on screen — grid auto-placement
-     never backtracks to row 1's empty second cell, so place it explicitly. */
+  /* Beside the collection seg on row 1 — grid auto-placement never backtracks
+     to row 1's empty second cell, so place it explicitly. */
   grid-row: 1;
   grid-column: 2;
   justify-self: end;
@@ -5113,9 +5142,11 @@ body {
    only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
    wider tiers below), not the field's visual recipe. */
 .toolbar__search {
+  grid-row: 3;
   grid-column: 1 / -1;
 }
 .toolbar__add {
+  grid-row: 4;
   grid-column: 1 / -1;
 }
 .toolbar__add {
@@ -8984,8 +9015,15 @@ button.rl-node--pick:focus-visible {
     padding-inline: var(--s-7);
   }
 }
-/* desktop re-assertions (the sidebar rail replaces the bar there) */
-@media (min-width: 1024px) {
+/* desktop re-assertions (the sidebar rail replaces the bar there). Gated to
+   the app's next named breakpoint (1320px), NOT 1024px — at 1024–1319px
+   (tablet-tier desktop) the collection seg + view switch + search + Add
+   genuinely don't fit on one nowrap row (confirmed live: the Add button and
+   part of the search field render past the viewport edge with no scroll
+   affordance — library-1). The 1024px block above already lets the toolbar
+   wrap there; this only re-asserts a single row once there's actually room
+   for one. */
+@media (min-width: 1320px) {
   .toolbar {
     flex-wrap: nowrap;
     padding: var(--s-5) var(--s-8) var(--s-5);
@@ -11144,37 +11182,27 @@ button.rl-node--pick:focus-visible {
 }
 
 /* =====================================================================
-   Materials tab — the kit review surface. Two presentations off one list
-   (Setup while stock is unset, then the normal restock + full list). Reuses
-   the tab-header vocabulary (.printhead → .materials-tab__head) and the run
-   sheet's stock palette (green have / amber low / red out).
+   Materials collection — the kit review surface inside the Library tab.
+   Two presentations off one list (Setup while stock is unset, then the
+   normal restock + full list). Shares the run sheet's stock palette (green
+   have / amber low / red out) and now the SAME width/layout contract as the
+   Activities browse views (--lib-col-max, centered) instead of its own
+   narrower capped column (materials-1) — switching the Activities|Materials
+   seg no longer visibly resizes the content column.
    ===================================================================== */
 .materials-tab {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  max-width: 720px;
-  margin: 0 auto;
-  padding: var(--s-5) var(--page-x) var(--s-8);
   width: 100%;
+  padding: var(--s-5) var(--page-x) var(--s-8);
 }
-.materials-tab__head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-4);
-}
-.materials-tab__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-.materials-tab__title {
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  line-height: 1;
-  color: var(--ink);
+@media (min-width: 1024px) {
+  .materials-tab {
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+    padding: var(--s-5) var(--s-8) var(--s-8);
+  }
 }
 .materials-tab__scope {
   margin: 0;
@@ -11251,11 +11279,23 @@ button.rl-node--pick:focus-visible {
 .materials-section--restock .materials-section__title {
   color: var(--amber);
 }
+/* Say why it's empty and offer the one-tap way back — the same shape as
+   .library-empty (materials-8/11: this collection used to be a single plain
+   line with no recovery action). */
 .materials-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
   margin: var(--s-4) 0;
-  font-size: var(--fs-body);
-  color: var(--ink-faint);
+  padding: clamp(32px, 8vh, 80px) var(--page-x);
   text-align: center;
+}
+.materials-empty__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
 }
 
 /* The list + rows. Each row is a status dot + name on the left, then the

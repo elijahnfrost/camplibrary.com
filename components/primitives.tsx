@@ -288,30 +288,47 @@ export function ThemeBadge({ theme, className }: { theme: Theme | null; classNam
 }
 
 /** A compact segmented pill for 2–4 way single choices (Where, Ages). Labels
- *  are display-short ("In"/"Out"); ariaLabel carries the full name. */
+ *  are display-short ("In"/"Out"); ariaLabel carries the full name. An
+ *  optional per-option `icon` renders before the label — the Library
+ *  toolbar's collection seg (Activities|Materials) and browse-view seg
+ *  (Shelf|Deck|Catalog) both need an icon+label option, so this is the ONE
+ *  shared segmented-control implementation for every single-choice pill in
+ *  the app (radiogroup/radio semantics throughout — no bespoke ARIA per
+ *  control). `variant="toolbar"` swaps the compact `.miniseg` shell for the
+ *  toolbar's larger `.viewswitch` shell (same seg-slide thumb mechanism,
+ *  bigger touch targets) — used ONLY by the two Library toolbar switches. */
 export function MiniSeg<T extends string>({
   options,
   value,
   onChange,
   ariaLabel,
+  variant = "mini",
+  className,
 }: {
-  options: { id: T; label: string; ariaLabel?: string }[];
+  options: { id: T; label: string; ariaLabel?: string; icon?: IconCmp }[];
   value: T;
   onChange: (v: T) => void;
   ariaLabel: string;
+  variant?: "mini" | "toolbar";
+  /** Extra class(es) appended after the variant's base shell class — e.g. the
+   *  Library toolbar's collection seg adds `.collseg` on top of `.viewswitch`
+   *  for its narrower desktop sizing. */
+  className?: string;
 }) {
   // --seg-n / --seg-i drive the sliding thumb (the ::before pill) so the green
   // selection glides between options instead of teleporting. -1 hides it.
   const activeIndex = options.findIndex((opt) => opt.id === value);
+  const base = variant === "toolbar" ? "viewswitch seg-slide" : "miniseg seg-slide";
   return (
     <span
-      className="miniseg seg-slide"
+      className={className ? base + " " + className : base}
       role="radiogroup"
       aria-label={ariaLabel}
       style={{ "--seg-n": options.length, "--seg-i": activeIndex } as CSSProperties}
     >
       {options.map((opt) => {
         const on = value === opt.id;
+        const Icon = opt.icon;
         return (
           <button
             type="button"
@@ -324,6 +341,7 @@ export function MiniSeg<T extends string>({
               if (!on) onChange(opt.id);
             }}
           >
+            {Icon && <Icon />}
             {opt.label}
           </button>
         );
