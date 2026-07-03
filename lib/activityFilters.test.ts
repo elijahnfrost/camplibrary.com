@@ -117,6 +117,25 @@ describe("activity filters", () => {
     expect(matchesActivityFilters(base, filters({ kitLens: "ready" }))).toBe(true);
   });
 
+  it("filters by a single material id (the Materials-tab browse jump)", () => {
+    // resolveRefs derives ids from the free-text materials (materialTagId slugs),
+    // so the clause reuses the same three-tier machinery the picker/checklist do.
+    const balloons = activity({ id: "a-balloon", materials: ["Balloons", "String"] });
+    const cones = activity({ id: "a-cones", materials: ["Cones"] });
+
+    expect(matchesActivityFilters(balloons, filters({ materialId: "balloons" }))).toBe(true);
+    expect(matchesActivityFilters(cones, filters({ materialId: "balloons" }))).toBe(false);
+    // An id no activity uses matches nothing.
+    expect(matchesActivityFilters(balloons, filters({ materialId: "glitter" }))).toBe(false);
+    // Absent/empty never narrows.
+    expect(matchesActivityFilters(cones, filters({ materialId: undefined }))).toBe(true);
+    expect(matchesActivityFilters(cones, filters({ materialId: "" }))).toBe(true);
+    // It ANDs with the other dimensions.
+    expect(
+      matchesActivityFilters(balloons, filters({ cats: ["Craft"], materialId: "balloons" }))
+    ).toBe(false);
+  });
+
   it("filters by an inclusive duration window (endpoints included)", () => {
     const short = activity({ id: "a-short", durationMin: 15 });
     const mid = activity({ id: "a-mid", durationMin: 30 });

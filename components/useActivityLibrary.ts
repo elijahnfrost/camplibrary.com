@@ -13,7 +13,8 @@ import {
   upsertActivityRecord,
 } from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
-import { materialOptionsForActivities } from "@/lib/materials";
+import { materialOptionsForActivities, resolveRefs } from "@/lib/materials";
+import { mintCatalogEntries } from "@/lib/materialCatalog";
 import { effectiveKitStock, foldStockWrite, type StockState } from "@/lib/kitStock";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
 import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
@@ -44,6 +45,31 @@ export function useActivityLibrary({
   const { themes, themeAssignments, locations, locationColors } = docs;
 
   const setView = useCallback((next: LibraryView) => setDoc("view", next), [setDoc]);
+
+  // Catalog minting on save: when a saved activity's material refs carry ids the
+  // catalog doesn't name yet, append `{id, name}` entries so the vocabulary fills
+  // lazily as staff author kit (chunk A left this loop open). Labels come from the
+  // activity's own aligned materialRefs/materialTags pairing (the exact typed
+  // text — see activityForm's label-preservation scheme), falling back to
+  // resolveRefs' three-tier labels. Called from inside the already staff-gated
+  // add/update paths, so no extra gate is needed. A no-op (skips the doc write)
+  // when every ref id is already known.
+  const mintCatalogFor = useCallback(
+    (activity: Activity) => {
+      const refs = Array.isArray(activity.materialRefs) ? activity.materialRefs : null;
+      const tags = Array.isArray(activity.materialTags) ? activity.materialTags : null;
+      // Prefer the 1:1 refs↔tags pairing our own save writes (materialTags[i] is
+      // the pure typed label for materialRefs[i]); else derive labels via the
+      // three-tier resolver so a legacy-shaped activity still mints reasonably.
+      const named =
+        refs && tags && refs.length === tags.length
+          ? refs.map((ref, i) => ({ id: ref.id, label: tags[i] }))
+          : resolveRefs(activity).map((ref) => ({ id: ref.id, label: ref.label }));
+      if (!named.length) return;
+      setDoc("materialCatalog", (previous) => mintCatalogEntries(previous, named));
+    },
+    [setDoc]
+  );
 
   // The catalog: seed + custom activities, with the user's ratings applied.
   const all = useMemo(() => {
@@ -84,6 +110,80 @@ export function useActivityLibrary({
       setDoc("kitStock", (previous) => foldStockWrite(previous, availableMaterials, id, state));
     },
     [availableMaterials, requireStaff, setDoc]
+  );
+
+  // ---- Materials catalog edits (the Materials tab's row overflow). Ids are
+  // FROZEN forever (stock keys + refs reference them), so a rename edits `name`
+  // only and delete is soft (`archived: true`). A rename of a derived-only row
+  // (no catalog entry yet) MINTS one under the row's frozen id so the new name
+  // sticks. All gated by requireStaff; inert for anonymous/read-only. ----
+
+  // Rename a catalog material — edits `name`, never the id. Mints an entry under
+  // `id` when none exists yet (first rename of a derived-only row). A blank name
+  // is ignored so a material never loses its label.
+  const renameMaterial = useCallback(
+    (id: string, name: string) => {
+      if (!requireStaff("rename materials")) return;
+      const trimmed = name.trim();
+      if (!id || !trimmed) return;
+      setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === id)) {
+          return previous.map((entry) => (entry.id === id ? { ...entry, name: trimmed } : entry));
+        }
+        // Derived-only row: mint a fresh entry carrying the new name (id frozen).
+        return [...previous, { id, name: trimmed }];
+      });
+    },
+    [requireStaff, setDoc]
+  );
+
+  // Toggle the consumable flag — mints an entry (carrying the display name so the
+  // catalog stays honest) when the row is derived-only. The flag rides verbatim.
+  const setMaterialConsumable = useCallback(
+    (id: string, name: string, consumable: boolean) => {
+      if (!requireStaff("edit materials")) return;
+      if (!id) return;
+      setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === id)) {
+          return previous.map((entry) => {
+            if (entry.id !== id) return entry;
+            const next = { ...entry };
+            if (consumable) next.consumable = true;
+            else delete next.consumable;
+            return next;
+          });
+        }
+        if (!consumable) return previous; // nothing to record for a fresh false
+        const label = name.trim() || id;
+        return [...previous, { id, name: label, consumable: true }];
+      });
+    },
+    [requireStaff, setDoc]
+  );
+
+  // Soft-archive a material — hides it from the Materials list while its name
+  // keeps resolving (the id is referenced forever). Mints the entry first when
+  // the row is derived-only so the archived flag has somewhere to live.
+  const setMaterialArchived = useCallback(
+    (id: string, name: string, archived: boolean) => {
+      if (!requireStaff("archive materials")) return;
+      if (!id) return;
+      setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === id)) {
+          return previous.map((entry) => {
+            if (entry.id !== id) return entry;
+            const next = { ...entry };
+            if (archived) next.archived = true;
+            else delete next.archived;
+            return next;
+          });
+        }
+        if (!archived) return previous;
+        const label = name.trim() || id;
+        return [...previous, { id, name: label, archived: true }];
+      });
+    },
+    [requireStaff, setDoc]
   );
 
   const favSet = useMemo(() => new Set(favs), [favs]);
@@ -309,10 +409,11 @@ export function useActivityLibrary({
       setDoc("extra", (p) => upsertActivityRecord(p, activity));
       setDoc("deletedActivityIds", (p) => p.filter((id) => id !== activity.id));
       if (runDoc) setDoc("runLists", (p) => ({ ...p, [activity.id]: runDoc }));
+      mintCatalogFor(activity);
       announce("Added " + activity.title + " to the library");
       return true;
     },
-    [announce, requireStaff, setDoc]
+    [announce, mintCatalogFor, requireStaff, setDoc]
   );
 
   const updateActivity = useCallback(
@@ -330,10 +431,11 @@ export function useActivityLibrary({
         delete next[activity.id];
         return next;
       });
+      mintCatalogFor(activity);
       announce("Updated " + activity.title);
       return true;
     },
-    [announce, requireStaff, setDoc]
+    [announce, mintCatalogFor, requireStaff, setDoc]
   );
 
   // Duplicate any activity (built-in or custom) into a fresh custom copy. The
@@ -438,6 +540,9 @@ export function useActivityLibrary({
     materialCatalog,
     kitStock,
     setStockState,
+    renameMaterial,
+    setMaterialConsumable,
+    setMaterialArchived,
     resolvePlaybook,
     resolveRunDoc,
     saveRunDoc,

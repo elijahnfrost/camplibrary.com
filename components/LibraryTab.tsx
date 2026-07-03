@@ -34,6 +34,8 @@ export function LibraryTab({
   kitUnset,
   minutes,
   minutesBounds,
+  materialId,
+  materialLabel,
   ageUnit,
   onAgeUnit,
   onCats,
@@ -44,6 +46,8 @@ export function LibraryTab({
   onStarredOnly,
   onMinutes,
   onKitLens,
+  onMaterial,
+  onGoMaterials,
   onOpen,
   isFav,
   onToggleFav,
@@ -71,6 +75,8 @@ export function LibraryTab({
   kitUnset: boolean;
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
+  materialId?: string | null;
+  materialLabel?: string | null;
   onCats: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
@@ -79,6 +85,8 @@ export function LibraryTab({
   onStarredOnly: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
   onKitLens: (v: KitLens) => void;
+  onMaterial?: (v: null) => void;
+  onGoMaterials?: () => void;
   onOpen: (activity: Activity) => void;
   isFav: (id: string) => boolean;
   onToggleFav: (id: string) => void;
@@ -193,6 +201,8 @@ export function LibraryTab({
         kitUnset={kitUnset}
         minutes={minutes}
         minutesBounds={minutesBounds}
+        materialId={materialId}
+        materialLabel={materialLabel}
         resultCount={items.length}
         onCats={onCats}
         onPlace={onPlace}
@@ -202,6 +212,8 @@ export function LibraryTab({
         onStarredOnly={onStarredOnly}
         onMinutes={onMinutes}
         onKitLens={onKitLens}
+        onMaterial={onMaterial}
+        onGoMaterials={onGoMaterials}
       />
       <div className="app__scroll">
         {items.length === 0 ? (
@@ -242,12 +254,15 @@ export function LibraryTab({
                   kitLens={kitLens}
                   minutes={minutes}
                   minutesBounds={minutesBounds}
+                  materialId={materialId}
+                  materialLabel={materialLabel}
                   onCats={onCats}
                   onPlace={onPlace}
                   onAge={onAge}
                   onTheme={onTheme}
                   onMinutes={onMinutes}
                   onKitLens={onKitLens}
+                  onMaterial={onMaterial}
                 />
                 <button
                   type="button"
@@ -260,6 +275,7 @@ export function LibraryTab({
                     onStarredOnly(false);
                     onMinutes([minutesBounds.min, minutesBounds.max]);
                     onKitLens("all");
+                    onMaterial?.(null);
                   }}
                 >
                   Clear filters

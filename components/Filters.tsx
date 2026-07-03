@@ -54,6 +54,11 @@ interface ActiveFilterProps {
    *  and removing it widens back to the full bounds. */
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
+  /** Browse-by-material narrowing (from the Materials tab's "Used by N →" jump):
+   *  the active id + its resolved display name. A dismissible "Material: <name> ×"
+   *  chip clears it back to null. Absent = no material narrowing. */
+  materialId?: string | null;
+  materialLabel?: string | null;
   onCats: (v: CatFilter) => void;
   onPlace: (v: PlaceFilter) => void;
   onAge: (v: AgeFilter) => void;
@@ -61,6 +66,8 @@ interface ActiveFilterProps {
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
   onKitLens: (v: KitLens) => void;
+  /** Clears the material filter (the chip's remove). */
+  onMaterial?: (v: null) => void;
 }
 
 type ActiveChip = { key: string; label: string; tint?: string; onRemove: () => void };
@@ -118,6 +125,13 @@ function activeFilterChips(p: ActiveFilterProps): ActiveChip[] {
       onRemove: () => p.onKitLens("all"),
     });
   }
+  if (p.materialId && p.onMaterial) {
+    chips.push({
+      key: "material",
+      label: "Material: " + (p.materialLabel ?? p.materialId),
+      onRemove: () => p.onMaterial?.(null),
+    });
+  }
   if (p.starredOnly && p.onStarredOnly) {
     chips.push({ key: "starred", label: "Starred", onRemove: () => p.onStarredOnly?.(false) });
   }
@@ -172,6 +186,9 @@ interface FiltersProps {
    *  The row is hidden when the span is empty (bounds.max <= bounds.min). */
   minutes: MinutesRange;
   minutesBounds: MinutesBounds;
+  /** Browse-by-material narrowing (the Materials-tab jump) + its display name. */
+  materialId?: string | null;
+  materialLabel?: string | null;
   /** Result count for the mobile sheet's "Show N" button (bar variant only). */
   resultCount?: number;
   onCats: (v: CatFilter) => void;
@@ -183,6 +200,10 @@ interface FiltersProps {
   onStarredOnly?: (v: boolean) => void;
   onMinutes: (v: MinutesRange) => void;
   onKitLens: (v: KitLens) => void;
+  /** Clears the material filter (the chip's remove + Clear all). */
+  onMaterial?: (v: null) => void;
+  /** Jumps to the Materials tab (the Kit-lens "Set up your kit →" link). */
+  onGoMaterials?: () => void;
 }
 
 // The old uses-ANY kit BROWSE filter — RETIRED from the library rail (its "can
@@ -395,16 +416,18 @@ function CategoryPicker({
 // +Almost. "Ready" keeps only activities the camp can fully run right now;
 // "+Almost" also keeps the one-item-short ones. When the stock map is UNSET the
 // lens is inert (it passes everything), so choosing Ready/+Almost surfaces a
-// small non-blocking hint pointing at the (upcoming) Materials tab rather than
+// hint whose "Set up your kit →" link jumps to the Materials tab rather than
 // silently doing nothing.
 function KitFilter({
   value,
   unset,
   onChange,
+  onGoMaterials,
 }: {
   value: KitLens;
   unset: boolean;
   onChange: (v: KitLens) => void;
+  onGoMaterials?: () => void;
 }) {
   return (
     <>
@@ -422,7 +445,14 @@ function KitFilter({
         />
       </div>
       {value !== "all" && unset && (
-        <p className="kitlens__hint">Mark what you have to use this — coming with the Materials tab.</p>
+        <p className="kitlens__hint">
+          Mark what you have to use this.{" "}
+          {onGoMaterials && (
+            <button type="button" className="kitlens__hintlink" onClick={onGoMaterials}>
+              Set up your kit →
+            </button>
+          )}
+        </p>
       )}
     </>
   );
@@ -526,6 +556,7 @@ function LedgerFilters({
   onStarredOnly,
   onMinutes,
   onKitLens,
+  onGoMaterials,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
     <div className="filtergroups">
@@ -572,7 +603,7 @@ function LedgerFilters({
             />
           </div>
         )}
-        <KitFilter value={kitLens} unset={kitUnset} onChange={onKitLens} />
+        <KitFilter value={kitLens} unset={kitUnset} onChange={onKitLens} onGoMaterials={onGoMaterials} />
       </FilterGroup>
 
       {/* Sort & display — list presentation, not a filter: the whole-list order
@@ -625,6 +656,8 @@ export function Filters({
   kitUnset,
   minutes,
   minutesBounds,
+  materialId,
+  materialLabel,
   resultCount,
   onCats,
   onPlace,
@@ -634,6 +667,8 @@ export function Filters({
   onStarredOnly,
   onMinutes,
   onKitLens,
+  onMaterial,
+  onGoMaterials,
 }: FiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const minutesOn = minutesNarrowed(minutes, minutesBounds);
@@ -648,6 +683,8 @@ export function Filters({
     kitLens,
     minutes,
     minutesBounds,
+    materialId,
+    materialLabel,
     onCats,
     onPlace,
     onAge,
@@ -655,6 +692,7 @@ export function Filters({
     onStarredOnly,
     onMinutes,
     onKitLens,
+    onMaterial,
   };
   const activeCount =
     (cats.length !== CATEGORIES.length ? 1 : 0) +
@@ -663,7 +701,8 @@ export function Filters({
     (age !== "All" ? 1 : 0) +
     (minutesOn ? 1 : 0) +
     (starredOnly ? 1 : 0) +
-    (kitLens !== "all" ? 1 : 0);
+    (kitLens !== "all" ? 1 : 0) +
+    (materialId ? 1 : 0);
   const anyOn = activeCount > 0;
   const clearAll = () => {
     onCats(ALL_CATEGORY_IDS);
@@ -673,6 +712,7 @@ export function Filters({
     onStarredOnly?.(false);
     onMinutes([minutesBounds.min, minutesBounds.max]);
     onKitLens("all");
+    onMaterial?.(null);
   };
 
   const ledger = (
@@ -691,6 +731,8 @@ export function Filters({
       kitUnset={kitUnset}
       minutes={minutes}
       minutesBounds={minutesBounds}
+      materialId={materialId}
+      materialLabel={materialLabel}
       onCats={onCats}
       onPlace={onPlace}
       onAge={onAge}
@@ -699,6 +741,8 @@ export function Filters({
       onStarredOnly={onStarredOnly}
       onMinutes={onMinutes}
       onKitLens={onKitLens}
+      onMaterial={onMaterial}
+      onGoMaterials={onGoMaterials}
     />
   );
 

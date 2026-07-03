@@ -294,6 +294,15 @@ export const CampIcon = {
   Sun: svg(<path d="M12 5V3M12 21v-2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M17.7 6.3l1.4-1.4M4.9 19.1l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />),
   // Kit / materials — a box.
   Box: svg(<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5v-9zM3 7.5 12 12l9-4.5M12 12v9" />),
+  // Materials tab — a supply crate seen head-on: a bin with a lidded top rail and
+  // two slat lines, so the kit tab reads distinctly from the Box axis glyph.
+  Crate: svg(
+    <>
+      <path d="M4 8h16v11H4z" />
+      <path d="M3 5.5h18V8H3z" />
+      <path d="M9 12v4M15 12v4" />
+    </>
+  ),
   // Energy — a bolt.
   Bolt: svg(<path d="M13 3 4 14h7l-1 7 9-11h-7l1-7z" />),
   // Rating — a star.

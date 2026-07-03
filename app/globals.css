@@ -10935,6 +10935,350 @@ button.rl-node--pick:focus-visible {
   padding-top: 0;
 }
 
+/* =====================================================================
+   Materials tab — the kit review surface. Two presentations off one list
+   (Setup while stock is unset, then the normal restock + full list). Reuses
+   the tab-header vocabulary (.printhead → .materials-tab__head) and the run
+   sheet's stock palette (green have / amber low / red out).
+   ===================================================================== */
+.materials-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s-5) var(--page-x) var(--s-8);
+  width: 100%;
+}
+.materials-tab__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+}
+.materials-tab__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.materials-tab__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink);
+}
+.materials-tab__scope {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Setup banner — the zero-state call to mark inventory. A soft accent card so it
+   reads as guidance, not a wall of red. */
+.materials-setup__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.materials-setup__kicker {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.materials-setup__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.materials-setup__copy {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.materials-setup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* Search — the same pill field the library filters use. */
+.materials-tab__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--control-md);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+}
+.materials-tab__search svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.materials-tab__search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.materials-tab__search input:focus {
+  outline: none;
+}
+.materials-tab__search button {
+  flex: none;
+  display: inline-flex;
+  padding: var(--s-1);
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.materials-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.materials-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.materials-section__ic {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.materials-section--restock .materials-section__title {
+  color: var(--amber);
+}
+.materials-empty {
+  margin: var(--s-4) 0;
+  font-size: var(--fs-body);
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* The list + rows. Each row is a big tap target (the toggle) plus a "used by"
+   jump and an overflow button. */
+.matlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.matrow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  overflow: hidden;
+}
+.matrow__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-3);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+.matrow__toggle:disabled {
+  cursor: default;
+}
+.matrow__dot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1.5px solid var(--line);
+  background: var(--chrome-well);
+  color: var(--card);
+}
+.matrow__dot svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.matrow__body {
+  flex: 1;
+  min-width: 0;
+}
+.matrow__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.matrow__tagconsumable {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+}
+.matrow__rename {
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: var(--card);
+}
+.matrow__rename:focus {
+  outline: none;
+}
+.matrow__state {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* Stock states — the run sheet's palette, keyed off the row modifier so the dot
+   AND the state word carry the color. */
+.matrow.is-have .matrow__dot {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.matrow.is-have .matrow__state {
+  color: var(--accent-ink);
+}
+.matrow.is-low .matrow__dot {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.matrow.is-low .matrow__state {
+  color: var(--amber);
+}
+.matrow.is-low {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+}
+.matrow.is-out .matrow__dot {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+}
+.matrow.is-out .matrow__state {
+  color: var(--danger);
+}
+.matrow.is-out {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+.matrow__used {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 var(--s-3);
+  border-left: 1px solid var(--line);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.matrow__used[aria-disabled="true"] {
+  color: var(--ink-faint);
+  cursor: default;
+}
+.matrow__used svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.matrow__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-md);
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.matrow__more svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.matrow__more:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+
+/* The Kit-lens hint's "Set up your kit →" link — a quiet inline text button. */
+.kitlens__hintlink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Phones: stack the used-by jump under the row body isn't worth the reflow — the
+   row already scrolls; just tighten the used-by label so three columns fit. */
+@media (max-width: 520px) {
+  .matrow__used {
+    padding: 0 var(--s-2);
+  }
+}
+
 /* ---- Print-only: page setup, breaks, and color emission ---- */
 @media print {
   .print-doc--color {

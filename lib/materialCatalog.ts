@@ -123,11 +123,41 @@ export function normalizeMaterialCatalog(value: unknown): Material[] {
 }
 
 // Mint a fresh catalog entry from a typed name — the birth-slug becomes the
-// frozen id. Not wired into the edit form yet (catalog writes are a later
-// chunk); exposed so that chunk and its tests share one minting rule.
+// frozen id. Wired into the activity-save path (useActivityLibrary): a saved
+// activity's material refs whose ids have no catalog entry are appended here so
+// the catalog fills lazily as staff author kit. Shared with the tests.
 export function materialFromName(name: string): Material | null {
   const trimmed = name.trim().slice(0, MAX_NAME);
   const id = materialTagId(trimmed);
   if (!id || !trimmed) return null;
   return { id, name: trimmed };
+}
+
+// One named-need row an activity save produced: its frozen id + the exact typed
+// display label (from the aligned materialTags mirror, so the minted catalog
+// name matches what the editor showed). Fed to mintCatalogEntries below.
+export interface NamedRef {
+  id: string;
+  label: string;
+}
+
+// Append catalog entries for any refs whose ids aren't in the catalog yet, using
+// each ref's typed label as the birth name. Returns the SAME array when nothing
+// is new (so callers can skip a no-op doc write), else a fresh array with the new
+// entries appended in first-seen order. Existing entries (even archived ones) are
+// never touched — an id, once minted, is frozen; a later rename edits its name.
+// Pure + deterministic; the cap is honored so a corrupt payload can't balloon.
+export function mintCatalogEntries(catalog: Material[], refs: NamedRef[]): Material[] {
+  const known = new Set(catalog.map((entry) => entry.id));
+  const additions: Material[] = [];
+  for (const ref of refs) {
+    if (catalog.length + additions.length >= MAX_ENTRIES) break;
+    const minted = materialFromName(ref.label);
+    // Mint under the ref's FROZEN id (the join key), not the label's re-slug —
+    // a label like "Flour, ~2 cups" slugs differently but must keep its ref id.
+    if (!minted || !ref.id || known.has(ref.id)) continue;
+    known.add(ref.id);
+    additions.push({ id: ref.id, name: minted.name });
+  }
+  return additions.length ? [...catalog, ...additions] : catalog;
 }

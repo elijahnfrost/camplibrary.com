@@ -3,6 +3,7 @@ import {
   catalogNameFor,
   humanizeMaterialId,
   materialFromName,
+  mintCatalogEntries,
   normalizeMaterialCatalog,
   type Material,
 } from "./materialCatalog";
@@ -103,5 +104,63 @@ describe("materialFromName", () => {
   it("returns null when the name slugs to nothing", () => {
     expect(materialFromName("   ")).toBeNull();
     expect(materialFromName("!!!")).toBeNull();
+  });
+});
+
+describe("mintCatalogEntries", () => {
+  it("appends entries for unknown ids using the ref label as the birth name", () => {
+    const out = mintCatalogEntries([], [
+      { id: "pool-noodles", label: "Pool noodles" },
+      { id: "glitter", label: "Glitter" },
+    ]);
+    expect(out).toEqual([
+      { id: "pool-noodles", name: "Pool noodles" },
+      { id: "glitter", name: "Glitter" },
+    ]);
+  });
+
+  it("mints under the ref's FROZEN id, not the label's re-slug", () => {
+    // "Flour, ~2 cups" slugs to "flour-2-cups", but the ref keeps its own id.
+    const out = mintCatalogEntries([], [{ id: "flour", label: "Flour, ~2 cups" }]);
+    expect(out).toEqual([{ id: "flour", name: "Flour, ~2 cups" }]);
+  });
+
+  it("never touches known ids (frozen; even archived ones) and returns the SAME array when nothing is new", () => {
+    const catalog: Material[] = [{ id: "flour", name: "Flour", archived: true }];
+    const same = mintCatalogEntries(catalog, [{ id: "flour", label: "All-purpose flour" }]);
+    // No change → identity preserved so the caller can skip the doc write.
+    expect(same).toBe(catalog);
+    // A mix appends only the new one, leaving the existing (archived) entry as-is.
+    const mixed = mintCatalogEntries(catalog, [
+      { id: "flour", label: "Flour renamed?" },
+      { id: "salt", label: "Salt" },
+    ]);
+    expect(mixed).toEqual([
+      { id: "flour", name: "Flour", archived: true },
+      { id: "salt", name: "Salt" },
+    ]);
+  });
+
+  it("dedupes within a single batch (first label wins per id)", () => {
+    const out = mintCatalogEntries([], [
+      { id: "cones", label: "Cones" },
+      { id: "cones", label: "Traffic cones" },
+    ]);
+    expect(out).toEqual([{ id: "cones", name: "Cones" }]);
+  });
+
+  it("skips refs whose label slugs to nothing or that carry no id", () => {
+    const out = mintCatalogEntries([], [
+      { id: "ok", label: "Real thing" },
+      { id: "blank", label: "   " }, // label slugs to nothing → skipped
+      { id: "", label: "No id" }, // no id → skipped
+    ]);
+    expect(out).toEqual([{ id: "ok", name: "Real thing" }]);
+  });
+
+  it("honors the catalog cap deterministically", () => {
+    const full = Array.from({ length: 300 }, (_, i) => ({ id: "m" + i, name: "M" + i }));
+    const out = mintCatalogEntries(full, [{ id: "overflow", label: "Overflow" }]);
+    expect(out).toBe(full); // at cap → no append
   });
 });

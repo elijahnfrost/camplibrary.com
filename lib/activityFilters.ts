@@ -1,5 +1,5 @@
 import type { Activity, AgeGroupId, CategoryId } from "./types";
-import { coverage } from "./materials";
+import { coverage, usesAnyMaterialTag } from "./materials";
 import type { Material } from "./materialCatalog";
 import type { StockState } from "./kitStock";
 
@@ -60,6 +60,10 @@ export interface ActivityFilterState {
   /** Inclusive duration window [lo, hi] in minutes. Omit (or pass the full
    *  bounds) to match any length. */
   minutes?: [number, number];
+  /** Browse-by-material: keep only activities that USE this one material id
+   *  (the "Used by N activities →" jump from the Materials tab). Re-homes the
+   *  browse value of the retired uses-ANY kit picker. Absent = no narrowing. */
+  materialId?: string;
 }
 
 // The kit lens clause: does an activity pass the "can run" filter? "all" (or
@@ -145,6 +149,10 @@ export function matchesActivityFilters(a: Activity, filters: ActivityFilterState
   if (filters.minutes && (a.durationMin < filters.minutes[0] || a.durationMin > filters.minutes[1])) {
     return false;
   }
+  // Browse-by-material: a single-id specialization of the kept uses-ANY machinery
+  // (usesAnyMaterialTag reads requiredMaterialTagIds → resolveRefs, so the same
+  // three-tier precedence + sentinel filtering the picker/checklist use apply).
+  if (filters.materialId && !usesAnyMaterialTag(a, [filters.materialId])) return false;
   if (!matchesKitLens(a, filters)) return false;
 
   return matchesActivitySearch(a, filters.query);
