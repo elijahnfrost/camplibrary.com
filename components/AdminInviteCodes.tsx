@@ -110,19 +110,37 @@ export function AdminInviteCodes() {
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState("");
   const [error, setError] = useState("");
+  // Set only when the LIST fetch fails — drives the Retry affordance in the
+  // error box (a create/revoke error shares the box but retrying a load
+  // wouldn't address it, so those don't arm Retry).
+  const [loadFailed, setLoadFailed] = useState(false);
   const usageLimitInvalid = form.usageLimit.trim() !== "" && !coercePositiveNumber(form.usageLimit);
 
   async function loadInvites() {
     setError("");
+    setLoadFailed(false);
     const response = await fetch("/api/invite-codes", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load invite codes.");
     const body = (await response.json()) as { invites: InviteCodeRecord[] };
     setInvites(body.invites);
   }
 
+  function retryLoad() {
+    setLoading(true);
+    loadInvites()
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Could not load invite codes.");
+        setLoadFailed(true);
+      })
+      .finally(() => setLoading(false));
+  }
+
   useEffect(() => {
     loadInvites()
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not load invite codes."))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Could not load invite codes.");
+        setLoadFailed(true);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -273,6 +291,11 @@ export function AdminInviteCodes() {
         {error && (
           <div className="auth-form__error" id="admin-invite-error" role="alert" aria-live="assertive">
             {error}
+            {loadFailed && (
+              <button type="button" className="btn btn--ghost btn--sm" onClick={retryLoad}>
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -294,7 +317,10 @@ export function AdminInviteCodes() {
             onClick={() => {
               setLoading(true);
               loadInvites()
-                .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not load invite codes."))
+                .catch((err: unknown) => {
+                  setError(err instanceof Error ? err.message : "Could not load invite codes.");
+                  setLoadFailed(true);
+                })
                 .finally(() => setLoading(false));
             }}
           >
@@ -339,7 +365,13 @@ export function AdminInviteCodes() {
                       type="button"
                       className="admin-action admin-action--danger"
                       disabled={!canDeactivate || isActionPending}
-                      onClick={() => void deactivateInvite(invite)}
+                      onClick={() => {
+                        // NOT undoable (the key stops working immediately) →
+                        // confirm, matching the theme/camp/location deletes.
+                        if (window.confirm("Remove " + label + "? The key stops working immediately.")) {
+                          void deactivateInvite(invite);
+                        }
+                      }}
                       aria-label={"Remove " + label}
                     >
                       <CampIcon.Trash />

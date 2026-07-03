@@ -52,10 +52,16 @@ export function RepeatField({
   value,
   startDate,
   onChange,
+  onRestoreSkip,
 }: {
   value: RecurrenceRule | undefined;
   startDate: DateKey;
   onChange: (rule: RecurrenceRule | undefined) => void;
+  /** Un-skip one of the rule's exdates (edit posture, a series member): mints a
+   *  fresh occurrence back on `date` and clears it from the survivors' exdates.
+   *  Wired to CalendarShell's planRestoreOccurrence path. Absent = no Restore
+   *  affordance (a brand-new repeat has no skips yet). */
+  onRestoreSkip?: (date: DateKey) => void;
 }) {
   const preset = presetOf(value);
   // Keep the end date ≥ the event's own date even as the date moves around in
@@ -126,6 +132,25 @@ export function RepeatField({
     onChange({ ...value, weekdays: next.sort((a, b) => a - b) });
   }
 
+  // The weekday BLACKOUT (exceptWeekdays) — a daily/monthly/yearly rule can carve
+  // out specific weekdays (e.g. "daily except Wed"). Weekly folds a blackout into
+  // its positive set, so this row is hidden there. Toggling all seven off would
+  // make the rule generate nothing, so we refuse the last removal by clamping.
+  const except = value?.exceptWeekdays ?? [];
+  function toggleExcept(day: number) {
+    if (!value || value.freq === "weekly") return;
+    const has = except.includes(day);
+    const next = has ? except.filter((d) => d !== day) : [...except, day];
+    if (next.length >= 7) return; // never black out every day
+    if (!next.length) {
+      const cleared = { ...value };
+      delete cleared.exceptWeekdays;
+      onChange(cleared);
+      return;
+    }
+    onChange({ ...value, exceptWeekdays: next.sort((a, b) => a - b) });
+  }
+
   function setUntil(next: DateKey) {
     if (!value) return;
     onChange({ ...value, until: next < startDate ? startDate : next });
@@ -182,6 +207,31 @@ export function RepeatField({
         </PropRow>
       )}
 
+      {/* Weekday blackout — daily / monthly / yearly only (weekly folds it into
+          the positive set, so the term never surfaces there). Toggle chips write
+          rule.exceptWeekdays; the summary reflects them via summarizeRecurrence. */}
+      {value && value.freq !== "weekly" && (
+        <PropRow label="Except">
+          <div className="repeatfield__days" role="group" aria-label="Except weekdays">
+            {DAY_LETTERS.map((letter, day) => {
+              const on = except.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={"repeatfield__day repeatfield__day--except" + (on ? " is-on" : "")}
+                  aria-pressed={on}
+                  aria-label={"Skip " + DAY_NAMES[day]}
+                  onClick={() => toggleExcept(day)}
+                >
+                  {letter}
+                </button>
+              );
+            })}
+          </div>
+        </PropRow>
+      )}
+
       {value && (
         <PropRow label="Ends">
           <DatePopover
@@ -192,6 +242,29 @@ export function RepeatField({
           />
         </PropRow>
       )}
+
+      {/* Skipped dates — the rule's exdates, each with a Restore action that mints
+          the occurrence back (edit posture, a series member). Collapsed to a count
+          row that opens the list. Hidden when there are none or Restore isn't
+          wired (a brand-new repeat has no skips). */}
+      {value?.exdates?.length && onRestoreSkip ? (
+        <PropRow label={"Skipped dates (" + value.exdates.length + ")"} className="prop-row--top">
+          <div className="repeatfield__skips">
+            {value.exdates.map((date) => (
+              <div key={date} className="repeatfield__skip">
+                <span className="repeatfield__skipdate">{fromDateKey(date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                <button
+                  type="button"
+                  className="repeatfield__restore"
+                  onClick={() => onRestoreSkip(date)}
+                >
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        </PropRow>
+      ) : null}
 
       {value && <p className="repeatfield__summary">{summarizeRecurrence({ ...value, until })}</p>}
     </>

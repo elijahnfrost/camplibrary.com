@@ -6,14 +6,20 @@ import {
   SNAP_MIN,
   formatClock,
   formatDuration,
+  snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
-import { type CalendarEvent, type DateKey } from "@/lib/calendar/types";
+import { type AlternateRef, type CalendarEvent, type DateKey, type MealKind } from "@/lib/calendar/types";
+import { dietaryBySeverity, type DietaryEntry, type MealsDoc } from "@/lib/meals";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
+import { coverage } from "@/lib/materials";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
+import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
 import { CampIcon } from "../icons";
 import { PropRow } from "../PropRow";
 import { Modal } from "../Modal";
@@ -23,6 +29,17 @@ import { DatePopover } from "../floating/DatePopover";
 import { ColorField } from "../floating/ColorField";
 import { LocationField } from "../floating/LocationField";
 import { RepeatField } from "./RepeatField";
+
+// The Meal-tag options for the editor's Meal row — "" is the None (untag)
+// choice; the rest are the MealKind union with friendly labels.
+const MEAL_TAG_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "None" },
+  { value: "breakfast", label: "Breakfast" },
+  { value: "am-snack", label: "AM snack" },
+  { value: "lunch", label: "Lunch" },
+  { value: "pm-snack", label: "PM snack" },
+  { value: "other", label: "Other" },
+];
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event
@@ -46,6 +63,13 @@ export type EditorDraft = {
   /** A short free-text note carried by the event (the nudge for a 0-min reminder,
    *  or a detail line on a real block). */
   note?: string;
+  /** A meal tag (lunch / AM snack / …). Seeded by a meal preset chip on create,
+   *  and carried through on edit so a meal event stays a meal across a save. */
+  mealKind?: MealKind;
+  /** Whether this placement is pinned (held in place on a day-shift). The editor
+   *  doesn't SET this (Pin is an immediate footer action), but a meal preset chip
+   *  seeds it, and it rides through so a save doesn't silently un-pin. */
+  pinned?: boolean;
 };
 
 export function draftFromEvent(event: CalendarEvent): EditorDraft {
@@ -63,6 +87,8 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     color: event.color,
     locations: event.locations,
     note: event.note,
+    mealKind: event.mealKind,
+    pinned: event.pinned,
   };
 }
 
@@ -70,9 +96,10 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
 // surface, so the calendar has a single look and a single set of habits. There
 // is ONE create path now: a search bar. Type a name; matching library activities
 // appear and a tap places one; if it isn't there, the same text becomes a new
-// event — and a "Save to library" switch (on by default) decides whether that new
-// event is also saved as a reusable library activity (in the Routine bucket) or
-// stays a one-off. Length drives behavior: a timed block, or "None" = a 0-minute
+// event — and a "Save to library" switch (OFF by default, so quickly typed
+// one-offs don't silently become permanent library rows) decides whether that
+// new event is also saved as a reusable library activity (in the Routine
+// bucket). Length drives behavior: a timed block, or "None" = a 0-minute
 // reminder. Two postures:
 //  - slot posture (tap/drag a slot): the gesture already chose the when, so
 //    picking an activity or naming a new event creates instantly, with Undo.
@@ -82,7 +109,16 @@ export function QuickAdd({
   draft,
   pickTime,
   activities,
+  kitStock = {},
+  materialCatalog,
+  dayEvents = [],
+  byId = {},
   window: dayWindow,
+  snap = SNAP_MIN,
+  meals,
+  mealPresets,
+  onSetMenuNote,
+  onManageDietary,
   locationOptions,
   onManageLocations,
   onPickActivity,
@@ -91,13 +127,65 @@ export function QuickAdd({
   onDelete,
   onDuplicate,
   onOpenActivity,
+  onTogglePin,
+  pinned = false,
+  onApplyAll,
+  onApplyFollowing,
+  onResetOccurrence,
+  onRestoreSkip,
+  onRecoverTime,
+  backupAlternates = [],
+  onSwapBackup,
+  onEditBackups,
+  onClearBackups,
+  hasOwnBackups = false,
   onClose,
 }: {
   draft: EditorDraft;
   /** Show the when-row + commit button (the FAB and edit). */
   pickTime: boolean;
   activities: Activity[];
+  /** The effective 3-state kit stock map (material id → have/low/out). Drives
+   *  an INFORMATIONAL coverage dot on the search rows; empty ({}) = UNSET = no
+   *  dot. Never filters or blocks the create path. Safe default so other hosts
+   *  compile unchanged. */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog — substitution groups + names for the coverage dot. */
+  materialCatalog?: Material[];
+  /** The day's existing events (all days is fine — we filter to the draft date),
+   *  used to warn when the current draft would create a same-day kit conflict.
+   *  Safe default [] so other hosts compile unchanged; empty = no warning. */
+  dayEvents?: CalendarEvent[];
+  /** activityId → Activity, so the conflict probe can resolve each event's kit. */
+  byId?: Record<string, Activity>;
   window: DayWindow;
+  /** The active camp's snap grid (5/10/15/30). Drives the start/end/length option
+   *  steps so the editor offers the same grid placement/editing snaps to. Default
+   *  keeps the classic 15-min grid for hosts that don't configure a per-camp snap. */
+  snap?: number;
+  /** The meals sidecar doc: the dietary roster (for the meal editor's read-only
+   *  panel) and the date-keyed menu notes (the "Menu note" row). */
+  meals: MealsDoc;
+  /** Meal PRESET chips shown in the create empty state (before any typing, so
+   *  they never intrude on the fast-create path). Tapping `onApply` PRE-FILLS the
+   *  editor (CalendarShell reopens the sheet with the meal draft) — it does NOT
+   *  commit. `existingUntagged` > 0 surfaces a "tag them instead" hint whose tap
+   *  runs `onTagExisting` (the retro-tag bulk) so a chip never double-books the
+   *  live schedule. Absent for hosts that don't wire meals. */
+  mealPresets?: {
+    kind: MealKind;
+    label: string;
+    existingUntagged: number;
+    onApply: () => void;
+    onTagExisting: () => void;
+  }[];
+  /** Write (or clear) one (date, mealKind) menu note — the meal editor's note row.
+   *  Keyed by (date, mealKind), NOT stored on the event. Absent for hosts that
+   *  don't wire meals. */
+  onSetMenuNote?: (date: DateKey, mealKind: MealKind, text: string) => void;
+  /** Open the dietary roster manager — the "Manage…" link on the meal editor's
+   *  dietary panel. Absent for hosts that don't wire meals. */
+  onManageDietary?: () => void;
   /** The user-editable place vocabulary for the Location picker. */
   locationOptions: readonly string[];
   /** Opens the place-list editor from the Location picker's footer. */
@@ -116,6 +204,47 @@ export function QuickAdd({
   /** Jump to this activity event's run list (activity-backed edits only) — the
    *  other action the click popover carried; now reachable from the editor. */
   onOpenActivity?: () => void;
+  /** Pin / unpin this event in place (edit posture only). An IMMEDIATE action —
+   *  it commits instantly through CalendarShell's series-wide path and does NOT
+   *  close the sheet, so it never routes through the draft/save/scope machinery.
+   *  The touch surface for pinning (right-click doesn't fire on a tap). */
+  onTogglePin?: () => void;
+  /** Whether this event is currently pinned (drives the footer label). */
+  pinned?: boolean;
+  /** Durable recurrence escalation (edit posture, a THIS-customized series member
+   *  only): apply this occurrence's overrides to the whole series / from here on,
+   *  or reset it back to a plain series member. All IMMEDIATE — they commit
+   *  through CalendarShell and close the sheet, so they sit among the footer
+   *  actions, not the draft controls. Absent on plain events / non-customized
+   *  members (the touch twin of the right-click escalation items). */
+  onApplyAll?: () => void;
+  onApplyFollowing?: () => void;
+  onResetOccurrence?: () => void;
+  /** Restore a skipped occurrence from the RepeatField's "Skipped dates" ledger
+   *  (edit posture, a series member). Wired to CalendarShell's restore path;
+   *  IMMEDIATE + closes the sheet. Absent = no skips / not a series member. */
+  onRestoreSkip?: (date: DateKey) => void;
+  /** Open the day-shift card for this event (edit posture, timed non-reminder).
+   *  `extend` true = "Running long" (grow this end + slide the rest); false =
+   *  "Shift day from here". Closes the sheet first, then opens the bar. */
+  onRecoverTime?: (extend: boolean) => void;
+  /** The placement's RESOLVED backup plans (event override ?? activity default) —
+   *  shown as compact rows in edit posture with a per-row [Swap]. Absent/empty =
+   *  no backups on file. Display-only; the actions below mutate through
+   *  CalendarShell (IMMEDIATE, like Pin). */
+  backupAlternates?: AlternateRef[];
+  /** Swap this placement to backup #index — the self-inverse promote (IMMEDIATE,
+   *  closes the sheet). Absent = no swap wired (read-only surface). */
+  onSwapBackup?: (index: number) => void;
+  /** Copy the resolved list onto THIS placement (copy-on-write) so it can be
+   *  edited per-day — the "Edit backups…" affordance. IMMEDIATE. */
+  onEditBackups?: () => void;
+  /** Write an authoritative empty list on THIS placement — "No backups for this
+   *  day". IMMEDIATE. */
+  onClearBackups?: () => void;
+  /** Whether this placement already carries its OWN backup override (so the footer
+   *  reads "Editing backups for this day" rather than "Edit backups…"). */
+  hasOwnBackups?: boolean;
   onClose: () => void;
 }) {
   const isEdit = Boolean(draft.id);
@@ -123,9 +252,11 @@ export function QuickAdd({
   // editable name when editing a one-off custom event.
   const [query, setQuery] = useState(isEdit && !draft.activityId ? draft.title : "");
   const [activityId, setActivityId] = useState(draft.activityId ?? "");
-  // "Save to library" — on by default, so a named new event becomes a reusable
-  // library activity unless the user opts out for a true one-off.
-  const [addToLibrary, setAddToLibrary] = useState(true);
+  // "Save to library" — OFF by default: quickly typed one-off entries stay
+  // one-offs instead of silently becoming permanent library rows that degrade
+  // search all season. A just-placed one-off can still be promoted afterwards
+  // (the create toast's "Save to library" action, or promoteToLibrary in edit).
+  const [addToLibrary, setAddToLibrary] = useState(false);
   // The when-state only drives the pick-a-time posture; the slot posture's
   // when came from the gesture and is displayed read-only in the header.
   const [date, setDate] = useState(draft.date);
@@ -136,6 +267,11 @@ export function QuickAdd({
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
   const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
+  // The meal tag on this placement — editable in the edit posture (the touch
+  // path for meal tagging; the right-click "Mark as meal…" is the desktop twin).
+  // Seeded off the draft; "" (the None option) clears it, and the save path
+  // deletes an absent mealKind, so choosing None un-tags the event.
+  const [mealKind, setMealKind] = useState<MealKind | undefined>(draft.mealKind);
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
@@ -164,9 +300,15 @@ export function QuickAdd({
   // view so the selection is never invisible.
   const listRef = useRef<HTMLDivElement | null>(null);
 
+  // The option steps ride the active camp's snap grid, so the editor offers the
+  // same times placement/editing snaps to. The grid is anchored to a snapped
+  // start so a half-hour camp window still lists clock-aligned options, and the
+  // current value is INJECTED when a stored off-grid time isn't in the list (the
+  // standard current-value injection rule) so a legacy event stays representable.
   const startChoices = useMemo(() => {
     const options: { value: number; label: string }[] = [];
-    for (let m = dayWindow.startMin; m < dayWindow.endMin; m += SNAP_MIN) {
+    const first = Math.max(dayWindow.startMin, snapMinutes(dayWindow.startMin, snap));
+    for (let m = first; m < dayWindow.endMin; m += snap) {
       options.push({ value: m, label: formatClock(m) });
     }
     if (!options.some((option) => option.value === startMin)) {
@@ -174,7 +316,7 @@ export function QuickAdd({
       options.sort((a, b) => a.value - b.value);
     }
     return options;
-  }, [dayWindow, startMin]);
+  }, [dayWindow, startMin, snap]);
 
   // A 0-min length IS a reminder — it shows just a start time, no range.
   const isReminder = !allDay && durationMin === 0;
@@ -184,7 +326,7 @@ export function QuickAdd({
   // see." Changing the end sets the duration; changing the start shifts the end.
   const endChoices = useMemo(() => {
     const options: { value: number; label: string }[] = [];
-    for (let m = startMin + SNAP_MIN; m <= dayWindow.endMin; m += SNAP_MIN) {
+    for (let m = startMin + snap; m <= dayWindow.endMin; m += snap) {
       options.push({ value: m, label: formatClock(m) });
     }
     const end = Math.min(MINUTES_PER_DAY, startMin + durationMin);
@@ -193,15 +335,15 @@ export function QuickAdd({
       options.sort((a, b) => a.value - b.value);
     }
     return options;
-  }, [dayWindow, startMin, durationMin]);
+  }, [dayWindow, startMin, durationMin, snap]);
   // Move the start but keep the block's length (the end rides along), clamped so
   // it can't spill past midnight.
   const moveStart = (next: number) => {
     setStartMin(next);
     if (next + durationMin > MINUTES_PER_DAY) setDurationMin(MINUTES_PER_DAY - next);
   };
-  // Set the end → that defines the length (never negative).
-  const setEnd = (next: number) => setDurationMin(Math.max(SNAP_MIN, next - startMin));
+  // Set the end → that defines the length (never negative, at least one snap).
+  const setEnd = (next: number) => setDurationMin(Math.max(snap, next - startMin));
   // Toggling "Reminder" zeroes the length (a point in time) and remembers the
   // last real length so switching back restores a sensible block — round-trippable.
   const lastDurationRef = useRef(draft.durationMin || 30);
@@ -216,6 +358,64 @@ export function QuickAdd({
   };
   const draftIsReminder = !draft.allDay && draft.durationMin === 0;
   const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
+
+  // Meal editor surfaces — only when editing an event carrying a mealKind. The
+  // dietary panel is READ-ONLY (severity-sorted, severe first) with a "Manage…"
+  // link to the roster editor; the menu note is keyed by (event date, mealKind)
+  // on the meals doc, NOT the event, so regenerating a meal series never erases a
+  // season of menus. The note field is local (seeded from the doc) and commits on
+  // blur so typing doesn't thrash the synced doc.
+  const isMealEdit = isEdit && Boolean(draft.mealKind);
+  const dietarySorted = useMemo<DietaryEntry[]>(() => dietaryBySeverity(meals), [meals]);
+  const [menuNote, setMenuNote] = useState(() =>
+    draft.mealKind ? meals.menuNotes[draft.date]?.[draft.mealKind] ?? "" : ""
+  );
+  const commitMenuNote = () => {
+    if (draft.mealKind && onSetMenuNote) onSetMenuNote(draft.date, draft.mealKind, menuNote);
+  };
+
+  // Same-day kit conflict for the CURRENT draft: a quiet, informational heads-up
+  // (never blocking) shown when placing this activity at this date + time would
+  // fight another block for the same material. Computed by running dayKit over the
+  // day's existing events PLUS a synthetic candidate for the draft. Only timed,
+  // activity-backed, non-reminder drafts can conflict; everything else is empty.
+  const conflictWarning = useMemo((): string => {
+    const activityId = selectedActivity?.id;
+    if (!activityId || allDay || isReminder) return "";
+    const candidateId = draft.id ?? "__quickadd_candidate__";
+    const candidate: CalendarEvent = {
+      id: candidateId,
+      date,
+      startMin,
+      endMin: clampedEnd,
+      kind: "activity",
+      title: selectedActivity.title,
+      activityId,
+      updatedAt: 0,
+    };
+    const others = dayEvents.filter((event) => event.date === date && event.id !== candidateId);
+    const day = dayKit([...others, candidate], byId, kitStock, materialCatalog);
+    const conflicts = conflictsForEvent(day, candidateId);
+    if (!conflicts.length) return "";
+    const clash = conflicts[0];
+    const otherId = clash.eventIds.find((id) => id !== candidateId);
+    const other = otherId ? dayEvents.find((event) => event.id === otherId) : undefined;
+    const otherTitle = other?.title || "another block";
+    const otherAt = other ? " at " + formatClock(other.startMin) : "";
+    return clash.label + " is also needed by " + otherTitle + otherAt;
+  }, [
+    selectedActivity,
+    allDay,
+    isReminder,
+    draft.id,
+    date,
+    startMin,
+    clampedEnd,
+    dayEvents,
+    byId,
+    kitStock,
+    materialCatalog,
+  ]);
   const timeLabel = pickTime
     ? isReminder
       ? formatClock(startMin)
@@ -239,10 +439,11 @@ export function QuickAdd({
   // reads as a calm property sheet, and dropdowns have room to open), but while
   // swapping an edited activity it stays open so you can browse the library.
   const showList = changingActivity || (!isEdit && Boolean(trimmed));
-  // Whether to RECOMMEND library events. Off when "Save to library" is unchecked
-  // — that's a calendar-only text entry, so the library suggestions are just
-  // noise. Always on while swapping an edited activity (that IS a library pick).
-  const showSuggestions = changingActivity || (!isEdit && addToLibrary);
+  // Whether to RECOMMEND library events. Always on while creating — matches are
+  // PLACEMENT options (the primary create path), independent of the
+  // save-to-library switch, which only governs what happens to a brand-new typed
+  // name. Also on while swapping an edited activity (that IS a library pick).
+  const showSuggestions = changingActivity || !isEdit;
   // The inline "create new" affordance shows while creating, once a name is typed.
   // With "Save to library" off it always shows (calendar-only text, even if the
   // name happens to match a library title); on, it defers to an exact match.
@@ -253,7 +454,11 @@ export function QuickAdd({
     return recurrence ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until } : undefined;
   }
 
-  // Build the draft an existing-activity commit saves.
+  // Build the draft an existing-activity commit saves. `mealKind` is now an
+  // editor-owned control (the Meal row in edit posture); on create it's only ever
+  // seeded by a meal preset chip, which sets the draft's value — so reading the
+  // local `mealKind` state (initialized from the draft) covers both. `pinned`
+  // still rides the draft (an immediate footer action, not an editor control).
   function activityDraft(activity: Activity): EditorDraft {
     return {
       id: draft.id,
@@ -268,6 +473,8 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
+      mealKind,
+      pinned: draft.pinned,
     };
   }
 
@@ -285,6 +492,8 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
+      mealKind,
+      pinned: draft.pinned,
     };
   }
 
@@ -372,6 +581,40 @@ export function QuickAdd({
             <CampIcon.Close />
           </button>
         </div>
+        {/* Meal editor: a read-only dietary panel pinned at the top so the
+            highest-stakes constraints (severe first) are seen before anything
+            else. A "Manage…" link opens the roster editor. Only when editing a
+            meal-tagged event. */}
+        {isMealEdit && (
+          <div className="quickadd__diet">
+            <div className="quickadd__diet-head">
+              <span className="quickadd__diet-title">Dietary roster</span>
+              {onManageDietary && (
+                <button type="button" className="quickadd__diet-manage" onClick={onManageDietary}>
+                  Manage…
+                </button>
+              )}
+            </div>
+            {dietarySorted.length ? (
+              <ul className="quickadd__diet-list">
+                {dietarySorted.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className={"quickadd__diet-row quickadd__diet-row--" + entry.severity}
+                  >
+                    <span className="quickadd__diet-sev" aria-hidden="true" />
+                    <span className="quickadd__diet-label">{entry.label}</span>
+                    {entry.detail && <span className="quickadd__diet-detail">{entry.detail}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="quickadd__diet-empty">
+                No dietary constraints on file{onManageDietary ? " — add any allergies or avoidances." : "."}
+              </p>
+            )}
+          </div>
+        )}
         {isEdit && selectedActivity && !changingActivity ? (
           // The library-backed event reads as a clean title block (category
           // eyebrow + name), not a boxed summary card — the run-sheet header
@@ -424,10 +667,16 @@ export function QuickAdd({
                 else if (pickTime) save();
               }}
             >
-              <label className={"quickadd__search" + (searching ? "" : " quickadd__search--name")}>
+              <label
+                className={
+                  "searchfield searchfield--content quickadd__search" +
+                  (searching ? "" : " searchfield--name")
+                }
+              >
                 {searching && <CampIcon.Search />}
                 <input
                   id="quickadd-search"
+                  className="searchfield__input"
                   data-autofocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -472,6 +721,14 @@ export function QuickAdd({
                 {showSuggestions &&
                   filtered.map((activity) => {
                     const on = pickTime && activity.id === activityId;
+                    // An INFORMATIONAL coverage dot: amber when the camp is one
+                    // item short, red when it can't run this yet. Nothing for
+                    // ready/unset. Never filters — the row is always pickable.
+                    const cov = coverage(activity, kitStock, materialCatalog);
+                    const showDot = cov.state === "almost" || cov.state === "cant";
+                    const missingTitle = showDot
+                      ? "Missing: " + cov.missing.map((m) => m.label).join(", ")
+                      : undefined;
                     return (
                       <button
                         type="button"
@@ -483,6 +740,15 @@ export function QuickAdd({
                       >
                         <span className="quickadd__itemdot" aria-hidden="true" />
                         <span className="quickadd__name">{activity.title}</span>
+                        {showDot && (
+                          <span
+                            className={
+                              "quickadd__cov quickadd__cov--" + (cov.state === "almost" ? "almost" : "cant")
+                            }
+                            title={missingTitle}
+                            aria-hidden="true"
+                          />
+                        )}
                         <span className="quickadd__meta">
                           {durLabel(activity)} · {activity.type}
                         </span>
@@ -523,6 +789,43 @@ export function QuickAdd({
                 )}
               </div>
             )}
+            {/* Meal preset chips — a first-class shortcut for the day's meals,
+                shown only in the CREATE empty state (before any typing) so they
+                never intrude on the fast type-to-place path. Tapping one PRE-FILLS
+                the editor (title, meal tag, pinned, a sensible span, and a Mon–Fri
+                weekly repeat) for review — it does not commit. When same-titled
+                UNTAGGED events already exist, a one-line hint offers to tag those
+                instead, so a chip never double-books the live schedule. */}
+            {!isEdit && !trimmed && mealPresets && mealPresets.length > 0 && (
+              <div className="quickadd__meals">
+                <span className="quickadd__meals-eyebrow">Add a meal</span>
+                <div className="quickadd__mealchips">
+                  {mealPresets.map((preset) => (
+                    <button
+                      type="button"
+                      key={preset.kind}
+                      className="quickadd__mealchip"
+                      onClick={preset.onApply}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                {mealPresets
+                  .filter((preset) => preset.existingUntagged > 0)
+                  .map((preset) => (
+                    <button
+                      type="button"
+                      key={"hint-" + preset.kind}
+                      className="quickadd__mealhint"
+                      onClick={preset.onTagExisting}
+                    >
+                      {preset.existingUntagged} existing &ldquo;{preset.label}&rdquo; event
+                      {preset.existingUntagged === 1 ? "" : "s"} — tag {preset.existingUntagged === 1 ? "it" : "them"} instead
+                    </button>
+                  ))}
+              </div>
+            )}
             {/* Slot posture, nothing typed yet: a calm one-line prompt instead of
                 an always-open catalog (the list is type-to-search now). */}
             {!isEdit && !pickTime && !trimmed && (
@@ -531,6 +834,15 @@ export function QuickAdd({
               </p>
             )}
           </>
+        )}
+
+        {/* A quiet, informational same-day kit conflict heads-up — never blocks
+            the create; it just names the block this draft would fight for a
+            material. Sits under the list / name section for both postures. */}
+        {conflictWarning && (
+          <p className="quickadd__conflict" role="status">
+            <span aria-hidden="true">⚠</span> {conflictWarning}
+          </p>
         )}
 
         {pickTime && (
@@ -621,10 +933,55 @@ export function QuickAdd({
                   />
                 </PropRow>
               )}
+              {/* Meal — the TOUCH path for tagging a block as a meal (the desktop
+                  twin is the right-click "Mark as meal…"). None un-tags it; the
+                  save path deletes an absent mealKind, so choosing None clears it.
+                  Edit-only, non-reminder (a reminder isn't a meal block). */}
+              {isEdit && !isReminder && (
+                <PropRow icon={QuickAddMealGlyph} label="Meal">
+                  <Select
+                    id="quickadd-meal"
+                    value={mealKind ?? ""}
+                    options={MEAL_TAG_OPTIONS}
+                    onChange={(v) => setMealKind((v || undefined) as MealKind | undefined)}
+                    ariaLabel="Meal tag"
+                  />
+                </PropRow>
+              )}
               {/* Repeat rides last (edit-only): its lead row carries the axis
                   icon, its detail rows indent beneath it. */}
               {isEdit && (
-                <RepeatField value={recurrence} startDate={date} onChange={setRecurrence} />
+                <RepeatField
+                  value={recurrence}
+                  startDate={date}
+                  onChange={setRecurrence}
+                  onRestoreSkip={onRestoreSkip}
+                />
+              )}
+              {/* Recover time — the TOUCH door into the day-shift card (right-click
+                  isn't available on a tap). Two quiet inline actions: "Running long"
+                  (grow this end + slide the rest) and "Shift day" (slide everything
+                  from this start). Both close the sheet, then open the bar. Edit-
+                  only, timed non-reminder events. */}
+              {isEdit && !isReminder && !allDay && onRecoverTime && (
+                <PropRow icon={CampIcon.Clock} label="Recover time">
+                  <span className="quickadd__recover">
+                    <button
+                      type="button"
+                      className="quickadd__recover-btn"
+                      onClick={() => onRecoverTime(true)}
+                    >
+                      Running long
+                    </button>
+                    <button
+                      type="button"
+                      className="quickadd__recover-btn"
+                      onClick={() => onRecoverTime(false)}
+                    >
+                      Shift day
+                    </button>
+                  </span>
+                </PropRow>
               )}
               {/* Day note — a named property that bridges to the run sheet. A
                   top-aligned row whose value is the prose field. Edit-only. */}
@@ -643,6 +1000,69 @@ export function QuickAdd({
                   />
                 </PropRow>
               )}
+              {/* Backup plans — the placement's RESOLVED rain/overflow fallbacks
+                  (event override ?? activity default), shown as compact rows with a
+                  per-row [Swap] (the self-inverse promote). "Edit backups…" copies
+                  the resolved list onto THIS day (copy-on-write) so it can diverge;
+                  "No backups for this day" writes an authoritative empty list.
+                  Edit-only, non-reminder. */}
+              {isEdit && !isReminder && onSwapBackup && (
+                <PropRow icon={BackupGlyph} label="Backup plans" className="prop-row--top quickadd__backuprow">
+                  <div className="quickadd__backups">
+                    {backupAlternates.length ? (
+                      <ul className="quickadd__backuplist">
+                        {backupAlternates.map((alt, index) => (
+                          <li key={index} className="quickadd__backup">
+                            <span className="quickadd__backup-title">{alt.title}</span>
+                            {alt.reason === "rain" && (
+                              <span className="quickadd__backup-tag">rain</span>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn--quiet btn--sm quickadd__backup-swap"
+                              onClick={() => onSwapBackup(index)}
+                            >
+                              Swap
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="quickadd__backup-empty">No backup plans for this block.</p>
+                    )}
+                    <div className="quickadd__backup-acts">
+                      {onEditBackups && (
+                        <button type="button" className="quickadd__backup-btn" onClick={onEditBackups}>
+                          {hasOwnBackups ? "Editing backups for this day" : "Edit backups…"}
+                        </button>
+                      )}
+                      {onClearBackups && backupAlternates.length > 0 && (
+                        <button type="button" className="quickadd__backup-btn" onClick={onClearBackups}>
+                          No backups for this day
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </PropRow>
+              )}
+              {/* Menu note — the day's menu for THIS meal ("pizza + salad bar").
+                  Stored on the meals doc keyed by (date, mealKind), never on the
+                  event, so regenerating the meal series can't erase a season of
+                  menus. Commits on blur. Only for a meal-tagged edit. */}
+              {isMealEdit && onSetMenuNote && (
+                <PropRow icon={CampIcon.Note} label="Menu note" className="prop-row--top quickadd__noterow">
+                  <textarea
+                    id="quickadd-menunote"
+                    className="input quickadd__note"
+                    rows={2}
+                    maxLength={280}
+                    placeholder="Today's menu — e.g. pizza + salad bar"
+                    value={menuNote}
+                    onChange={(e) => setMenuNote(e.target.value)}
+                    onBlur={commitMenuNote}
+                  />
+                </PropRow>
+              )}
             </div>
             <div className="quickadd__foot">
               {isEdit && !selectedActivity && (
@@ -655,6 +1075,36 @@ export function QuickAdd({
                 <button type="button" className="btn btn--ghost quickadd__dup" onClick={onDuplicate}>
                   <CampIcon.Copy />
                   Duplicate
+                </button>
+              )}
+              {/* Pin / unpin — an IMMEDIATE action (it commits instantly through
+                  CalendarShell's series-wide path, closing nothing), so it sits in
+                  the footer next to Duplicate/Delete, NOT among the draft controls. */}
+              {isEdit && onTogglePin && (
+                <button type="button" className="btn btn--ghost quickadd__pin" onClick={onTogglePin}>
+                  <PinGlyph />
+                  {pinned ? "Unpin" : "Pin in place"}
+                </button>
+              )}
+              {/* Durable recurrence escalation (a THIS-customized series member on
+                  touch, where there's no right-click) — immediate, closing the
+                  sheet. Only rendered when this occurrence carries overrides. */}
+              {isEdit && onApplyFollowing && (
+                <button type="button" className="btn btn--ghost quickadd__applyfrom" onClick={onApplyFollowing}>
+                  <CampIcon.Repeat />
+                  Apply from here on
+                </button>
+              )}
+              {isEdit && onApplyAll && (
+                <button type="button" className="btn btn--ghost quickadd__applyall" onClick={onApplyAll}>
+                  <CampIcon.Repeat />
+                  Apply to all
+                </button>
+              )}
+              {isEdit && onResetOccurrence && (
+                <button type="button" className="btn btn--ghost quickadd__resetocc" onClick={onResetOccurrence}>
+                  <CampIcon.Reset />
+                  Reset to series
                 </button>
               )}
               {isEdit && onDelete && (
@@ -683,5 +1133,40 @@ export function QuickAdd({
         )}
       </div>
     </Modal>
+  );
+}
+
+// The Meal axis glyph (a fork + spoon) for the editor's Meal row. Mirrors the
+// MealGlyph the calendar cards/menus use; icons.tsx is owned elsewhere, so it's
+// inlined on the icon set's 24×24 stroke grid.
+function QuickAddMealGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
+      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
+    </svg>
+  );
+}
+
+// A small inline umbrella for the "Backup plans" axis row. icons.tsx is owned
+// elsewhere (no umbrella glyph), so it's inlined on the icon set's 24×24 grid.
+function BackupGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M12 3v2M4 12a8 8 0 0 1 16 0z" />
+      <path d="M12 12v6a2.2 2.2 0 0 1-4.4 0" />
+    </svg>
+  );
+}
+
+// A small inline pushpin for the footer "Pin in place" / "Unpin" action.
+// CampIcon.Pin is the location MAP-pin (semantically wrong here), and icons.tsx
+// is owned elsewhere, so the pushpin is inlined on the icon set's 24×24 grid.
+function PinGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5z" />
+      <path d="M12 17v3" />
+    </svg>
   );
 }

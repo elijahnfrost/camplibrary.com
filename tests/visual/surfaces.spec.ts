@@ -45,10 +45,11 @@ async function libraryView(page: Page, label: "Shelf" | "Deck" | "Catalog") {
 }
 
 test.describe("surfaces", () => {
-  test("home", async ({ page, isMobile }) => {
-    test.skip(!!isMobile, "Home is not on the phone bar — phones land on Library");
+  // The default landing is the calendar now (the Home tab is retired — the
+  // calendar is the app's home, and its rail carries the Now/Next "Today" card).
+  test("landing (calendar)", async ({ page }) => {
     await gotoApp(page);
-    await expect(page).toHaveScreenshot("home.png");
+    await expect(page).toHaveScreenshot("landing.png");
   });
 
   test("library — deck", async ({ page }) => {

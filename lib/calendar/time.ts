@@ -22,7 +22,39 @@ export const MAX_ACTIVITY_DURATION_MIN = DAY_END_MIN - DAY_START_MIN;
 // Lengths the editor offers — 15-minute steps only, so every committed block
 // ends on the same grid the calendar snaps to. A 20-min length starting at 1:15
 // would end at 1:35, the exact off-grid time we never want to be selectable.
+// Kept exported for back-compat; the live ladder is now snap-aware via
+// durationOptionsFor (this is exactly durationOptionsFor(15)).
 export const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120];
+
+// The length ladder for a given snap grid. Every entry is a MULTIPLE of the snap
+// so a block committed at any snapped start still ends on the grid — the same
+// invariant DURATION_OPTIONS holds for 15. Curated (not just "every multiple") so
+// the dropdown stays a short, sensible list: fine steps near the short end, then
+// coarser jumps toward two hours. An unknown snap falls back to the 15 ladder.
+export function durationOptionsFor(snap: number): number[] {
+  switch (snap) {
+    case 5:
+      return [5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
+    case 10:
+      return [10, 20, 30, 40, 50, 60, 90, 120];
+    case 30:
+      return [30, 60, 90, 120];
+    case 15:
+    default:
+      return [15, 30, 45, 60, 75, 90, 120];
+  }
+}
+
+// A snap grid as a FullCalendar duration string — 15 -> "00:15:00" — for the
+// snapDuration prop. Kept beside minutesToTimeString (which serves the absolute
+// clock props) because a snap is a DURATION, not a time of day: it can exceed a
+// day boundary conceptually, though every real snap is well under an hour.
+export function snapDurationString(snap: number): string {
+  const safe = Math.max(1, Math.round(snap));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":00";
+}
 
 // 540 -> "9:00 am"; hourOnly drops ":00" for axis-style labels.
 export function formatClock(min: number, hourOnly = false): string {

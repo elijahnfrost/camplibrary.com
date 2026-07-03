@@ -29,11 +29,15 @@ import {
 } from "react";
 import type { Activity, AgeGroupId } from "@/lib/types";
 import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
-import { materialNeedsForActivity, type MaterialNeed } from "@/lib/materials";
+import { coverage, materialTagId, resolveRefs, type ResolvedRef } from "@/lib/materials";
+import { catalogNameFor, type Material } from "@/lib/materialCatalog";
+import { isStocked, nextStockState, type StockState } from "@/lib/kitStock";
 import {
-  lines as splitList,
+  mintMaterialRow,
+  renameMaterialRow,
   validateForm,
   type FormState,
+  type MaterialFormRow,
 } from "@/lib/activityForm";
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
@@ -356,54 +360,292 @@ function RunEmbed({ parsed, title }: { parsed: ParsedEmbed; title?: string }) {
   return null;
 }
 
-// The activity's materials as a working checklist (the same "kit" the library
-// filter reads). Attaches under a step as a materials detail. Checked items
-// float to the top; the count line says what's still to gather.
+// The activity's materials as a 3-state stock checklist (the same "kit" the
+// library coverage lens reads). Attaches under a step as a materials detail.
+// Each row cycles have → low → out → have on tap (staff-gated upstream); a row
+// whose own item is out but a substitute is on hand reads "↔ via <name>". The
+// header is a compact coverage pill (Ready / "N missing"); nothing shows when
+// stock is UNSET (the lens is inert, so the checklist reads as a plain list).
+//
+// Per-PLACEMENT substitutions: when opened FROM a calendar event (onSetSub given),
+// each row grows staff actions — Swap… (replace this material for the day) and
+// Skip today. A subbed row reads "<replacement> — instead of <original>" and its
+// availability evaluates by the REPLACEMENT's slug (materialTagId(label)); a
+// skipped row ("" in subs) is dropped from the coverage math. A revert × restores
+// the canonical item. Library-opened sheets pass no subs, so the list is canonical.
 function MaterialChecklist({
   needs,
-  availableMaterials,
-  onToggleMaterial,
+  stock,
+  catalog,
+  onSetStockState,
+  subs,
+  onSetSub,
 }: {
-  needs: MaterialNeed[];
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  needs: ResolvedRef[];
+  stock: Record<string, StockState>;
+  catalog?: Material[];
+  onSetStockState: (id: string, state: StockState) => void;
+  subs?: Record<string, string>;
+  onSetSub?: (refId: string, label: string | null) => void;
 }) {
-  const haveSet = new Set(availableMaterials);
-  const have = needs.filter((n) => haveSet.has(n.id));
-  const need = needs.filter((n) => !haveSet.has(n.id));
-  const ordered = [...have, ...need];
+  // Per-day editing is on only when a placement wired both the subs map and the
+  // writer (opened FROM an event). Library-opened = canonical list, no row actions.
+  const canSub = Boolean(onSetSub);
+  // The row a Swap picker is currently open over (refId), plus its draft text.
+  const [swapping, setSwapping] = useState<string | null>(null);
+
+  // The EFFECTIVE need per row: a subbed row's coverage key + label follow the
+  // REPLACEMENT (its own slug), a skipped row is excluded from the lens entirely.
+  // We carry the original alongside so the row can say "instead of <original>".
+  const rows = useMemo(
+    () =>
+      needs.map((n) => {
+        const sub = subs?.[n.id];
+        if (sub === undefined) return { ...n, kind: "plain" as const, coverId: n.id, coverLabel: n.label };
+        if (sub === "") return { ...n, kind: "skip" as const, coverId: n.id, coverLabel: n.label };
+        const coverId = materialTagId(sub);
+        return { ...n, kind: "sub" as const, subLabel: sub, coverId, coverLabel: sub };
+      }),
+    [needs, subs]
+  );
+
+  // Coverage over the EFFECTIVE, non-skipped needs (subbed rows keyed by their
+  // replacement's slug), so the pill and the rows agree with the swaps in force.
+  const cov = useMemo(() => {
+    const active = rows.filter((r) => r.kind !== "skip");
+    return coverage(
+      { materialRefs: active.map((r) => ({ id: r.coverId })) } as Activity,
+      stock,
+      catalog
+    );
+  }, [rows, stock, catalog]);
+  const unset = cov.state === "unset";
+  const viaById = useMemo(() => {
+    const map = new Map<string, string>();
+    cov.substituted.forEach((s) => map.set(s.id, s.viaId));
+    return map;
+  }, [cov.substituted]);
+
+  const pill =
+    unset || cov.state === "ready"
+      ? unset
+        ? null
+        : "Ready"
+      : cov.missing.length + " missing";
 
   return (
     <div className="matkit">
-      {needs.length >= 2 && (
+      {pill && (
         <div className="matkit__bar">
-          <span className="matkit__status">
-            Have {have.length} · Need {need.length}
+          <span
+            className={
+              "matkit__pill" +
+              (cov.state === "ready"
+                ? " matkit__pill--ready" + (cov.lowCount ? " matkit__pill--low" : "")
+                : cov.state === "almost"
+                  ? " matkit__pill--almost"
+                  : " matkit__pill--cant")
+            }
+          >
+            {pill}
           </span>
         </div>
       )}
       <div className="matkit__list">
-        {ordered.map((n, i) => {
-          const has = haveSet.has(n.id);
-          const divide = i === have.length && i > 0 && i < ordered.length;
-          return (
-            <Fragment key={n.id}>
-              {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
-              <button
-                type="button"
-                className={"matkit__item" + (has ? " is-have" : "")}
-                onClick={() => onToggleMaterial(n.id)}
-                aria-pressed={has}
-                aria-label={(has ? "Have" : "Still need") + ": " + n.label}
-              >
-                <span className="matkit__check" aria-hidden="true">
-                  {has && <CampIcon.Check />}
+        {rows.map((n) => {
+          const skipped = n.kind === "skip";
+          const subbed = n.kind === "sub";
+          const viaId = viaById.get(n.coverId);
+          const own = stock[n.coverId];
+          const state: StockState | "via" = viaId ? "via" : own ?? "out";
+          const viaName = viaId ? catalogNameFor(catalog, viaId) : "";
+          const stateWord = skipped
+            ? "skipped today"
+            : state === "via"
+              ? "covered by " + viaName
+              : state === "have"
+                ? "have"
+                : state === "low"
+                  ? "low"
+                  : "out";
+          const rowClass = skipped
+            ? " is-skip"
+            : unset
+              ? ""
+              : state === "have" || state === "via"
+                ? " is-have"
+                : state === "low"
+                  ? " is-low"
+                  : " is-out";
+          // The tappable status button (cycles the row's effective stock). A
+          // skipped row's status is inert (nothing to stock).
+          const statusBtn = (
+            <button
+              type="button"
+              className={"matkit__item" + rowClass}
+              disabled={skipped}
+              onClick={() => (skipped ? undefined : onSetStockState(n.coverId, nextStockState(own)))}
+              aria-label={(subbed ? n.subLabel : n.label) + ": " + stateWord}
+            >
+              <span className="matkit__check" aria-hidden="true">
+                {skipped && <CampIcon.Minus />}
+                {!skipped && !unset && (state === "have" || state === "via") && <CampIcon.Check />}
+                {!skipped && !unset && state === "low" && <CampIcon.Minus />}
+                {!skipped && !unset && state === "out" && <CampIcon.Close />}
+              </span>
+              <span className="matkit__name">
+                {subbed ? n.subLabel : n.label}
+                {subbed && <span className="matkit__instead"> — instead of {n.label}</span>}
+                {skipped && <span className="matkit__instead"> — skipped today</span>}
+              </span>
+              {!skipped && !unset && state === "via" && (
+                <span className="matkit__via">
+                  <CampIcon.Repeat />
+                  via {viaName}
                 </span>
-                <span className="matkit__name">{n.label}</span>
-              </button>
-            </Fragment>
+              )}
+            </button>
+          );
+
+          if (!canSub) {
+            return (
+              <div key={n.id} className="matkit__rowline">
+                {statusBtn}
+              </div>
+            );
+          }
+          return (
+            <div key={n.id} className="matkit__rowline">
+              {statusBtn}
+              <span className="matkit__acts">
+                {subbed || skipped ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm matkit__revert"
+                    onClick={() => onSetSub?.(n.id, null)}
+                    aria-label={"Revert " + n.label + " to the original"}
+                    title="Revert to the original"
+                  >
+                    <CampIcon.Close />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setSwapping((id) => (id === n.id ? null : n.id))}
+                      aria-label={"Swap " + n.label + " for the day"}
+                    >
+                      Swap…
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => onSetSub?.(n.id, "")}
+                      aria-label={"Skip " + n.label + " today"}
+                    >
+                      Skip today
+                    </button>
+                  </>
+                )}
+              </span>
+              {swapping === n.id && (
+                <MaterialSwapForm
+                  original={n.label}
+                  catalog={catalog}
+                  stock={stock}
+                  onPick={(label) => {
+                    onSetSub?.(n.id, label);
+                    setSwapping(null);
+                  }}
+                  onClose={() => setSwapping(null)}
+                />
+              )}
+            </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// The mini Swap form under a material row (per-placement substitution). Suggests
+// catalog items on-hand first (a swap you can actually run today), then the rest,
+// and takes free text for anything off-catalog. Tapping a suggestion or committing
+// the text writes the replacement label.
+function MaterialSwapForm({
+  original,
+  catalog,
+  stock,
+  onPick,
+  onClose,
+}: {
+  original: string;
+  catalog?: Material[];
+  stock: Record<string, StockState>;
+  onPick: (label: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState("");
+  // Catalog names ranked on-hand first (its own slug is stocked), then by name.
+  const suggestions = useMemo(() => {
+    const query = text.trim().toLowerCase();
+    const scored = (catalog ?? [])
+      .map((m) => ({ label: m.name, onHand: isStocked(stock[m.id]) }))
+      .filter((s) => s.label && (!query || s.label.toLowerCase().includes(query)));
+    scored.sort(
+      (a, b) => Number(b.onHand) - Number(a.onHand) || a.label.localeCompare(b.label)
+    );
+    return scored.slice(0, 6);
+  }, [catalog, stock, text]);
+
+  return (
+    <div className="matkit__swap" role="group" aria-label={"Swap " + original}>
+      {/* Same search-field anatomy as QuickAdd's activity search: icon + input
+          in one bordered pill (`.quickadd__search`), not a bespoke input. */}
+      <label className="quickadd__search matkit__swapsearch">
+        <CampIcon.Search />
+        <input
+          value={text}
+          autoFocus
+          placeholder={"Replace " + original + " with…"}
+          aria-label={"Replacement for " + original}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && text.trim()) onPick(text.trim());
+            else if (e.key === "Escape") onClose();
+          }}
+        />
+      </label>
+      {(suggestions.length > 0 || text.trim()) && (
+        // Same result-list anatomy as QuickAdd's typeahead (`.quickadd__list`
+        // of `.quickadd__item` rows with a name + muted meta), so a suggestion
+        // row here reads identically to a library search result elsewhere.
+        <div className="quickadd__list matkit__swaplist">
+          {suggestions.map((s) => (
+            <button
+              type="button"
+              key={s.label}
+              className="quickadd__item"
+              onClick={() => onPick(s.label)}
+            >
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">{s.label}</span>
+              {s.onHand && <span className="quickadd__meta">on hand</span>}
+            </button>
+          ))}
+          {text.trim() && (
+            <button type="button" className="quickadd__item" onClick={() => onPick(text.trim())}>
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">Use “{text.trim()}”</span>
+            </button>
+          )}
+        </div>
+      )}
+      <div className="matkit__swapacts">
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onClose}>
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -428,7 +670,9 @@ type DetailFormProps = {
 // A label-only inline menu picker bound to the run sheet (mirrors the sidebar
 // MenuPicker, but hosted in the FloatingLayer so it shares the Escape/scrim
 // contract). Used for Type / duration where a long option list beats segments.
-function LedgerMenu<T extends string>({
+// Exported so other ledger-anatomy editors (e.g. DetailSheet's Backup plans
+// reason picker) share the exact same `.typepick` pill, not a lookalike copy.
+export function LedgerMenu<T extends string>({
   value,
   options,
   onChange,
@@ -756,6 +1000,7 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
             themes={themeKit.themes}
             onChange={(themeId) => set("themeId", themeId ?? "")}
             onCreate={themeKit.onCreate}
+            onManage={themeKit.onManage}
             ariaLabel="Activity theme"
           />
         </div>
@@ -768,48 +1013,55 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
   );
 }
 
-// The Materials block, in EDIT mode — a PROPER editable list of the kit items
-// (the same comma-separated `materials` string the form owns, surfaced one item
-// per row). Each row is honest about what it does: a drag grip + an inline
-// editable name + move up/down + remove, in the run-sheet sub-step vocabulary.
-// Reorder is local to this list (it never touches the run-doc drag model), via
-// HTML5 drag on the row OR the up/down buttons (touch/keyboard parity). An
-// "Add item" row at the foot grows the list. Clearing a row's text removes it,
-// the same "empty = gone" feel as a step.
+// The Materials block, in EDIT mode — a PROPER editable list of the kit items,
+// bound to the form's `materialRefs` rows (was a comma-joined string; the comma
+// is no longer a delimiter, so a label like "Flour, ~2 cups" is one row). Each
+// row is honest about what it does: a drag grip + an inline editable name + an
+// optional subdued qty/note + move up/down + remove, in the run-sheet sub-step
+// vocabulary. Reorder is local to this list (it never touches the run-doc drag
+// model), via HTML5 drag on the row OR the up/down buttons (touch/keyboard
+// parity). An "Add item" row at the foot grows the list. Clearing a row's name
+// removes it, the same "empty = gone" feel as a step.
+//
+// Row identity: a row minted THIS session re-slugs its id when renamed (no
+// stored references yet); a row that came from storage keeps its FROZEN id and a
+// rename only changes the display label (the mirror the empty catalog reads
+// back). renameMaterialRow (lib/activityForm) encodes that rule.
 function MaterialsEditor({
-  value,
+  rows,
   onChange,
 }: {
-  value: string;
-  onChange: (v: string) => void;
+  rows: MaterialFormRow[];
+  onChange: (rows: MaterialFormRow[]) => void;
 }) {
-  const items = splitList(value);
   const [draft, setDraft] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<{ index: number; pos: "before" | "after" } | null>(null);
   const dragIndexRef = useRef<number | null>(null);
 
-  const write = (next: string[]) => onChange(next.map((s) => s.trim()).filter(Boolean).join(", "));
-
   const commitDraft = () => {
-    const next = draft.trim();
-    if (!next) return;
-    write([...items, next]);
+    const row = mintMaterialRow(draft);
+    if (!row) return;
+    onChange([...rows, row]);
     setDraft("");
   };
-  const removeAt = (index: number) => write(items.filter((_, i) => i !== index));
+  const removeAt = (index: number) => onChange(rows.filter((_, i) => i !== index));
   const renameAt = (index: number, text: string) => {
-    const trimmed = text.trim();
     // Emptying a row removes it (mirrors clearing a step's text).
-    if (!trimmed) return removeAt(index);
-    write(items.map((item, i) => (i === index ? trimmed : item)));
+    const renamed = renameMaterialRow(rows[index], text);
+    if (!renamed) return removeAt(index);
+    onChange(rows.map((row, i) => (i === index ? renamed : row)));
+  };
+  const setNoteAt = (index: number, text: string) => {
+    const note = text.trim();
+    onChange(rows.map((row, i) => (i === index ? (note ? { ...row, note } : { ...row, note: undefined }) : row)));
   };
   const moveBy = (index: number, dir: -1 | 1) => {
     const swap = index + dir;
-    if (swap < 0 || swap >= items.length) return;
-    const next = [...items];
+    if (swap < 0 || swap >= rows.length) return;
+    const next = [...rows];
     [next[index], next[swap]] = [next[swap], next[index]];
-    write(next);
+    onChange(next);
   };
 
   // ---- HTML5 row drag (self-contained to this list) ----
@@ -822,29 +1074,29 @@ function MaterialsEditor({
     let dest = pos === "after" ? toIndex + 1 : toIndex;
     if (from < dest) dest -= 1; // account for the removed source slot
     if (dest === from) return;
-    const next = [...items];
+    const next = [...rows];
     const [moved] = next.splice(from, 1);
     next.splice(Math.max(0, Math.min(next.length, dest)), 0, moved);
-    write(next);
+    onChange(next);
   };
 
   return (
     <div className="rlmat">
-      {items.length > 0 && (
+      {rows.length > 0 && (
         <ul className="rlmat__list">
-          {items.map((item, i) => {
+          {rows.map((row, i) => {
             const overState =
               overIndex && overIndex.index === i && dragIndex !== i
                 ? " is-over-" + overIndex.pos
                 : "";
             return (
               <li
-                key={i}
+                key={row.id + "@" + i}
                 className={"rlmat__item" + (dragIndex === i ? " is-dragging" : "") + overState}
                 draggable
                 onDragStart={(e) => {
                   // Don't hijack drags that start on the inline text/buttons.
-                  if ((e.target as HTMLElement).closest("button, .rl-ed")) {
+                  if ((e.target as HTMLElement).closest("button, .rl-ed, input")) {
                     e.preventDefault();
                     return;
                   }
@@ -884,11 +1136,18 @@ function MaterialsEditor({
                 </span>
                 <Editable
                   className="rlmat__name"
-                  value={item}
+                  value={row.label}
                   editable
                   placeholder="Material"
                   ariaLabel={"Material " + (i + 1)}
                   onCommit={(v) => renameAt(i, v)}
+                />
+                <input
+                  className="input rlmat__note"
+                  value={row.note ?? ""}
+                  placeholder="qty / note"
+                  aria-label={"Note for " + row.label}
+                  onChange={(e) => setNoteAt(i, e.target.value)}
                 />
                 <div className="rlmat__tools">
                   <button
@@ -904,7 +1163,7 @@ function MaterialsEditor({
                     type="button"
                     className="rl-iconbtn"
                     onClick={() => moveBy(i, 1)}
-                    disabled={i >= items.length - 1}
+                    disabled={i >= rows.length - 1}
                     aria-label="Move material down"
                   >
                     <CampIcon.ChevronDown />
@@ -913,7 +1172,7 @@ function MaterialsEditor({
                     type="button"
                     className="rl-iconbtn"
                     onClick={() => removeAt(i)}
-                    aria-label={"Remove " + item}
+                    aria-label={"Remove " + row.label}
                   >
                     <CampIcon.Trash />
                   </button>
@@ -929,12 +1188,12 @@ function MaterialsEditor({
         </span>
         <input
           className="input rlmat__add"
-          placeholder={items.length ? "Add a material…" : "flags, cones, pinnies"}
+          placeholder={rows.length ? "Add a material…" : "flags, cones, pinnies"}
           value={draft}
           aria-label="Add a material"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
+            if (e.key === "Enter") {
               e.preventDefault();
               commitDraft();
             }
@@ -951,8 +1210,11 @@ export function ActivityRunList({
   editable,
   onChange,
   activity,
-  availableMaterials,
-  onToggleMaterial,
+  kitStock,
+  materialCatalog,
+  onSetStockState,
+  materialSubs,
+  onSetMaterialSub,
   onSetRating,
   hideAddBlocks,
   canCapture = false,
@@ -966,8 +1228,23 @@ export function ActivityRunList({
   editable: boolean;
   onChange?: (next: RunDoc) => void;
   activity: Activity;
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  /** The effective 3-state kit stock map the Materials checklist reads. Empty
+   *  ({}) = UNSET (the checklist renders as a plain list, no can-run state). */
+  kitStock: Record<string, StockState>;
+  /** The materials catalog — display names + substitution groups for coverage. */
+  materialCatalog?: Material[];
+  /** Cycle one material's stock state (have → low → out). Staff-gated upstream;
+   *  a no-op on public/read-only surfaces. */
+  onSetStockState: (id: string, state: StockState) => void;
+  /** Per-placement material substitutions ({refId: label}, "" = skipped) from the
+   *  calendar event this sheet was opened from. PRESENT (even {}) turns on the
+   *  per-day Swap / Skip row actions; ABSENT (library-opened) keeps the canonical
+   *  list. */
+  materialSubs?: Record<string, string>;
+  /** Write (or clear) one placement's substitution for a required material: a
+   *  label swaps it, "" skips it for the day, null reverts to the canonical item.
+   *  Absent = no per-day editing (library / read-only). */
+  onSetMaterialSub?: (refId: string, label: string | null) => void;
   onSetRating?: (value: number) => void;
   /** When provided (edit/create), the Details block renders as structured
    *  dropdowns bound to this form, and the Materials block becomes an inline
@@ -1061,7 +1338,7 @@ export function ActivityRunList({
     return () => Object.values(timers).forEach((t) => clearTimeout(t));
   }, []);
 
-  const materialNeeds = useMemo(() => materialNeedsForActivity(activity), [activity]);
+  const materialNeeds = useMemo(() => resolveRefs(activity, materialCatalog), [activity, materialCatalog]);
   const detailTags = useMemo(() => detailTagsForActivity(activity), [activity]);
 
   const commit = (next: RunDoc) => onChange?.(next);
@@ -1325,9 +1602,14 @@ export function ActivityRunList({
       ),
     });
     openStep(pid);
-    setOpenKid(null);
-    // A fresh diagram opens straight into the full-screen editor.
-    if (type === "diagram") setFullDiagram({ stepId: pid, childId: kid.id });
+    // The palette STAYS OPEN after an add so several sub-blocks (a note, then
+    // safety, then materials) go in without reopening it each time — dismissal
+    // is the existing close affordance / Escape. A diagram is the exception:
+    // it opens straight into the full-screen editor, so the palette closes.
+    if (type === "diagram") {
+      setOpenKid(null);
+      setFullDiagram({ stepId: pid, childId: kid.id });
+    }
   };
 
   const makeTopBlock = (type: RunBlockType): RunBlock => {
@@ -1764,8 +2046,11 @@ export function ActivityRunList({
         ) : (
           <MaterialChecklist
             needs={materialNeeds}
-            availableMaterials={availableMaterials}
-            onToggleMaterial={onToggleMaterial}
+            stock={kitStock}
+            catalog={materialCatalog}
+            onSetStockState={onSetStockState}
+            subs={materialSubs}
+            onSetSub={onSetMaterialSub}
           />
         )
       );
@@ -2053,8 +2338,8 @@ export function ActivityRunList({
                     <div className="rl-body">
                       <div className="rl-time">{RUN_TOP_LABEL.materials}</div>
                       <MaterialsEditor
-                        value={editForm.materials}
-                        onChange={(value) => onEditFormChange({ ...editForm, materials: value })}
+                        rows={editForm.materialRefs}
+                        onChange={(materialRefs) => onEditFormChange({ ...editForm, materialRefs })}
                       />
                     </div>
                   </div>
@@ -2259,8 +2544,11 @@ export function ActivityRunList({
                         ) : (
                           <MaterialChecklist
                             needs={materialNeeds}
-                            availableMaterials={availableMaterials}
-                            onToggleMaterial={onToggleMaterial}
+                            stock={kitStock}
+                            catalog={materialCatalog}
+                            onSetStockState={onSetStockState}
+                            subs={materialSubs}
+                            onSetSub={onSetMaterialSub}
                           />
                         )}
                       </div>

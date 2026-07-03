@@ -17,9 +17,10 @@
 .runsheet-page__bar {
   width: min(100%, 52rem);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .runsheet-page__brand {
@@ -28,11 +29,23 @@
   color: var(--accent-ink);
 }
 
+.runsheet-page__bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
 .runsheet-page__eyebrow {
   font-size: 0.7rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-faint);
+}
+
+.runsheet-page__share {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
 }
 
 .runsheet {

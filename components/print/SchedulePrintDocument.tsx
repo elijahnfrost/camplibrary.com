@@ -17,11 +17,14 @@ import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { ageSpan, durLabel, effectiveEventColor, ENERGY, groupLabel } from "@/lib/data";
 import { materialNeedsForActivity, materialOptionsForActivities } from "@/lib/materials";
 import type { Camp } from "@/lib/camps";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
 import { applyExclusions, buildScheduleDays, selectEvents, type ScheduleDay } from "@/lib/print/schedule";
 import { hasSummaryContent, summarizeRunDoc, type RunSummary } from "@/lib/print/runSummary";
+import { buildShoppingList } from "@/lib/print/shoppingList";
 import { buildTimelineDays, timelineFit, timelineWindow } from "@/lib/print/timeline";
 import {
   DOC_DENSITY_VALUE,
@@ -38,6 +41,13 @@ export interface SchedulePrintData {
   resolveRunDoc: (activity: Activity) => RunDoc;
   themeOf: ThemeResolver;
   camps: Camp[];
+  // The effective kit-stock map (materialId -> have/low/out) and catalog, for
+  // the "Shopping list — missing & low only" block. Optional: a caller that
+  // hasn't threaded these through yet just doesn't get the narrowed list (the
+  // checkbox that requests it still renders in Content, but the block quietly
+  // omits itself — see SchedulePrintDocument's shoppingSection below).
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
 }
 
 interface ResolvedEvent {
@@ -52,6 +62,13 @@ function dayHeading(date: string): string {
   const weekday = d.toLocaleDateString(undefined, { weekday: "long" });
   const monthDay = d.toLocaleDateString(undefined, { month: "long", day: "numeric" });
   return weekday + " · " + monthDay;
+}
+
+// A short "Mon 6/16" chip for a shopping-list item's day(s) — compact enough
+// to sit inline on a checklist row without wrapping.
+function shortDayLabel(date: string): string {
+  const d = fromDateKey(date);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" });
 }
 
 function rangeLabel(start: string, end: string): string {
@@ -196,7 +213,7 @@ export function SchedulePrintDocument({
   data: SchedulePrintData;
   wrap: "preview" | "root";
 }) {
-  const { events, byId, resolveRunDoc, themeOf, camps } = data;
+  const { events, byId, resolveRunDoc, themeOf, camps, kitStock, materialCatalog } = data;
 
   const campIds = useMemo(() => new Set(camps.map((c) => c.id)), [camps]);
 
@@ -287,6 +304,19 @@ export function SchedulePrintDocument({
     [options.materialsRollup, distinctActivities]
   );
 
+  // The narrowed "missing & low only" shopping list — a paper checklist, not a
+  // full inventory recap. Needs the effective kit-stock map + catalog; when
+  // they weren't threaded in (kitStock undefined) or stock has never been
+  // reviewed (an empty map), buildShoppingList returns [] and the block
+  // quietly omits itself rather than printing a wrong/empty-looking checklist.
+  const shoppingList = useMemo(
+    () =>
+      options.materialsRollup && options.shoppingListOnly && kitStock
+        ? buildShoppingList(days, byId, kitStock, materialCatalog)
+        : [],
+    [options.materialsRollup, options.shoppingListOnly, kitStock, materialCatalog, days, byId]
+  );
+
   // Run sheets to append: every scheduled activity when "Full run sheets" is on,
   // PLUS any individually-picked ones — deduped, in scheduled order then pick order.
   const runSheetActivities = useMemo(() => {
@@ -331,20 +361,44 @@ export function SchedulePrintDocument({
     "--pd-pad-scale": DOC_DENSITY_VALUE[options.density],
   } as CSSProperties;
 
-  // The materials roll-up — one of the reorderable sections.
+  // The materials roll-up, PLUS the narrowed "missing & low only" shopping
+  // list when that checkbox is on — both live in the reorderable "rollup"
+  // slot so moving one section moves both. The shopping list renders even if
+  // the full roll-up is hidden by rollup.length === 0 (an empty full list is
+  // still worth a "nothing to buy" absence, and a non-empty shopping list is
+  // the more actionable of the two anyway).
   const rollupSection =
-    rollup.length > 0 ? (
+    rollup.length > 0 || shoppingList.length > 0 ? (
       <section className="pd-rollup" key="rollup">
-        <h2 className="pd-rollup__head">Materials for the range</h2>
-        <ul className="pd-rollup__list">
-          {rollup.map((item) => (
-            <li key={item.id}>
-              <span className="pd-rollup__box" aria-hidden="true" />
-              <span className="pd-rollup__label">{item.label}</span>
-              {item.count > 1 && <span className="pd-rollup__count">×{item.count}</span>}
-            </li>
-          ))}
-        </ul>
+        {rollup.length > 0 && (
+          <>
+            <h2 className="pd-rollup__head">Materials for the range</h2>
+            <ul className="pd-rollup__list">
+              {rollup.map((item) => (
+                <li key={item.id}>
+                  <span className="pd-rollup__box" aria-hidden="true" />
+                  <span className="pd-rollup__label">{item.label}</span>
+                  {item.count > 1 && <span className="pd-rollup__count">×{item.count}</span>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {shoppingList.length > 0 && (
+          <div className="pd-shopping">
+            <h2 className="pd-rollup__head pd-shopping__head">Shopping list — missing &amp; low only</h2>
+            <ul className="pd-shopping__list">
+              {shoppingList.map((item) => (
+                <li key={item.id} className={"pd-shopping__item pd-shopping__item--" + item.status}>
+                  <span className="pd-rollup__box" aria-hidden="true" />
+                  <span className="pd-shopping__label">{item.label}</span>
+                  <span className="pd-shopping__status">{item.status === "low" ? "low" : "missing"}</span>
+                  <span className="pd-shopping__days">{item.dates.map(shortDayLabel).join(", ")}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
     ) : null;
 

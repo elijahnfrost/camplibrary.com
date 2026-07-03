@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Activity } from "../types";
 import { CUSTOM_NEUTRAL, LOCATION_TINTS, categoryTint, ratingColor } from "../data";
 import type { Theme } from "../themes";
-import { fromFcDates, healEvent, toFcEvent } from "./adapter";
+import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent } from "./adapter";
 import type { CalendarEvent } from "./types";
 
 const ACTIVITY: Activity = {
@@ -66,6 +66,80 @@ describe("toFcEvent", () => {
     expect(fc.allDay).toBe(true);
     expect(fc.end).toBeUndefined();
   });
+
+  it("threads the pinned flag into extendedProps for the card glyph", () => {
+    // Absent → false (so a plain card never draws the pin), present → true.
+    expect(toFcEvent(event(), BY_ID).extendedProps?.pinned).toBe(false);
+    expect(toFcEvent(event({ pinned: true }), BY_ID).extendedProps?.pinned).toBe(true);
+  });
+
+  it("threads a `customized` tick from a series member's custom list", () => {
+    // No custom fields → false (plain card, no tick); a non-empty list → true.
+    expect(toFcEvent(event(), BY_ID).extendedProps?.customized).toBe(false);
+    expect(toFcEvent(event({ custom: ["startMin"] }), BY_ID).extendedProps?.customized).toBe(true);
+    // An empty list is not "customized".
+    expect(toFcEvent(event({ custom: [] }), BY_ID).extendedProps?.customized).toBe(false);
+  });
+
+  it("threads a split-day leg label when one is supplied", () => {
+    expect(toFcEvent(event(), BY_ID).extendedProps?.legLabel).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, "1/2").extendedProps?.legLabel
+    ).toBe("1/2");
+  });
+
+  it("threads a backup-plan glyph only when it carries a count", () => {
+    expect(toFcEvent(event(), BY_ID).extendedProps?.alternatesGlyph).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, undefined, { rain: false, count: 0 })
+        .extendedProps?.alternatesGlyph
+    ).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, undefined, { rain: true, count: 2 })
+        .extendedProps?.alternatesGlyph
+    ).toEqual({ rain: true, count: 2 });
+  });
+
+  it("threads the meal kind into extendedProps for the meal glyph", () => {
+    // Absent → undefined (so a plain card never draws the meal glyph).
+    expect(toFcEvent(event(), BY_ID).extendedProps?.mealKind).toBeUndefined();
+    // Present → the exact kind, keyed later by the dietary badge + menu note.
+    expect(toFcEvent(event({ mealKind: "lunch" }), BY_ID).extendedProps?.mealKind).toBe("lunch");
+    expect(toFcEvent(event({ mealKind: "am-snack" }), BY_ID).extendedProps?.mealKind).toBe(
+      "am-snack"
+    );
+  });
+});
+
+describe("splitDayLegLabels", () => {
+  it("labels the ordered legs of a same-day linked pair", () => {
+    const a = event({ id: "a", linkId: "L", startMin: 540 });
+    const b = event({ id: "b", linkId: "L", startMin: 840 });
+    const labels = splitDayLegLabels([b, a]); // out of order in
+    expect(labels).toEqual({ a: "1/2", b: "2/2" });
+  });
+
+  it("orders three legs by start time", () => {
+    const a = event({ id: "a", linkId: "L", startMin: 900 });
+    const b = event({ id: "b", linkId: "L", startMin: 540 });
+    const c = event({ id: "c", linkId: "L", startMin: 720 });
+    expect(splitDayLegLabels([a, b, c])).toEqual({ b: "1/3", c: "2/3", a: "3/3" });
+  });
+
+  it("labels nothing for a lone linkId (sibling deleted) or unlinked events", () => {
+    const lone = event({ id: "a", linkId: "L" });
+    const plain = event({ id: "b" });
+    expect(splitDayLegLabels([lone, plain])).toEqual({});
+  });
+
+  it("keeps two same-day linkIds and a cross-day link separate", () => {
+    const a = event({ id: "a", linkId: "L", date: "2026-06-11", startMin: 540 });
+    const b = event({ id: "b", linkId: "L", date: "2026-06-11", startMin: 840 });
+    // Same linkId, DIFFERENT day → not a pair (each is a lone leg on its day).
+    const c = event({ id: "c", linkId: "L", date: "2026-06-12", startMin: 540 });
+    const labels = splitDayLegLabels([a, b, c]);
+    expect(labels).toEqual({ a: "1/2", b: "2/2" });
+  });
 });
 
 describe("fromFcDates round-trip", () => {
@@ -117,6 +191,49 @@ describe("fromFcDates round-trip", () => {
     expect(back.date).toBe("2026-06-12");
     expect(back.startMin).toBe(10 * 60 + 30);
     expect(back.endMin).toBe(10 * 60 + 30);
+  });
+
+  it("snaps to a coarser camp grid when a snap is threaded", () => {
+    // A drop at 9:10 with a 30-min grid floors the START to 9:00 and the END to
+    // the nearest 30 (10:10 → 10:00), so both land on the coarse grid.
+    const moved = fromFcDates(
+      new Date(2026, 5, 12, 9, 10),
+      new Date(2026, 5, 12, 10, 10),
+      false,
+      event(),
+      30
+    );
+    expect(moved.startMin % 30).toBe(0);
+    expect(moved.endMin % 30).toBe(0);
+    expect(moved.startMin).toBe(9 * 60);
+  });
+
+  it("snaps to a finer camp grid when a 5-min snap is threaded", () => {
+    const moved = fromFcDates(
+      new Date(2026, 5, 12, 9, 5),
+      new Date(2026, 5, 12, 9, 20),
+      false,
+      event(),
+      5
+    );
+    expect(moved.startMin).toBe(9 * 60 + 5);
+    expect(moved.endMin).toBe(9 * 60 + 20);
+  });
+
+  it("keeps at least one snap slot of length on a coarse grid resize", () => {
+    const tiny = fromFcDates(
+      new Date(2026, 5, 11, 9, 0),
+      new Date(2026, 5, 11, 9, 1),
+      false,
+      event(),
+      30
+    );
+    expect(tiny.endMin - tiny.startMin).toBeGreaterThanOrEqual(30);
+  });
+
+  it("defaults to the 15-min grid when no snap is threaded (back-compat)", () => {
+    const moved = fromFcDates(new Date(2026, 5, 12, 9, 8), new Date(2026, 5, 12, 10, 0), false, event());
+    expect(moved.startMin).toBe(9 * 60 + 15);
   });
 });
 

@@ -33,7 +33,8 @@
     "react": "^19.0.0",
     "react-colorful": "^5.7.0",
     "react-dom": "^19.0.0",
-    "svix": "^1.95.1"
+    "svix": "^1.95.1",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.18.1",

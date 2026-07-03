@@ -2,12 +2,18 @@ import { describe, it, expect } from "vitest";
 import { normalizeCalendarEvent, type CalendarEvent } from "./types";
 import {
   MAX_SERIES_OCCURRENCES,
+  applyCustomStamp,
   buildSeriesEvents,
   eventsInSeries,
   normalizeRecurrence,
+  planBulkSeriesRemovals,
+  planOccurrenceEdit,
+  planResetOccurrence,
+  planRestoreOccurrence,
   planSeriesDelete,
   planSeriesEdit,
   planSeriesSkip,
+  planSeriesSkipMany,
   recurrenceDates,
   rulesEqual,
   summarizeRecurrence,
@@ -368,6 +374,17 @@ describe("planSeriesEdit", () => {
     expect(plan.upserts.every((e) => e.title === "Renamed" && e.startMin === 480)).toBe(true);
   });
 
+  it('carries "pinned" through an "all" regeneration so a pinned series stays pinned', () => {
+    const series = makeSeries();
+    const target = series[2];
+    // The edited draft's template carries pinned (buildTemplate threads it off the
+    // edited row); every regenerated occurrence must inherit it.
+    const pinnedTemplate: SeriesTemplate = { ...template, pinned: true };
+    const plan = planSeriesEdit(series, target, pinnedTemplate, target.date, rule, "all", counter());
+    expect(plan.upserts).toHaveLength(4);
+    expect(plan.upserts.every((e) => e.pinned === true)).toBe(true);
+  });
+
   it('"this" with a cleared rule detaches the occurrence into a standalone event', () => {
     const series = makeSeries();
     const target = series[1];
@@ -537,5 +554,518 @@ describe("summarizeRecurrence", () => {
     expect(summarizeRecurrence({ freq: "daily", interval: 3, until: "2026-07-31" })).toContain(
       "every 3 days"
     );
+  });
+
+  it("summarizes a daily blackout as '· except'", () => {
+    // 3 = Wednesday.
+    const out = summarizeRecurrence({
+      freq: "daily",
+      interval: 1,
+      exceptWeekdays: [3],
+      until: "2026-07-31",
+    });
+    expect(out).toContain("daily · except Wed");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3 recurrence-durability planner layer.
+// ---------------------------------------------------------------------------
+
+describe("normalizeRecurrence exceptWeekdays", () => {
+  it("accepts, dedupes and sorts a daily blackout", () => {
+    const rule = normalizeRecurrence({
+      freq: "daily",
+      interval: 1,
+      until: "2026-07-31",
+      exceptWeekdays: [3, 3, 0, 6],
+    });
+    expect(rule?.exceptWeekdays).toEqual([0, 3, 6]);
+  });
+
+  it("folds a weekly blackout into the positive weekday set and drops the term", () => {
+    // Mon–Fri, blacking out Wed → Mon/Tue/Thu/Fri, no exceptWeekdays term.
+    const rule = normalizeRecurrence({
+      freq: "weekly",
+      interval: 1,
+      weekdays: [1, 2, 3, 4, 5],
+      exceptWeekdays: [3],
+      until: "2026-07-31",
+    });
+    expect(rule?.weekdays).toEqual([1, 2, 4, 5]);
+    expect(rule?.exceptWeekdays).toBeUndefined();
+  });
+
+  it("degrades to null when a weekly fold empties the weekday set", () => {
+    const rule = normalizeRecurrence({
+      freq: "weekly",
+      interval: 1,
+      weekdays: [1, 3],
+      exceptWeekdays: [1, 3],
+      until: "2026-07-31",
+    });
+    expect(rule).toBeNull();
+  });
+
+  it("degrades to null when a blackout covers all seven weekdays on any frequency", () => {
+    expect(
+      normalizeRecurrence({
+        freq: "daily",
+        interval: 1,
+        until: "2026-07-31",
+        exceptWeekdays: [0, 1, 2, 3, 4, 5, 6],
+      })
+    ).toBeNull();
+  });
+
+  it("keeps a weekly blackout as a live term when no positive set is given", () => {
+    // No weekdays → the weekly rule lands on the start's own weekday; the term
+    // stays and the anchor still wins in expansion.
+    const rule = normalizeRecurrence({
+      freq: "weekly",
+      interval: 1,
+      until: "2026-07-31",
+      exceptWeekdays: [0],
+    });
+    expect(rule?.exceptWeekdays).toEqual([0]);
+  });
+});
+
+describe("recurrenceDates with exceptWeekdays", () => {
+  it("subtracts blacked-out weekdays from a daily expansion", () => {
+    // 2026-06-22 is Monday; block Wednesday (3). Mon 22 … Sun 28.
+    const rule: RecurrenceRule = {
+      freq: "daily",
+      interval: 1,
+      exceptWeekdays: [3],
+      until: "2026-06-28",
+    };
+    expect(recurrenceDates("2026-06-22", rule)).toEqual([
+      "2026-06-22", // Mon
+      "2026-06-23", // Tue
+      // 06-24 Wed dropped
+      "2026-06-25", // Thu
+      "2026-06-26", // Fri
+      "2026-06-27", // Sat
+      "2026-06-28", // Sun
+    ]);
+  });
+
+  it("still emits the anchor even when its own weekday is blacked out (DTSTART wins)", () => {
+    // Start on Wednesday 2026-06-24 but block Wednesdays. The anchor stays; later
+    // Wednesdays are dropped.
+    const rule: RecurrenceRule = {
+      freq: "daily",
+      interval: 1,
+      exceptWeekdays: [3],
+      until: "2026-07-01",
+    };
+    const out = recurrenceDates("2026-06-24", rule);
+    expect(out[0]).toBe("2026-06-24"); // anchor Wed kept
+    expect(out).not.toContain("2026-07-01"); // next Wed dropped
+  });
+
+  it("applies a blackout on a monthly day-of-month rule", () => {
+    // The 4th of each month; block whichever land on a blacked-out weekday.
+    // 2026-06-04 Thu, 2026-07-04 Sat, 2026-08-04 Tue. Block Saturday (6).
+    const rule: RecurrenceRule = {
+      freq: "monthly",
+      interval: 1,
+      monthDay: 4,
+      exceptWeekdays: [6],
+      until: "2026-08-31",
+    };
+    expect(recurrenceDates("2026-06-04", rule)).toEqual(["2026-06-04", "2026-08-04"]);
+  });
+});
+
+describe("rulesEqual with exceptWeekdays", () => {
+  it("distinguishes rules that differ only by blackout", () => {
+    const a: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-07-31" };
+    const b: RecurrenceRule = { ...a, exceptWeekdays: [3] };
+    expect(rulesEqual(a, b)).toBe(false);
+    expect(rulesEqual(b, { ...b })).toBe(true);
+  });
+});
+
+// Build a customizable series with stable ids a0..aN and a known rule.
+function customSeries(): CalendarEvent[] {
+  const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+  return buildSeriesEvents(
+    template,
+    ["2026-06-21", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25"],
+    "series-1",
+    rule,
+    counter(),
+    "2026-06-21",
+    "a0"
+  ).map((e, i) => ({ ...e, id: "a" + i }));
+}
+
+describe("planOccurrenceEdit", () => {
+  it("stamps the changed fields into custom and keeps the original rule", () => {
+    const series = customSeries();
+    const target = series[1]; // 2026-06-22
+    const next: CalendarEvent = { ...target, startMin: 600, endMin: 660, title: "Moved earlier" };
+    const plan = planOccurrenceEdit(series, target, next);
+    expect(plan.removes).toEqual([]);
+    expect(plan.upserts).toHaveLength(1);
+    const row = plan.upserts[0];
+    expect(row.id).toBe("a1");
+    expect(row.seriesId).toBe("series-1");
+    expect(row.recurrence).toEqual(target.recurrence);
+    // startMin/endMin/title all changed.
+    expect(new Set(row.custom)).toEqual(new Set(["startMin", "endMin", "title"]));
+    expect(row.origDate).toBeUndefined(); // date did not move
+  });
+
+  it("stamps origDate when the date moves and preserves previous custom entries", () => {
+    const series = customSeries();
+    const target: CalendarEvent = { ...series[1], custom: ["startMin"], startMin: 600, endMin: 660 };
+    const next: CalendarEvent = { ...target, date: "2026-06-28" };
+    const plan = planOccurrenceEdit(series, target, next);
+    const row = plan.upserts[0];
+    expect(row.date).toBe("2026-06-28");
+    expect(row.origDate).toBe("2026-06-22"); // the slot it left
+    expect(new Set(row.custom)).toEqual(new Set(["startMin", "date"]));
+  });
+
+  it("ignores a rule change at this-scope (keeps the target's rule)", () => {
+    const series = customSeries();
+    const target = series[1];
+    const weekly: RecurrenceRule = { freq: "weekly", interval: 1, weekdays: [0], until: "2026-08-01" };
+    const next: CalendarEvent = { ...target, title: "x", recurrence: weekly };
+    const plan = planOccurrenceEdit(series, target, next);
+    expect(plan.upserts[0].recurrence).toEqual(target.recurrence);
+  });
+
+  it("emits no custom fields for a genuine no-op edit", () => {
+    const series = customSeries();
+    const target = series[1];
+    const plan = planOccurrenceEdit(series, target, { ...target });
+    expect(plan.upserts[0].custom).toBeUndefined();
+  });
+});
+
+describe("planSeriesEdit preserves customized rows on regeneration", () => {
+  it("date-moved 'this' edit survives a later 'all' rename at its moved date; the original slot never resurrects", () => {
+    // Step 1: this-edit moves a0 (2026-06-21) to 2026-06-28 with a new time.
+    const series = customSeries();
+    const anchor = series[0];
+    const movedRow = planOccurrenceEdit(series, anchor, {
+      ...anchor,
+      date: "2026-06-28",
+      startMin: 720,
+      endMin: 780,
+    }).upserts[0];
+    // The live series after the this-edit: the moved row + the untouched rest.
+    const afterThis: CalendarEvent[] = [movedRow, ...series.slice(1)].sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+    );
+
+    // Step 2: rename everything "all". The rule now runs through 2026-06-28.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-28" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed" };
+    const target = afterThis.find((e) => e.id === "a1")!; // a plain member
+    const plan = planSeriesEdit(afterThis, target, renamed, target.date, rule, "all", counter());
+
+    const byId = new Map(plan.upserts.map((e) => [e.id, e]));
+    // The moved row survives AT its moved date, keeping its own time (custom).
+    const survivor = byId.get(movedRow.id)!;
+    expect(survivor.date).toBe("2026-06-28");
+    expect(survivor.startMin).toBe(720);
+    // …but it adopts the template's renamed title? No — title wasn't customized,
+    // so the merge re-applies template fields for non-custom fields.
+    expect(survivor.title).toBe("Renamed");
+    // Its ORIGINAL slot (2026-06-21) is not regenerated as a duplicate live row.
+    const onOrigSlot = plan.upserts.filter((e) => e.date === "2026-06-21");
+    expect(onOrigSlot).toHaveLength(0);
+    // Exactly one row sits on 2026-06-28 (the merged survivor, no duplicate).
+    expect(plan.upserts.filter((e) => e.date === "2026-06-28")).toHaveLength(1);
+  });
+
+  it("rename-all merges a time-customized row while its slot survives", () => {
+    const series = customSeries();
+    // a2 (2026-06-23) has a customized time.
+    series[2] = { ...series[2], startMin: 900, endMin: 960, custom: ["startMin", "endMin"] };
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed", startMin: 480, endMin: 540 };
+    const target = series[0];
+    const plan = planSeriesEdit(series, target, renamed, target.date, rule, "all", counter());
+    const custom = plan.upserts.find((e) => e.id === "a2")!;
+    // Preserved row keeps its own time…
+    expect(custom.startMin).toBe(900);
+    expect(custom.endMin).toBe(960);
+    // …but takes the renamed title from the template (not customized).
+    expect(custom.title).toBe("Renamed");
+    // Non-customized rows take the new template time.
+    const plain = plan.upserts.find((e) => e.id === "a0")!;
+    expect(plain.startMin).toBe(480);
+    // No duplicate on the customized row's slot.
+    expect(plan.upserts.filter((e) => e.date === "2026-06-23")).toHaveLength(1);
+  });
+
+  it("drops a customized row whose slot a shorter until cuts off", () => {
+    const series = customSeries();
+    // Customize a4 (2026-06-25).
+    series[4] = { ...series[4], startMin: 900, endMin: 960, custom: ["startMin", "endMin"] };
+    // New rule ends 2026-06-23 — the customized slot is past the horizon.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-23" };
+    const target = series[0];
+    const plan = planSeriesEdit(series, target, template, target.date, rule, "all", counter());
+    expect(plan.upserts.map((e) => e.date)).toEqual([
+      "2026-06-21",
+      "2026-06-22",
+      "2026-06-23",
+    ]);
+    expect(plan.upserts.some((e) => e.id === "a4")).toBe(false);
+    // The customized row's id is still removed (it was in scope).
+    expect(plan.removes).toContain("a4");
+  });
+
+  it("carries a pinned template field onto non-customized regenerated rows", () => {
+    const series = customSeries();
+    series[2] = { ...series[2], note: "keep me", custom: ["note"] };
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const pinnedTemplate: SeriesTemplate = { ...template, pinned: true };
+    const target = series[0];
+    const plan = planSeriesEdit(series, target, pinnedTemplate, target.date, rule, "all", counter());
+    // Non-customized rows inherit pinned from the template.
+    expect(plan.upserts.find((e) => e.id === "a0")!.pinned).toBe(true);
+    // The customized row keeps its own note verbatim and is still pinned via the
+    // merge base (pinned not in its custom list, so template wins).
+    const custom = plan.upserts.find((e) => e.id === "a2")!;
+    expect(custom.note).toBe("keep me");
+    expect(custom.pinned).toBe(true);
+  });
+});
+
+describe("planSeriesSkip / planSeriesSkipMany durability", () => {
+  it("deleting a moved-onto-a-rule-date row exdates its ORIGINAL slot, not the live sibling's", () => {
+    const series = customSeries();
+    // a1 was moved from 2026-06-22 onto 2026-06-23 (which a2 legitimately owns).
+    const moved: CalendarEvent = {
+      ...series[1],
+      date: "2026-06-23",
+      origDate: "2026-06-22",
+      custom: ["date"],
+    };
+    const withMoved = [moved, ...series.filter((e) => e.id !== "a1")].sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+    );
+    const plan = planSeriesSkip(withMoved, moved);
+    expect(plan.removes).toEqual(["a1"]);
+    // Every survivor gets 2026-06-22 (the moved row's ORIGINAL slot) exdated…
+    expect(plan.upserts.every((e) => e.recurrence?.exdates?.includes("2026-06-22"))).toBe(true);
+    // …and NOT 2026-06-23 (a2's live slot must stay generatable).
+    expect(plan.upserts.every((e) => !e.recurrence?.exdates?.includes("2026-06-23"))).toBe(true);
+  });
+
+  it("skipMany unions all dates into every survivor and removes the skipped rows", () => {
+    const series = customSeries(); // a0..a4, 21..25
+    const plan = planSeriesSkipMany(series, ["2026-06-22", "2026-06-24"]);
+    expect(new Set(plan.removes)).toEqual(new Set(["a1", "a3"]));
+    for (const row of plan.upserts) {
+      expect(row.recurrence?.exdates).toContain("2026-06-22");
+      expect(row.recurrence?.exdates).toContain("2026-06-24");
+    }
+  });
+
+  it("skipMany + restore round-trips a day", () => {
+    const series = customSeries();
+    const skip = planSeriesSkipMany(series, ["2026-06-23"]);
+    // Apply the skip to the working set.
+    const afterSkip = series
+      .filter((e) => !skip.removes.includes(e.id))
+      .map((e) => skip.upserts.find((u) => u.id === e.id) ?? e);
+    expect(afterSkip.every((e) => e.recurrence?.exdates?.includes("2026-06-23"))).toBe(true);
+
+    const restore = planRestoreOccurrence(afterSkip, "2026-06-23", counter());
+    // Every survivor has the day stripped from exdates…
+    expect(
+      restore.upserts.every((e) => !(e.recurrence?.exdates ?? []).includes("2026-06-23"))
+    ).toBe(true);
+    // …and exactly one fresh occurrence lands on the restored day.
+    const onDay = restore.upserts.filter((e) => e.date === "2026-06-23");
+    expect(onDay).toHaveLength(1);
+    expect(onDay[0].seriesId).toBe("series-1");
+  });
+});
+
+describe("planBulkSeriesRemovals", () => {
+  it("mixed selection: 2 series members + 1 plain yields durable exdates + plain removal", () => {
+    const series = customSeries(); // a0..a4
+    const loose: CalendarEvent = {
+      ...template,
+      id: "loose",
+      date: "2026-07-01",
+      updatedAt: 0,
+    } as CalendarEvent;
+    const all = [...series, loose];
+    const plan = planBulkSeriesRemovals(all, ["a1", "a3", "loose"]);
+    expect(new Set(plan.removes)).toEqual(new Set(["a1", "a3", "loose"]));
+    // Survivors (a0, a2, a4) carry both skipped slots as exdates.
+    const survivors = plan.upserts.filter((e) => e.seriesId === "series-1");
+    expect(survivors.map((e) => e.id).sort()).toEqual(["a0", "a2", "a4"]);
+    for (const s of survivors) {
+      expect(s.recurrence?.exdates).toContain("2026-06-22");
+      expect(s.recurrence?.exdates).toContain("2026-06-24");
+    }
+  });
+
+  it("a later 'all' edit does NOT resurrect bulk-removed days", () => {
+    const series = customSeries();
+    const bulk = planBulkSeriesRemovals(series, ["a1", "a3"]);
+    // Apply the bulk plan.
+    const afterBulk = series
+      .filter((e) => !bulk.removes.includes(e.id))
+      .map((e) => bulk.upserts.find((u) => u.id === e.id) ?? e);
+    // Now rename "all" from the earliest survivor.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed" };
+    const target = afterBulk[0];
+    const plan = planSeriesEdit(afterBulk, target, renamed, target.date, rule, "all", counter());
+    const dates = plan.upserts.map((e) => e.date);
+    expect(dates).not.toContain("2026-06-22");
+    expect(dates).not.toContain("2026-06-24");
+    expect(dates).toEqual(["2026-06-21", "2026-06-23", "2026-06-25"]);
+  });
+});
+
+describe("applyCustomStamp", () => {
+  it("unions whitelisted fields into custom and stamps origDate on a date change", () => {
+    const series = customSeries();
+    const stamped = applyCustomStamp(series[1], ["startMin", "date", "bogusField"]);
+    expect(new Set(stamped.custom)).toEqual(new Set(["startMin", "date"]));
+    expect(stamped.origDate).toBe("2026-06-22"); // its date before the move
+  });
+
+  it("does not overwrite an existing origDate", () => {
+    const series = customSeries();
+    const row: CalendarEvent = { ...series[1], origDate: "2026-06-20", custom: ["date"] };
+    const stamped = applyCustomStamp(row, ["date"]);
+    expect(stamped.origDate).toBe("2026-06-20");
+  });
+
+  it("returns the event unchanged when nothing whitelisted changed", () => {
+    const series = customSeries();
+    const stamped = applyCustomStamp(series[1], ["notARealField"]);
+    expect(stamped).toBe(series[1]);
+  });
+});
+
+describe("planResetOccurrence", () => {
+  it("rebuilds a customized row from the nearest clean sibling's template fields", () => {
+    const series = customSeries(); // a0..a4, times 540/600, title "Morning meeting"
+    // a2 (2026-06-23) carries a customized time + title.
+    series[2] = {
+      ...series[2],
+      startMin: 900,
+      endMin: 960,
+      title: "Moved late",
+      custom: ["startMin", "endMin", "title"],
+    };
+    const plan = planResetOccurrence(series, series[2]);
+    expect(plan.removes).toEqual([]);
+    expect(plan.upserts).toHaveLength(1);
+    const row = plan.upserts[0];
+    // Identity + slot kept.
+    expect(row.id).toBe("a2");
+    expect(row.date).toBe("2026-06-23");
+    expect(row.seriesId).toBe("series-1");
+    // Template fields restored from a clean sibling (the untouched 540/600 meeting).
+    expect(row.startMin).toBe(540);
+    expect(row.endMin).toBe(600);
+    expect(row.title).toBe("Morning meeting");
+    // Exception bookkeeping cleared.
+    expect(row.custom).toBeUndefined();
+    expect(row.origDate).toBeUndefined();
+  });
+
+  it("clears origDate + custom on a date-moved reset, keeping the live date", () => {
+    const series = customSeries();
+    series[1] = {
+      ...series[1],
+      date: "2026-06-28",
+      origDate: "2026-06-22",
+      startMin: 900,
+      endMin: 960,
+      custom: ["date", "startMin", "endMin"],
+    };
+    const plan = planResetOccurrence(series, series[1]);
+    const row = plan.upserts[0];
+    expect(row.date).toBe("2026-06-28"); // where it currently lives
+    expect(row.origDate).toBeUndefined();
+    expect(row.custom).toBeUndefined();
+    expect(row.startMin).toBe(540); // adopted the clean template time
+  });
+
+  it("strips the exception in place when there is no clean sibling", () => {
+    // A lone occurrence carrying a customization: nothing fresher to adopt.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-21" };
+    const [only] = buildSeriesEvents(
+      { ...template, startMin: 900, endMin: 960 },
+      ["2026-06-21"],
+      "series-1",
+      rule,
+      counter(),
+      "2026-06-21",
+      "solo"
+    );
+    const customized: CalendarEvent = { ...only, custom: ["startMin", "endMin"] };
+    const plan = planResetOccurrence([customized], customized);
+    const row = plan.upserts[0];
+    expect(row.id).toBe("solo");
+    expect(row.custom).toBeUndefined();
+    // Values are kept (no fresher template), but it's no longer an exception.
+    expect(row.startMin).toBe(900);
+  });
+
+  it("a reset row regenerates normally on a later all-edit (no longer preserved)", () => {
+    const series = customSeries();
+    series[2] = { ...series[2], startMin: 900, endMin: 960, custom: ["startMin", "endMin"] };
+    const reset = planResetOccurrence(series, series[2]).upserts[0];
+    const afterReset = series.map((e) => (e.id === reset.id ? reset : e));
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed", startMin: 480, endMin: 540 };
+    const plan = planSeriesEdit(afterReset, afterReset[0], renamed, afterReset[0].date, rule, "all", counter());
+    // The formerly-customized row now takes the new template time like any plain row.
+    const row = plan.upserts.find((e) => e.date === "2026-06-23")!;
+    expect(row.startMin).toBe(480);
+    expect(row.title).toBe("Renamed");
+  });
+});
+
+describe("escalate-equivalence: this-edit then all-edit ≡ all-edit directly", () => {
+  it("reaches the same final rows (modulo ids/updatedAt) whether or not a this-edit preceded the all-edit", () => {
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-25" };
+    const renamed: SeriesTemplate = { ...template, title: "Renamed", startMin: 480, endMin: 540 };
+
+    // Path A: this-edit a2's time, THEN all-edit rename from the pre-edit snapshot.
+    const seriesA = customSeries();
+    const thisEdit = planOccurrenceEdit(seriesA, seriesA[2], {
+      ...seriesA[2],
+      startMin: 900,
+      endMin: 960,
+    }).upserts[0];
+    const afterThis = seriesA.map((e) => (e.id === thisEdit.id ? thisEdit : e));
+    const planA = planSeriesEdit(afterThis, afterThis[0], renamed, afterThis[0].date, rule, "all", counter());
+
+    // Path B: no this-edit; the a2 row simply carries the same customization
+    // already (equivalent starting state), then the SAME all-edit.
+    const seriesB = customSeries();
+    seriesB[2] = { ...seriesB[2], startMin: 900, endMin: 960, custom: ["startMin", "endMin"] };
+    const planB = planSeriesEdit(seriesB, seriesB[0], renamed, seriesB[0].date, rule, "all", counter());
+
+    // Compare final rows by (date, title, startMin, endMin) — ids/updatedAt aside.
+    const shape = (rows: CalendarEvent[]) =>
+      rows
+        .map((e) => `${e.date}|${e.title}|${e.startMin}|${e.endMin}`)
+        .sort();
+    expect(shape(planA.upserts)).toEqual(shape(planB.upserts));
+    // The customized row keeps its time in both; everything else is renamed.
+    const custA = planA.upserts.find((e) => e.date === "2026-06-23")!;
+    expect(custA.startMin).toBe(900);
+    expect(custA.title).toBe("Renamed");
   });
 });

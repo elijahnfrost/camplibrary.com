@@ -71,6 +71,21 @@
   text-overflow: ellipsis;
 }
 /* The control cluster — pushed to the right edge, with the actions following. */
+/* The "Color by" lens pill — the one cue that card colors are currently a
+   COMPUTED axis (type/rating/location/theme), not stored per-event paint. Quiet
+   chip in the title's voice; disappears in custom mode. */
+.calhead__lens {
+  align-self: center;
+  margin-left: var(--s-4);
+  padding: 2px var(--s-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
 .calhead__controls {
   display: flex;
   align-items: center;
@@ -246,10 +261,15 @@
   border-top-color: color-mix(in srgb, var(--line-soft) 60%, transparent);
 }
 .calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor {
-  border-top-color: color-mix(in srgb, var(--line-soft) 34%, transparent);
+  /* Quarter lines re-tuned: the old 34% mix vanished into the card. Dashed +
+     a touch more ink keeps the 15-min precision readable without the noise of
+     full-strength rules. */
+  border-top-style: dashed;
+  border-top-color: color-mix(in srgb, var(--line-soft) 55%, transparent);
 }
 .calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor[data-time$=":30:00"] {
-  border-top-color: color-mix(in srgb, var(--line-soft) 48%, transparent);
+  border-top-style: solid;
+  border-top-color: color-mix(in srgb, var(--line-soft) 72%, transparent);
 }
 /* The sticky time gutter floats over the column lanes, whose dotted 15-min lines
    span the full scroll width — including the slice that runs behind the gutter.
@@ -911,6 +931,160 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   padding-inline: 0;
 }
 
+/* ---------- rail "Today" card (Now/Next glance) ----------
+   The operator's Now/Next read, moved off the retired Home tab to the TOP of the
+   calendar rail (above the mini-month). A compact card in the rail vocabulary:
+   the shared .sidesection head, then one or two rows carrying the same 3px
+   category spine (--cal-tint) the event cards / catalog rows use. */
+.caltoday {
+  flex: none;
+}
+.caltoday__head {
+  margin-bottom: var(--s-3);
+}
+.caltoday__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.caltoday__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  background: var(--content);
+  border: 1.5px solid var(--line);
+  border-left: 3px solid var(--cal-tint, var(--line));
+  border-radius: var(--r-md);
+}
+.caltoday__row--link {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.caltoday__row--link:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+  border-left-color: var(--cal-tint, var(--line));
+}
+.caltoday__row--link:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.caltoday__row--link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.caltoday__badge {
+  flex: none;
+  margin-top: 1px;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.caltoday__badge--now {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent-ink);
+}
+.caltoday__badge--next {
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+.caltoday__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.caltoday__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body);
+  line-height: 1.1;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caltoday__row--link:hover .caltoday__title {
+  color: var(--accent-ink);
+}
+.caltoday__meta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.caltoday__time {
+  color: var(--ink-soft);
+}
+.caltoday__meal {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--ink-soft);
+}
+.caltoday__empty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.caltoday__emptyic {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+}
+
+/* ---------- rail "Subscribe" section (.ics feed) ----------
+   The Subscribe control, moved off the calendar header into the rail. It sits as
+   its own section below View / Weather; the trigger stretches full-width so it
+   reads as a rail row rather than a floating header pill. The popover itself is
+   unchanged (it anchors to the trigger). */
+.cal-subscribe {
+  flex: none;
+}
+.cal-subscribe .campswitch,
+.calset__subscribe .campswitch {
+  display: flex;
+}
+.cal-subscribe .campswitch__trigger,
+.calset__subscribe .campswitch__trigger {
+  width: 100%;
+  max-width: none;
+  justify-content: flex-start;
+}
+/* The trailing chevron pushes to the right edge, like the View section head. */
+.cal-subscribe .campswitch__trigger > svg:last-child,
+.calset__subscribe .campswitch__trigger > svg:last-child {
+  margin-left: auto;
+}
+/* Mobile sheet: a touch-tall trigger to match the sheet's other controls. */
+.calset__subscribe .campswitch__trigger {
+  height: var(--tap);
+}
+
 /* The "View" header is a toggle (folds the whole settings ledger away to keep the
    rail clean). It still reads as the section head — title left, chevron right. */
 .cal-view__head {
@@ -936,7 +1110,9 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     color var(--t-fast) var(--ease);
 }
 .cal-view.is-open .cal-view__chev {
-  transform: rotate(180deg);
+  /* Right when collapsed, down when open — the one disclosure affordance used
+     by every collapsible (camps rail, manager sections). */
+  transform: rotate(90deg);
 }
 .cal-view__head:hover .sidesection__title,
 .cal-view__head:hover .cal-view__chev {
@@ -1304,55 +1480,12 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   letter-spacing: 0.04em;
   color: var(--ink-soft);
 }
+/* The QuickAdd field is the canonical .searchfield (--content modifier for the
+   sheet surface + fixed height; --name modifier drops the icon in name mode).
+   This rule only carries the sheet's horizontal gutter + no-shrink layout. */
 .quickadd__search {
   flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
   margin: 0 var(--qa-gx);
-  padding: 0 var(--s-4);
-  height: var(--control-md);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--content);
-  color: var(--ink-soft);
-}
-.quickadd__search:focus-within {
-  border-color: var(--accent);
-}
-.quickadd__search svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-}
-.quickadd__search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  outline: none;
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  color: var(--ink);
-}
-.quickadd__search button {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: var(--r-round);
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.quickadd__search button svg {
-  width: 14px;
-  height: 14px;
 }
 /* Type-to-search results: a CAPPED dropdown-style region (not an always-open
    catalog), so it never crams the schedule and dropdowns have room to open. */
@@ -1475,6 +1608,20 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   letter-spacing: 0.03em;
   color: var(--ink-soft);
 }
+/* An informational coverage dot before the meta: amber = one item short,
+   red = can't run yet. Purely a heads-up — the row is always pickable. */
+.quickadd__cov {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+}
+.quickadd__cov--almost {
+  background: var(--amber);
+}
+.quickadd__cov--cant {
+  background: var(--danger);
+}
 .quickadd__empty,
 .quickadd__prompt {
   margin: 0;
@@ -1483,6 +1630,141 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-ui);
 }
+/* A quiet, informational same-day kit conflict line — amber, never blocking the
+   create. Sits under the list / name section, aligned to the quickadd gutter. */
+.quickadd__conflict {
+  margin: var(--s-3) var(--qa-gx) 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  color: var(--amber);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+}
+/* ---------- meal preset chips (QuickAdd create empty state) ----------
+   A first-class shortcut for the day's meals, shown only before any typing so it
+   never intrudes on the fast type-to-place path. A quiet eyebrow + a row of soft
+   chips; each pre-fills the editor. A "tag them instead" hint (when same-titled
+   untagged events exist) routes the retro-tag bulk so a chip never double-books. */
+.quickadd__meals {
+  padding: var(--s-3) var(--qa-gx) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.quickadd__meals-eyebrow {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.quickadd__mealchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.quickadd__mealchip {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  cursor: pointer;
+}
+.quickadd__mealchip:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
+}
+.quickadd__mealhint {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  color: var(--amber);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- meal editor: read-only dietary panel ----------
+   Pinned at the top of a meal event's editor so the highest-stakes constraints
+   (severe first) are seen before anything else. Quiet card with severity-coded
+   rows and a "Manage…" link to the roster editor. */
+.quickadd__diet {
+  margin: var(--s-3) var(--qa-gx) 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+}
+.quickadd__diet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.quickadd__diet-title {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.quickadd__diet-manage {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.quickadd__diet-list {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.quickadd__diet-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink);
+}
+.quickadd__diet-sev {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.quickadd__diet-row--avoid .quickadd__diet-sev {
+  background: var(--amber);
+}
+.quickadd__diet-row--severe .quickadd__diet-sev {
+  background: var(--danger);
+}
+.quickadd__diet-row--severe .quickadd__diet-label {
+  font-weight: 600;
+}
+.quickadd__diet-detail {
+  color: var(--ink-soft);
+}
+.quickadd__diet-empty {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+}
+
 .quickadd__searchform {
   display: contents;
 }
@@ -1572,6 +1854,28 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 /* The "day note" zone: prose, set apart from the pill ledger above it. A header
    row (icon · title · where-it-goes hint) over a calm full-width textarea — so it
    reads as one deliberate field, not a giant box crammed among the dropdowns. */
+/* The Recover time property row: two quiet inline actions (the touch door into
+   the day-shift card) — same underline-on-hover link vocabulary as
+   .quickadd__backup-btn, the row's nearest neighbor in the ledger. */
+.quickadd__recover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.quickadd__recover-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.quickadd__recover-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
 /* The start–end Time row: a thin dash between the two time pills, then a faint
    derived length — "important to have, not to see." */
 .quickadd__timedash {
@@ -1594,6 +1898,76 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   min-height: 2.6em;
   font: inherit;
   line-height: 1.4;
+}
+/* The Backup plans property row: the resolved fallbacks as compact rows with a
+   per-row [Swap], plus copy-on-write "Edit backups…" / "No backups" actions. */
+.quickadd__backuprow .quickadd__backups {
+  width: 100%;
+}
+.quickadd__backups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.quickadd__backuplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.quickadd__backup {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+.quickadd__backup-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.quickadd__backup-tag {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.quickadd__backup-swap {
+  flex: none;
+}
+.quickadd__backup-empty {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.quickadd__backup-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.quickadd__backup-btn {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.quickadd__backup-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 /* The chosen library row in the pick-a-time posture: it wears the event
    card's own tinted wash — a preview of the block it's about to become. */
@@ -1753,7 +2127,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
-  gap: var(--s-5);
+  flex-wrap: wrap; /* the escalation toast can carry 2–3 actions + Undo */
+  justify-content: center;
+  gap: var(--s-3) var(--s-5);
+  max-width: min(92vw, 560px);
   background: var(--ink);
   color: var(--paper);
   border-radius: var(--r-md);
@@ -2129,6 +2506,185 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   height: 11px;
 }
 
+/* ---------- pinned events ----------
+   A small pushpin marks an event held in place (the day-shift firewall). Sits
+   beside the recurrence loop, sharing its muted, subtle treatment so it reads as
+   a quiet affordance, not a loud badge. Only painted when event.pinned is set
+   (threaded through the adapter's extendedProps), so unpinned cards are
+   untouched. Filled (not stroked) so a 12px pushpin still reads. */
+.cal-card__pin,
+.cal-chip__pin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: var(--ink-soft);
+  stroke: none;
+  opacity: 0.8;
+}
+.cal-chip__pin {
+  width: 11px;
+  height: 11px;
+}
+
+/* ---------- "edited" tick (a this-customized series member) ----------
+   A small pencil beside the recurrence loop marks a per-occurrence exception
+   (durably-overridden fields). Painted only when extendedProps.customized is set
+   (an event.custom list), so plain cards + non-customized members are untouched.
+   Shares the muted, subtle treatment of the repeat/pin glyphs. */
+.cal-card__edited,
+.cal-chip__edited {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: var(--ink-soft);
+  stroke: none;
+  opacity: 0.75;
+}
+.cal-chip__edited {
+  width: 11px;
+  height: 11px;
+}
+
+/* ---------- split-day leg chip ("1/2 · 2/2") ----------
+   One leg of a same-day linked pair carries a tiny ordinal chip so the two runs
+   read as legs of one unit. Quiet — a hairline pill, not a loud badge. */
+.cal-card__leg,
+.cal-chip__leg {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--r-round);
+  border: 1px solid color-mix(in srgb, var(--cal-tint, var(--ink-soft)) 45%, transparent);
+  color: var(--ink-soft);
+  opacity: 0.9;
+}
+
+/* ---------- meal glyph + severe-dietary badge ----------
+   A meal block (lunch, AM/PM snack) wears a small fork+spoon glyph beside the
+   pin/repeat glyphs, sharing their muted, subtle treatment. When the camp has any
+   SEVERE dietary constraint on file, a meal card ALSO shows a compact red count
+   badge — a persistent reminder to check the roster before serving. */
+.cal-card__meal,
+.cal-chip__meal {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+.cal-chip__meal {
+  width: 11px;
+  height: 11px;
+}
+.cal-card__diet {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--hand-sc);
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: var(--r-round);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+/* ---------- backup-plan badge ----------
+   A small corner glyph on any card whose placement resolves to a backup plan (an
+   umbrella for a rain plan, else a generic swap loop; a count when >1). Shares the
+   muted, subtle treatment of the pin/repeat/meal glyphs. */
+.cal-card__backup,
+.cal-chip__backup {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+.cal-card__backup svg,
+.cal-chip__backup svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-chip__backup svg {
+  width: 11px;
+  height: 11px;
+}
+.cal-card__backup-n {
+  font-family: var(--hand-sc);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+/* ---------- guidance bands + closed-day shading (FC background events) ----------
+   A guidance band is a soft, recurring time frame drawn BEHIND the grid as a
+   FullCalendar background event. Quiet wash + a small inline label riding the top
+   edge, so it shapes the day without competing with real blocks. Non-interactive
+   (a click passes through to create). Closed-day shading is the out-of-window
+   margins each day (before open / after close) — a muted diagonal wash so
+   placing on closed time reads as "outside hours" without being blocked. */
+.fc .fc-bg-event.cal-band,
+.fc .fc-bg-event.cal-closed {
+  /* Non-interactive v1: clicks pass through to the grid so a band/shaded area
+     still creates when clicked (dateClick / select already except bg events). */
+  pointer-events: none;
+}
+.fc .fc-bg-event.cal-band {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  opacity: 1;
+}
+.cal-band__inner {
+  position: relative;
+  height: 100%;
+  padding: 2px 6px;
+}
+.cal-band__label {
+  font-family: var(--hand-sc);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--ink-soft) 82%, var(--accent));
+  opacity: 0.9;
+}
+.fc .fc-bg-event.cal-closed {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--ink-soft) 10%, transparent),
+    color-mix(in srgb, var(--ink-soft) 10%, transparent) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  opacity: 1;
+}
+
+/* ---------- "Mark as meal" picker (retro-tag) ----------
+   The cursor-anchored meal-kind picker (single event OR multi-select). Shares the
+   cselect option vocabulary; the leading meal glyph reads as the tag it applies. */
+.cal-mealpick__glyph {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  color: var(--ink-soft);
+}
+.cal-mealpick__clear {
+  color: var(--ink-soft);
+}
+
 /* ---------- the Repeat control inside QuickAdd ----------
    RepeatField renders bare .ledger__row lines now (no wrapper element); the
    parent ledger frames them. The weekday toggles sit on their own ledger row,
@@ -2173,6 +2729,111 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* The BLACKOUT toggles (Except row) reuse the weekday-toggle shape but paint the
+   "on" state as a struck-out / danger-tinted pill (a day REMOVED, not added), so
+   the two rows never read the same. */
+.repeatfield__day--except.is-on {
+  background: color-mix(in srgb, var(--danger, #b4552f) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--danger, #b4552f) 55%, var(--line));
+  color: var(--ink);
+  text-decoration: line-through;
+}
+
+/* Skipped-dates ledger — each exdate on its own row with a Restore link. */
+.repeatfield__skips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  width: 100%;
+}
+.repeatfield__skip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.repeatfield__skipdate {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.repeatfield__restore {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--accent-ink, var(--ink));
+  text-decoration: underline;
+}
+.repeatfield__restore:hover {
+  color: var(--ink);
+}
+.repeatfield__restore:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: var(--r-xs, 3px);
+}
+
+/* ---------- skip-days picker (reuses the .cal-popover surface) ----------
+   The series' upcoming occurrences as toggle chips + a live summary and a commit
+   button. Rides the shared floating card, so it clamps/docks like the others. */
+.cal-skipdays__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 220px;
+  max-width: 300px;
+}
+.cal-skipdays__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.cal-skipdays__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.cal-skipdays__chip {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  padding: var(--s-1) var(--s-2);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.cal-skipdays__chip:hover {
+  border-color: var(--ink-soft);
+}
+.cal-skipdays__chip:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.cal-skipdays__chip.is-on {
+  background: color-mix(in srgb, var(--danger, #b4552f) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--danger, #b4552f) 55%, var(--line));
+  color: var(--ink);
+  text-decoration: line-through;
+}
+.cal-skipdays__summary {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.cal-skipdays__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
 }
 
 /* ---------- repeating edit/delete scope chooser ---------- */
@@ -2558,6 +3219,27 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* Rain lens: when a day's Rain Review fires, the weather summary tints and grows a
+   small umbrella so the day reads "check the backups". Composed INTO the existing
+   summary (no extra chip); clicking it opens the Rain Review panel. */
+.cal-wx-day--rain {
+  background: color-mix(in srgb, var(--wx-rain, var(--accent)) 16%, transparent);
+  color: var(--ink);
+}
+.cal-wx-day--rain:hover {
+  background: color-mix(in srgb, var(--wx-rain, var(--accent)) 26%, transparent);
+}
+.cal-wx-day__rain {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: color-mix(in srgb, var(--wx-rain, var(--accent)) 80%, var(--ink));
+}
 /* Day-mode summary pins to the TOP-RIGHT corner of the column header (mirroring
    the hour-mode chip's corner): the weekday + numeral stay centred as normal and
    the forecast tucks into the corner. The chip is compact — a small glyph with
@@ -2590,6 +3272,308 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   flex-direction: column;
   gap: 0;
   line-height: 1.12;
+}
+
+/* ---------- same-day kit contention ----------
+   A small "gather" chip trailing the weather glyph in the timed-view day header:
+   it renders only when the day needs kit, and its tone escalates quiet → amber
+   (a soft warning) → red (a hard conflict). Clicking it opens the Gather popover.
+   Rendered by renderDayHeader (React) inside .cal-dayhead, so it flows under the
+   weekday + date the same way the day-weather summary does. */
+.cal-kit-chip {
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: 1px 3px;
+  cursor: pointer;
+  color: var(--ink-faint);
+  line-height: 0;
+  transition:
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.cal-kit-chip__glyph {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-kit-chip--amber {
+  color: var(--amber);
+}
+.cal-kit-chip--red {
+  color: var(--danger);
+}
+.cal-kit-chip:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cal-kit-chip--amber:hover {
+  color: var(--amber);
+}
+.cal-kit-chip--red:hover {
+  color: var(--danger);
+}
+.cal-kit-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- Gather popover (reuses the .cal-popover surface) ---------- */
+/* Hard conflicts pinned on top — each names the material + the overlapping blocks
+   and offers a "We have several" action that marks the item plenty. */
+.cal-gather__conflicts {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.cal-gather__conflict {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--danger) 8%, var(--card));
+}
+.cal-gather__conflict-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.cal-gather__conflict-title {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--danger-ink);
+}
+.cal-gather__conflict-blocks {
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.cal-gather__plenty {
+  flex: none;
+  white-space: nowrap;
+}
+/* The gather list — one row per needed material, its status glyph + name +
+   status text, cycling stock on tap when staff. */
+.cal-gather__list {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cal-gather__row {
+  border-top: 1px solid var(--line);
+}
+.cal-gather__row:first-child {
+  border-top: 0;
+}
+.cal-gather__cycle,
+.cal-gather__row--static {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-2);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.cal-gather__cycle {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.cal-gather__cycle:hover {
+  background: var(--chrome-well);
+}
+.cal-gather__cycle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cal-gather__glyph {
+  flex: none;
+  width: 1.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.cal-gather__glyph--have,
+.cal-gather__glyph--substituted {
+  color: var(--accent);
+}
+.cal-gather__glyph--low {
+  color: var(--amber);
+}
+.cal-gather__glyph--out,
+.cal-gather__glyph--missing {
+  color: var(--danger);
+}
+.cal-gather__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.cal-gather__status {
+  flex: none;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+
+/* ---------- Rain Review panel (reuses .cal-popover surface) ----------
+   The day's at-risk outdoor blocks and their backups: a row per block with a
+   [Swap] or [Pick backup…], a "N% rain" header, and a footer (Switch all / Shift
+   day / Dismiss). */
+.cal-rain {
+  width: 320px;
+  max-width: min(320px, 92vw);
+}
+.cal-rain__title-glyph {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-right: var(--s-2);
+  vertical-align: -2px;
+}
+.cal-rain__list {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Row anatomy matches .cal-gather__row (the other cal-popover list) — a flush
+   list separated by a top rule, not a bordered card. */
+.cal-rain__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-2);
+  border-top: 1px solid var(--line);
+}
+.cal-rain__row:first-child {
+  border-top: 0;
+}
+.cal-rain__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.cal-rain__when {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.cal-rain__title {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.cal-rain__arrow {
+  color: var(--ink-faint);
+}
+.cal-rain__alt {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--accent-ink);
+}
+.cal-rain__swap,
+.cal-rain__pick {
+  flex: none;
+  white-space: nowrap;
+}
+.cal-rain__picker {
+  flex-basis: 100%;
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px dashed var(--line-soft);
+}
+/* Option rows read like the QuickAdd search list (.quickadd__item): a flat,
+   hover-washed row — not a bordered card per option. */
+.cal-rain__pickopt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3) var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.cal-rain__pickopt:hover {
+  background: var(--chrome-well);
+}
+.cal-rain__pickname {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.cal-rain__pickmeta {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.cal-rain__empty {
+  flex-basis: 100%;
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.cal-rain__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1.4px solid var(--line-soft);
+}
+
+/* ---------- Swap-to-backup picker (reuses the .cselect__menu list) ---------- */
+.cal-swappick__glyph {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-soft);
 }
 
 /* ---------- detail card (reuses .cal-popover surface) ---------- */
@@ -2811,4 +3795,178 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .cal-wx-loc__resultmeta {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* ---- ShiftBar (.cal-shift) — the day-shift / running-long card ----
+   Composes the .cal-popover frame. Delta chips read like the QuickAdd meal
+   chips (selected = the app's chip-on green); the hold pin is the checkbox's
+   own label, so the row stays one quiet line: title · old→new · pin. */
+.cal-shift {
+  width: min(340px, calc(100vw - 2 * var(--s-6)));
+}
+.cal-shift__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: var(--s-3);
+  vertical-align: baseline;
+}
+.cal-shift__deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+.cal-shift__chip {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  cursor: pointer;
+}
+.cal-shift__chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.cal-shift__chip.is-on {
+  background: var(--chip-on, var(--accent));
+  border-color: var(--chip-on, var(--accent));
+  color: var(--paper);
+}
+.cal-shift__stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.cal-shift__step {
+  width: var(--s-8);
+  height: var(--s-8);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  line-height: 1;
+  cursor: pointer;
+}
+.cal-shift__amount {
+  min-width: 72px;
+  text-align: center;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.cal-shift__summary {
+  margin: var(--s-4) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.cal-shift__list,
+.cal-shift__held,
+.cal-shift__notes {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.cal-shift__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+}
+.cal-shift__row:first-child {
+  border-top: 0;
+}
+.cal-shift__rowtitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.cal-shift__rowtime {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.cal-shift__arrow {
+  color: var(--ink-soft);
+}
+.cal-shift__row--held .cal-shift__rowtitle {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink-soft) 50%, transparent);
+}
+/* The hold toggle: the checkbox is visually replaced by its pin glyph — quiet
+   outline normally, filled/tinted when held. Keyboard/AT still get the input. */
+.cal-shift__hold {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--s-8);
+  height: var(--s-8);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.cal-shift__hold input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.cal-shift__pinglyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.cal-shift__hold:hover .cal-shift__pinglyph {
+  stroke: var(--ink);
+}
+.cal-shift__hold:has(input:checked) .cal-shift__pinglyph,
+.cal-shift__hold--on .cal-shift__pinglyph {
+  fill: color-mix(in srgb, var(--hl) 30%, transparent);
+  stroke: var(--ink);
+}
+.cal-shift__hold:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cal-shift__notes {
+  max-height: none;
+}
+.cal-shift__note {
+  padding: var(--s-1) 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--danger-ink);
+}
+.cal-shift__note--pastClose {
+  color: var(--ink-soft);
+}
+.cal-shift__commit {
+  width: 100%;
+  margin-top: var(--s-5);
 }

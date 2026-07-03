@@ -1,5 +1,6 @@
 import { normalizeHexColor } from "./color";
 import { AGE_GROUPS, CATEGORIES } from "./data";
+import { normalizeActivityAlternates } from "./alternates";
 import { normalizePlaybook } from "./playbooks";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
 import type {
@@ -8,6 +9,7 @@ import type {
   ActivityMedia,
   AgeGroupId,
   CategoryId,
+  MaterialRef,
   Place,
   Prep,
 } from "./types";
@@ -53,6 +55,23 @@ function mediaArray(value: unknown): ActivityMedia[] {
       return title ? { title, url } : { url };
     })
     .filter((item): item is ActivityMedia => Boolean(item));
+}
+
+// Canonical kit references: an id (trimmed, ≤80) plus an optional note (trimmed,
+// ≤120). Malformed rows are dropped and empty-id rows can't ride through, so a
+// consumer only ever sees clean refs. Ids are NOT de-duped here — resolveRefs
+// dedupes at read time, and the form owns row identity — but the shape is clean.
+function materialRefArray(value: unknown): MaterialRef[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): MaterialRef | null => {
+      if (!isRecord(item)) return null;
+      const id = trimmedString(item.id).slice(0, 80);
+      if (!id) return null;
+      const note = trimmedString(item.note).slice(0, 120);
+      return note ? { id, note } : { id };
+    })
+    .filter((item): item is MaterialRef => Boolean(item));
 }
 
 function linkArray(value: unknown): ActivityLink[] {
@@ -169,59 +188,86 @@ export function normalizeActivity(value: unknown): Activity | null {
   if (!id) return null;
 
   const { ageMin, ageMax, ages } = normalizeAgeFields(value);
-  const activity: Activity = {
-    id,
-    title: trimmedString(value.title) || "Untitled activity",
-    type: categoryId(value.type),
-    place: place(value.place),
-    ageMin,
-    ageMax,
-    durationMin: Math.min(TOTAL_MIN, positiveWholeNumber(value.durationMin) ?? DEFAULT_DURATION_MIN),
-    groupMin: positiveWholeNumber(value.groupMin),
-    groupMax: positiveWholeNumber(value.groupMax),
-    energy: clampedWholeNumber(value.energy, 1, 0, 3),
-    prep: prep(value.prep),
-    blurb: trimmedString(value.blurb),
-    materials: stringArray(value.materials),
-    steps: stringArray(value.steps),
-    notes: trimmedString(value.notes),
-    safety: trimmedString(value.safety),
-    ages,
-    rating: clampedWholeNumber(value.rating, 0, 0, 5),
-  };
+  // Spread the raw record first so keys this build doesn't know (fields added by
+  // a newer client) round-trip instead of being erased by a stale client's next
+  // whole-doc save. Every field this build DOES know is overwritten below —
+  // known-but-optional fields via delete-then-reattach — so a malformed value
+  // can never ride through the spread and shadow a validated one.
+  const activity = { ...value } as unknown as Activity;
+  activity.id = id;
+  activity.title = trimmedString(value.title) || "Untitled activity";
+  activity.type = categoryId(value.type);
+  activity.place = place(value.place);
+  activity.ageMin = ageMin;
+  activity.ageMax = ageMax;
+  activity.durationMin = Math.min(TOTAL_MIN, positiveWholeNumber(value.durationMin) ?? DEFAULT_DURATION_MIN);
+  activity.groupMin = positiveWholeNumber(value.groupMin);
+  activity.groupMax = positiveWholeNumber(value.groupMax);
+  activity.energy = clampedWholeNumber(value.energy, 1, 0, 3);
+  activity.prep = prep(value.prep);
+  activity.blurb = trimmedString(value.blurb);
+  activity.materials = stringArray(value.materials);
+  activity.steps = stringArray(value.steps);
+  activity.notes = trimmedString(value.notes);
+  activity.safety = trimmedString(value.safety);
+  activity.ages = ages;
+  activity.rating = clampedWholeNumber(value.rating, 0, 0, 5);
 
-  // Alternate names ride alongside the rebuilt object; without this re-attach the
-  // clean rebuild would silently drop them on every save (same rule as
-  // materialTags/color/playbook). De-duped, trimmed, empties removed.
+  // Alternate names: de-duped, trimmed, empties removed.
+  delete activity.altNames;
   if (Array.isArray(value.altNames)) {
     const altNames = [...new Set(stringArray(value.altNames))];
     if (altNames.length) activity.altNames = altNames;
   }
 
+  delete activity.materialTags;
   if (Array.isArray(value.materialTags)) {
     activity.materialTags = stringArray(value.materialTags);
   }
 
-  // Per-item color rides in the payload; re-attach or the clean rebuild strips it.
+  // Canonical kit references. Validated (id + optional note), attached only when
+  // at least one row survives — so a malformed payload leaves the field absent
+  // rather than an empty array, mirroring the other optionals.
+  delete activity.materialRefs;
+  if (Array.isArray(value.materialRefs)) {
+    const materialRefs = materialRefArray(value.materialRefs);
+    if (materialRefs.length) activity.materialRefs = materialRefs;
+  }
+
+  // Default backup plans. Registered on Activity via module augmentation in
+  // lib/alternates; validated with the SAME rules as the event list (title ≤80
+  // required, reason whitelist default "rain", locations rules, cap 3), attached
+  // only when at least one clean row survives — so a malformed payload leaves the
+  // field absent, mirroring the other optionals.
+  delete activity.alternates;
+  if (Array.isArray(value.alternates)) {
+    const alternates = normalizeActivityAlternates(value.alternates);
+    if (alternates.length) activity.alternates = alternates;
+  }
+
+  delete activity.color;
   const color = normalizeHexColor(value.color);
   if (color) activity.color = color;
 
+  delete activity.playbook;
   const playbook = normalizePlaybook(value.playbook);
   if (playbook) activity.playbook = playbook;
 
-  // Media / links / variations / subsets ride in the payload; re-attach or the
-  // clean rebuild strips them (same rule as altNames/materialTags/color/playbook).
+  delete activity.media;
   const media = mediaArray(value.media);
   if (media.length) activity.media = media;
 
+  delete activity.links;
   const links = linkArray(value.links);
   if (links.length) activity.links = links;
 
+  delete activity.variations;
   if (Array.isArray(value.variations)) {
     const variations = stringArray(value.variations);
     if (variations.length) activity.variations = variations;
   }
 
+  delete activity.subsets;
   if (Array.isArray(value.subsets)) {
     const subsets = stringMatrix(value.subsets);
     // Keep only when at least one row carries a sub-step, but preserve the full

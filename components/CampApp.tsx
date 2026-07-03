@@ -7,17 +7,31 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import type { Activity, LibraryView, TabId } from "@/lib/types";
+import type { Activity, LibraryCollection, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
+import { catalogNameFor } from "@/lib/materialCatalog";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
-import { formatEventDateLabel } from "@/lib/calendar/dates";
+import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
-import { campDayWindow, hourOptionMinutes } from "@/lib/camps";
-import type { CalendarEvent } from "@/lib/calendar/types";
+import {
+  campDayWindow,
+  clampOverrideWindow,
+  hourOptionMinutes,
+  OVERRIDE_EARLIEST_OPEN_MIN,
+  OVERRIDE_LATEST_CLOSE_MIN,
+  type Camp,
+  type CampSnapMin,
+  type Weekday,
+} from "@/lib/camps";
+import { createDietaryId, setMenuNote, type DietaryEntry } from "@/lib/meals";
+import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
+import type { CalendarEvent, DateKey, MealKind } from "@/lib/calendar/types";
+import { applyCustomStamp } from "@/lib/calendar/recurrence";
+import { healEvent } from "@/lib/calendar/adapter";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
@@ -31,17 +45,23 @@ import { usePreviewAuth } from "./AuthControls";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
 import { Filters } from "./Filters";
-import { HomeTab } from "./HomeTab";
 import { LibraryTab } from "./LibraryTab";
-import { ListManagerModal } from "./ListManagerModal";
+import {
+  CampDayStructure,
+  DietarySection,
+  GuidesSection,
+  ListManagerModal,
+} from "./ListManagerModal";
 import { Modal } from "./Modal";
-import { LoadingVeil } from "./primitives";
+import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
+import { Select } from "./floating/Select";
+import { DatePopover } from "./floating/DatePopover";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
 import { StaffSignIn } from "./StaffSignIn";
 import { StaffTab, type StaffTabMode } from "./StaffTab";
 import { useActivityLibrary } from "./useActivityLibrary";
 import { useCamps } from "./useCamps";
-import { useDeviceShape, DESKTOP_MIN } from "./useDeviceShape";
+import { useDeviceShape } from "./useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the
@@ -62,9 +82,10 @@ const PrintTab = dynamic(() => import("./print/PrintTab").then((m) => m.PrintTab
 
 type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof CampIcon] };
 
-// Calendar + Library are the working surfaces. Home is a dashboard reached from
-// the sidebar brand mark (>=768px) — it's a tab on neither the sidebar nor the
-// phone bar. Phones land on Library (see the redirect effect in CampApp).
+// Calendar is now the app's home — the sidebar brand mark goes there, and it's
+// where the retired Home tab's Now/Next glance now lives (the calendar rail's
+// "Today" card). Library / Materials fold together (Materials is a collection
+// dimension inside Library, not a top-level tab).
 const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
@@ -87,11 +108,20 @@ const ADMIN_TAB: NavTab = {
 // onto the main app. Stored unscoped (a per-device UI choice, like the calendar
 // view prefs) under the shared "camp:" store.
 const STORED_TAB_KEY = "currentTab";
-const RESTORABLE_TABS = ["home", "library", "calendar", "print", "staff"] as const;
-const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) =>
-  typeof value === "string" && (RESTORABLE_TABS as readonly string[]).includes(value)
-    ? (value as TabId)
-    : fallback;
+const RESTORABLE_TABS = ["library", "calendar", "print", "staff"] as const;
+// Legacy stored tabs that no longer exist as surfaces migrate forward: the old
+// "home" tab is now the calendar; "materials" is now a collection inside the
+// library, so it restores to the library (CampApp then selects the Materials
+// collection — see the restore effect). Everything else falls through.
+const LEGACY_TAB_MIGRATIONS: Record<string, TabId> = {
+  home: "calendar",
+  materials: "library",
+};
+const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) => {
+  if (typeof value !== "string") return fallback;
+  if ((RESTORABLE_TABS as readonly string[]).includes(value)) return value as TabId;
+  return LEGACY_TAB_MIGRATIONS[value] ?? fallback;
+};
 
 type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
   mode: "sign-in" | "sign-up";
@@ -148,12 +178,88 @@ function StaffPromptModal({
   );
 }
 
-export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
+// The desktop sidebar's ONE entry point into camps: a collapsed-by-default
+// section under the calendar rail (mirrors the calendar's own View/Weather
+// disclosures). Picking a camp switches it inline. The deep editor (per-camp
+// hours, guidance bands, dietary roster, rename, delete) is too rich for a 260px
+// rail, so ONE quiet "Manage camps…" footer row hands off to the existing
+// ListManagerModal — there's no per-row Edit pencil anymore. "New camp" stays
+// as an additive shortcut (it reads as part of the list, not a manage action).
+function CampsRail({
+  camps,
+  activeCampId,
+  onSwitch,
+  onManage,
+  onNew,
+}: {
+  camps: Camp[];
+  activeCampId: string | null;
+  onSwitch: (id: string) => void;
+  /** Opens the camp manager (rename / delete / per-camp hours + roster). */
+  onManage: () => void;
+  onNew: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={"sidesection sidesection--fixed camprail" + (open ? " is-open" : "")}>
+      <button
+        type="button"
+        className="sidesection__head camprail__head"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="sidesection__title">
+          <CampIcon.Home className="camprail__headic" />
+          Camps
+        </span>
+        <CampIcon.ChevronRight className="camprail__chev" />
+      </button>
+      {open && (
+        <div className="sidesection__body camprail__body">
+          {camps.length ? (
+            <ul className="camprail__list">
+              {camps.map((camp) => {
+                const active = camp.id === activeCampId;
+                return (
+                  <li key={camp.id} className={"camprail__row" + (active ? " is-active" : "")}>
+                    <button
+                      type="button"
+                      className="camprail__pick"
+                      onClick={() => onSwitch(camp.id)}
+                      aria-pressed={active}
+                    >
+                      <span className="camprail__dot" aria-hidden="true" />
+                      <span className="camprail__name">{camp.name}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
+          )}
+          <button type="button" className="camprail__new" onClick={onNew}>
+            <CampIcon.Plus />
+            New camp
+          </button>
+          {/* The ONE manage entry — a quiet footer row (typepick__manage voice)
+              that opens the full camp editor. Replaces the per-row Edit pencils. */}
+          <button type="button" className="camprail__manage" onClick={onManage}>
+            Manage camps…
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
   // Only the main app entry remembers/restores its tab. The /admin route mounts
   // with initialTab "admin" — a deliberate, server-gated destination that must
-  // neither be hijacked by the remembered tab nor overwrite it.
-  const persistTab = initialTab === "home";
+  // neither be hijacked by the remembered tab nor overwrite it. Calendar is the
+  // default landing (the app's home), so the main app persists its tab.
+  const persistTab = initialTab === "calendar";
   // A branded veil over the main pane while a heavy surface mounts + settles —
   // FullCalendar and the Paged.js preview jank on first paint, so we reveal them
   // behind a clean loading screen instead of flashing an empty frame. The veil
@@ -218,21 +324,27 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     return () => window.clearTimeout(id);
   }, [veil, calVeilNonce]);
   // Restore the remembered tab before paint, so a reload lands on the last
-  // surface with no flash of Home and the heavy-tab veil raised in the same
-  // render (setTab handles that). Deep links (?auth=, ?activity=) are explicit
-  // intents that win — their own effects set the tab, so skip restore for them.
+  // surface with no flash and the heavy-tab veil raised in the same render
+  // (setTab handles that). Deep links (?auth=, ?activity=) are explicit intents
+  // that win — their own effects set the tab, so skip restore for them. A legacy
+  // stored "materials" restores to the library's Materials collection (the tab
+  // migrates to "library" via parseStoredTab; the raw value selects the seg).
   useLayoutEffect(() => {
     if (!persistTab) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") || params.get("activity")) return;
-    const stored = readStored<TabId | null>(STORED_TAB_KEY, null, parseStoredTab);
+    const rawStored = readStored<string | null>(STORED_TAB_KEY, null, (v, f) =>
+      typeof v === "string" ? v : f
+    );
+    const stored = parseStoredTab(rawStored, null);
+    if (rawStored === "materials") setCollection("materials");
     if (stored) setTab(stored);
     // Mount-only: restore once, then let normal navigation drive the tab.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist every tab change (runs after the restore layout effect on mount, so
-  // it never clobbers the remembered value with the initial "home").
+  // it never clobbers the remembered value with the initial default tab).
   useEffect(() => {
     if (!persistTab) return;
     writeStored(STORED_TAB_KEY, tab);
@@ -264,6 +376,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const { isDesktop } = useDeviceShape();
 
   const [liveMsg, setLiveMsg] = useState("");
+  // The last sync error the user explicitly dismissed — a DIFFERENT error
+  // message re-arms the visible banner (see the app-toast below).
+  const [dismissedSyncError, setDismissedSyncError] = useState<string | null>(null);
   const [staffPrompt, setStaffPrompt] = useState<StaffPrompt | null>(null);
   // Which form the Staff tab shows when reached signed-out (sign-in vs the
   // invite sign-up). Account state on that tab is driven by the session itself.
@@ -293,18 +408,6 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setStaffTabMode(mode);
     setTab("staff");
   }, [auth.enabled, auth.providerSignedIn, auth.ready, auth.signedIn]);
-
-  // The touch shell (phone + tablet) has no Home tab and no sidebar brand mark,
-  // so an initial "home" landing would be a dead end. Send touch-shell sessions
-  // (<1024) to Library instead. The auth/activity deep-links still win: they set
-  // the tab first, and the functional updater leaves any non-"home" tab untouched.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.matchMedia(`(max-width: ${DESKTOP_MIN - 1}px)`).matches) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("auth") || params.get("activity")) return;
-    setTab((t) => (t === "home" ? "library" : t));
-  }, []);
 
   const requireStaff = useCallback(
     (action: string) => {
@@ -356,6 +459,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     },
     [lib]
   );
+  // Mark a material as `plenty` in the catalog — the calendar Gather popover's "We
+  // have several" action, resolving a same-day hard conflict (we own enough copies
+  // to share across overlapping blocks). Mirrors useActivityLibrary's
+  // setMaterialConsumable: mints an entry under the FROZEN id (carrying the display
+  // label) when the row is derived-only, else flips the flag on the existing entry.
+  // Staff-gated; inert for anonymous / read-only. Ids are frozen forever.
+  const markMaterialPlenty = useCallback(
+    (id: string, label: string) => {
+      if (!requireStaff("edit materials")) return;
+      if (!id) return;
+      cloud.setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === id)) {
+          return previous.map((entry) => (entry.id === id ? { ...entry, plenty: true } : entry));
+        }
+        return [...previous, { id, name: label.trim() || id, plenty: true }];
+      });
+    },
+    [cloud, requireStaff]
+  );
   // Depend on the stable filterEvents callback, not the whole campKit object
   // (rebuilt every render), so the calendar event set memo doesn't recompute on
   // every render.
@@ -372,11 +494,143 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     () => hourOptionMinutes().map((m) => ({ value: m, label: formatClock(m) })),
     []
   );
-  // The camp manager (add / switch / rename / delete) — reached from the calendar
-  // view dropdown's "Manage camps…" entry. Camps are a rarely-used option, so
-  // they no longer occupy a permanent header pill. Opening is ungated (switching
-  // is a local view pref); create/rename/delete stay staff-gated below.
+  // The WIDER clock options (5:00–22:00, 15-min steps) for the day-structure
+  // OVERRIDE editors — weekday hours, dated exceptions, and guidance bands can
+  // reach the wider override bounds (a late finale), where the base 6:00–20:00
+  // range would clip and the Select couldn't represent a stored 20:30 close.
+  const overrideHourOptions = useMemo(() => {
+    const out: { value: number; label: string }[] = [];
+    for (let m = OVERRIDE_EARLIEST_OPEN_MIN; m <= OVERRIDE_LATEST_CLOSE_MIN; m += 15) {
+      out.push({ value: m, label: formatClock(m) });
+    }
+    return out;
+  }, []);
+
+  // Write (or clear) one (date, mealKind) menu note on the meals doc — the meal
+  // editor's "Menu note" row. Pure setMenuNote updater; a blank clears the slot.
+  const setMenuNoteFor = useCallback(
+    (date: DateKey, mealKind: MealKind, text: string) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => setMenuNote(prev, date, mealKind, text));
+    },
+    [cloud, requireStaff]
+  );
+
+  // ---- Per-camp day-structure mutators (weekday hours / dated exceptions / snap)
+  // and the guides + dietary docs. All write straight through cloud.setDoc — the
+  // camps mutators in useCamps.ts stay lean; these day-structure edits (a rarely
+  // touched authoring surface) live with the manager UI that drives them. Every
+  // window is forced through clampOverrideWindow so a payload can't escape bounds.
+  const setCampWeekdayHours = useCallback(
+    (id: string, weekday: Weekday, value: "default" | "closed" | { openMin: number; closeMin: number }) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const weekdayHours = { ...(c.weekdayHours ?? {}) };
+          if (value === "default") delete weekdayHours[weekday];
+          else if (value === "closed") weekdayHours[weekday] = null;
+          else weekdayHours[weekday] = clampOverrideWindow(value.openMin, value.closeMin);
+          const next: Camp = { ...c };
+          if (Object.keys(weekdayHours).length) next.weekdayHours = weekdayHours;
+          else delete next.weekdayHours;
+          return next;
+        })
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const setCampDateHours = useCallback(
+    (id: string, date: DateKey, value: "closed" | { openMin: number; closeMin: number } | null) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const dateHours = { ...(c.dateHours ?? {}) };
+          if (value === null) delete dateHours[date];
+          else if (value === "closed") dateHours[date] = null;
+          else dateHours[date] = clampOverrideWindow(value.openMin, value.closeMin);
+          const next: Camp = { ...c };
+          if (Object.keys(dateHours).length) next.dateHours = dateHours;
+          else delete next.dateHours;
+          return next;
+        })
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const setCampSnap = useCallback(
+    (id: string, snapMin: CampSnapMin) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) => prev.map((c) => (c.id === id ? { ...c, snapMin } : c)));
+    },
+    [cloud, requireStaff]
+  );
+
+  // Guides doc mutators (add / update / delete a guidance band).
+  const addGuide = useCallback(() => {
+    if (!requireStaff("manage camps")) return;
+    const band: GuideBand = {
+      id: createGuideId(),
+      label: "New band",
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+      weekdays: [1, 2, 3, 4, 5],
+    };
+    cloud.setDoc("guides", (prev) => [...prev, band]);
+  }, [cloud, requireStaff]);
+  const updateGuide = useCallback(
+    (id: string, patch: Partial<GuideBand>) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("guides", (prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    },
+    [cloud, requireStaff]
+  );
+  const deleteGuide = useCallback(
+    (id: string) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("guides", (prev) => prev.filter((b) => b.id !== id));
+    },
+    [cloud, requireStaff]
+  );
+
+  // Dietary roster mutators (add / update / delete an entry on the meals doc).
+  const addDietary = useCallback(() => {
+    if (!requireStaff("edit menus")) return;
+    const entry: DietaryEntry = { id: createDietaryId(), label: "New entry", severity: "note" };
+    cloud.setDoc("meals", (prev) => ({ ...prev, dietary: [...prev.dietary, entry] }));
+  }, [cloud, requireStaff]);
+  const updateDietary = useCallback(
+    (id: string, patch: Partial<DietaryEntry>) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => ({
+        ...prev,
+        dietary: prev.dietary.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }));
+    },
+    [cloud, requireStaff]
+  );
+  const deleteDietary = useCallback(
+    (id: string) => {
+      if (!requireStaff("edit menus")) return;
+      cloud.setDoc("meals", (prev) => ({ ...prev, dietary: prev.dietary.filter((e) => e.id !== id) }));
+    },
+    [cloud, requireStaff]
+  );
+
+  // The camp manager (add / switch / rename / delete) — reached from the
+  // sidebar's "Camps" section (desktop) or the calendar settings sheet
+  // (mobile/tablet). Camps are a rarely-used option, so they no longer occupy
+  // a permanent header pill. Opening is ungated (switching is a local view
+  // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
+
+  // The Library holds two collections behind one tab: the activity catalog
+  // (Activities) and the kit inventory (Materials — formerly a top-level tab).
+  // A seg at the far left of the Library toolbar switches between them; the
+  // filter rail applies only to Activities, and search/Add hide under Materials
+  // (which has its own search).
+  const [collection, setCollection] = useState<LibraryCollection>("activities");
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
@@ -385,6 +639,13 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   const [age, setAge] = useState<AgeFilter>("All");
   const [theme, setTheme] = useState<ThemeFilter>("All");
   const [starredOnly, setStarredOnly] = useState(false);
+  // The kit availability lens (All / Ready / +Almost). Inert while the stock map
+  // is unset — the Filters row surfaces a hint pointing at the Materials tab.
+  const [kitLens, setKitLens] = useState<KitLens>("all");
+  // Browse-by-material: set from the Materials tab's "Used by N →" jump. A single
+  // material id the Library narrows to, shown as a dismissible chip. Re-homes the
+  // browse value the retired uses-ANY kit picker used to carry.
+  const [materialId, setMaterialId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   // Duration filter. The slider spans the actual range of lengths in the
   // library (snapped out to a 5-minute grid), so the handles never sit past
@@ -453,6 +714,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   // The search query persists across tab switches — a quick Calendar
   // round-trip shouldn't cost you your search.
 
+  // The stock map is UNSET when the effective (fold-aware) map has no entries —
+  // the kit lens is inert in that case, so the Filters row shows a hint.
+  const kitUnset = useMemo(() => Object.keys(lib.kitStock).length === 0, [lib.kitStock]);
+
   const filtered = useMemo(
     () =>
       lib.all.filter((a) =>
@@ -463,19 +728,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           theme,
           themeAssignments: lib.themeAssignments,
           query,
-          availableMaterialTags: lib.activeAvailableMaterials,
+          kitLens,
+          kitStock: lib.kitStock,
+          materialCatalog: lib.materialCatalog,
+          materialId: materialId ?? undefined,
           minutes: minutesActive ? minutesValue : undefined,
         })
       ),
     [
       lib.all,
-      lib.activeAvailableMaterials,
+      lib.kitStock,
+      lib.materialCatalog,
       lib.themeAssignments,
       cats,
       place,
       age,
       theme,
       query,
+      kitLens,
+      materialId,
       minutesActive,
       minutesValue,
     ]
@@ -526,6 +797,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     timeLabel: string;
     note?: string;
   } | null>(null);
+  // The id of the calendar event the detail sheet was opened FROM (null when
+  // library-opened). Kept SEPARATE from the display-only eventContext so the sheet
+  // can patch that specific placement (per-day material subs) without eventContext
+  // ever carrying a live calendar type.
+  const [detailEventId, setDetailEventId] = useState<string | null>(null);
   // In create mode `detail` is a fresh draft not in the catalog, so it must
   // pass through verbatim; otherwise track the live catalog record by id.
   const detailActivity = detail
@@ -540,6 +816,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
   }, []);
 
   useEffect(() => {
@@ -551,6 +828,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailNonce((n) => n + 1);
     setDetail(lib.byId[activityId]);
   }, [lib.byId]);
@@ -559,16 +837,35 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
 
-  // Home's "Browse by type" tiles jump into the Library pre-filtered to one
-  // category (or all categories for the catch-all links).
-  const goLibrary = useCallback((nextCats: CatFilter) => {
-    setCats(nextCats);
+  // The Materials view's "Used by N activities →" jump: narrow the Library to
+  // one material and land on the Activities collection. Reset the category
+  // filter to All so a stale Type filter can't hide the material's activities.
+  // The chip in the Filters rail dismisses it back to null. Lands on the
+  // Activities collection so the narrowed catalog is what's shown.
+  const browseMaterial = useCallback((id: string) => {
+    setMaterialId(id);
+    setCats(ALL_CATEGORY_IDS);
+    setCollection("activities");
     setTab("library");
   }, []);
+
+  // The reverse jump: the Filters "kit lens needs stock" hint and the run-sheet
+  // "manage materials" links open the Library's Materials collection.
+  const goMaterials = useCallback(() => {
+    setCollection("materials");
+    setTab("library");
+  }, []);
+  // The chip label resolves the active material id to its catalog name (or a
+  // humanized slug), so the removable "Material: <name> ×" reads for humans.
+  const materialLabel = useMemo(
+    () => (materialId ? catalogNameFor(lib.materialCatalog, materialId) : null),
+    [materialId, lib.materialCatalog]
+  );
 
   const openDetailFromEvent = useCallback((activity: Activity, calEvent: CalendarEvent) => {
     setDetailMode("view");
@@ -578,6 +875,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
       note: calEvent.note,
     });
+    setDetailEventId(calEvent.id);
     setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
@@ -598,6 +896,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailStartEdit(false);
     setDetailMode("create");
     setDetailNonce((n) => n + 1);
@@ -608,6 +907,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   function editActivity(activity: Activity) {
     if (!requireStaff("edit activities")) return;
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailMode("view");
     setDetailStartEdit(true);
     setDetailNonce((n) => n + 1);
@@ -633,6 +933,31 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       closeDetail();
     }
   }
+
+  // Patch the calendar event the detail sheet was opened FROM — the least-coupled
+  // bridge for per-placement edits (material subs). Staff-gated; on a SERIES member
+  // the touched fields are stamped into `custom` (applyCustomStamp) so the per-day
+  // edit survives regeneration, exactly like the calendar's own bulk edits. Absent
+  // event / library-opened = no-op.
+  const patchDetailEvent = useCallback(
+    (changes: Partial<CalendarEvent>) => {
+      if (!detailEventId) return;
+      if (!requireStaff("change the calendar")) return;
+      const live = cloud.events[detailEventId];
+      if (!live) return;
+      const original = healEvent(live, lib.byId);
+      let next: CalendarEvent = { ...original, ...changes };
+      const touched = Object.keys(changes);
+      if (next.seriesId && touched.length) {
+        const stamped = applyCustomStamp(original, touched);
+        if (stamped.custom) next.custom = stamped.custom;
+        if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+      }
+      next = { ...next, updatedAt: Date.now() };
+      campKit.upsertEvent(next);
+    },
+    [cloud.events, lib.byId, campKit, detailEventId, requireStaff]
+  );
 
   function deleteActivity(activity: Activity) {
     if (lib.deleteActivity(activity)) closeDetail();
@@ -680,20 +1005,25 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       resolveRunDoc: lib.resolveRunDoc,
       themeOf: lib.themeOf,
       camps: campKit.camps,
+      // Kit stock + catalog power the print shopping list (missing & low only).
+      kitStock: lib.kitStock,
+      materialCatalog: lib.materialCatalog,
     }),
-    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps]
+    [cloud.events, lib.byId, lib.resolveRunDoc, lib.themeOf, campKit.camps, lib.kitStock, lib.materialCatalog]
   );
 
   const isAdmin = auth.session.status === "authenticated" && isAdminEmail(auth.session.user.email);
-  // Desktop sidebar omits Home (the brand mark is Home). The mobile tab bar
-  // keeps Home, since mobile has no persistent brand mark to tap.
+  // The working surfaces are Library / Calendar / Print, plus the Staff account
+  // tab. ONE in-app path to invite codes (the Account card's "Manage invite
+  // codes" button; /admin stays as the server-gated deep link) — the admin tab
+  // only APPEARS while you're actually on the admin surface, so it still has a
+  // nav highlight + back target but no longer duplicates the entry point.
   const navTabs = useMemo(
-    () => (isAdmin || tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
+    () => (tab === "admin" ? [...TABS, STAFF_TAB, ADMIN_TAB] : [...TABS, STAFF_TAB]),
     [isAdmin, tab]
   );
-  // The phone tab bar is the three working surfaces: Library / Calendar / Staff.
-  // Home (a dashboard) and Admin are omitted — Home is reached via the sidebar
-  // brand mark at >=768px, and phones land on Library (see the redirect effect).
+  // The phone tab bar is the same working surfaces + Staff. Admin is omitted
+  // (reached only via the server-gated /admin route and the Account card).
   const mobileNavTabs = useMemo(() => [...TABS, STAFF_TAB], []);
 
   return (
@@ -707,8 +1037,8 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           <button
             type="button"
             className="sidenav__brand"
-            onClick={() => setTab("home")}
-            aria-label="Camp Library — go home"
+            onClick={() => setTab("calendar")}
+            aria-label="Camp Library — go to the calendar"
           >
             <BrandMark className="sidenav__logo" />
             <span className="sidenav__brand-copy">
@@ -732,7 +1062,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               </button>
             ))}
           </div>
-          {tab === "library" && (
+          {/* The filter rail belongs to the Activities collection only — the
+              Materials collection has its own search and no library filters, so
+              the rail shows a one-line hint there instead. */}
+          {tab === "library" && collection === "activities" && (
             <Filters
               variant="rail"
               sort={sort}
@@ -745,10 +1078,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               theme={theme}
               themes={lib.themes}
               starredOnly={starredOnly}
-              materialOptions={lib.materialOptions}
-              availableMaterials={lib.activeAvailableMaterials}
+              kitLens={kitLens}
+              kitUnset={kitUnset}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
+              materialId={materialId}
+              materialLabel={materialLabel}
               onCats={setCats}
               onPlace={setPlace}
               onAge={setAge}
@@ -756,44 +1091,62 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onMinutes={handleMinutes}
-              onToggleMaterial={lib.toggleAvailableMaterial}
-              onClearMaterials={lib.clearAvailableMaterials}
+              onKitLens={setKitLens}
+              onMaterial={() => setMaterialId(null)}
+              onGoMaterials={goMaterials}
             />
           )}
+          {tab === "library" && collection === "materials" && (
+            <p className="sidenav__railhint">
+              Reviewing your kit. Switch to Activities to browse and filter the library.
+            </p>
+          )}
           {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
+          {/* The ONE entry point into camps on desktop — a collapsed-by-default
+              section below the calendar rail. The deep editor (hours, guidance
+              bands, dietary roster) still opens as the existing camps modal;
+              this section only picks the active camp or hands off to it. */}
+          {tab === "calendar" && isDesktop && (
+            <CampsRail
+              camps={campKit.camps}
+              activeCampId={campKit.activeCampId}
+              onSwitch={campKit.switchCamp}
+              onManage={() => setCampsManagerOpen(true)}
+              onNew={() => setCampsManagerOpen(true)}
+            />
+          )}
           {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
+          {/* Sync state where edits actually happen (not just the Staff card).
+              Quiet by default: renders only when it carries a signal — pending
+              writes, offline, or a write that was refused. Tapping it opens the
+              Staff tab, where the full sync line + account live. */}
+          {(cloud.pendingCount > 0 || cloud.status === "offline" || cloud.syncError) && (
+            <button
+              type="button"
+              className={"sidenav__sync" + (cloud.syncError ? " is-error" : "")}
+              onClick={() => setTab("staff")}
+            >
+              <span className="sidenav__sync-dot" aria-hidden />
+              {cloud.syncError
+                ? "Some changes didn't save"
+                : cloud.pendingCount > 0
+                  ? cloud.pendingCount + " pending"
+                  : "Offline — will sync"}
+            </button>
+          )}
         </nav>
 
         <main className="app__main" id="main">
           {veil != null && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
-          {tab === "library" && <h1 className="sr-only">Library</h1>}
-
-          {tab === "home" && (
-            <HomeTab
-              activities={lib.all}
-              byId={lib.byId}
-              favs={lib.favs}
-              isFav={lib.isFav}
-              onToggleFav={lib.toggleFav}
-              events={cloud.events}
-              onOpenActivity={openDetail}
-              onOpenEventActivity={openDetailFromEvent}
-              onGoCalendar={() => setTab("calendar")}
-              onGoLibrary={goLibrary}
-              onContextMenu={(activity, e) => libMenu.open(e, activity)}
-              isSignedIn={isSignedIn}
-              authEnabled={auth.enabled}
-              adminEmail={ADMIN_EMAIL}
-              onStaffSignIn={openSignInPrompt}
-              onStaffSignUp={openSignUpPrompt}
-              onOpenAccount={() => setTab("staff")}
-              hasLoaded={cloud.hasLoaded}
-            />
-          )}
+          {/* Materials renders its own visible <h1>; the Activities collection
+              gets an sr-only one. */}
+          {tab === "library" && collection === "activities" && <h1 className="sr-only">Library</h1>}
 
           {tab === "library" && (
             <LibraryTab
+              collection={collection}
+              onCollection={setCollection}
               view={lib.view}
               onView={(view: LibraryView) => lib.setView(view)}
               query={query}
@@ -810,10 +1163,12 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               themes={lib.themes}
               themeOf={lib.themeOf}
               starredOnly={starredOnly}
-              materialOptions={lib.materialOptions}
-              availableMaterials={lib.activeAvailableMaterials}
+              kitLens={kitLens}
+              kitUnset={kitUnset}
               minutes={minutesValue}
               minutesBounds={minutesBounds}
+              materialId={materialId}
+              materialLabel={materialLabel}
               onCats={setCats}
               onPlace={setPlace}
               onAge={setAge}
@@ -821,14 +1176,28 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               onManageThemes={openThemesManager}
               onStarredOnly={setStarredOnly}
               onMinutes={handleMinutes}
-              onToggleMaterial={lib.toggleAvailableMaterial}
-              onClearMaterials={lib.clearAvailableMaterials}
+              onKitLens={setKitLens}
+              onMaterial={() => setMaterialId(null)}
+              onGoMaterials={goMaterials}
               onOpen={openDetail}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
               onContextMenu={(activity, e) => libMenu.open(e, activity)}
               onAdd={openAddActivity}
               hasLoaded={cloud.hasLoaded}
+              // The Materials collection mounts the existing MaterialsTab content
+              // in place of the browse views (see collection === "materials").
+              materials={{
+                activities: lib.all,
+                catalog: lib.materialCatalog,
+                kitStock: lib.kitStock,
+                onSetStockState: lib.setStockState,
+                onRename: lib.renameMaterial,
+                onSetConsumable: lib.setMaterialConsumable,
+                onSetArchived: lib.setMaterialArchived,
+                onBrowseMaterial: browseMaterial,
+                canEdit: isSignedIn,
+              }}
             />
           )}
 
@@ -851,6 +1220,10 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 announce={setLiveMsg}
                 railSlot={calRail}
                 themeOf={lib.themeOf}
+                kitStock={lib.kitStock}
+                materialCatalog={lib.materialCatalog}
+                setStockState={lib.setStockState}
+                markPlenty={markMaterialPlenty}
                 onReady={onCalendarReady}
                 onOpenCamps={() => setCampsManagerOpen(true)}
                 locationOptions={lib.locations}
@@ -858,12 +1231,22 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 onManageLocations={openLocationsManager}
                 onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
-                headerActions={
-                  <SubscribeFeedButton
-                    activeCampId={campKit.activeCampId}
-                    activeCampName={campKit.activeCamp?.name ?? null}
-                    canEdit={isSignedIn}
-                  />
+                activeCamp={campKit.activeCamp}
+                meals={cloud.docs.meals}
+                guides={cloud.docs.guides}
+                onSetMenuNote={setMenuNoteFor}
+                onManageDietary={() => setCampsManagerOpen(true)}
+                // Only wire the Subscribe control when signed in — anonymous
+                // visitors have no feed, and gating here keeps the rail/sheet
+                // section wrapper from rendering an empty box.
+                subscribeControl={
+                  isSignedIn ? (
+                    <SubscribeFeedButton
+                      activeCampId={campKit.activeCampId}
+                      activeCampName={campKit.activeCamp?.name ?? null}
+                      canEdit={isSignedIn}
+                    />
+                  ) : undefined
                 }
               />
             </div>
@@ -952,6 +1335,18 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
           {liveMsg}
         </div>
 
+        {/* A write the server refused must be VISIBLE, not just announced to
+            screen readers — the drop-to-unwedge outbox behavior stays, this is
+            purely surfacing. Dismiss is per-message: a new error re-shows. */}
+        {cloud.syncError && cloud.syncError !== dismissedSyncError && (
+          <div className="app-toast" role="alert">
+            <span>{cloud.syncError}</span>
+            <button type="button" onClick={() => setDismissedSyncError(cloud.syncError)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {themesManagerOpen && (
           <ListManagerModal
             title="Themes"
@@ -1004,6 +1399,36 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
                 campKit.deleteCamp(item.id);
               }
             }}
+            renderRowExtra={(item) => {
+              const camp = campKit.camps.find((c) => c.id === item.id);
+              if (!camp) return null;
+              return (
+                <CampDayStructure
+                  camp={camp}
+                  hourOptions={overrideHourOptions}
+                  onSetWeekday={setCampWeekdayHours}
+                  onSetDate={setCampDateHours}
+                  onSetSnap={setCampSnap}
+                />
+              );
+            }}
+            footer={
+              <div className="manager__sections">
+                <GuidesSection
+                  guides={cloud.docs.guides}
+                  hourOptions={overrideHourOptions}
+                  onAdd={addGuide}
+                  onUpdate={updateGuide}
+                  onDelete={deleteGuide}
+                />
+                <DietarySection
+                  dietary={cloud.docs.meals.dietary}
+                  onAdd={addDietary}
+                  onUpdate={updateDietary}
+                  onDelete={deleteDietary}
+                />
+              </div>
+            }
             onClose={() => setCampsManagerOpen(false)}
           />
         )}
@@ -1063,8 +1488,9 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             onDuplicate={duplicateActivity}
             onDelete={deleteActivity}
             onPrint={requestPrint}
-            availableMaterials={lib.activeAvailableMaterials}
-            onToggleMaterial={lib.toggleAvailableMaterial}
+            kitStock={lib.kitStock}
+            materialCatalog={lib.materialCatalog}
+            onSetStockState={lib.setStockState}
             runDoc={lib.resolveRunDoc(detailActivity)}
             onSetRating={isSignedIn ? lib.setRating : undefined}
             onSaveRunDoc={isSignedIn ? lib.saveRunDoc : undefined}
@@ -1072,10 +1498,19 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
               themes: lib.themes,
               initialThemeId: detailMode === "create" ? "" : lib.themeAssignments[detailActivity.id] ?? "",
               onCreate: lib.createTheme,
+              onManage: openThemesManager,
             }}
             ageUnit={ageUnit}
             onAgeUnit={setAgeUnit}
             eventContext={detailEventContext ?? undefined}
+            // Per-placement material subs read LIVE off the event this sheet was
+            // opened from (so a swap re-renders), plus the patch bridge. Both absent
+            // when library-opened, keeping the canonical list untouched there.
+            eventMaterialSubs={
+              detailEventId ? cloud.events[detailEventId]?.materialSubs : undefined
+            }
+            onPatchEvent={isSignedIn && detailEventId ? patchDetailEvent : undefined}
+            libraryActivities={lib.all}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
             theme={lib.themeOf(detailActivity.id)}
           />

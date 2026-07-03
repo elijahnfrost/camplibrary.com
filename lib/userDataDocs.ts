@@ -17,6 +17,10 @@ import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes
 import { normalizeCamps, type Camp } from "./camps";
 import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
 import { normalizeHexColor } from "./color";
+import { normalizeMaterialCatalog, type Material } from "./materialCatalog";
+import { normalizeKitStock, type StockState } from "./kitStock";
+import { defaultMealsDoc, normalizeMealsDoc, type MealsDoc } from "./meals";
+import { normalizeGuides, type GuideBand } from "./calendar/guides";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -26,12 +30,16 @@ export const USER_DOC_KEYS = [
   "playbookOverrides",
   "view",
   "availableMaterials",
+  "materialCatalog",
+  "kitStock",
   "themes",
   "themeAssignments",
   "camps",
   "locations",
   "locationColors",
   "deletedActivityIds",
+  "meals",
+  "guides",
 ] as const;
 
 export type UserDocKey = (typeof USER_DOC_KEYS)[number];
@@ -44,12 +52,16 @@ export type DocValueMap = {
   playbookOverrides: Record<string, ActivityPlaybookData>;
   view: LibraryView;
   availableMaterials: string[];
+  materialCatalog: Material[];
+  kitStock: Record<string, StockState>;
   themes: Theme[];
   themeAssignments: Record<string, string>;
   camps: Camp[];
   locations: string[];
   locationColors: Record<string, string>;
   deletedActivityIds: string[];
+  meals: MealsDoc;
+  guides: GuideBand[];
 };
 
 // localStorage names predate the doc keys: "runLists.v2" (doc-model bump) and
@@ -62,12 +74,20 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   playbookOverrides: "playbooks",
   view: "view",
   availableMaterials: "availableMaterials",
+  // Versioned name for the new doc (the catalog shape may evolve); the older
+  // docs predate the convention and keep their bare names.
+  materialCatalog: "materialCatalog.v1",
+  // Versioned like the catalog — the 3-state stock map is new and may evolve.
+  kitStock: "kitStock.v1",
   themes: "themes",
   themeAssignments: "themeAssignments",
   camps: "camps",
   locations: "locations",
   locationColors: "locationColors",
   deletedActivityIds: "deletedActivityIds",
+  // Versioned like the other new docs — both shapes are young and may evolve.
+  meals: "meals.v1",
+  guides: "guides.v1",
 };
 
 const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
@@ -78,6 +98,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   playbookOverrides: () => ({}),
   view: () => "deck",
   availableMaterials: () => [],
+  materialCatalog: () => [],
+  // {} is the first-class UNSET state — an untouched account keeps the lens inert.
+  kitStock: () => ({}),
   themes: () => [],
   themeAssignments: () => ({}),
   camps: () => [],
@@ -88,6 +111,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   // LOCATION_TINTS color until the user recolors it).
   locationColors: () => ({}),
   deletedActivityIds: () => [],
+  // Empty roster + no menu notes until staff add them.
+  meals: () => defaultMealsDoc(),
+  guides: () => [],
 };
 
 export function docDefault<K extends UserDocKey>(key: K): DocValueMap[K] {
@@ -182,6 +208,28 @@ export const locationColorsDoc: StorageValidator<Record<string, string>> = (valu
   return out;
 };
 
+// The materials catalog (names + substitution + flags for the kit vocabulary).
+// The pure validator lives in lib/materialCatalog.ts (isomorphic); it ignores
+// the fallback because normalizeMaterialCatalog always yields a clean array.
+export const materialCatalogDoc: StorageValidator<Material[]> = (value) =>
+  normalizeMaterialCatalog(value);
+
+// The 3-state kit stock map (material id → have/low/out). The pure validator
+// lives in lib/kitStock.ts (isomorphic); it ignores the fallback because
+// normalizeKitStock always yields a clean {} on malformed input.
+export const kitStockDoc: StorageValidator<Record<string, StockState>> = (value) =>
+  normalizeKitStock(value);
+
+// The meals doc: the flat dietary roster + date-keyed menu notes. The pure
+// validator lives in lib/meals.ts (isomorphic); it ignores the fallback because
+// normalizeMealsDoc always yields a clean empty doc on malformed input.
+export const mealsDoc: StorageValidator<MealsDoc> = (value) => normalizeMealsDoc(value);
+
+// The day-structure guide bands. The pure validator lives in
+// lib/calendar/guides.ts (isomorphic); it ignores the fallback because
+// normalizeGuides always yields a clean array on malformed input.
+export const guidesDoc: StorageValidator<GuideBand[]> = (value) => normalizeGuides(value);
+
 export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -190,12 +238,16 @@ export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K
   playbookOverrides: playbookOverridesDoc,
   view: viewDoc,
   availableMaterials: stringArrayDoc,
+  materialCatalog: materialCatalogDoc,
+  kitStock: kitStockDoc,
   themes: themesDoc,
   themeAssignments: themeAssignmentsDoc,
   camps: campsDoc,
   locations: locationsDoc,
   locationColors: locationColorsDoc,
   deletedActivityIds: stringArrayDoc,
+  meals: mealsDoc,
+  guides: guidesDoc,
 };
 
 export function normalizeDoc<K extends UserDocKey>(key: K, raw: unknown): DocValueMap[K] {

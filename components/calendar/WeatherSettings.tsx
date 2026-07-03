@@ -52,6 +52,9 @@ export function WeatherSettings({
   onWeatherRange,
   weatherHistory,
   onWeatherHistory,
+  rainThreshold,
+  onRainThreshold,
+  rainThresholdOptions,
   weatherStatus,
   weatherCoverage,
 }: {
@@ -65,6 +68,12 @@ export function WeatherSettings({
   onWeatherRange: (range: WeatherRange) => void;
   weatherHistory: boolean;
   onWeatherHistory: (on: boolean) => void;
+  /** The rain-alert threshold (percent; 0 = off). Drives the day-header rain-
+   *  review lens. A device-local view pref, threaded from the calendar. */
+  rainThreshold: number;
+  onRainThreshold: (value: number) => void;
+  /** Off/30/50/70 option rows (value is a stringified percent). */
+  rainThresholdOptions: { value: string; label: string }[];
   weatherStatus: WeatherStatus;
   weatherCoverage: { start: string; end: string } | null;
 }) {
@@ -116,6 +125,25 @@ export function WeatherSettings({
               ariaLabel="Show past weather"
             />
           </div>
+          {/* Rain alert — arms the day-header rain-review lens at or above this
+              daily rain chance. Only meaningful with the per-day summary (that's
+              where the lens rides), so it's shown in Day mode. */}
+          {weatherMode === "day" && (
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Bell className="ledger__ic" />Rain alert</span>
+              <MiniSeg
+                ariaLabel="Rain alert threshold"
+                value={String(rainThreshold)}
+                onChange={(v) => onRainThreshold(Number(v))}
+                options={rainThresholdOptions.map((o) => ({
+                  id: o.value,
+                  label: o.label,
+                  ariaLabel:
+                    o.value === "0" ? "No rain alert" : "Alert at " + o.label + " chance of rain",
+                }))}
+              />
+            </div>
+          )}
           {note && <p className="calset__wxnote">{note}</p>}
         </>
       )}

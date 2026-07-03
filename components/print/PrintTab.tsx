@@ -44,6 +44,7 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "includeEmptyDays",
   "pageBreakPerDay",
   "materialsRollup",
+  "shoppingListOnly",
   "showThemes",
   "showCover",
   "fontScale",
@@ -56,21 +57,6 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
 // always fits the preview pane instead of overflowing on a laptop / phone.
 const PAGE_W = 8.5 * 96;
 const PANE_PAD = 32; // matches the --s-6 inline padding on .print-tab__preview, both sides
-const BREAK_SHEET_PDFS: Record<
-  PrintOptions["color"],
-  { href: string; download: string; description: string }
-> = {
-  color: {
-    href: "/documents/summertime-thrills-break-sheet-color.pdf",
-    download: "summertime-thrills-break-sheet-color.pdf",
-    description: "colored",
-  },
-  mono: {
-    href: "/documents/summertime-thrills-break-sheet-bw.pdf",
-    download: "summertime-thrills-break-sheet-bw.pdf",
-    description: "black and white",
-  },
-};
 
 export function PrintTab({
   data,
@@ -249,8 +235,6 @@ export function PrintTab({
       byId={data.byId}
     />
   );
-  const breakSheetPdf = BREAK_SHEET_PDFS[options.color];
-
   return (
     <div className="print-tab">
       <header className="printhead">
@@ -260,7 +244,9 @@ export function PrintTab({
         </div>
         <div className="printhead__actions">
           {/* Mobile-only entry to the schedule controls (desktop surfaces them in
-              the sidebar rail). Hidden from the sidebar breakpoint up. */}
+              the sidebar rail). Hidden from the sidebar breakpoint up. The
+              "Break sheet" download moved OUT of the head into the controls rail
+              (a quiet row at the bottom) so the head keeps one primary action. */}
           <button
             type="button"
             className="printhead__options"
@@ -270,16 +256,6 @@ export function PrintTab({
           >
             <CampIcon.More />
           </button>
-          <a
-            className="btn btn--ghost printhead__btn printhead__docbtn"
-            href={breakSheetPdf.href}
-            download={breakSheetPdf.download}
-            aria-label={`Download the ${breakSheetPdf.description} Summertime Thrills break sheet PDF`}
-            title={`Download the ${breakSheetPdf.description} Summertime Thrills break sheet PDF`}
-          >
-            <CampIcon.Export />
-            <span>Break sheet</span>
-          </a>
           {/* Never silently disabled: the range may simply be empty, or the
               schedule may still be loading. The header scope shows the reason and
               the buttons stay clickable (an empty range just prints the cover). */}

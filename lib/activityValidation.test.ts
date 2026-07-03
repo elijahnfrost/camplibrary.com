@@ -29,6 +29,26 @@ describe("activity validation", () => {
     expect(normalized?.ages).toEqual(["g13", "g46"]);
   });
 
+  it("round-trips default backup plans (alternates), validated and omitted when empty", () => {
+    const withAlternates = normalizeActivity({
+      ...legacyActivity,
+      alternates: [
+        { title: " Four Corners ", activityId: "a2", reason: "overflow", locations: ["Gym", "gym"] },
+        { title: "Quiet bingo" }, // reason defaults to rain
+        { title: "", reason: "rain" }, // title-less → dropped
+      ],
+    });
+    expect(withAlternates?.alternates).toEqual([
+      { title: "Four Corners", activityId: "a2", reason: "overflow", locations: ["Gym"] },
+      { title: "Quiet bingo", reason: "rain" },
+    ]);
+
+    // Absent / all-malformed → the field stays absent, not an empty array.
+    expect(normalizeActivity(legacyActivity)?.alternates).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, alternates: [{ reason: "rain" }] })?.alternates).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, alternates: "nope" })?.alternates).toBeUndefined();
+  });
+
   it("re-attaches alternate names, trimmed and de-duped, and omits them when empty", () => {
     const withAltNames = normalizeActivity({
       ...legacyActivity,
@@ -133,5 +153,60 @@ describe("activity validation", () => {
     expect(normalized?.links).toBeUndefined();
     expect(normalized?.variations).toBeUndefined();
     expect(normalized?.subsets).toBeUndefined();
+  });
+});
+
+describe("normalizeActivity forward compatibility", () => {
+  it("round-trips keys this build doesn't know and cleans malformed known optionals", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      // A newer client's field: a stale build must round-trip it, not erase it.
+      // Kept, but a leftover forward-compat field, since materialRefs is now a
+      // KNOWN validated optional (asserted below) rather than a raw passthrough.
+      someFutureField: { hello: "world" },
+      // Malformed known optionals must NOT ride through the spread.
+      altNames: "not-an-array",
+      color: 123,
+    });
+    expect(normalized).not.toBeNull();
+    expect((normalized as unknown as Record<string, unknown>).someFutureField).toEqual({
+      hello: "world",
+    });
+    expect(normalized?.altNames).toBeUndefined();
+    expect(normalized?.color).toBeUndefined();
+  });
+
+  it("validates materialRefs as a known optional now: trims, clamps, drops junk", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      materialRefs: [
+        { id: "  flour  ", note: "  ~2 cups per batch  " },
+        { id: "salt" }, // no note → note field stays absent
+        { id: "" }, // empty id → dropped
+        { note: "orphan note" }, // no id → dropped
+        "junk", // non-record → dropped
+        { id: "x".repeat(120), note: "y".repeat(200) }, // over-length → clamped
+      ],
+    });
+    const refs = (normalized as unknown as Record<string, unknown>).materialRefs as Array<{
+      id: string;
+      note?: string;
+    }>;
+    expect(refs).toEqual([
+      { id: "flour", note: "~2 cups per batch" },
+      { id: "salt" },
+      { id: "x".repeat(80), note: "y".repeat(120) },
+    ]);
+  });
+
+  it("leaves materialRefs absent when no row survives (not an empty array)", () => {
+    const normalized = normalizeActivity({
+      ...legacyActivity,
+      materialRefs: [{ id: "" }, "junk", { note: "no id" }],
+    });
+    expect(normalized?.materialRefs).toBeUndefined();
+
+    expect(normalizeActivity({ ...legacyActivity, materialRefs: "nope" })?.materialRefs).toBeUndefined();
+    expect(normalizeActivity(legacyActivity)?.materialRefs).toBeUndefined();
   });
 });

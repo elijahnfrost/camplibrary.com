@@ -29,6 +29,11 @@ import type { Activity } from "@/lib/types";
 import type { AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
+import type { AlternateRef, CalendarEvent } from "@/lib/calendar/types";
+import { normalizeActivityAlternates } from "@/lib/alternates";
+import { ALTERNATES_MAX, ALTERNATE_TITLE_MAX_LENGTH } from "@/lib/calendar/types";
 import {
   BLANK_FORM,
   activityFromForm,
@@ -45,7 +50,7 @@ import { CampIcon } from "./icons";
 import { SaveButton, ThemeBadge } from "./primitives";
 import { Modal } from "./Modal";
 import { ColorField } from "./floating/ColorField";
-import { ActivityRunList } from "./ActivityRunList";
+import { ActivityRunList, LedgerMenu } from "./ActivityRunList";
 import { type ThemeKit } from "./ThemeField";
 import { DESKTOP_MIN } from "./useDeviceShape";
 
@@ -64,14 +69,18 @@ export function DetailSheet({
   onDelete,
   onPrint,
   showOwnerActions = true,
-  availableMaterials,
-  onToggleMaterial,
+  kitStock,
+  materialCatalog,
+  onSetStockState,
   runDoc,
   onSaveRunDoc,
   themeKit,
   ageUnit = "grades",
   onAgeUnit,
   eventContext,
+  eventMaterialSubs,
+  onPatchEvent,
+  libraryActivities,
   backLabel = "Library",
   theme = null,
 }: {
@@ -92,8 +101,15 @@ export function DetailSheet({
   onDelete: (a: Activity) => void;
   onPrint: (a: Activity) => void;
   showOwnerActions?: boolean;
-  availableMaterials: string[];
-  onToggleMaterial: (id: string) => void;
+  /** The effective 3-state kit stock map (material id → have/low/out) the run
+   *  sheet's checklist reads. Empty ({}) = UNSET (the availability lens is inert).
+   *  Absent on read-only/public surfaces (they stay availability-inert). */
+  kitStock?: Record<string, StockState>;
+  /** The materials catalog — display names + substitution groups for coverage. */
+  materialCatalog?: Material[];
+  /** Cycle one material's stock state (have → low → out). Staff-gated upstream;
+   *  absent on public/read-only surfaces (the checklist becomes a no-op). */
+  onSetStockState?: (id: string, state: StockState) => void;
   runDoc: RunDoc;
   /** Live run-doc save (read-mode field-note capture). Gates `canCapture`. */
   onSaveRunDoc?: (activityId: string, doc: RunDoc) => void;
@@ -106,6 +122,20 @@ export function DetailSheet({
    *  event, surfaced here so it reconciles with the run sheet (it's distinct from
    *  the evergreen Field-notes log in the body, which is per-activity). */
   eventContext?: { dateLabel: string; timeLabel: string; note?: string };
+  /** The calendar event's per-placement material substitutions ({refId: label},
+   *  "" = skipped). Present only when opened FROM an event; drives the Materials
+   *  checklist's per-day Swap / Skip rows. Absent (library-opened) = canonical
+   *  list untouched. */
+  eventMaterialSubs?: Record<string, string>;
+  /** Patch the calendar event this was opened from — the least-coupled bridge for
+   *  per-placement edits (material subs). A closure bound to the specific event in
+   *  CampApp (staff-gated, series-stamped there); absent on library-opened or
+   *  read-only surfaces. Kept SEPARATE from the display-only `eventContext` so that
+   *  stays plain strings. */
+  onPatchEvent?: (changes: Partial<CalendarEvent>) => void;
+  /** The library activities — the typeahead pool for the edit-mode "Backup plans"
+   *  section's optional activity link. Absent on read-only/public surfaces. */
+  libraryActivities?: Activity[];
   /** Where closing the viewer returns to (the surface it was opened from). */
   backLabel?: string;
   /** The activity's theme tag (null = untagged); display-only here. */
@@ -135,6 +165,13 @@ export function DetailSheet({
     isCreate ? blankPlayDoc() : playDocForActivity(a, runDoc)
   );
 
+  // The activity-level DEFAULT backup plans, edited in a dedicated section (NOT
+  // through FormState — see the note on submit()). Seeded from the live activity's
+  // list; a clean array so a garbage stored value can't ride through.
+  const [alternates, setAlternates] = useState<AlternateRef[]>(() =>
+    isCreate ? [] : normalizeActivityAlternates(a.alternates)
+  );
+
   // The activity object the run-doc editor previews against while editing — its
   // category tint, materials, etc. track the scalar controls live (the same
   // draft the old AddView fed the embedded run list).
@@ -151,6 +188,7 @@ export function DetailSheet({
     if (!canEdit) return;
     setForm(formFromActivity(a, themeKit?.initialThemeId ?? ""));
     setPlayDoc(playDocForActivity(a, runDoc));
+    setAlternates(normalizeActivityAlternates(a.alternates));
     setEditing(true);
   };
 
@@ -166,8 +204,16 @@ export function DetailSheet({
     const { doc, extracted } = buildSaveDoc(form, id, playDoc);
     // The Activity is derived ENTIRELY from the form (+ the run text extracted
     // from the doc), exactly as the old AddView.submit did — so the saved record
-    // shape is unchanged and old data keeps loading.
-    onSubmit(activityFromForm(form, id, extracted), doc, form.themeId || null);
+    // shape is unchanged and old data keeps loading. Backup plans are the one
+    // exception: they're NOT threaded through FormState (activityForm.ts is owned
+    // elsewhere), so they're PATCHED onto the derived activity here on save (a
+    // dedicated patch-on-save). Attached only when non-empty, mirroring the other
+    // optionals; a cleared list leaves the field absent.
+    const nextActivity = activityFromForm(form, id, extracted);
+    const cleanAlternates = normalizeActivityAlternates(alternates);
+    if (cleanAlternates.length) nextActivity.alternates = cleanAlternates;
+    else delete nextActivity.alternates;
+    onSubmit(nextActivity, doc, form.themeId || null);
     // The parent owns what happens next (close on create, drop edit on save);
     // dropping local edit here keeps the read view consistent if it stays open.
     if (!isCreate) setEditing(false);
@@ -252,13 +298,16 @@ export function DetailSheet({
                 />
                 {showOwnerActions && !isCreate && (
                   <>
-                    {/* Duplicate works for built-ins too (it forks a custom copy). */}
+                    {/* Duplicate works for built-ins too (it forks a custom copy).
+                        Named "in library" to disambiguate from the calendar's
+                        Duplicate, which places a copy on the grid — this one
+                        creates the library fork and navigates to the catalog. */}
                     <button
                       type="button"
                       className="rlv-headbtn"
                       onClick={() => onDuplicate(a)}
-                      aria-label="Duplicate activity"
-                      title="Duplicate activity"
+                      aria-label="Duplicate in library"
+                      title="Duplicate in library"
                     >
                       <CampIcon.Copy />
                     </button>
@@ -302,14 +351,20 @@ export function DetailSheet({
               editable
               onChange={setPlayDoc}
               activity={draftActivity}
-              availableMaterials={[]}
-              onToggleMaterial={() => {}}
+              kitStock={{}}
+              onSetStockState={() => {}}
               hideAddBlocks={["details", "materials"]}
               editForm={form}
               onEditFormChange={setForm}
               editThemeKit={themeKit}
               editAgeUnit={ageUnit}
               onEditAgeUnit={onAgeUnit}
+            />
+
+            <BackupPlansEditor
+              value={alternates}
+              onChange={setAlternates}
+              activities={libraryActivities ?? []}
             />
 
             <div className="rlv-save">
@@ -396,9 +451,24 @@ export function DetailSheet({
               editable={false}
               onChange={(next) => onSaveRunDoc?.(a.id, next)}
               activity={a}
-              availableMaterials={availableMaterials}
-              onToggleMaterial={onToggleMaterial}
+              kitStock={kitStock ?? {}}
+              materialCatalog={materialCatalog}
+              onSetStockState={onSetStockState ?? (() => {})}
               onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
+              // Per-placement material substitutions — present only when opened
+              // FROM an event (onPatchEvent bound to that event). Library-opened
+              // sheets pass nothing, so the checklist shows the canonical list.
+              materialSubs={onPatchEvent ? eventMaterialSubs ?? {} : undefined}
+              onSetMaterialSub={
+                onPatchEvent
+                  ? (refId, label) => {
+                      const next = { ...(eventMaterialSubs ?? {}) };
+                      if (label === null) delete next[refId];
+                      else next[refId] = label;
+                      onPatchEvent({ materialSubs: next });
+                    }
+                  : undefined
+              }
               // Lets staff jot field notes straight from the read-only viewer
               // while running the game — no edit-mode toggle needed.
               canCapture={Boolean(onSaveRunDoc)}
@@ -407,5 +477,174 @@ export function DetailSheet({
         )}
       </div>
     </Modal>
+  );
+}
+
+const ALTERNATE_REASON_OPTIONS: { value: AlternateRef["reason"]; label: string }[] = [
+  { value: "rain", label: "Rain" },
+  { value: "overflow", label: "Overflow" },
+  { value: "choice", label: "Free choice" },
+];
+
+// The edit-mode "Backup plans" section — the activity's DEFAULT fallbacks (up to
+// ALTERNATES_MAX). Each row is a pair of ledger rows (label-left/control-right,
+// matching the Details block above it): a title field that doubles as a library
+// typeahead (the same `.quickadd__search` + `.quickadd__list` anatomy as
+// QuickAdd's activity search), and a reason picker built on the exact `.typepick`
+// pill (LedgerMenu, shared with the Details block's Type/Ages/etc. controls). A
+// clean list is normalized on save; here the rows are free-form so a half-typed
+// row doesn't vanish. Purely local draft state lifted to the parent via onChange.
+function BackupPlansEditor({
+  value,
+  onChange,
+  activities,
+}: {
+  value: AlternateRef[];
+  onChange: (next: AlternateRef[]) => void;
+  activities: Activity[];
+}) {
+  const sorted = useMemo(
+    () => [...activities].sort((x, y) => x.title.localeCompare(y.title)),
+    [activities]
+  );
+  const patchRow = (index: number, patch: Partial<AlternateRef>) =>
+    onChange(value.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const removeRow = (index: number) => onChange(value.filter((_, i) => i !== index));
+  const addRow = () => {
+    if (value.length >= ALTERNATES_MAX) return;
+    onChange([...value, { title: "", reason: "rain" }]);
+  };
+
+  return (
+    <section className="rlv-backups" aria-label="Backup plans">
+      <div className="rlv-backups__head">
+        <h3 className="rlv-backups__title">
+          <CampIcon.Repeat />
+          Backup plans
+        </h3>
+        <p className="rlv-backups__hint">
+          Rainy-day or overflow fallbacks — offered on the calendar when the weather turns.
+        </p>
+      </div>
+      {value.length > 0 && (
+        <ul className="rlv-backups__list">
+          {value.map((row, index) => (
+            <li key={index} className="rlv-backups__row">
+              <div className="ledger__row rldetail__row rlv-backups__titlerow">
+                <span className="ledger__label">Backup {index + 1}</span>
+                <BackupTitleField
+                  title={row.title}
+                  activities={sorted}
+                  index={index}
+                  onPick={(title, activityId) => patchRow(index, { title, activityId })}
+                />
+                <button
+                  type="button"
+                  className="rlv-headbtn rlv-headbtn--danger rlv-backups__del"
+                  onClick={() => removeRow(index)}
+                  aria-label={"Remove backup plan " + (index + 1)}
+                >
+                  <CampIcon.Close />
+                </button>
+              </div>
+              <div className="ledger__row rldetail__row">
+                <span className="ledger__label">Reason</span>
+                <LedgerMenu
+                  value={row.reason}
+                  options={ALTERNATE_REASON_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
+                  onChange={(reason) => patchRow(index, { reason })}
+                  ariaLabel={"Backup plan " + (index + 1) + " reason"}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {value.length < ALTERNATES_MAX && (
+        <button type="button" className="rlv-backups__add" onClick={addRow}>
+          <CampIcon.Plus />
+          Add a backup plan
+        </button>
+      )}
+    </section>
+  );
+}
+
+// The "Backup N" title field — a free-text name that also works as a library
+// typeahead. Built on the exact QuickAdd activity-search anatomy (search icon +
+// bordered pill input, `.quickadd__list` of `.quickadd__item` result rows) so
+// picking a backup plan reads identically to searching the library or QuickAdd.
+// Typing free text is still valid (a backup plan need not be a library book);
+// picking a suggestion links `activityId` the same way the old datalist did.
+function BackupTitleField({
+  title,
+  activities,
+  index,
+  onPick,
+}: {
+  title: string;
+  activities: Activity[];
+  index: number;
+  onPick: (title: string, activityId: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const matches = useMemo(() => {
+    const query = title.trim().toLowerCase();
+    if (!query) return activities.slice(0, 6);
+    return activities.filter((act) => act.title.toLowerCase().includes(query)).slice(0, 6);
+  }, [activities, title]);
+
+  // Typing an exact library title (not just picking a result row) still links
+  // activityId — the same re-match the old datalist input did on every change.
+  const linkFromTitle = (text: string): string | undefined =>
+    activities.find((act) => act.title.toLowerCase() === text.trim().toLowerCase())?.id;
+
+  return (
+    <div
+      className="rlv-backups__titlewrap"
+      ref={wrapRef}
+      onBlur={(e) => {
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <label className="quickadd__search rlv-backups__search">
+        <CampIcon.Search />
+        <input
+          value={title}
+          maxLength={ALTERNATE_TITLE_MAX_LENGTH}
+          placeholder="Backup title, or pick a library activity"
+          aria-label={"Backup plan " + (index + 1) + " title"}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setOpen(true);
+            onPick(e.target.value, linkFromTitle(e.target.value));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+          }}
+        />
+      </label>
+      {open && matches.length > 0 && (
+        <div className="quickadd__list rlv-backups__results">
+          {matches.map((act) => (
+            <button
+              type="button"
+              key={act.id}
+              className="quickadd__item"
+              onClick={() => {
+                onPick(act.title, act.id);
+                setOpen(false);
+              }}
+            >
+              <span className="quickadd__itemdot" aria-hidden="true" />
+              <span className="quickadd__name">{act.title}</span>
+              <span className="quickadd__meta">{act.type}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

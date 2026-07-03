@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { RunShareButton } from "@/components/RunShareButton";
 import { RunSheetView } from "@/components/RunSheetView";
 import { ACTIVITIES } from "@/lib/data";
 import type { ActivityPlaybookData } from "@/lib/playbooks";
@@ -49,7 +50,10 @@ export default async function RunSheetPage({ params }: Params) {
     <main className="runsheet-page">
       <div className="runsheet-page__bar">
         <span className="runsheet-page__brand">Camp Library</span>
-        <span className="runsheet-page__eyebrow">Run sheet</span>
+        <div className="runsheet-page__bar-right">
+          <span className="runsheet-page__eyebrow">Run sheet</span>
+          <RunShareButton title={activity.title + " · Run sheet"} />
+        </div>
       </div>
       <RunSheetView activity={activity} runDoc={runDoc} />
     </main>

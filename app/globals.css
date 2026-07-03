@@ -412,6 +412,107 @@ body {
   outline-offset: -3px;
 }
 
+/* ---------- library collection seg (Activities | Materials) ----------
+   The far-left dimension of the Library toolbar. Built on .viewswitch/.seg-slide,
+   so it inherits the pill + sliding-thumb treatment; it just doesn't want the
+   view switch's wide desktop sizing (only two segments). Mobile inherits the
+   toolbar grid: it sits in row-1 col-1 beside the browse-view switch. */
+.collseg {
+  margin: 0 18px;
+}
+
+/* The Materials collection has no library filter rail — a one-line hint sits
+   where the filters would, in the sidebar's quiet ledger voice. */
+.sidenav__railhint {
+  margin: var(--s-6) 18px 0;
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+/* ---------- canonical search field ----------
+   ONE recipe for every text-search input in the app (the library toolbar, the
+   library filter's material search, the Materials list, the calendar QuickAdd).
+   A pill row: a leading 17px search icon, a transparent input at >=16px (which
+   keeps iOS Safari from auto-zooming on focus), and an optional round clear
+   button. Modifiers cover the two exceptions:
+     .searchfield--content — a --content surface + fixed --control-md height (the
+        QuickAdd sheet sits on --content, not the app --card).
+     .searchfield--name — the QuickAdd name-mode field with no leading icon (it's
+        NAMING an event, not searching), so the input flushes left. */
+.searchfield {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.searchfield:focus-within {
+  border-color: var(--accent);
+}
+.searchfield > svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.searchfield__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
+  font: 16px/1.2 var(--text);
+}
+.searchfield__input::placeholder {
+  color: var(--ink-faint);
+}
+.searchfield__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.searchfield__clear:hover {
+  background: var(--paper-2);
+}
+.searchfield__clear svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+/* QuickAdd sits on the --content sheet surface and wants a fixed control height. */
+.searchfield--content {
+  min-height: 0;
+  height: var(--control-md);
+  background: var(--content);
+}
+/* QuickAdd name-mode drops the leading search icon (it's NAMING an event, not
+   searching). No style change is needed — the input keeps the same left inset
+   from the field's own padding, so the text lines up in both modes; the class
+   stays as a semantic hook. */
+
 /* ---------- filters: mobile trigger + shared primitives ----------
    Mobile gets ONE "Filters" entry (opening a sheet) plus an always-visible
    removable active-filter row, so applied filters are never hidden and the
@@ -1181,6 +1282,35 @@ body {
   justify-content: center;
   font-size: var(--fs-meta);
 }
+/* The QR code — a scan-friendly light tile regardless of the popover's own
+   surface, so it stays legible if the popover shell is ever themed dark. */
+.subfeed__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-soft);
+}
+.subfeed__qr-tile {
+  width: 128px;
+  height: 128px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: var(--s-2);
+}
+.subfeed__qr-tile svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.subfeed__qr-caption {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
 .subfeed__reset {
   align-self: flex-start;
   margin-top: var(--s-3);
@@ -1372,6 +1502,164 @@ body {
 }
 .manager__rowbtn--danger:hover {
   color: var(--danger);
+}
+
+/* ---------- camp day-structure authoring (the camps manager sections) ----------
+   Per-row weekday hours / dated exceptions / snap, plus the global guidance-bands
+   and dietary-roster sections in the footer. Every block is a COLLAPSIBLE with a
+   chevron header so the modal stays calm; open reveals a quiet body. */
+.manager__daystruct {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__sections {
+  padding: var(--s-3) var(--s-4) 0;
+  margin-top: var(--s-3);
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__sect {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.manager__sect-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.manager__sect-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+.manager__sect.is-open .manager__sect-chev {
+  transform: rotate(90deg);
+}
+.manager__sect-label {
+  flex: 1 1 auto;
+}
+.manager__sect-summary {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.manager__sect-body {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.manager__hoursfield--inline {
+  flex-wrap: wrap;
+}
+.manager__weekdays,
+.manager__dates,
+.manager__guides,
+.manager__diet {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__weekday,
+.manager__dateexc,
+.manager__guide,
+.manager__dietrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+}
+.manager__weekday-name,
+.manager__dateexc-date {
+  flex: none;
+  min-width: 3ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.manager__dateexc-closed {
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.manager__dateadd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.manager__snaprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+.manager__snaplabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.manager__guide-label,
+.manager__diet-label {
+  flex: 1 1 8ch;
+  min-width: 6ch;
+}
+.manager__diet-detail {
+  flex: 1 1 10ch;
+  min-width: 8ch;
+}
+.manager__guide-times {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.manager__guide-days {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.manager__daytog {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.manager__daytog.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+  color: var(--accent-ink);
+}
+.manager__addbtn {
+  align-self: flex-start;
 }
 
 /* Mini segmented pill (Where, Ages). */
@@ -1698,63 +1986,10 @@ body {
   color: var(--accent-ink);
   text-decoration: underline;
 }
+/* The kit search is the canonical .searchfield; this rule only carries the
+   spacing before the kit list that follows it in the filter accordion. */
 .material-filter__search {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-height: var(--tap);
   margin-bottom: var(--s-5);
-  padding: 0 var(--s-5);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--content);
-  color: var(--ink-faint);
-}
-/* Kit search had no focus affordance — match the rest of the inputs. */
-.material-filter__search:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-tint);
-}
-.material-filter__search svg {
-  flex: none;
-  width: 17px;
-  height: 17px;
-  stroke: currentColor;
-  fill: none;
-}
-.material-filter__search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
-  font: 16px/1.2 var(--text);
-}
-.material-filter__search input::placeholder {
-  color: var(--ink-faint);
-}
-.material-filter__search button {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.material-filter__search button:hover {
-  background: color-mix(in srgb, var(--line-soft) 32%, transparent);
-  color: var(--ink);
-}
-.material-filter__search button svg {
-  width: 15px;
-  height: 15px;
 }
 .material-filter__list {
   max-height: min(330px, 48dvh);
@@ -2026,8 +2261,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   /* Wall off each card's internal layout so a stable-keyed grid reorder (sort)
-     doesn't relayout the whole deck subtree. Reused wholesale by Home favorites
-     (.home-fav .deck-card), so this containment helps there too. */
+     doesn't relayout the whole deck subtree. */
   contain: layout;
   transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
@@ -3301,209 +3535,7 @@ body {
   color: var(--ink-soft);
 }
 
-/* ============================================================
- * Home surface — the landing screen
- * The app's front door: a warm welcome, today's schedule, the camp's
- * favorites, and the way into the library. Built from the same parts as the
- * rest of the app (cards, the 3px category spine, deck covers, stamps) so it
- * reads as one more room in the same building, not a separate marketing page.
- * Mobile-first; the desktop layer (>= 768px) widens the columns.
- * ============================================================ */
-.home {
-  padding: max(18px, calc(10px + env(safe-area-inset-top))) var(--page-x) 96px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-7);
-}
-.home > * {
-  width: min(100%, 1120px);
-  margin-inline: auto;
-}
-
-/* ---- welcome ---- */
-.home__welcome {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-6);
-}
-.home__welcome-copy {
-  min-width: 0;
-}
-.home__kicker {
-  display: block;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home__greeting {
-  margin: 5px 0 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: clamp(30px, 6vw, 40px);
-  line-height: 0.98;
-  color: var(--ink);
-}
-.home__welcome-actions {
-  flex: none;
-}
-
-/* ---- body: two stacks side by side ----
-   .home__plan (left) = today's schedule + camp favorites — the working content.
-   .home__aside (right) = the getting-started guide + browse-by-type — orientation.
-   Mobile stacks plan → aside; desktop (below) sets them two-up. The guide card is
-   tall enough that a quiet schedule day never leaves the canvas feeling blank. */
-.home__grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--s-7);
-}
-.home__plan,
-.home__aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-7);
-  min-width: 0;
-}
-.home__col,
-.home__browse {
-  min-width: 0;
-}
-.home__sec-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-5);
-  margin-bottom: var(--s-5);
-}
-.home__sec-title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home__sec-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: var(--s-1) 0;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  transition: color var(--t-fast) var(--ease);
-}
-.home__sec-link:hover {
-  color: var(--accent-ink);
-}
-.home__sec-link svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* ---- today's schedule ---- */
-.home-sched {
-  background: var(--content);
-  /* 2px to match its sibling .home-guide__card on the same screen (was 1.5px). */
-  border: 2px solid var(--ink);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-.home-sched__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  width: 100%;
-  text-align: left;
-  padding: var(--s-5);
-  background: transparent;
-  border: 0;
-  border-left: 3px solid var(--cal-tint, var(--line));
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.home-sched__row:last-child {
-  border-bottom: 0;
-}
-.home-sched__row--link {
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: background-color var(--t-fast) var(--ease);
-}
-.home-sched__row--link:hover {
-  background: var(--chrome-well);
-}
-.home-sched__row--link:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.home-sched__row--link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.home-sched__time {
-  flex: none;
-  width: 52px;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.home-sched__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.home-sched__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-title-sm);
-  line-height: 1.05;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home-sched__row--link:hover .home-sched__title {
-  color: var(--accent-ink);
-}
-.home-sched__meta {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-/* ---- favorites grid (mini deck covers) ---- */
-.home-favs {
-  display: grid;
-  /* Fluid like the Library deck (was a hard 1fr 1fr that rendered the covers
-     ~30% larger than the identical deck-card module). */
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
-  gap: var(--s-5);
-}
-/* The home favorite cover reuses .deck-card wholesale; only the title scales
-   down a touch for the tighter grid. */
-.home-fav .deck-card__title {
-  font-size: var(--fs-body-lg);
-}
-
-/* ---- shared home empty state ---- */
+/* ---- shared empty state (used by StaffTab; formerly the Home tab too) ---- */
 .home-empty {
   display: flex;
   flex-direction: column;
@@ -3540,143 +3572,6 @@ body {
   font-family: var(--text);
   font-size: var(--fs-meta);
   line-height: 1.5;
-  color: var(--ink-faint);
-}
-
-/* ---- getting-started guide ----
-   The orientation card: numbered steps in the boxed, dashed-divider idiom used
-   across the app, plus the sign-in / sign-up CTAs. Replaces the old free-text
-   lede so first-time visitors get clean instructions in the house style. */
-.home-guide__card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  padding: var(--s-6);
-  background: var(--content);
-  border: 2px solid var(--ink);
-  border-radius: var(--r-lg);
-}
-.home-guide__steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-.home-guide__step {
-  display: flex;
-  gap: var(--s-5);
-  padding: var(--s-5) 0;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.home-guide__step:first-child {
-  padding-top: 0;
-}
-.home-guide__step:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-.home-guide__num {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-round);
-  background: var(--accent-tint);
-  border: 1.5px solid var(--accent-ink);
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1;
-  color: var(--accent-ink);
-}
-.home-guide__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-.home-guide__step-title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1.1;
-  color: var(--ink);
-}
-.home-guide__step-copy {
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  line-height: 1.5;
-  color: var(--ink-soft);
-}
-.home-guide__link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.home-guide__link:hover {
-  color: var(--accent-ink);
-}
-.home-guide__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-.home-guide__actions .btn {
-  flex: 1;
-  min-width: 140px;
-}
-.home-guide__note {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  line-height: 1.5;
-  color: var(--ink-faint);
-}
-
-/* ---- browse by type ---- */
-.home-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-}
-.home-type {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-4);
-  height: var(--control-md);
-  padding: 0 var(--s-6);
-  background: var(--content);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.home-type:hover {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-}
-.home-type:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.home-type__dot {
-  width: 10px;
-  height: 10px;
-  flex: none;
-  border-radius: var(--r-round);
-  background: var(--cal-tint, var(--line));
-}
-.home-type__count {
-  font-family: var(--text);
-  font-size: var(--fs-label);
   color: var(--ink-faint);
 }
 
@@ -4156,6 +4051,154 @@ body {
 .matkit__item.is-have .matkit__check {
   background: var(--accent);
   border-color: var(--accent-ink);
+}
+/* Kit stock 3-state rows: "low" runs an amber accent (running out, plan a
+   refill), "out" a red one (uncovered). "have"/via reuse the green .is-have. */
+.matkit__item.is-low {
+  background: color-mix(in srgb, var(--amber) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+.matkit__item.is-low .matkit__check {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+  color: var(--card);
+}
+.matkit__item.is-out {
+  background: color-mix(in srgb, var(--danger) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+.matkit__item.is-out .matkit__check {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+  color: var(--card);
+}
+/* The "↔ via <name>" tag on a substitute-covered row — a quiet meta note. */
+.matkit__via {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.matkit__via svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The coverage pill in the checklist header: Ready (green, amber when a covered
+   item is running low), "N missing" (amber almost / red can't). */
+.matkit__pill {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  color: var(--ink-soft);
+}
+.matkit__pill--ready {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent-ink);
+}
+.matkit__pill--ready.matkit__pill--low {
+  background: color-mix(in srgb, var(--amber) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 48%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--almost {
+  background: color-mix(in srgb, var(--amber) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--cant {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--danger-ink);
+}
+/* Per-placement material substitution (run sheet opened FROM an event): each row
+   pairs its status button with Swap… / Skip today actions; a subbed/skipped row
+   reads "<replacement> — instead of <original>" with a revert ×. */
+.matkit__rowline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.matkit__rowline .matkit__item {
+  flex: 1;
+  min-width: 60%;
+}
+.matkit__item.is-skip {
+  opacity: 0.6;
+}
+.matkit__item.is-skip .matkit__name {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+.matkit__instead {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+.matkit__acts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* Swap…/Skip today/revert now render as .btn.btn--ghost.btn--sm (the app's one
+   secondary-action button); .matkit__revert only tightens it to icon-only. */
+.matkit__revert {
+  padding-left: var(--s-2);
+  padding-right: var(--s-2);
+}
+/* The mini Swap form under a row: reuses the QuickAdd search-field + result-list
+   anatomy verbatim (.quickadd__search / .quickadd__list / .quickadd__item) so a
+   material swap reads exactly like the app's other typeaheads; these rules only
+   size the wrapper + suggestion list within the swap form's own box. */
+.matkit__swap {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  padding: var(--s-4);
+  background: var(--paper-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+}
+.matkit__swapsearch {
+  margin: 0;
+}
+.matkit__swaplist {
+  max-height: none;
+  margin-top: 0;
+  padding: 0;
+}
+.matkit__swapacts {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The kit-lens "mark what you have" hint (shown under the Kit filter row while
+   stock is unset). Non-blocking guidance, not an error. */
+.kitlens__hint {
+  margin: var(--s-2) 0 0;
+  padding: 0 var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
 }
 /* The category checklist (Type filter) reuses the kit picker's shell; it adds a
    color swatch per row so each category reads by its shelf tint, and pairs the
@@ -5433,50 +5476,14 @@ body {
   grid-column: 2;
   justify-self: end;
 }
+/* The library toolbar search is the canonical .searchfield; .toolbar__search now
+   only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
+   wider tiers below), not the field's visual recipe. */
 .toolbar__search {
   grid-column: 1 / -1;
 }
 .toolbar__add {
   grid-column: 1 / -1;
-}
-.toolbar__search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--control-md);
-  padding: 0 12px;
-  background: var(--card);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-  color: var(--ink-soft);
-}
-.toolbar__search:focus-within {
-  border-color: var(--accent);
-}
-.toolbar__search svg {
-  width: 17px;
-  height: 17px;
-  flex: none;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.toolbar__search-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  outline: none;
-  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused
-     (shorthand mirrors .material-filter__search input). */
-  font: 16px/1.2 var(--text);
-  color: var(--ink);
-}
-.toolbar__search-input::placeholder {
-  color: var(--ink-faint);
 }
 .toolbar__add {
   height: var(--control-md);
@@ -5500,10 +5507,6 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--s-5);
     padding: var(--s-5) var(--s-6) var(--s-3);
-  }
-  /* Home favorites already auto-fill; nudge the gutter to match the deck. */
-  .home-favs {
-    gap: var(--s-5);
   }
 }
 
@@ -5707,6 +5710,170 @@ body {
     overflow: visible;
   }
 
+  /* ---- camps rail (Calendar tab, desktop) ----
+     The sidebar's ONE entry point into camps: a fixed-height .sidesection,
+     collapsed by default, sitting under the calendar rail. Its head reuses the
+     shared .sidesection__head/__title treatment; the chevron is its own
+     right-collapsed/down-open glyph (the same affordance as the camp manager's
+     .manager__sect-chev) — a disclosure that expands DOWNWARD should always
+     point down once open, so this is the affordance every rail disclosure
+     should read. */
+  .camprail__head {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .camprail__headic {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+    margin-right: var(--s-2);
+    vertical-align: -1.5px;
+  }
+  .camprail__chev {
+    width: 13px;
+    height: 13px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--ink-soft);
+    transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  }
+  .camprail.is-open .camprail__chev {
+    transform: rotate(90deg);
+  }
+  .camprail__head:hover .sidesection__title,
+  .camprail__head:hover .camprail__chev {
+    color: var(--ink);
+  }
+  .camprail:not(.is-open) .camprail__head {
+    margin-bottom: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .camprail__chev {
+      transition: none;
+    }
+  }
+  .camprail__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+  .camprail__list {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .camprail__row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    border-bottom: 1.5px dashed var(--line-soft);
+  }
+  .camprail__row:last-child {
+    border-bottom: 0;
+  }
+  .camprail__pick {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    min-height: 38px;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    color: var(--ink-faint);
+  }
+  .camprail__pick:hover {
+    color: var(--ink);
+  }
+  .camprail__dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    background: transparent;
+  }
+  .camprail__row.is-active .camprail__dot {
+    border-color: var(--accent-ink);
+    background: var(--accent-ink);
+  }
+  .camprail__row.is-active .camprail__name {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .camprail__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .camprail__empty {
+    margin: 0;
+    padding: var(--s-2) 0 var(--s-3);
+    font-size: var(--fs-meta);
+    color: var(--ink-faint);
+  }
+  .camprail__new {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    min-height: 34px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-meta);
+    color: var(--ink-soft);
+    transition: color var(--t-fast) var(--ease);
+  }
+  .camprail__new svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+  }
+  .camprail__new:hover {
+    color: var(--ink);
+  }
+  /* The ONE manage entry — a quiet footer row (typepick__manage voice), set
+     apart from the additive "New camp" shortcut by a dashed rule above it. */
+  .camprail__manage {
+    margin-top: var(--s-2);
+    padding-top: var(--s-3);
+    border: 0;
+    border-top: 1.5px dashed var(--line-soft);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-meta);
+    color: var(--ink-soft);
+    transition: color var(--t-fast) var(--ease);
+  }
+  .camprail__manage:hover {
+    color: var(--ink);
+  }
+
   /* ---- filter rail body (Library tab) ----
      Selected chips show state in place (no separate active-chips row up top);
      the head's "Clear all" is the only summary control. */
@@ -5774,9 +5941,6 @@ body {
   .filtertrigger {
     display: none;
   }
-  .searchrow {
-    display: none;
-  }
   /* header toolbar: view switch + persistent search — sits flush over the
      page like the calendar header (no divider line). Capped + centered to the
      same --lib-col-max column as the browse views below (32px inner gutter), so
@@ -5798,47 +5962,19 @@ body {
     max-width: 360px;
     margin: 0;
   }
+  /* Only two segments — narrower than the browse-view switch, and it leads the
+     row rather than sharing the 300px minimum. */
+  .collseg.viewswitch {
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+  /* Desk toolbar: the canonical .searchfield handles the pill; this only sizes it
+     in the flex row (grow, capped, pushed to the right of the view switch). */
   .toolbar__search {
-    display: flex;
     flex: 1;
-    align-items: center;
-    gap: 8px;
     max-width: 380px;
     margin-left: auto;
-    height: var(--control-md);
-    padding: 0 12px;
-    background: var(--card);
-    border: 1.5px solid var(--line);
-    border-radius: var(--r-md);
-    color: var(--ink-soft);
-    transition: border-color 120ms;
-  }
-  .toolbar__search:focus-within {
-    border-color: var(--accent);
-  }
-  .toolbar__search svg {
-    width: 17px;
-    height: 17px;
-    flex: none;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .toolbar__search-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0;
-    background: transparent;
-    border: 0;
-    outline: none;
-    font-family: var(--hand);
-    font-size: 15px;
-    color: var(--ink);
-  }
-  .toolbar__search-input::placeholder {
-    color: var(--ink-faint);
   }
 
   /* ---- content: capped, centered column with consistent room ----
@@ -5921,9 +6057,6 @@ body {
   .shelf-rows {
     margin-inline: 40px;
   }
-  .home {
-    padding-inline: 40px;
-  }
 }
 
 @media (max-width: 1023px) {
@@ -5940,22 +6073,6 @@ body {
 }
 
 @media (min-width: 1024px) {
-  /* ---- Home: roomier desk ---- */
-  .home {
-    padding: var(--s-7) var(--s-8) var(--s-8);
-    gap: var(--s-7);
-  }
-  .home__grid {
-    /* The working content (schedule + favorites) takes the wider left column;
-       the orientation aside (guide + browse) sits at right. align-items:start
-       lets each column keep its natural height. */
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    align-items: start;
-    column-gap: var(--s-7);
-  }
-  .home-favs {
-    gap: var(--s-6);
-  }
 
   .modal-root {
     display: block;
@@ -6749,7 +6866,7 @@ body {
   .admin-action,
   .sortbtn,
   .rl-ptype,
-  .toolbar__search-clear {
+  .searchfield__clear {
     position: relative;
   }
   .rl-iconbtn,
@@ -6777,7 +6894,7 @@ body {
   .admin-action::before,
   .sortbtn::before,
   .rl-ptype::before,
-  .toolbar__search-clear::before {
+  .searchfield__clear::before {
     content: "";
     position: absolute;
     left: 50%;
@@ -7766,6 +7883,27 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
   cursor: text;
 }
+/* An optional, subdued qty/note per row (right of the name). Quiet by default so
+   the material name reads first; it firms up on focus like the other fields. */
+.rlmat__note {
+  flex: 0 1 12ch;
+  min-width: 6ch;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: 0 var(--s-1);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  outline: none;
+}
+.rlmat__note::placeholder {
+  color: var(--ink-faint);
+}
+.rlmat__note:focus {
+  border-bottom-color: var(--line);
+  color: var(--ink);
+}
 /* The per-row tools mirror the run-sheet rowtools: quiet by default, lit on
    hover/focus (always shown on touch via the run-sheet @media rule). */
 .rlmat__tools {
@@ -7856,6 +7994,117 @@ button.rl-node--pick:focus-visible {
 .rlv-aka--edit {
   margin-top: var(--s-3);
 }
+/* The edit-mode "Backup plans" section — the activity's default rain/overflow
+   fallbacks, up to three rows (title + reason + delete). Sits between the run-doc
+   editor and the Save button, styled as a quiet grouped block. */
+.rlv-backups {
+  max-width: 880px;
+  margin: var(--s-6) auto 0;
+  padding: var(--s-5) var(--s-6);
+}
+.rlv-backups__head {
+  margin-bottom: var(--s-4);
+}
+.rlv-backups__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rlv-backups__title svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-backups__hint {
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+.rlv-backups__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+}
+/* Each backup plan is now a pair of ledger rows (title, reason) — the same
+   label-left/control-right anatomy as the Details block above (.ledger__row
+   .rldetail__row), so the section reads as one continuous property ledger. */
+.rlv-backups__row {
+  display: flex;
+  flex-direction: column;
+}
+.rlv-backups__titlerow {
+  gap: var(--s-3);
+}
+/* The title field fills the row's remaining width (a free-text name, not a
+   hug-content fact pill like the other ledger controls). */
+.rlv-backups__titlewrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.rlv-backups__search {
+  width: 100%;
+}
+/* The library-match dropdown floats under the field, reusing the QuickAdd
+   result-list look (.quickadd__list/.quickadd__item) verbatim. */
+.rlv-backups__results {
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  margin-top: 0;
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+}
+.rlv-backups__add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.rlv-backups__add:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rlv-backups__add svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 .rlv-save {
   max-width: 880px;
   margin: var(--s-7) auto 0;
@@ -9008,6 +9257,11 @@ button.rl-node--pick:focus-visible {
     max-width: 360px;
     margin: 0;
   }
+  /* The 2-segment collection seg doesn't need to grow — keep it compact so the
+     browse-view switch and search take the width. */
+  .collseg.viewswitch {
+    flex: 0 0 auto;
+  }
   .toolbar__search {
     flex: 1 1 240px;
     max-width: 420px;
@@ -9078,30 +9332,6 @@ button.rl-node--pick:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
-}
-
-/* ---- library search clear ---- */
-.toolbar__search-clear {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--r-round);
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.toolbar__search-clear:hover {
-  background: var(--paper-2);
-}
-.toolbar__search-clear svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
 }
 
 /* ---- run-list video detail: clean caption + link (no fake player) ---- */
@@ -9705,9 +9935,6 @@ button.rl-node--pick:focus-visible {
   .printhead__btn {
     padding-inline: 12px;
   }
-  .printhead__docbtn span {
-    display: none;
-  }
 }
 
 /* The preview canvas the letter pages sit on. Uses the app canvas (--paper), the
@@ -9746,6 +9973,71 @@ button.rl-node--pick:focus-visible {
   display: none;
 }
 
+/* ---- Sidebar sync pill + app-level error toast ----
+   Sync state surfaced where edits happen (Calendar/Library), not just the Staff
+   card. The pill is QUIET by default — it only renders when something needs
+   attention (pending writes, offline, refused write) and taps through to the
+   Staff tab's full sync line. The toast makes a server-refused write visible;
+   it mirrors .calshell__toast so the two read as one system. */
+.sidenav__sync {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+}
+.sidenav__sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+.sidenav__sync.is-error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.sidenav__sync.is-error .sidenav__sync-dot {
+  background: var(--danger);
+}
+.app-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-6);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  box-shadow: var(--e3);
+}
+.app-toast button {
+  border: 0;
+  background: transparent;
+  color: var(--hl);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  min-height: var(--s-8);
+}
+.app-toast button:hover,
+.app-toast button:active {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ---- The sidebar print rail (.prail) ----
    Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
    is built from the SAME pieces as the calendar rail so all three rails read as
@@ -9759,6 +10051,47 @@ button.rl-node--pick:focus-visible {
 .prail {
   display: flex;
   flex-direction: column;
+}
+
+/* Break-sheet download — a quiet footer row at the bottom of the controls rail
+   (moved here from the print header so the head keeps one primary action). Set
+   apart from the option groups above it by a dashed rule, in the rail's quiet
+   ledger voice. */
+.prail__docdownload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1.5px dashed var(--line-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+.prail__docdownload:hover {
+  color: var(--ink);
+}
+.prail__docdownload .ledger__ic {
+  color: var(--ink-faint);
+}
+
+/* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
+   that sets a whole options bundle at once, not a separate mode). Wraps on a
+   narrow rail rather than overflowing; each button keeps the standard
+   .btn--ghost.btn--sm treatment so it reads as an action, not a toggle. */
+.prail__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+.prail__preset {
+  flex: 1 1 auto;
+  justify-content: center;
 }
 
 /* Range — the headerless lead widget (parallels the mini-month leading the
@@ -10395,6 +10728,9 @@ button.rl-node--pick:focus-visible {
 .print-doc--mono .pd-rollup {
   border-left-color: #000;
 }
+.print-doc--mono .pd-shopping__item--missing .pd-shopping__status {
+  color: #000;
+}
 .pd-rollup__head {
   margin: 0 0 0.06in;
   font-family: var(--hand-sc);
@@ -10426,6 +10762,54 @@ button.rl-node--pick:focus-visible {
   margin-left: auto;
   font-size: var(--pd-fs-label);
   color: var(--ink-faint);
+}
+
+/* Shopping list — the "missing & low only" narrowing of the roll-up. Shares
+   the roll-up's checkbox-row vocabulary (.pd-rollup__box) but lays out as a
+   single column so the status + day chip have room; a "low" row dims to the
+   faint ink so "missing" reads as the more urgent row at a glance. */
+.pd-shopping {
+  margin-top: var(--pd-gap-sm);
+}
+.pd-shopping__head {
+  margin-top: 0;
+}
+.pd-shopping__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pd-gap-sm);
+  font-size: var(--pd-fs-ui);
+}
+.pd-shopping__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+.pd-shopping__label {
+  font-weight: 600;
+}
+.pd-shopping__item--low .pd-shopping__label {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.pd-shopping__status {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-shopping__item--missing .pd-shopping__status {
+  color: var(--accent-ink);
+}
+.pd-shopping__days {
+  margin-left: auto;
+  font-size: var(--pd-fs-label);
+  color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 /* Day sections + events */
@@ -10783,6 +11167,7 @@ button.rl-node--pick:focus-visible {
 .print-doc--plain .pd-event__theme,
 .print-doc--plain .pd-facts--inline,
 .print-doc--plain .pd-rollup__head,
+.print-doc--plain .pd-shopping__status,
 .print-doc--plain .pd-run-heading,
 .print-doc--plain .pd-runsheets__head,
 .print-doc--plain .pd-fact span,
@@ -10801,6 +11186,304 @@ button.rl-node--pick:focus-visible {
 .print-doc--plain .pd-cover {
   border-top: 0;
   padding-top: 0;
+}
+
+/* =====================================================================
+   Materials tab — the kit review surface. Two presentations off one list
+   (Setup while stock is unset, then the normal restock + full list). Reuses
+   the tab-header vocabulary (.printhead → .materials-tab__head) and the run
+   sheet's stock palette (green have / amber low / red out).
+   ===================================================================== */
+.materials-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s-5) var(--page-x) var(--s-8);
+  width: 100%;
+}
+.materials-tab__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+}
+.materials-tab__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.materials-tab__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink);
+}
+.materials-tab__scope {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Setup banner — the zero-state call to mark inventory. A soft accent card so it
+   reads as guidance, not a wall of red. */
+.materials-setup__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.materials-setup__kicker {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.materials-setup__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.materials-setup__copy {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.materials-setup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* Search is the canonical .searchfield (see globals). The materials list uses it
+   verbatim — no per-tab overrides needed. */
+
+.materials-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.materials-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.materials-section__ic {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.materials-section--restock .materials-section__title {
+  color: var(--amber);
+}
+.materials-empty {
+  margin: var(--s-4) 0;
+  font-size: var(--fs-body);
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* The list + rows. Each row is a status dot + name on the left, then the
+   explicit Have/Low/Out MiniSeg, the "used by" jump, and an overflow button —
+   the same label-left/control-right shape as a ledger row. */
+.matlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.matrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+}
+.matrow__dot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1.5px solid var(--line);
+  background: var(--chrome-well);
+  color: var(--card);
+}
+.matrow__dot svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.matrow__body {
+  flex: 1;
+  min-width: 0;
+}
+.matrow__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.matrow__tagconsumable {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+}
+.matrow__rename {
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: var(--card);
+}
+.matrow__rename:focus {
+  outline: none;
+}
+/* The explicit Have/Low/Out control — same MiniSeg used everywhere else, just
+   hugging its own content on the row's right side (matches
+   .rldetail__row .miniseg). Its own is-on styling already carries the
+   selected label; the row still tints its border to match (below), so the
+   whole row — not just the pill — reads at a glance. */
+.matrow .miniseg {
+  flex: none;
+}
+/* Unlike every other MiniSeg in the app, a fresh row's stock is genuinely
+   unselected (id "" matches none of the 3 options) — the shared seg-slide
+   thumb has no home for that (its geometry assumes --seg-i is always >= 0)
+   and would otherwise paint a stray sliver at the pill's left edge. Hide the
+   thumb for exactly that state; is-unset is the same modifier the dot/border
+   already key off. */
+.matrow.is-unset .miniseg::before {
+  display: none;
+}
+/* Stock states — the run sheet's palette, keyed off the row modifier so the
+   dot and the row border both carry the color. */
+.matrow.is-have .matrow__dot {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.matrow.is-low .matrow__dot {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.matrow.is-low {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+}
+.matrow.is-out .matrow__dot {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+}
+.matrow.is-out {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+.matrow__used {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--line-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.matrow__used[aria-disabled="true"] {
+  color: var(--ink-faint);
+  cursor: default;
+}
+.matrow__used svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+/* Same compact icon-button vocabulary as .icon-btn, sized down to fit inside
+   the row instead of the tap-target 44px (the row itself already meets --tap
+   height). */
+.matrow__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.matrow__more svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.matrow__more:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+
+/* The Kit-lens hint's "Set up your kit →" link — a quiet inline text button. */
+.kitlens__hintlink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Phones: stacking the used-by jump under the row body isn't worth the
+   reflow — just tighten its padding so dot + name + MiniSeg + used-by + more
+   still fit in one row. */
+@media (max-width: 520px) {
+  .matrow__used {
+    padding-left: var(--s-2);
+  }
 }
 
 /* ---- Print-only: page setup, breaks, and color emission ---- */

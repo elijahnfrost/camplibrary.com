@@ -16,7 +16,7 @@
 // short, and the rest is one tap away — never a wall of equal-weight switches.
 
 import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { addDays, fromDateKey, todayKey, toDateKey } from "@/lib/calendar/dates";
+import { addDays, fromDateKey, startOfWeek, todayKey, toDateKey } from "@/lib/calendar/dates";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { Camp } from "@/lib/camps";
@@ -38,6 +38,26 @@ import { MiniRangeCalendar } from "./MiniRangeCalendar";
 
 type Patch = Partial<PrintOptions>;
 type IconCmp = FC<{ className?: string }>;
+
+// The printable "break sheet" PDF (a ready-made handout), one per color mode.
+// It's a static download — separate from the schedule Print/Export pipeline — so
+// it lives as a quiet footer row in this controls rail rather than a header
+// action competing with Export PDF. Keyed by the active color choice.
+const BREAK_SHEET_PDFS: Record<
+  PrintOptions["color"],
+  { href: string; download: string; description: string }
+> = {
+  color: {
+    href: "/documents/summertime-thrills-break-sheet-color.pdf",
+    download: "summertime-thrills-break-sheet-color.pdf",
+    description: "colored",
+  },
+  mono: {
+    href: "/documents/summertime-thrills-break-sheet-bw.pdf",
+    download: "summertime-thrills-break-sheet-bw.pdf",
+    description: "black and white",
+  },
+};
 
 // The cover title pushes upstream on a short debounce so each keystroke doesn't
 // reconcile the whole live preview. The local value stays responsive; it also
@@ -85,6 +105,31 @@ function monthBounds(key: DateKey): { start: DateKey; end: DateKey } {
   const start = toDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
   const end = toDateKey(new Date(d.getFullYear(), d.getMonth() + 1, 0));
   return { start, end };
+}
+
+// This week per the CALENDAR's own week-start preference, when reachable — a
+// direct, read-only localStorage peek (the same "camp:" + JSON.parse contract
+// lib/store.ts's useLocalStorage uses) so the Print rail's "This week" preset
+// agrees with whatever the calendar's mini-month/Month grid currently starts
+// on, without importing any calendar component or touching calendar files.
+// Falls back to Mon–Fri (the camp's core week) when localStorage is
+// unavailable (SSR) or the stored value isn't the expected 0/1 weekday index.
+function thisWeekRange(): { start: DateKey; end: DateKey } {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem("camp:calendarWeekStart");
+      const parsed = raw != null ? (JSON.parse(raw) as unknown) : undefined;
+      const firstDay = parsed === 0 || parsed === 1 ? parsed : undefined;
+      if (firstDay !== undefined) {
+        const start = toDateKey(startOfWeek(fromDateKey(todayKey()), firstDay));
+        return { start, end: addDays(start, 6) };
+      }
+    } catch {
+      // fall through to the Mon–Fri default below
+    }
+  }
+  const mon = weekStart(todayKey());
+  return { start: mon, end: addDays(mon, 4) };
 }
 
 const PRESETS: { id: string; label: string; range: () => { start: DateKey; end: DateKey } }[] = [
@@ -252,9 +297,10 @@ function RunSheetPicker({
       )}
       {activities.length > 0 ? (
         <div className="prail__rssearch">
-          <label className="material-filter__search">
+          <label className="searchfield">
             <CampIcon.Search />
             <input
+              className="searchfield__input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Add a scheduled activity"
@@ -265,7 +311,12 @@ function RunSheetPicker({
               spellCheck={false}
             />
             {query && (
-              <button type="button" onClick={() => setQuery("")} aria-label="Clear search">
+              <button
+                type="button"
+                className="searchfield__clear"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
                 <CampIcon.Close />
               </button>
             )}
@@ -422,6 +473,57 @@ function ContentPicker({
   );
 }
 
+// One-click presets — a shortcut that sets a whole bundle of options at once
+// (same onChange/localStorage persistence path every other control uses), NOT
+// a new mode: every fold still works exactly the same after clicking one. Two
+// bundles cover the two most common "just print the thing" asks: the day's
+// paper run sheets for the counselors on shift, and a light week-at-a-glance
+// agenda for the office wall.
+const PRESET_BUNDLES: { id: string; label: string; ariaLabel: string; patch: () => Patch }[] = [
+  {
+    id: "today-runsheets",
+    label: "Today's run sheets",
+    ariaLabel: "Set up today's run sheets: today's date, full run sheets on, minimal schedule detail",
+    patch: () => ({
+      start: todayKey(),
+      end: todayKey(),
+      layout: "agenda",
+      scheduleDetail: "times",
+      appendRunSheets: true,
+    }),
+  },
+  {
+    id: "week-agenda",
+    label: "This week — agenda",
+    ariaLabel: "Set up this week's agenda: this week's dates, agenda layout, run sheets off",
+    patch: () => ({
+      ...thisWeekRange(),
+      layout: "agenda",
+      scheduleDetail: "summary",
+      appendRunSheets: false,
+    }),
+  },
+];
+
+function PresetsRow({ onChange }: { onChange: (patch: Patch) => void }) {
+  return (
+    <div className="prail__presets" role="group" aria-label="Print presets">
+      {PRESET_BUNDLES.map((preset) => (
+        <button
+          key={preset.id}
+          type="button"
+          className="btn btn--ghost btn--sm prail__preset"
+          aria-label={preset.ariaLabel}
+          onClick={() => onChange(preset.patch())}
+        >
+          <CampIcon.Bolt />
+          <span>{preset.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PrintControls({
   options,
   onChange,
@@ -458,6 +560,10 @@ export function PrintControls({
 
   return (
     <div className="prail">
+      {/* Presets — one-click bundles ABOVE the folds (a shortcut, not a new
+          mode): every fold still works normally after clicking one. */}
+      <PresetsRow onChange={onChange} />
+
       {/* Range — the headerless lead widget (the mini-month's role on the calendar
           rail): quick-range pills, the inline range calendar, then the readout. */}
       <div className="prail__range">
@@ -642,6 +748,18 @@ export function PrintControls({
             onChange={(showThemes) => onChange({ showThemes })}
           />
         </Row>
+        <Row label="Shopping list — missing & low only" icon={CampIcon.Box}>
+          <ToggleSwitch
+            on={options.shoppingListOnly}
+            ariaLabel="Narrow the materials list to only what's missing or low"
+            // Turning this on only does something once the materials list
+            // itself is on — flip that along with it so the checkbox reads as
+            // "yes, print the narrowed list" without a second trip to Appendix.
+            onChange={(shoppingListOnly) =>
+              onChange({ shoppingListOnly, materialsRollup: shoppingListOnly ? true : options.materialsRollup })
+            }
+          />
+        </Row>
         <ContentPicker
           days={scheduleDays}
           byId={byId}
@@ -689,6 +807,25 @@ export function PrintControls({
           />
         </Row>
       </CollapsibleGroup>
+
+      {/* The ready-made "break sheet" handout — a quiet footer download, moved out
+          of the print header so the head keeps one primary action (Export PDF).
+          Follows the active color choice. */}
+      {(() => {
+        const pdf = BREAK_SHEET_PDFS[options.color];
+        return (
+          <a
+            className="prail__docdownload"
+            href={pdf.href}
+            download={pdf.download}
+            aria-label={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
+            title={`Download the ${pdf.description} Summertime Thrills break sheet PDF`}
+          >
+            <CampIcon.Export className="ledger__ic" />
+            <span>Break sheet PDF</span>
+          </a>
+        );
+      })()}
     </div>
   );
 }

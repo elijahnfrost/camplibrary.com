@@ -6,6 +6,7 @@ import { Select } from "../floating/Select";
 import { isNDaysView, type ViewKey, type WeekStart } from "@/lib/calendar/views";
 import type { ColorMode } from "@/lib/data";
 import { DaysStepper } from "./DaysStepper";
+import { useDeviceShape } from "../useDeviceShape";
 
 // The "Color by" choices, in resolver order. Labels read in the View ledger's
 // quiet voice; the ids are the ColorMode union (lib/data).
@@ -51,6 +52,11 @@ export function CalendarViewSettings({
   // for any N-day count, so what's active is never ambiguous.
   const isMultiDay = view === "timeGridWeek" || isNDaysView(view);
   const dayCount = isNDaysView(view) ? view.n : 7;
+  // Desktop has its own sidebar "Camps" section (below the calendar rail) as the
+  // ONE entry point into the camp manager, so this row is redundant there. It
+  // stays for phone/tablet, where the rail doesn't render and this settings
+  // sheet is camps' only way in.
+  const { isDesktop } = useDeviceShape();
 
   return (
     <div className="ledger calset">
@@ -93,14 +99,17 @@ export function CalendarViewSettings({
         </div>
       )}
       {/* Camp hours moved onto the camp object — they're now edited per camp in
-          the camp manager (Manage camps), so the standalone "Camp hours" row is
-          gone. With no camp, the calendar uses the standard 8:00–18:00 day. */}
-      <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenCamps}>
-        <span className="ledger__label"><CampIcon.Home className="ledger__ic" />Manage camps</span>
-        <span className="calset__rowval" aria-hidden="true">
-          <CampIcon.ChevronRight />
-        </span>
-      </button>
+          the camp manager. On desktop that manager is reached from the sidebar's
+          own "Camps" section, so this row is desktop-only redundant; phone/tablet
+          have no rail, so it stays here as their one way in. */}
+      {!isDesktop && (
+        <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenCamps}>
+          <span className="ledger__label"><CampIcon.Home className="ledger__ic" />Manage camps</span>
+          <span className="calset__rowval" aria-hidden="true">
+            <CampIcon.ChevronRight />
+          </span>
+        </button>
+      )}
     </div>
   );
 }

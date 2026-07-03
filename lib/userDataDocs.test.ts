@@ -112,4 +112,31 @@ describe("user data docs", () => {
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe("custom-1");
   });
+
+  it("normalizes the meals doc: roster + date-keyed menu notes, empty default", () => {
+    expect(docDefault("meals")).toEqual({ dietary: [], menuNotes: {} });
+    const out = normalizeDoc("meals", {
+      dietary: [{ id: "d1", label: "Peanuts", severity: "severe" }, { id: "", label: "junk" }],
+      menuNotes: { "2026-07-08": { lunch: "Pizza" }, "bad-date": { lunch: "x" } },
+    });
+    expect(out.dietary).toEqual([{ id: "d1", label: "Peanuts", severity: "severe" }]);
+    expect(out.menuNotes).toEqual({ "2026-07-08": { lunch: "Pizza" } });
+    expect(normalizeDoc("meals", "nope")).toEqual({ dietary: [], menuNotes: {} });
+  });
+
+  it("normalizes the guides doc: valid bands only, empty default", () => {
+    expect(docDefault("guides")).toEqual([]);
+    const out = normalizeDoc("guides", [
+      { id: "g1", label: "Lunch", startMin: 720, endMin: 765, weekdays: [1, 2, 3] },
+      { id: "g2", label: "Point", startMin: 600, endMin: 600, weekdays: [1] }, // 0-length -> dropped
+      "nope",
+    ]);
+    expect(out.map((b) => b.id)).toEqual(["g1"]);
+    expect(normalizeDoc("guides", "nope")).toEqual([]);
+  });
+
+  it("maps the new docs to versioned localStorage names", () => {
+    expect(DOC_LOCAL_KEYS.meals).toBe("meals.v1");
+    expect(DOC_LOCAL_KEYS.guides).toBe("guides.v1");
+  });
 });

@@ -5,10 +5,11 @@
 // helpers (parsers/derivation), and the save-path scaffold logic from here so
 // there is one source of truth for how a scalar property becomes Activity data.
 
-import type { Activity, AgeGroupId, CategoryId, Place, Prep } from "./types";
+import type { Activity, AgeGroupId, CategoryId, MaterialRef, Place, Prep } from "./types";
 import { AGE_GROUPS } from "./data";
 import { normalizeHexColor } from "./color";
-import { materialTagsFromMaterials } from "./materials";
+import { materialNeedsForActivity, materialTagId, resolveRefs } from "./materials";
+import { type Material } from "./materialCatalog";
 import {
   buildRunDoc,
   cloneRunDoc,
@@ -25,6 +26,30 @@ import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
 
 export type EnergyWord = "Calm" | "Lively" | "Rowdy";
 
+// One editable kit row in the form. `id` is the materialTagId join key; `label`
+// is the display/typed text (the mirror the empty catalog reads back on reload);
+// `note` is an optional qty/detail. `minted` marks a row created THIS session
+// from a typed name — those re-slug their id when renamed, whereas a row that
+// came from storage keeps its frozen id and a rename only changes the label.
+export interface MaterialFormRow {
+  id: string;
+  label: string;
+  note?: string;
+  minted?: boolean;
+}
+
+// Snapshot of an activity's material fields at seed time — form-internal
+// provenance (NOT activity data). Lets activityFromForm detect "the rows didn't
+// change" and carry the ORIGINAL materials/materialTags/materialRefs through
+// byte-for-byte, so opening + saving an untouched activity is a no-op. Absent on
+// create (a blank form has no origin).
+export interface MaterialOrigin {
+  rows: MaterialFormRow[];
+  materials: string[];
+  materialTags?: string[];
+  materialRefs?: MaterialRef[];
+}
+
 export interface FormState {
   title: string;
   altNames: string; // comma-separated, like materials
@@ -38,7 +63,11 @@ export interface FormState {
   prep: Prep;
   rating: number;
   blurb: string;
-  materials: string;
+  // Kit as editable rows (was a comma-joined `materials: string`). The comma is
+  // no longer a delimiter — a label may contain commas. `materialOrigin` carries
+  // the seed provenance for byte-stable carry-through on save.
+  materialRefs: MaterialFormRow[];
+  materialOrigin?: MaterialOrigin;
   themeId: string;
   color: string; // "" = inherit the category tint
 }
@@ -67,12 +96,111 @@ export const BLANK_FORM: FormState = {
   prep: "Low",
   rating: 0,
   blurb: "",
-  materials: "",
+  materialRefs: [],
   themeId: "",
   color: "",
 };
 
-export function formFromActivity(a: Activity, themeId: string): FormState {
+// ── Material rows ────────────────────────────────────────────────────────────
+//
+// LABEL-PRESERVATION SCHEME (the load-bearing invariant): a MaterialRef stores
+// only { id, note }, so on reload with an empty catalog resolveRefs would label
+// a ref by humanizing its slug — losing the exact typed text ("Flour, ~2 cups"
+// slugs to "flour-2-cups" → "Flour 2 cups"). To keep a typed label rendering
+// IDENTICALLY after save + reload without any catalog writes, save regenerates
+// the legacy `materialTags` mirror as the PURE labels (no note suffix), written
+// from the SAME ordered rows as `materialRefs` — so materialTags[i] is the
+// display label for materialRefs[i]. formRowsFromActivity recovers each row's
+// label from that aligned mirror (or the real catalog name when the id exists),
+// and its note from the ref. Deterministic, honest, empty-catalog-safe.
+
+function pairedTagLabels(a: Activity): string[] | null {
+  const refs = Array.isArray(a.materialRefs) ? a.materialRefs : null;
+  const tags = Array.isArray(a.materialTags) ? a.materialTags : null;
+  // Only trust the pairing when refs + tags line up 1:1 (our own save shape).
+  return refs && tags && refs.length === tags.length ? tags : null;
+}
+
+// Seed the editable rows from an activity. Uses resolveRefs (the one three-tier
+// accessor) for ids + notes, then labels each row: catalog name if the id is a
+// real catalog entry, else the index-aligned materialTags mirror (the typed
+// label we wrote at save), else resolveRefs' humanized fallback.
+export function formRowsFromActivity(a: Activity, catalog?: Material[]): MaterialFormRow[] {
+  const paired = pairedTagLabels(a);
+  return resolveRefs(a, catalog).map((ref, index): MaterialFormRow => {
+    const catalogHit = catalog?.some((m) => m.id === ref.id) ?? false;
+    const label = catalogHit ? ref.label : paired?.[index] ?? ref.label;
+    return ref.note ? { id: ref.id, label, note: ref.note } : { id: ref.id, label };
+  });
+}
+
+// Mint a fresh row from a typed name (the add-row path). The id is the birth
+// slug of the name; `minted` marks it as re-sluggable on later renames THIS
+// session. Returns null when the name slugs to nothing (empty / punctuation).
+export function mintMaterialRow(name: string): MaterialFormRow | null {
+  const label = name.trim();
+  const id = materialTagId(label);
+  if (!id || !label) return null;
+  return { id, label, minted: true };
+}
+
+// Rename a row's label. A row minted THIS session re-slugs its id to match the
+// new name (it has no stored references yet). A row that came from storage keeps
+// its FROZEN id — a rename only changes the display label (and thus the mirror),
+// never the join key that the on-hand set / stock keys reference.
+export function renameMaterialRow(row: MaterialFormRow, name: string): MaterialFormRow | null {
+  const label = name.trim();
+  if (!label) return null;
+  if (row.minted) {
+    const id = materialTagId(label);
+    if (!id) return null;
+    return { ...row, id, label };
+  }
+  return { ...row, label };
+}
+
+// Clean the rows for save: trim labels/notes, drop label-less rows, and dedupe
+// by id (first wins) so the mirrors stay index-aligned and free of collisions.
+function cleanRows(rows: MaterialFormRow[]): MaterialFormRow[] {
+  const seen = new Set<string>();
+  const out: MaterialFormRow[] = [];
+  for (const row of rows) {
+    const label = row.label.trim();
+    const id = row.id.trim();
+    if (!label || !id || seen.has(id)) continue;
+    seen.add(id);
+    const note = row.note?.trim();
+    out.push(note ? { id, label, note } : { id, label });
+  }
+  return out;
+}
+
+// True when two row lists carry the same id/label/note in the same order — the
+// change-detection used to decide verbatim carry-through vs mirror regeneration.
+function rowsEqual(a: MaterialFormRow[], b: MaterialFormRow[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, i) => row.id === b[i].id && row.label === b[i].label && (row.note ?? "") === (b[i].note ?? ""));
+}
+
+// Regenerate the canonical refs + legacy mirrors from cleaned rows. materialRefs
+// is canonical (id + note); materialTags is the PURE labels (the reload label
+// store); materials is the human line ("<label>" or "<label> — <note>") legacy
+// consumers/exports already render. All three share the row order.
+export function mirrorsFromRows(rows: MaterialFormRow[]): {
+  materials: string[];
+  materialTags: string[];
+  materialRefs: MaterialRef[];
+} {
+  const clean = cleanRows(rows);
+  return {
+    materials: clean.map((row) => (row.note ? row.label + " — " + row.note : row.label)),
+    materialTags: clean.map((row) => row.label),
+    materialRefs: clean.map((row) => (row.note ? { id: row.id, note: row.note } : { id: row.id })),
+  };
+}
+
+export function formFromActivity(a: Activity, themeId: string, catalog?: Material[]): FormState {
+  const rows = formRowsFromActivity(a, catalog);
   return {
     title: a.title,
     altNames: (a.altNames ?? []).join(", "),
@@ -86,7 +214,15 @@ export function formFromActivity(a: Activity, themeId: string): FormState {
     prep: a.prep,
     rating: a.rating,
     blurb: a.blurb,
-    materials: a.materials.join(", "),
+    materialRefs: rows,
+    // Capture the seed rows + the ORIGINAL fields so an untouched save carries
+    // them through byte-for-byte (no re-slug, no tag clobber).
+    materialOrigin: {
+      rows,
+      materials: a.materials,
+      materialTags: a.materialTags,
+      materialRefs: a.materialRefs,
+    },
     themeId,
     color: a.color ?? "",
   };
@@ -107,14 +243,43 @@ export function lines(value: string): string[] {
   return value.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
+// Resolve the material fields for save. If the rows are UNCHANGED from the seed
+// (the user opened + saved without touching the kit), carry the activity's
+// original materials/materialTags/materialRefs through VERBATIM — byte-stable,
+// no re-slug, no tag clobber (the verified bug we're killing). If they changed
+// (or on create, where there's no origin), write materialRefs as canonical AND
+// regenerate the legacy mirrors FROM the rows so older clients/exports work.
+function materialFieldsForSave(f: FormState): {
+  materials: string[];
+  materialTags?: string[];
+  materialRefs?: MaterialRef[];
+} {
+  const origin = f.materialOrigin;
+  if (origin && rowsEqual(f.materialRefs, origin.rows)) {
+    return {
+      materials: origin.materials,
+      materialTags: origin.materialTags,
+      materialRefs: origin.materialRefs,
+    };
+  }
+  const mirrors = mirrorsFromRows(f.materialRefs);
+  return {
+    materials: mirrors.materials,
+    // Keep the fields ABSENT (not empty arrays) when there are no rows, matching
+    // how the validators re-attach optionals and how quickActivity leaves them.
+    materialTags: mirrors.materialTags.length ? mirrors.materialTags : undefined,
+    materialRefs: mirrors.materialRefs.length ? mirrors.materialRefs : undefined,
+  };
+}
+
 export function activityFromForm(f: FormState, id: string, extracted?: ExtractedRunText): Activity {
   const ages = f.ages.length ? f.ages : (["g46"] as AgeGroupId[]);
   const picked = AGE_GROUPS.filter((g) => ages.indexOf(g.id) >= 0);
   const duration = Math.min(parsePositiveInt(f.durationMin) || DEFAULT_DURATION, TOTAL_MIN);
-  const materials = lines(f.materials);
   const altNames = lines(f.altNames);
+  const material = materialFieldsForSave(f);
 
-  return {
+  const activity: Activity = {
     id,
     title: f.title.trim() || "Untitled activity",
     altNames: altNames.length ? altNames : undefined,
@@ -131,13 +296,17 @@ export function activityFromForm(f: FormState, id: string, extracted?: Extracted
     rating: f.rating,
     color: normalizeHexColor(f.color),
     blurb: f.blurb.trim() || "A new entry in the library.",
-    materials,
-    materialTags: materialTagsFromMaterials(materials),
+    materials: material.materials,
     steps: extracted?.steps || [],
     notes: extracted?.notes || "—",
     safety: extracted?.safety || "—",
     playbook: extracted?.playbook,
   };
+  // Only attach the optional mirrors when present, so an activity with no kit
+  // stays free of empty [] fields (matching quickActivity / the validators).
+  if (material.materialTags) activity.materialTags = material.materialTags;
+  if (material.materialRefs) activity.materialRefs = material.materialRefs;
+  return activity;
 }
 
 // Build a minimal library Activity from just a title + length — the path the
@@ -309,11 +478,15 @@ export function buildSaveDoc(
   const seed = activityFromForm(f, id);
   const playBlocks = stripScaffold(playDoc).blocks;
   const hasInstructions = playBlocks.some((block) => block.type === "step" || block.type === "playbook");
+  // Include the (data-less) materials block iff the seed activity actually needs
+  // something — the same gate buildRunDoc uses (materialNeedsForActivity), now
+  // keyed off the resolved rows rather than the retired comma string.
+  const needsMaterials = materialNeedsForActivity(seed).length > 0;
   const fullDoc: RunDoc = {
     blocks: [
       detailsHeadingBlock(seed),
       detailsBlock(seed),
-      ...(lines(f.materials).length ? [materialsBlock(id)] : []),
+      ...(needsMaterials ? [materialsBlock(id)] : []),
       ...(hasInstructions ? [playHeadingBlock(seed)] : []),
       ...playBlocks,
     ],
