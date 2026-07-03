@@ -261,10 +261,15 @@
   border-top-color: color-mix(in srgb, var(--line-soft) 60%, transparent);
 }
 .calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor {
-  border-top-color: color-mix(in srgb, var(--line-soft) 34%, transparent);
+  /* Quarter lines re-tuned: the old 34% mix vanished into the card. Dashed +
+     a touch more ink keeps the 15-min precision readable without the noise of
+     full-strength rules. */
+  border-top-style: dashed;
+  border-top-color: color-mix(in srgb, var(--line-soft) 55%, transparent);
 }
 .calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor[data-time$=":30:00"] {
-  border-top-color: color-mix(in srgb, var(--line-soft) 48%, transparent);
+  border-top-style: solid;
+  border-top-color: color-mix(in srgb, var(--line-soft) 72%, transparent);
 }
 /* The sticky time gutter floats over the column lanes, whose dotted 15-min lines
    span the full scroll width — including the slice that runs behind the gutter.
@@ -3650,4 +3655,178 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .cal-wx-loc__resultmeta {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* ---- ShiftBar (.cal-shift) — the day-shift / running-long card ----
+   Composes the .cal-popover frame. Delta chips read like the QuickAdd meal
+   chips (selected = the app's chip-on green); the hold pin is the checkbox's
+   own label, so the row stays one quiet line: title · old→new · pin. */
+.cal-shift {
+  width: min(340px, calc(100vw - 2 * var(--s-6)));
+}
+.cal-shift__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: var(--s-3);
+  vertical-align: baseline;
+}
+.cal-shift__deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+.cal-shift__chip {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  cursor: pointer;
+}
+.cal-shift__chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.cal-shift__chip.is-on {
+  background: var(--chip-on, var(--accent));
+  border-color: var(--chip-on, var(--accent));
+  color: var(--paper);
+}
+.cal-shift__stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.cal-shift__step {
+  width: var(--s-8);
+  height: var(--s-8);
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  line-height: 1;
+  cursor: pointer;
+}
+.cal-shift__amount {
+  min-width: 72px;
+  text-align: center;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.cal-shift__summary {
+  margin: var(--s-4) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.cal-shift__list,
+.cal-shift__held,
+.cal-shift__notes {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.cal-shift__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+}
+.cal-shift__row:first-child {
+  border-top: 0;
+}
+.cal-shift__rowtitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+.cal-shift__rowtime {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.cal-shift__arrow {
+  color: var(--ink-soft);
+}
+.cal-shift__row--held .cal-shift__rowtitle {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink-soft) 50%, transparent);
+}
+/* The hold toggle: the checkbox is visually replaced by its pin glyph — quiet
+   outline normally, filled/tinted when held. Keyboard/AT still get the input. */
+.cal-shift__hold {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--s-8);
+  height: var(--s-8);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.cal-shift__hold input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.cal-shift__pinglyph {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.cal-shift__hold:hover .cal-shift__pinglyph {
+  stroke: var(--ink);
+}
+.cal-shift__hold:has(input:checked) .cal-shift__pinglyph,
+.cal-shift__hold--on .cal-shift__pinglyph {
+  fill: color-mix(in srgb, var(--hl) 30%, transparent);
+  stroke: var(--ink);
+}
+.cal-shift__hold:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cal-shift__notes {
+  max-height: none;
+}
+.cal-shift__note {
+  padding: var(--s-1) 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--danger-ink);
+}
+.cal-shift__note--pastClose {
+  color: var(--ink-soft);
+}
+.cal-shift__commit {
+  width: 100%;
+  margin-top: var(--s-5);
 }
