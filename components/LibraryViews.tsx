@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { ActivityCell } from "./ActivityCell";
 import { CampIcon } from "./icons";
 import { useAgeUnit } from "./ageUnit";
-import { EmptyResults, SaveButton, ThemeBadge } from "./primitives";
+import { SaveButton, ThemeBadge } from "./primitives";
 import { BW, RADIUS, SCALE, SHELF_LINE, planShelf, titleFontPx, wrapShelf, type Placed } from "./shelfLayout";
 
 // Measure synchronously before paint on the client; fall back on the server so
@@ -60,8 +60,9 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
     };
   }, []);
 
-  if (!items.length) return <EmptyResults />;
-
+  // LibraryTab always intercepts the zero-results case before mounting any
+  // browse view, so there's no reachable empty-list path here (see the
+  // library surface's own "library-empty" block).
   const rows = shelfWidth > 0 ? wrapShelf(planShelf(items), shelfWidth) : [];
 
   const renderBook = (p: Placed) => {
@@ -139,7 +140,7 @@ export function ShelfView({ items, onOpen, isFav, onContextMenu }: ViewProps) {
 // ---------- Deck view ----------
 export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
   const ageUnit = useAgeUnit();
-  if (!items.length) return <EmptyResults />;
+  // See ShelfView above — LibraryTab already handles the zero-results case.
   return (
     <div className="deck fadein">
       {items.map((a) => {
@@ -207,7 +208,7 @@ export function DeckView({ items, onOpen, isFav, onToggleFav, onContextMenu, the
 // Ordering is owned by the library-wide sort control (see LibraryTab); items
 // arrive already sorted, so the view just renders them.
 export function CatalogView({ items, onOpen, isFav, onToggleFav, onContextMenu, themeOf }: ViewProps) {
-  if (!items.length) return <EmptyResults />;
+  // See ShelfView above — LibraryTab already handles the zero-results case.
   return (
     <div className="catalog fadein">
       {items.map((a) => (

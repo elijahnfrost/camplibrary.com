@@ -17,18 +17,23 @@ describe("collectLocalDocsForImport", () => {
         ctf: { blocks: [{ id: "b1", type: "step", text: "Go" }] },
       }),
       ["camp:" + SCOPE + ":playbooks"]: JSON.stringify({}),
-      ["camp:" + SCOPE + ":view"]: JSON.stringify("shelf"),
+      // "deck" is a real stored preference (the doc default is "shelf" — see
+      // userDataDocs.ts), so it's expected to import, unlike the next test's
+      // default-value case.
+      ["camp:" + SCOPE + ":view"]: JSON.stringify("deck"),
     });
     const docs = collectLocalDocsForImport(storage, SCOPE);
     expect(Object.keys(docs).sort()).toEqual(["favs", "runLists", "view"]);
     expect(docs.favs).toEqual(["ctf"]);
-    expect(docs.view).toBe("shelf");
+    expect(docs.view).toBe("deck");
   });
 
   it("skips defaults, empties, other scopes, and corrupt JSON", () => {
     const storage = fakeStorage({
       ["camp:" + SCOPE + ":favs"]: JSON.stringify([]),
-      ["camp:" + SCOPE + ":view"]: JSON.stringify("deck"),
+      // "shelf" is the doc default (Shelf is the Library's default landing
+      // view — see userDataDocs.ts), so it's skipped like any other default.
+      ["camp:" + SCOPE + ":view"]: JSON.stringify("shelf"),
       ["camp:" + SCOPE + ":ratings"]: "{corrupt",
       ["camp:anon:extra"]: JSON.stringify([{ id: "x" }]),
     });

@@ -24,7 +24,7 @@ describe("user data docs", () => {
   it("returns fresh default instances", () => {
     expect(docDefault("favs")).not.toBe(docDefault("favs"));
     expect(docDefault("ratings")).toEqual({});
-    expect(docDefault("view")).toBe("deck");
+    expect(docDefault("view")).toBe("shelf");
   });
 
   it("normalizes favs: dedupes, drops non-strings, falls back on non-arrays", () => {
@@ -50,7 +50,7 @@ describe("user data docs", () => {
 
   it("normalizes view with fallback", () => {
     expect(normalizeDoc("view", "shelf")).toBe("shelf");
-    expect(normalizeDoc("view", "bogus")).toBe("deck");
+    expect(normalizeDoc("view", "bogus")).toBe("shelf");
   });
 
   it("normalizes run list overrides: keeps valid docs, drops malformed entries", () => {

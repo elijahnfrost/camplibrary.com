@@ -1,23 +1,25 @@
 "use client";
 
-// The Library surface: the collection seg (Activities | Materials), view
-// switcher, search, Add button, the mobile filter bar, and the three browse
-// views. Filter state lives in CampApp because the desktop filter rail renders
-// inside the sidenav. The Materials collection mounts the existing MaterialsTab
-// content in place of the browse views (Materials was formerly its own tab).
+// The Library surface: ONE toolbar contract (collection seg + search + Add)
+// shared by both collections, the Shelf/Deck/Catalog view switch (Activities
+// only), the mobile filter bar, and the three browse views. Filter state lives
+// in CampApp because the desktop filter rail renders inside the sidenav. The
+// Materials collection mounts the existing MaterialsTab content below the same
+// toolbar (Materials was formerly its own tab, then a toolbar-swapping
+// collection — now the toolbar itself never changes shape between the two).
 
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/kitStock";
 import type { Activity, LibraryCollection, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters, type MinutesBounds, type MinutesRange } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
 import { MaterialsTab } from "./MaterialsTab";
-import { LoadingVeil } from "./primitives";
+import { LoadingVeil, MiniSeg } from "./primitives";
 
 // The MaterialsTab prop bundle, threaded through unchanged from CampApp. Kept as
 // one object so the Library toolbar stays readable and the Materials collection
@@ -27,11 +29,24 @@ export interface MaterialsCollectionProps {
   catalog: Material[];
   kitStock: Record<string, StockState>;
   onSetStockState: (id: string, state: StockState) => void;
+  onAddMaterial: (name: string) => string | null;
   onRename: (id: string, name: string) => void;
   onSetConsumable: (id: string, name: string, consumable: boolean) => void;
   onSetArchived: (id: string, name: string, archived: boolean) => void;
   onBrowseMaterial: (id: string, name: string) => void;
   canEdit: boolean;
+  /** The shared toolbar search field's value, lifted to CampApp. */
+  query: string;
+  onQuery: (query: string) => void;
+  stockFilter: MaterialStockFilter;
+  onStockFilter: (v: MaterialStockFilter) => void;
+  restockOnly: boolean;
+  onRestockOnly: (v: boolean) => void;
+  sort: MaterialSort;
+  announce: (message: string) => void;
+  /** Bumped by the toolbar's Add button. */
+  pendingAdd: number;
+  onPendingAddHandled: () => void;
 }
 
 export function LibraryTab({
@@ -85,6 +100,9 @@ export function LibraryTab({
   materials: MaterialsCollectionProps;
   view: LibraryView;
   onView: (view: LibraryView) => void;
+  /** The ONE toolbar search field's value — routes to the active collection's
+   *  own filter state (CampApp threads it to either the Activities `query` or
+   *  the Materials bundle's `query`, whichever is showing). */
   query: string;
   onQuery: (query: string) => void;
   sort: LibrarySort;
@@ -120,6 +138,8 @@ export function LibraryTab({
   onToggleFav: (id: string) => void;
   /** Right-click an activity card/row → context menu (pointer-fine only). */
   onContextMenu?: (activity: Activity, event: MouseEvent) => void;
+  /** The toolbar's Add button — creates an activity (Activities) or opens a
+   *  fresh row in rename mode (Materials, see MaterialsCollectionProps). */
   onAdd: () => void;
   /** First-load readiness from the cloud store. The base catalog (the seed
    *  library) is always present, so the list is rarely "loading" — but the
@@ -132,126 +152,88 @@ export function LibraryTab({
   const isMaterials = collection === "materials";
   return (
     <>
+      {/* ONE toolbar contract for both collections: the collection seg, the
+          Activities-only Shelf/Deck/Catalog switch, the shared search field,
+          and the shared Add button always render in the same positions —
+          Materials no longer swaps out the whole header (library-3). */}
       <div className="toolbar">
         {/* Collection seg — the far-left dimension: Activities (the catalog) vs
-            Materials (the kit inventory, formerly its own tab). --seg-i drives
-            the sliding active pill (see .viewswitch in globals). */}
-        <div
-          className="collseg viewswitch seg-slide"
-          role="group"
-          aria-label="Library collection"
-          style={{ "--seg-n": 2, "--seg-i": isMaterials ? 1 : 0 } as CSSProperties}
-        >
-          <button
-            type="button"
-            className={!isMaterials ? "is-active" : ""}
-            aria-pressed={!isMaterials}
-            onClick={() => onCollection("activities")}
-          >
-            <CampIcon.Library />
-            Activities
-          </button>
-          <button
-            type="button"
-            className={isMaterials ? "is-active" : ""}
-            aria-pressed={isMaterials}
-            onClick={() => onCollection("materials")}
-          >
-            <CampIcon.Crate />
-            Materials
-          </button>
-        </div>
-        {/* The browse-view switch, search, and Add belong to the Activities
-            collection only — Materials mounts its own header + search below. */}
+            Materials (the kit inventory, formerly its own tab). Built on the
+            shared MiniSeg (radiogroup/radio, same as every other single-choice
+            pill in the app — library-6/library-7), just wearing the toolbar's
+            larger `.viewswitch` shell instead of the compact `.miniseg` one. */}
+        <MiniSeg
+          ariaLabel="Library collection"
+          variant="toolbar"
+          className="collseg"
+          value={collection}
+          onChange={onCollection}
+          options={[
+            { id: "activities" as LibraryCollection, label: "Activities", icon: CampIcon.Library },
+            { id: "materials" as LibraryCollection, label: "Materials", icon: CampIcon.Crate },
+          ]}
+        />
+        {/* The browse-view switch is Activities-only (kept per J1 — all three
+            views stay; only the toggle's implementation gets cleaner). */}
         {!isMaterials && (
-          <>
-            {/* --seg-i drives the sliding active pill (see .viewswitch in globals). */}
-            <div
-              className="viewswitch seg-slide"
-              style={
-                {
-                  "--seg-n": 3,
-                  "--seg-i": view === "shelf" ? 0 : view === "deck" ? 1 : 2,
-                } as CSSProperties
-              }
-            >
-              <button
-                type="button"
-                className={view === "shelf" ? "is-active" : ""}
-                aria-pressed={view === "shelf"}
-                onClick={() => onView("shelf")}
-              >
-                <CampIcon.Shelf />
-                Shelf
-              </button>
-              <button
-                type="button"
-                className={view === "deck" ? "is-active" : ""}
-                aria-pressed={view === "deck"}
-                onClick={() => onView("deck")}
-              >
-                <CampIcon.Deck />
-                Deck
-              </button>
-              <button
-                type="button"
-                className={view === "catalog" ? "is-active" : ""}
-                aria-pressed={view === "catalog"}
-                onClick={() => onView("catalog")}
-              >
-                <CampIcon.List />
-                Catalog
-              </button>
-            </div>
-            <div className="searchfield toolbar__search">
-              <CampIcon.Search />
-              <input
-                className="searchfield__input"
-                placeholder="Search titles, steps, materials..."
-                value={query}
-                onChange={(e) => onQuery(e.target.value)}
-                aria-label="Search the library"
-                enterKeyHint="search"
-                // Mobile keyboards otherwise auto-capitalize and autocorrect the
-                // field, silently rewriting unusual game/alt-names ("Goggaball",
-                // "gaga") into real words before they reach the matcher — the
-                // root of "it searched something I didn't type."
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="off"
-                spellCheck={false}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-                }}
-              />
-              {query && (
-                <button
-                  type="button"
-                  className="searchfield__clear"
-                  onClick={() => onQuery("")}
-                  aria-label="Clear search"
-                >
-                  <CampIcon.Close />
-                </button>
-              )}
-            </div>
+          <MiniSeg
+            ariaLabel="Library view"
+            variant="toolbar"
+            value={view}
+            onChange={onView}
+            options={[
+              { id: "shelf" as LibraryView, label: "Shelf", icon: CampIcon.Shelf },
+              { id: "deck" as LibraryView, label: "Deck", icon: CampIcon.Deck },
+              { id: "catalog" as LibraryView, label: "Catalog", icon: CampIcon.List },
+            ]}
+          />
+        )}
+        <div className="searchfield toolbar__search">
+          <CampIcon.Search />
+          <input
+            className="searchfield__input"
+            placeholder={isMaterials ? "Search materials" : "Search titles, steps, materials..."}
+            value={isMaterials ? materials.query : query}
+            onChange={(e) => (isMaterials ? materials.onQuery(e.target.value) : onQuery(e.target.value))}
+            aria-label={isMaterials ? "Search materials" : "Search the library"}
+            enterKeyHint="search"
+            // Mobile keyboards otherwise auto-capitalize and autocorrect the
+            // field, silently rewriting unusual game/alt-names ("Goggaball",
+            // "gaga") into real words before they reach the matcher — the
+            // root of "it searched something I didn't type."
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+            }}
+          />
+          {(isMaterials ? materials.query : query) && (
             <button
               type="button"
-              className="btn btn--primary toolbar__add"
-              onClick={onAdd}
-              title="Catalog a new activity"
+              className="searchfield__clear"
+              onClick={() => (isMaterials ? materials.onQuery("") : onQuery(""))}
+              aria-label="Clear search"
             >
-              <CampIcon.Plus />
-              <span>Add</span>
+              <CampIcon.Close />
             </button>
-            {actions && <div className="toolbar__auth">{actions}</div>}
-          </>
-        )}
+          )}
+        </div>
+        <button
+          type="button"
+          className="btn btn--primary toolbar__add"
+          onClick={onAdd}
+          title={isMaterials ? "Add a new material" : "Catalog a new activity"}
+        >
+          <CampIcon.Plus />
+          <span>Add</span>
+        </button>
+        {actions && <div className="toolbar__auth">{actions}</div>}
       </div>
       {isMaterials ? (
-        // The Materials collection: the existing MaterialsTab content in place
-        // of the mobile filter bar + browse views. It owns its own header,
-        // search, and setup flow.
+        // The Materials collection: the existing MaterialsTab content below
+        // the shared toolbar. It still owns its own setup flow and row list.
         <MaterialsTab {...materials} />
       ) : (
         <>

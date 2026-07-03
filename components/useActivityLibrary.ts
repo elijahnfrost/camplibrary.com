@@ -14,7 +14,7 @@ import {
 } from "@/lib/activityCatalog";
 import { ACTIVITIES } from "@/lib/data";
 import { materialOptionsForActivities, resolveRefs } from "@/lib/materials";
-import { mintCatalogEntries } from "@/lib/materialCatalog";
+import { materialFromName, mintCatalogEntries } from "@/lib/materialCatalog";
 import { effectiveKitStock, foldStockWrite, type StockState } from "@/lib/kitStock";
 import { type ActivityPlaybookData } from "@/lib/playbooks";
 import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
@@ -118,6 +118,28 @@ export function useActivityLibrary({
   // only and delete is soft (`archived: true`). A rename of a derived-only row
   // (no catalog entry yet) MINTS one under the row's frozen id so the new name
   // sticks. All gated by requireStaff; inert for anonymous/read-only. ----
+
+  // Mint a brand-new catalog entry with no activity reference yet — the
+  // Materials collection's "Add" entry point (parity with Activities' always-
+  // visible Add button). Returns the new entry's frozen id on success, or null
+  // when the name is blank or an entry with that same birth-slug already
+  // exists (the caller can then just focus/jump to the existing row instead of
+  // silently doing nothing).
+  const addMaterial = useCallback(
+    (name: string): string | null => {
+      if (!requireStaff("add materials")) return null;
+      const minted = materialFromName(name);
+      if (!minted) return null;
+      let created = false;
+      setDoc("materialCatalog", (previous) => {
+        if (previous.some((entry) => entry.id === minted.id)) return previous;
+        created = true;
+        return [...previous, minted];
+      });
+      return created ? minted.id : null;
+    },
+    [requireStaff, setDoc]
+  );
 
   // Rename a catalog material — edits `name`, never the id. Mints an entry under
   // `id` when none exists yet (first rename of a derived-only row). A blank name
@@ -545,6 +567,7 @@ export function useActivityLibrary({
     materialCatalog,
     kitStock,
     setStockState,
+    addMaterial,
     renameMaterial,
     setMaterialConsumable,
     setMaterialArchived,
