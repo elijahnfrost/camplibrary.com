@@ -88,6 +88,18 @@ describe("toFcEvent", () => {
     ).toBe("1/2");
   });
 
+  it("threads a backup-plan glyph only when it carries a count", () => {
+    expect(toFcEvent(event(), BY_ID).extendedProps?.alternatesGlyph).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, undefined, { rain: false, count: 0 })
+        .extendedProps?.alternatesGlyph
+    ).toBeUndefined();
+    expect(
+      toFcEvent(event(), BY_ID, undefined, "custom", undefined, undefined, { rain: true, count: 2 })
+        .extendedProps?.alternatesGlyph
+    ).toEqual({ rain: true, count: 2 });
+  });
+
   it("threads the meal kind into extendedProps for the meal glyph", () => {
     // Absent → undefined (so a plain card never draws the meal glyph).
     expect(toFcEvent(event(), BY_ID).extendedProps?.mealKind).toBeUndefined();

@@ -12,7 +12,7 @@ import {
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
-import { type CalendarEvent, type DateKey, type MealKind } from "@/lib/calendar/types";
+import { type AlternateRef, type CalendarEvent, type DateKey, type MealKind } from "@/lib/calendar/types";
 import { dietaryBySeverity, type DietaryEntry, type MealsDoc } from "@/lib/meals";
 import type { RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
@@ -123,6 +123,11 @@ export function QuickAdd({
   onResetOccurrence,
   onRestoreSkip,
   onRecoverTime,
+  backupAlternates = [],
+  onSwapBackup,
+  onEditBackups,
+  onClearBackups,
+  hasOwnBackups = false,
   onClose,
 }: {
   draft: EditorDraft;
@@ -212,6 +217,23 @@ export function QuickAdd({
    *  `extend` true = "Running long" (grow this end + slide the rest); false =
    *  "Shift day from here". Closes the sheet first, then opens the bar. */
   onRecoverTime?: (extend: boolean) => void;
+  /** The placement's RESOLVED backup plans (event override ?? activity default) —
+   *  shown as compact rows in edit posture with a per-row [Swap]. Absent/empty =
+   *  no backups on file. Display-only; the actions below mutate through
+   *  CalendarShell (IMMEDIATE, like Pin). */
+  backupAlternates?: AlternateRef[];
+  /** Swap this placement to backup #index — the self-inverse promote (IMMEDIATE,
+   *  closes the sheet). Absent = no swap wired (read-only surface). */
+  onSwapBackup?: (index: number) => void;
+  /** Copy the resolved list onto THIS placement (copy-on-write) so it can be
+   *  edited per-day — the "Edit backups…" affordance. IMMEDIATE. */
+  onEditBackups?: () => void;
+  /** Write an authoritative empty list on THIS placement — "No backups for this
+   *  day". IMMEDIATE. */
+  onClearBackups?: () => void;
+  /** Whether this placement already carries its OWN backup override (so the footer
+   *  reads "Editing backups for this day" rather than "Edit backups…"). */
+  hasOwnBackups?: boolean;
   onClose: () => void;
 }) {
   const isEdit = Boolean(draft.id);
@@ -940,6 +962,51 @@ export function QuickAdd({
                   />
                 </PropRow>
               )}
+              {/* Backup plans — the placement's RESOLVED rain/overflow fallbacks
+                  (event override ?? activity default), shown as compact rows with a
+                  per-row [Swap] (the self-inverse promote). "Edit backups…" copies
+                  the resolved list onto THIS day (copy-on-write) so it can diverge;
+                  "No backups for this day" writes an authoritative empty list.
+                  Edit-only, non-reminder. */}
+              {isEdit && !isReminder && onSwapBackup && (
+                <PropRow icon={BackupGlyph} label="Backup plans" className="prop-row--top quickadd__backuprow">
+                  <div className="quickadd__backups">
+                    {backupAlternates.length ? (
+                      <ul className="quickadd__backuplist">
+                        {backupAlternates.map((alt, index) => (
+                          <li key={index} className="quickadd__backup">
+                            <span className="quickadd__backup-title">{alt.title}</span>
+                            {alt.reason === "rain" && (
+                              <span className="quickadd__backup-tag">rain</span>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn--quiet btn--sm quickadd__backup-swap"
+                              onClick={() => onSwapBackup(index)}
+                            >
+                              Swap
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="quickadd__backup-empty">No backup plans for this block.</p>
+                    )}
+                    <div className="quickadd__backup-acts">
+                      {onEditBackups && (
+                        <button type="button" className="quickadd__backup-btn" onClick={onEditBackups}>
+                          {hasOwnBackups ? "Editing backups for this day" : "Edit backups…"}
+                        </button>
+                      )}
+                      {onClearBackups && backupAlternates.length > 0 && (
+                        <button type="button" className="quickadd__backup-btn" onClick={onClearBackups}>
+                          No backups for this day
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </PropRow>
+              )}
               {/* Menu note — the day's menu for THIS meal ("pizza + salad bar").
                   Stored on the meals doc keyed by (date, mealKind), never on the
                   event, so regenerating the meal series can't erase a season of
@@ -1028,6 +1095,17 @@ export function QuickAdd({
         )}
       </div>
     </Modal>
+  );
+}
+
+// A small inline umbrella for the "Backup plans" axis row. icons.tsx is owned
+// elsewhere (no umbrella glyph), so it's inlined on the icon set's 24×24 grid.
+function BackupGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M12 3v2M4 12a8 8 0 0 1 16 0z" />
+      <path d="M12 12v6a2.2 2.2 0 0 1-4.4 0" />
+    </svg>
   );
 }
 

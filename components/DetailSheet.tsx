@@ -31,6 +31,9 @@ import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
 import type { Material } from "@/lib/materialCatalog";
 import type { StockState } from "@/lib/kitStock";
+import type { AlternateRef, CalendarEvent } from "@/lib/calendar/types";
+import { normalizeActivityAlternates } from "@/lib/alternates";
+import { ALTERNATES_MAX, ALTERNATE_TITLE_MAX_LENGTH } from "@/lib/calendar/types";
 import {
   BLANK_FORM,
   activityFromForm,
@@ -75,6 +78,9 @@ export function DetailSheet({
   ageUnit = "grades",
   onAgeUnit,
   eventContext,
+  eventMaterialSubs,
+  onPatchEvent,
+  libraryActivities,
   backLabel = "Library",
   theme = null,
 }: {
@@ -116,6 +122,20 @@ export function DetailSheet({
    *  event, surfaced here so it reconciles with the run sheet (it's distinct from
    *  the evergreen Field-notes log in the body, which is per-activity). */
   eventContext?: { dateLabel: string; timeLabel: string; note?: string };
+  /** The calendar event's per-placement material substitutions ({refId: label},
+   *  "" = skipped). Present only when opened FROM an event; drives the Materials
+   *  checklist's per-day Swap / Skip rows. Absent (library-opened) = canonical
+   *  list untouched. */
+  eventMaterialSubs?: Record<string, string>;
+  /** Patch the calendar event this was opened from — the least-coupled bridge for
+   *  per-placement edits (material subs). A closure bound to the specific event in
+   *  CampApp (staff-gated, series-stamped there); absent on library-opened or
+   *  read-only surfaces. Kept SEPARATE from the display-only `eventContext` so that
+   *  stays plain strings. */
+  onPatchEvent?: (changes: Partial<CalendarEvent>) => void;
+  /** The library activities — the typeahead pool for the edit-mode "Backup plans"
+   *  section's optional activity link. Absent on read-only/public surfaces. */
+  libraryActivities?: Activity[];
   /** Where closing the viewer returns to (the surface it was opened from). */
   backLabel?: string;
   /** The activity's theme tag (null = untagged); display-only here. */
@@ -145,6 +165,13 @@ export function DetailSheet({
     isCreate ? blankPlayDoc() : playDocForActivity(a, runDoc)
   );
 
+  // The activity-level DEFAULT backup plans, edited in a dedicated section (NOT
+  // through FormState — see the note on submit()). Seeded from the live activity's
+  // list; a clean array so a garbage stored value can't ride through.
+  const [alternates, setAlternates] = useState<AlternateRef[]>(() =>
+    isCreate ? [] : normalizeActivityAlternates(a.alternates)
+  );
+
   // The activity object the run-doc editor previews against while editing — its
   // category tint, materials, etc. track the scalar controls live (the same
   // draft the old AddView fed the embedded run list).
@@ -161,6 +188,7 @@ export function DetailSheet({
     if (!canEdit) return;
     setForm(formFromActivity(a, themeKit?.initialThemeId ?? ""));
     setPlayDoc(playDocForActivity(a, runDoc));
+    setAlternates(normalizeActivityAlternates(a.alternates));
     setEditing(true);
   };
 
@@ -176,8 +204,16 @@ export function DetailSheet({
     const { doc, extracted } = buildSaveDoc(form, id, playDoc);
     // The Activity is derived ENTIRELY from the form (+ the run text extracted
     // from the doc), exactly as the old AddView.submit did — so the saved record
-    // shape is unchanged and old data keeps loading.
-    onSubmit(activityFromForm(form, id, extracted), doc, form.themeId || null);
+    // shape is unchanged and old data keeps loading. Backup plans are the one
+    // exception: they're NOT threaded through FormState (activityForm.ts is owned
+    // elsewhere), so they're PATCHED onto the derived activity here on save (a
+    // dedicated patch-on-save). Attached only when non-empty, mirroring the other
+    // optionals; a cleared list leaves the field absent.
+    const nextActivity = activityFromForm(form, id, extracted);
+    const cleanAlternates = normalizeActivityAlternates(alternates);
+    if (cleanAlternates.length) nextActivity.alternates = cleanAlternates;
+    else delete nextActivity.alternates;
+    onSubmit(nextActivity, doc, form.themeId || null);
     // The parent owns what happens next (close on create, drop edit on save);
     // dropping local edit here keeps the read view consistent if it stays open.
     if (!isCreate) setEditing(false);
@@ -325,6 +361,12 @@ export function DetailSheet({
               onEditAgeUnit={onAgeUnit}
             />
 
+            <BackupPlansEditor
+              value={alternates}
+              onChange={setAlternates}
+              activities={libraryActivities ?? []}
+            />
+
             <div className="rlv-save">
               <button
                 type="button"
@@ -413,6 +455,20 @@ export function DetailSheet({
               materialCatalog={materialCatalog}
               onSetStockState={onSetStockState ?? (() => {})}
               onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
+              // Per-placement material substitutions — present only when opened
+              // FROM an event (onPatchEvent bound to that event). Library-opened
+              // sheets pass nothing, so the checklist shows the canonical list.
+              materialSubs={onPatchEvent ? eventMaterialSubs ?? {} : undefined}
+              onSetMaterialSub={
+                onPatchEvent
+                  ? (refId, label) => {
+                      const next = { ...(eventMaterialSubs ?? {}) };
+                      if (label === null) delete next[refId];
+                      else next[refId] = label;
+                      onPatchEvent({ materialSubs: next });
+                    }
+                  : undefined
+              }
               // Lets staff jot field notes straight from the read-only viewer
               // while running the game — no edit-mode toggle needed.
               canCapture={Boolean(onSaveRunDoc)}
@@ -421,5 +477,110 @@ export function DetailSheet({
         )}
       </div>
     </Modal>
+  );
+}
+
+const ALTERNATE_REASON_OPTIONS: { value: AlternateRef["reason"]; label: string }[] = [
+  { value: "rain", label: "Rain" },
+  { value: "overflow", label: "Overflow" },
+  { value: "choice", label: "Free choice" },
+];
+
+// The edit-mode "Backup plans" section — the activity's DEFAULT fallbacks (up to
+// ALTERNATES_MAX). Each row: a title text input, an optional library-activity link
+// (a native datalist typeahead that co-fills the title on pick), and a reason
+// select defaulting to rain. A clean list is normalized on save; here the rows are
+// free-form so a half-typed row doesn't vanish. Purely local draft state lifted to
+// the parent via onChange.
+function BackupPlansEditor({
+  value,
+  onChange,
+  activities,
+}: {
+  value: AlternateRef[];
+  onChange: (next: AlternateRef[]) => void;
+  activities: Activity[];
+}) {
+  const sorted = useMemo(
+    () => [...activities].sort((x, y) => x.title.localeCompare(y.title)),
+    [activities]
+  );
+  const patchRow = (index: number, patch: Partial<AlternateRef>) =>
+    onChange(value.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const removeRow = (index: number) => onChange(value.filter((_, i) => i !== index));
+  const addRow = () => {
+    if (value.length >= ALTERNATES_MAX) return;
+    onChange([...value, { title: "", reason: "rain" }]);
+  };
+  // Resolve a typed/picked link title to a library activity id (title match), so
+  // the row carries an activityId when it names a real library book.
+  const linkFromTitle = (title: string): { title: string; activityId?: string } => {
+    const hit = sorted.find((act) => act.title.toLowerCase() === title.trim().toLowerCase());
+    return hit ? { title: hit.title, activityId: hit.id } : { title };
+  };
+
+  return (
+    <section className="rlv-backups" aria-label="Backup plans">
+      <div className="rlv-backups__head">
+        <h3 className="rlv-backups__title">
+          <CampIcon.Repeat />
+          Backup plans
+        </h3>
+        <p className="rlv-backups__hint">
+          Rainy-day or overflow fallbacks — offered on the calendar when the weather turns.
+        </p>
+      </div>
+      {value.length > 0 && (
+        <ul className="rlv-backups__list">
+          {value.map((row, index) => (
+            <li key={index} className="rlv-backups__row">
+              <input
+                className="input rlv-backups__name"
+                list="rlv-backups-lib"
+                value={row.title}
+                maxLength={ALTERNATE_TITLE_MAX_LENGTH}
+                placeholder="Backup title, or pick a library activity"
+                aria-label={"Backup plan " + (index + 1) + " title"}
+                onChange={(e) => {
+                  const linked = linkFromTitle(e.target.value);
+                  patchRow(index, { title: e.target.value, activityId: linked.activityId });
+                }}
+              />
+              <select
+                className="input rlv-backups__reason"
+                value={row.reason}
+                aria-label={"Backup plan " + (index + 1) + " reason"}
+                onChange={(e) => patchRow(index, { reason: e.target.value as AlternateRef["reason"] })}
+              >
+                {ALTERNATE_REASON_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="rlv-headbtn rlv-headbtn--danger rlv-backups__del"
+                onClick={() => removeRow(index)}
+                aria-label={"Remove backup plan " + (index + 1)}
+              >
+                <CampIcon.Close />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <datalist id="rlv-backups-lib">
+        {sorted.map((act) => (
+          <option key={act.id} value={act.title} />
+        ))}
+      </datalist>
+      {value.length < ALTERNATES_MAX && (
+        <button type="button" className="rlv-backups__add" onClick={addRow}>
+          <CampIcon.Plus />
+          Add a backup plan
+        </button>
+      )}
+    </section>
   );
 }

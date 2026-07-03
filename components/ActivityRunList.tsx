@@ -29,7 +29,7 @@ import {
 } from "react";
 import type { Activity, AgeGroupId } from "@/lib/types";
 import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
-import { coverage, resolveRefs, type ResolvedRef } from "@/lib/materials";
+import { coverage, materialTagId, resolveRefs, type ResolvedRef } from "@/lib/materials";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { isStocked, nextStockState, type StockState } from "@/lib/kitStock";
 import {
@@ -366,34 +366,66 @@ function RunEmbed({ parsed, title }: { parsed: ParsedEmbed; title?: string }) {
 // whose own item is out but a substitute is on hand reads "↔ via <name>". The
 // header is a compact coverage pill (Ready / "N missing"); nothing shows when
 // stock is UNSET (the lens is inert, so the checklist reads as a plain list).
+//
+// Per-PLACEMENT substitutions: when opened FROM a calendar event (onSetSub given),
+// each row grows staff actions — Swap… (replace this material for the day) and
+// Skip today. A subbed row reads "<replacement> — instead of <original>" and its
+// availability evaluates by the REPLACEMENT's slug (materialTagId(label)); a
+// skipped row ("" in subs) is dropped from the coverage math. A revert × restores
+// the canonical item. Library-opened sheets pass no subs, so the list is canonical.
 function MaterialChecklist({
   needs,
   stock,
   catalog,
   onSetStockState,
+  subs,
+  onSetSub,
 }: {
   needs: ResolvedRef[];
   stock: Record<string, StockState>;
   catalog?: Material[];
   onSetStockState: (id: string, state: StockState) => void;
+  subs?: Record<string, string>;
+  onSetSub?: (refId: string, label: string | null) => void;
 }) {
-  // Coverage over these exact needs (built from the same resolveRefs list, so
-  // the pill and the rows can't disagree). Unset stock → an inert lens.
-  const cov = useMemo(
-    () => coverage({ materialRefs: needs.map((n) => ({ id: n.id, note: n.note })) } as Activity, stock, catalog),
-    [needs, stock, catalog]
+  // Per-day editing is on only when a placement wired both the subs map and the
+  // writer (opened FROM an event). Library-opened = canonical list, no row actions.
+  const canSub = Boolean(onSetSub);
+  // The row a Swap picker is currently open over (refId), plus its draft text.
+  const [swapping, setSwapping] = useState<string | null>(null);
+
+  // The EFFECTIVE need per row: a subbed row's coverage key + label follow the
+  // REPLACEMENT (its own slug), a skipped row is excluded from the lens entirely.
+  // We carry the original alongside so the row can say "instead of <original>".
+  const rows = useMemo(
+    () =>
+      needs.map((n) => {
+        const sub = subs?.[n.id];
+        if (sub === undefined) return { ...n, kind: "plain" as const, coverId: n.id, coverLabel: n.label };
+        if (sub === "") return { ...n, kind: "skip" as const, coverId: n.id, coverLabel: n.label };
+        const coverId = materialTagId(sub);
+        return { ...n, kind: "sub" as const, subLabel: sub, coverId, coverLabel: sub };
+      }),
+    [needs, subs]
   );
+
+  // Coverage over the EFFECTIVE, non-skipped needs (subbed rows keyed by their
+  // replacement's slug), so the pill and the rows agree with the swaps in force.
+  const cov = useMemo(() => {
+    const active = rows.filter((r) => r.kind !== "skip");
+    return coverage(
+      { materialRefs: active.map((r) => ({ id: r.coverId })) } as Activity,
+      stock,
+      catalog
+    );
+  }, [rows, stock, catalog]);
   const unset = cov.state === "unset";
-  // The substitute source id per need, so a covered-via-substitute row can name
-  // its stand-in ("↔ via Pool noodles") instead of showing its own out state.
   const viaById = useMemo(() => {
     const map = new Map<string, string>();
     cov.substituted.forEach((s) => map.set(s.id, s.viaId));
     return map;
   }, [cov.substituted]);
 
-  // A short status label for the pill: nothing when unset, "Ready" when fully
-  // covered, else "N missing".
   const pill =
     unset || cov.state === "ready"
       ? unset
@@ -420,48 +452,53 @@ function MaterialChecklist({
         </div>
       )}
       <div className="matkit__list">
-        {needs.map((n) => {
-          const viaId = viaById.get(n.id);
-          const own = stock[n.id];
-          // The row's display state: a substitute-covered row reads as a "via"
-          // row; otherwise its own state (absent = "out"-like uncovered, but
-          // while UNSET we render it plain — no red/amber/green).
-          const state: StockState | "via" = viaId
-            ? "via"
-            : own ?? "out";
+        {rows.map((n) => {
+          const skipped = n.kind === "skip";
+          const subbed = n.kind === "sub";
+          const viaId = viaById.get(n.coverId);
+          const own = stock[n.coverId];
+          const state: StockState | "via" = viaId ? "via" : own ?? "out";
           const viaName = viaId ? catalogNameFor(catalog, viaId) : "";
-          const stateWord =
-            state === "via"
+          const stateWord = skipped
+            ? "skipped today"
+            : state === "via"
               ? "covered by " + viaName
               : state === "have"
                 ? "have"
                 : state === "low"
                   ? "low"
                   : "out";
-          const rowClass = unset
-            ? ""
-            : state === "have" || state === "via"
-              ? " is-have"
-              : state === "low"
-                ? " is-low"
-                : " is-out";
-          return (
+          const rowClass = skipped
+            ? " is-skip"
+            : unset
+              ? ""
+              : state === "have" || state === "via"
+                ? " is-have"
+                : state === "low"
+                  ? " is-low"
+                  : " is-out";
+          // The tappable status button (cycles the row's effective stock). A
+          // skipped row's status is inert (nothing to stock).
+          const statusBtn = (
             <button
               type="button"
-              key={n.id}
               className={"matkit__item" + rowClass}
-              // The tap always cycles this material's OWN state (a substitute is
-              // a read-side convenience; you still stock the real item here).
-              onClick={() => onSetStockState(n.id, nextStockState(own))}
-              aria-label={n.label + ": " + stateWord}
+              disabled={skipped}
+              onClick={() => (skipped ? undefined : onSetStockState(n.coverId, nextStockState(own)))}
+              aria-label={(subbed ? n.subLabel : n.label) + ": " + stateWord}
             >
               <span className="matkit__check" aria-hidden="true">
-                {!unset && (state === "have" || state === "via") && <CampIcon.Check />}
-                {!unset && state === "low" && <CampIcon.Minus />}
-                {!unset && state === "out" && <CampIcon.Close />}
+                {skipped && <CampIcon.Minus />}
+                {!skipped && !unset && (state === "have" || state === "via") && <CampIcon.Check />}
+                {!skipped && !unset && state === "low" && <CampIcon.Minus />}
+                {!skipped && !unset && state === "out" && <CampIcon.Close />}
               </span>
-              <span className="matkit__name">{n.label}</span>
-              {!unset && state === "via" && (
+              <span className="matkit__name">
+                {subbed ? n.subLabel : n.label}
+                {subbed && <span className="matkit__instead"> — instead of {n.label}</span>}
+                {skipped && <span className="matkit__instead"> — skipped today</span>}
+              </span>
+              {!skipped && !unset && state === "via" && (
                 <span className="matkit__via">
                   <CampIcon.Repeat />
                   via {viaName}
@@ -469,8 +506,134 @@ function MaterialChecklist({
               )}
             </button>
           );
+
+          if (!canSub) {
+            return (
+              <div key={n.id} className="matkit__rowline">
+                {statusBtn}
+              </div>
+            );
+          }
+          return (
+            <div key={n.id} className="matkit__rowline">
+              {statusBtn}
+              <span className="matkit__acts">
+                {subbed || skipped ? (
+                  <button
+                    type="button"
+                    className="matkit__act matkit__revert"
+                    onClick={() => onSetSub?.(n.id, null)}
+                    aria-label={"Revert " + n.label + " to the original"}
+                    title="Revert to the original"
+                  >
+                    <CampIcon.Close />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="matkit__act"
+                      onClick={() => setSwapping((id) => (id === n.id ? null : n.id))}
+                      aria-label={"Swap " + n.label + " for the day"}
+                    >
+                      Swap…
+                    </button>
+                    <button
+                      type="button"
+                      className="matkit__act"
+                      onClick={() => onSetSub?.(n.id, "")}
+                      aria-label={"Skip " + n.label + " today"}
+                    >
+                      Skip today
+                    </button>
+                  </>
+                )}
+              </span>
+              {swapping === n.id && (
+                <MaterialSwapForm
+                  original={n.label}
+                  catalog={catalog}
+                  stock={stock}
+                  onPick={(label) => {
+                    onSetSub?.(n.id, label);
+                    setSwapping(null);
+                  }}
+                  onClose={() => setSwapping(null)}
+                />
+              )}
+            </div>
+          );
         })}
       </div>
+    </div>
+  );
+}
+
+// The mini Swap form under a material row (per-placement substitution). Suggests
+// catalog items on-hand first (a swap you can actually run today), then the rest,
+// and takes free text for anything off-catalog. Tapping a suggestion or committing
+// the text writes the replacement label.
+function MaterialSwapForm({
+  original,
+  catalog,
+  stock,
+  onPick,
+  onClose,
+}: {
+  original: string;
+  catalog?: Material[];
+  stock: Record<string, StockState>;
+  onPick: (label: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState("");
+  // Catalog names ranked on-hand first (its own slug is stocked), then by name.
+  const suggestions = useMemo(() => {
+    const query = text.trim().toLowerCase();
+    const scored = (catalog ?? [])
+      .map((m) => ({ label: m.name, onHand: isStocked(stock[m.id]) }))
+      .filter((s) => s.label && (!query || s.label.toLowerCase().includes(query)));
+    scored.sort(
+      (a, b) => Number(b.onHand) - Number(a.onHand) || a.label.localeCompare(b.label)
+    );
+    return scored.slice(0, 6);
+  }, [catalog, stock, text]);
+
+  return (
+    <div className="matkit__swap" role="group" aria-label={"Swap " + original}>
+      <input
+        className="input matkit__swapinput"
+        value={text}
+        autoFocus
+        placeholder={"Replace " + original + " with…"}
+        aria-label={"Replacement for " + original}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && text.trim()) onPick(text.trim());
+          else if (e.key === "Escape") onClose();
+        }}
+      />
+      {suggestions.length > 0 && (
+        <ul className="matkit__swaplist">
+          {suggestions.map((s) => (
+            <li key={s.label}>
+              <button
+                type="button"
+                className={"matkit__swapopt" + (s.onHand ? " is-have" : "")}
+                onClick={() => onPick(s.label)}
+              >
+                <span className="matkit__swapname">{s.label}</span>
+                {s.onHand && <span className="matkit__swaphave">on hand</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {text.trim() && (
+        <button type="button" className="matkit__swapfree" onClick={() => onPick(text.trim())}>
+          Use “{text.trim()}”
+        </button>
+      )}
     </div>
   );
 }
@@ -1034,6 +1197,8 @@ export function ActivityRunList({
   kitStock,
   materialCatalog,
   onSetStockState,
+  materialSubs,
+  onSetMaterialSub,
   onSetRating,
   hideAddBlocks,
   canCapture = false,
@@ -1055,6 +1220,15 @@ export function ActivityRunList({
   /** Cycle one material's stock state (have → low → out). Staff-gated upstream;
    *  a no-op on public/read-only surfaces. */
   onSetStockState: (id: string, state: StockState) => void;
+  /** Per-placement material substitutions ({refId: label}, "" = skipped) from the
+   *  calendar event this sheet was opened from. PRESENT (even {}) turns on the
+   *  per-day Swap / Skip row actions; ABSENT (library-opened) keeps the canonical
+   *  list. */
+  materialSubs?: Record<string, string>;
+  /** Write (or clear) one placement's substitution for a required material: a
+   *  label swaps it, "" skips it for the day, null reverts to the canonical item.
+   *  Absent = no per-day editing (library / read-only). */
+  onSetMaterialSub?: (refId: string, label: string | null) => void;
   onSetRating?: (value: number) => void;
   /** When provided (edit/create), the Details block renders as structured
    *  dropdowns bound to this form, and the Materials block becomes an inline
@@ -1859,6 +2033,8 @@ export function ActivityRunList({
             stock={kitStock}
             catalog={materialCatalog}
             onSetStockState={onSetStockState}
+            subs={materialSubs}
+            onSetSub={onSetMaterialSub}
           />
         )
       );
@@ -2355,6 +2531,8 @@ export function ActivityRunList({
                             stock={kitStock}
                             catalog={materialCatalog}
                             onSetStockState={onSetStockState}
+                            subs={materialSubs}
+                            onSetSub={onSetMaterialSub}
                           />
                         )}
                       </div>

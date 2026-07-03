@@ -1759,6 +1759,76 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font: inherit;
   line-height: 1.4;
 }
+/* The Backup plans property row: the resolved fallbacks as compact rows with a
+   per-row [Swap], plus copy-on-write "Edit backups…" / "No backups" actions. */
+.quickadd__backuprow .quickadd__backups {
+  width: 100%;
+}
+.quickadd__backups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.quickadd__backuplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.quickadd__backup {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+.quickadd__backup-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.quickadd__backup-tag {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.quickadd__backup-swap {
+  flex: none;
+}
+.quickadd__backup-empty {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.quickadd__backup-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.quickadd__backup-btn {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.quickadd__backup-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
 /* The chosen library row in the pick-a-time posture: it wears the event
    card's own tinted wash — a preview of the block it's about to become. */
 .quickadd__item.is-on {
@@ -2386,6 +2456,39 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
+/* ---------- backup-plan badge ----------
+   A small corner glyph on any card whose placement resolves to a backup plan (an
+   umbrella for a rain plan, else a generic swap loop; a count when >1). Shares the
+   muted, subtle treatment of the pin/repeat/meal glyphs. */
+.cal-card__backup,
+.cal-chip__backup {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+.cal-card__backup svg,
+.cal-chip__backup svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cal-chip__backup svg {
+  width: 11px;
+  height: 11px;
+}
+.cal-card__backup-n {
+  font-family: var(--hand-sc);
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
 /* ---------- guidance bands + closed-day shading (FC background events) ----------
    A guidance band is a soft, recurring time frame drawn BEHIND the grid as a
    FullCalendar background event. Quiet wash + a small inline label riding the top
@@ -2976,6 +3079,27 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* Rain lens: when a day's Rain Review fires, the weather summary tints and grows a
+   small umbrella so the day reads "check the backups". Composed INTO the existing
+   summary (no extra chip); clicking it opens the Rain Review panel. */
+.cal-wx-day--rain {
+  background: color-mix(in srgb, var(--wx-rain, var(--accent)) 16%, transparent);
+  color: var(--ink);
+}
+.cal-wx-day--rain:hover {
+  background: color-mix(in srgb, var(--wx-rain, var(--accent)) 26%, transparent);
+}
+.cal-wx-day__rain {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: color-mix(in srgb, var(--wx-rain, var(--accent)) 80%, var(--ink));
+}
 /* Day-mode summary pins to the TOP-RIGHT corner of the column header (mirroring
    the hour-mode chip's corner): the weekday + numeral stay centred as normal and
    the forecast tucks into the corner. The chip is compact — a small glyph with
@@ -3169,6 +3293,141 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .cal-gather__status {
   flex: none;
   font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+
+/* ---------- Rain Review panel (reuses .cal-popover surface) ----------
+   The day's at-risk outdoor blocks and their backups: a row per block with a
+   [Swap] or [Pick backup…], a "N% rain" header, and a footer (Switch all / Shift
+   day / Dismiss). */
+.cal-rain {
+  width: 320px;
+  max-width: min(320px, 92vw);
+}
+.cal-rain__title-glyph {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-right: var(--s-2);
+  vertical-align: -2px;
+}
+.cal-rain__list {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.cal-rain__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+.cal-rain__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.cal-rain__when {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.cal-rain__title {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.cal-rain__arrow {
+  color: var(--ink-faint);
+}
+.cal-rain__alt {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--accent-ink);
+}
+.cal-rain__swap,
+.cal-rain__pick {
+  flex: none;
+  white-space: nowrap;
+}
+.cal-rain__picker {
+  flex-basis: 100%;
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.cal-rain__pickopt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.cal-rain__pickopt:hover {
+  border-color: var(--ink-soft);
+}
+.cal-rain__pickname {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.cal-rain__pickmeta {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.cal-rain__empty {
+  flex-basis: 100%;
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.cal-rain__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1.4px solid var(--line-soft);
+}
+
+/* ---------- Swap-to-backup picker (reuses the .cselect__menu list) ---------- */
+.cal-swappick__glyph {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   color: var(--ink-soft);
 }
 

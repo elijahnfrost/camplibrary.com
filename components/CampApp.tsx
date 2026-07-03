@@ -30,6 +30,8 @@ import {
 import { createDietaryId, setMenuNote, type DietaryEntry } from "@/lib/meals";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
 import type { CalendarEvent, DateKey, MealKind } from "@/lib/calendar/types";
+import { applyCustomStamp } from "@/lib/calendar/recurrence";
+import { healEvent } from "@/lib/calendar/adapter";
 import { useCloudUserData } from "@/lib/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
 import type { RunDoc } from "@/lib/runList";
@@ -710,6 +712,11 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     timeLabel: string;
     note?: string;
   } | null>(null);
+  // The id of the calendar event the detail sheet was opened FROM (null when
+  // library-opened). Kept SEPARATE from the display-only eventContext so the sheet
+  // can patch that specific placement (per-day material subs) without eventContext
+  // ever carrying a live calendar type.
+  const [detailEventId, setDetailEventId] = useState<string | null>(null);
   // In create mode `detail` is a fresh draft not in the catalog, so it must
   // pass through verbatim; otherwise track the live catalog record by id.
   const detailActivity = detail
@@ -724,6 +731,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
   }, []);
 
   useEffect(() => {
@@ -735,6 +743,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailNonce((n) => n + 1);
     setDetail(lib.byId[activityId]);
   }, [lib.byId]);
@@ -743,6 +752,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
     setDetailMode("view");
     setDetailStartEdit(false);
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
@@ -778,6 +788,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       timeLabel: calEvent.allDay ? "All day" : formatRangeLabel(calEvent.startMin, calEvent.endMin),
       note: calEvent.note,
     });
+    setDetailEventId(calEvent.id);
     setDetailNonce((n) => n + 1);
     setDetail(activity);
   }, []);
@@ -798,6 +809,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   function openAddActivity() {
     if (!requireStaff("add activities")) return;
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailStartEdit(false);
     setDetailMode("create");
     setDetailNonce((n) => n + 1);
@@ -808,6 +820,7 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
   function editActivity(activity: Activity) {
     if (!requireStaff("edit activities")) return;
     setDetailEventContext(null);
+    setDetailEventId(null);
     setDetailMode("view");
     setDetailStartEdit(true);
     setDetailNonce((n) => n + 1);
@@ -833,6 +846,31 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
       closeDetail();
     }
   }
+
+  // Patch the calendar event the detail sheet was opened FROM — the least-coupled
+  // bridge for per-placement edits (material subs). Staff-gated; on a SERIES member
+  // the touched fields are stamped into `custom` (applyCustomStamp) so the per-day
+  // edit survives regeneration, exactly like the calendar's own bulk edits. Absent
+  // event / library-opened = no-op.
+  const patchDetailEvent = useCallback(
+    (changes: Partial<CalendarEvent>) => {
+      if (!detailEventId) return;
+      if (!requireStaff("change the calendar")) return;
+      const live = cloud.events[detailEventId];
+      if (!live) return;
+      const original = healEvent(live, lib.byId);
+      let next: CalendarEvent = { ...original, ...changes };
+      const touched = Object.keys(changes);
+      if (next.seriesId && touched.length) {
+        const stamped = applyCustomStamp(original, touched);
+        if (stamped.custom) next.custom = stamped.custom;
+        if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+      }
+      next = { ...next, updatedAt: Date.now() };
+      campKit.upsertEvent(next);
+    },
+    [cloud.events, lib.byId, campKit, detailEventId, requireStaff]
+  );
 
   function deleteActivity(activity: Activity) {
     if (lib.deleteActivity(activity)) closeDetail();
@@ -1374,6 +1412,14 @@ export function CampApp({ initialTab = "home" }: { initialTab?: TabId } = {}) {
             ageUnit={ageUnit}
             onAgeUnit={setAgeUnit}
             eventContext={detailEventContext ?? undefined}
+            // Per-placement material subs read LIVE off the event this sheet was
+            // opened from (so a swap re-renders), plus the patch bridge. Both absent
+            // when library-opened, keeping the canonical list untouched there.
+            eventMaterialSubs={
+              detailEventId ? cloud.events[detailEventId]?.materialSubs : undefined
+            }
+            onPatchEvent={isSignedIn && detailEventId ? patchDetailEvent : undefined}
+            libraryActivities={lib.all}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
             theme={lib.themeOf(detailActivity.id)}
           />

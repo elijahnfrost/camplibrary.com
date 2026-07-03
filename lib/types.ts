@@ -94,6 +94,11 @@ export interface Activity {
   // Optional hand-drawn field diagrams (stages) shown inside "How to play".
   // Custom books carry their own; built-in books fall back to the registry.
   playbook?: ActivityPlaybookData;
+  // Default backup plans this activity carries — the seed a placement inherits
+  // when its own event.alternates is absent. Same AlternateRef shape + rules as
+  // the per-event list; validated in lib/activityValidation (delete-then-
+  // reattach), resolved by lib/alternates.resolveAlternates.
+  alternates?: import("./calendar/types").AlternateRef[];
   // Embedded demo videos / tutorials. Seeded into the derived run doc as "Media"
   // details (inline players for YouTube/Vimeo, link cards otherwise). Optional +
   // absent by default, so existing literals/seeds need no backfill.

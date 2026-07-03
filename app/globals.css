@@ -4438,6 +4438,131 @@ body {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   color: var(--danger-ink);
 }
+/* Per-placement material substitution (run sheet opened FROM an event): each row
+   pairs its status button with Swap… / Skip today actions; a subbed/skipped row
+   reads "<replacement> — instead of <original>" with a revert ×. */
+.matkit__rowline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.matkit__rowline .matkit__item {
+  flex: 1;
+  min-width: 60%;
+}
+.matkit__item.is-skip {
+  opacity: 0.6;
+}
+.matkit__item.is-skip .matkit__name {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+.matkit__instead {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+.matkit__acts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.matkit__act {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.matkit__act:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.matkit__revert {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-2);
+}
+.matkit__revert svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+/* The mini Swap form under a row: a text field + on-hand-first suggestions. */
+.matkit__swap {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  padding: var(--s-4);
+  background: var(--paper-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+}
+.matkit__swaplist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.matkit__swapopt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-family: var(--text);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.matkit__swapopt.is-have {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+}
+.matkit__swaphave {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.matkit__swapfree {
+  align-self: flex-start;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.matkit__swapfree:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 /* The kit-lens "mark what you have" hint (shown under the Kit filter row while
    stock is unset). Non-blocking guidance, not an error. */
 .kitlens__hint {
@@ -8161,6 +8286,94 @@ button.rl-node--pick:focus-visible {
 .rlv-aka--edit {
   margin-top: var(--s-3);
 }
+/* The edit-mode "Backup plans" section — the activity's default rain/overflow
+   fallbacks, up to three rows (title + reason + delete). Sits between the run-doc
+   editor and the Save button, styled as a quiet grouped block. */
+.rlv-backups {
+  max-width: 880px;
+  margin: var(--s-6) auto 0;
+  padding: var(--s-5) var(--s-6);
+}
+.rlv-backups__head {
+  margin-bottom: var(--s-4);
+}
+.rlv-backups__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rlv-backups__title svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-backups__hint {
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+.rlv-backups__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+}
+.rlv-backups__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rlv-backups__name {
+  flex: 1;
+  min-width: 0;
+}
+.rlv-backups__reason {
+  flex: none;
+  width: 120px;
+}
+.rlv-backups__add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.rlv-backups__add:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rlv-backups__add svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 .rlv-save {
   max-width: 880px;
   margin: var(--s-7) auto 0;

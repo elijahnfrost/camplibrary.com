@@ -29,6 +29,26 @@ describe("activity validation", () => {
     expect(normalized?.ages).toEqual(["g13", "g46"]);
   });
 
+  it("round-trips default backup plans (alternates), validated and omitted when empty", () => {
+    const withAlternates = normalizeActivity({
+      ...legacyActivity,
+      alternates: [
+        { title: " Four Corners ", activityId: "a2", reason: "overflow", locations: ["Gym", "gym"] },
+        { title: "Quiet bingo" }, // reason defaults to rain
+        { title: "", reason: "rain" }, // title-less → dropped
+      ],
+    });
+    expect(withAlternates?.alternates).toEqual([
+      { title: "Four Corners", activityId: "a2", reason: "overflow", locations: ["Gym"] },
+      { title: "Quiet bingo", reason: "rain" },
+    ]);
+
+    // Absent / all-malformed → the field stays absent, not an empty array.
+    expect(normalizeActivity(legacyActivity)?.alternates).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, alternates: [{ reason: "rain" }] })?.alternates).toBeUndefined();
+    expect(normalizeActivity({ ...legacyActivity, alternates: "nope" })?.alternates).toBeUndefined();
+  });
+
   it("re-attaches alternate names, trimmed and de-duped, and omits them when empty", () => {
     const withAltNames = normalizeActivity({
       ...legacyActivity,

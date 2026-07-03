@@ -17,7 +17,9 @@ import type {
   EventMountArg,
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
-import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent } from "@/lib/calendar/adapter";
+import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph } from "@/lib/calendar/adapter";
+import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/alternates";
+import { rainPlanForDay, type RainPlan } from "@/lib/calendar/rainPlan";
 import {
   addDays,
   daySpan,
@@ -64,6 +66,7 @@ import {
 } from "@/lib/meals";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
+import { coverage } from "@/lib/materials";
 import { nextStockState, type StockState } from "@/lib/kitStock";
 import {
   conflictsForEvent,
@@ -75,7 +78,9 @@ import {
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import {
   MEAL_KINDS,
+  isDateKey,
   normalizeCalendarEvent,
+  type AlternateRef,
   type CalendarEvent,
   type DateKey,
   type MealKind,
@@ -321,6 +326,31 @@ const slotZoomStorage = (value: unknown, fallback: number) =>
 const colorModeStorage = (value: unknown, fallback: ColorMode) =>
   isColorMode(value) ? value : fallback;
 
+// The Rain-alert threshold (percent). 0 = off; 30/50/70 arm the rain-review lens
+// when the day's precip probability meets it. A closed whitelist so a garbage
+// stored value falls back cleanly (mirrors the other weather-pref validators).
+export type RainThreshold = 0 | 30 | 50 | 70;
+const RAIN_THRESHOLDS: readonly RainThreshold[] = [0, 30, 50, 70];
+const parseRainThreshold = (value: unknown, fallback: RainThreshold): RainThreshold =>
+  typeof value === "number" && (RAIN_THRESHOLDS as readonly number[]).includes(value)
+    ? (value as RainThreshold)
+    : fallback;
+const RAIN_THRESHOLD_OPTIONS: { value: string; label: string }[] = [
+  { value: "0", label: "Off" },
+  { value: "30", label: "30%" },
+  { value: "50", label: "50%" },
+  { value: "70", label: "70%" },
+];
+
+// Validate the dismissed-Rain-Review list: keep only well-formed DateKeys that are
+// still today-or-later (a stale past date is pruned so the list can't grow across a
+// season). Deterministic per read; mirrors the other localStorage validators.
+const parseDismissedRainDays = (value: unknown, fallback: DateKey[]): DateKey[] => {
+  if (!Array.isArray(value)) return fallback;
+  const today = todayKey();
+  return [...new Set(value.filter((v): v is DateKey => isDateKey(v) && v >= today))];
+};
+
 export function CalendarShell({
   events,
   upsertEvent,
@@ -527,6 +557,22 @@ export function CalendarShell({
     false,
     boolStorage
   );
+  // The Rain-alert threshold: at or above this daily precip probability (or on a
+  // thunderstorm) a rendered day sprouts a rain-review lens on its weather chip. 0
+  // = off. Device-local like the other weather prefs; validated so a garbage value
+  // falls back to the default (50).
+  const [rainThreshold, setRainThreshold] = useLocalStorage<RainThreshold>(
+    "calendarRainThreshold",
+    50,
+    parseRainThreshold
+  );
+  // Days whose Rain Review the staffer dismissed — date-keyed, device-local, and
+  // pruned of past dates on read so the list can't grow unbounded across a season.
+  const [dismissedRainDays, setDismissedRainDays] = useLocalStorage<DateKey[]>(
+    "calendarRainDismissed",
+    [],
+    parseDismissedRainDays
+  );
   // The desktop rail folds its settings under toggles so the resting sidebar stays
   // clean (mini-month + the section headers). "View" and "Weather" are SEPARATE
   // sibling toggles — not nested — each collapsed by default and persisted.
@@ -703,6 +749,19 @@ export function CalendarShell({
     setStopPopover(null);
     setGatherPopover({ date, anchor });
   });
+  // The Rain Review panel (click a day-header's rain lens) — the day's at-risk
+  // outdoor blocks and their backup plans. Anchored at the chip like the weather
+  // card; holds the DATE (rows resolve live from rainPlanByDate) so a promote
+  // re-renders it in place. openRainRef gives the React day-header button a stable
+  // opener that first clears the other floating surfaces.
+  const [rainPanel, setRainPanel] = useState<{ date: DateKey; anchor: DOMRect } | null>(null);
+  const openRainRef = useRef((date: DateKey, anchor: DOMRect) => {
+    setMenu(null);
+    setWxPopover(null);
+    setStopPopover(null);
+    setGatherPopover(null);
+    setRainPanel({ date, anchor });
+  });
   // The day-shift card ("recover time" — slide the rest of the day by N minutes,
   // or extend a running-long block). One surface behind several doors (empty-slot
   // right-click, the single-event menu's "Running long…" / "Shift day from here…",
@@ -713,6 +772,8 @@ export function CalendarShell({
     setMenu(null);
     setWxPopover(null);
     setStopPopover(null);
+    setGatherPopover(null);
+    setRainPanel(null);
     setSheet(null);
     setShiftBar(next);
   });
@@ -733,6 +794,13 @@ export function CalendarShell({
   // menu item. Holds the ids it acts on so a later selection change can't
   // retarget it mid-pick.
   const [bulkPicker, setBulkPicker] = useState<BulkPickerState | null>(null);
+  // The "Swap to backup ▸" picker (a single event's context menu): a small
+  // floating list of the placement's resolved alternates → one promote. Holds the
+  // event id + cursor point; the resolved list is re-derived live at render so a
+  // concurrent edit can't act on a stale row.
+  const [swapPicker, setSwapPicker] = useState<{ eventId: string; point: { x: number; y: number } } | null>(
+    null
+  );
   // The pending repeating-event edit/delete awaiting a scope choice.
   const [scopePrompt, setScopePrompt] = useState<ScopePrompt | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -852,6 +920,35 @@ export function CalendarShell({
   // day-header click opener doesn't re-arm on every recompute.
   const dayKitByDateRef = useRef(dayKitByDate);
   dayKitByDateRef.current = dayKitByDate;
+
+  // The Rain Review, computed once per day (dateKey → RainPlan | null): fires only
+  // in "Day" weather mode with a threshold set, when the day's forecast + events
+  // yield at-risk outdoor blocks. Pure (rainPlanForDay lives in lib/calendar and is
+  // unit-tested). Feeds the day-header rain lens + the Rain Review panel. Empty
+  // when weather is off / no threshold / no forecast (the whole feature is inert).
+  const rainPlanByDate = useMemo(() => {
+    const out = new Map<string, RainPlan>();
+    if (weatherMode !== "day" || !rainThreshold || !weatherData) return out;
+    const dismissed = new Set(dismissedRainDays);
+    const byDate = new Map<string, CalendarEvent[]>();
+    for (const event of healedEvents) {
+      const arr = byDate.get(event.date);
+      if (arr) arr.push(event);
+      else byDate.set(event.date, [event]);
+    }
+    for (const [date, dayEvents] of byDate) {
+      // A day the staffer dismissed for today shows no lens (but the plain weather
+      // summary + its detail card stay).
+      if (dismissed.has(date)) continue;
+      const plan = rainPlanForDay(date, weatherData.daily.get(date), dayEvents, byId, rainThreshold);
+      if (plan) out.set(date, plan);
+    }
+    return out;
+  }, [healedEvents, byId, weatherMode, rainThreshold, weatherData, dismissedRainDays]);
+  // The day-header rain lens + its click opener read the latest map through a ref
+  // so the imperative FC header memo doesn't re-arm on every recompute.
+  const rainPlanByDateRef = useRef(rainPlanByDate);
+  rainPlanByDateRef.current = rainPlanByDate;
 
   // Every event id in chronological order — (date, then startMin, then id as a
   // stable tiebreak). This is the spine a shift-click range walks: "in between"
@@ -1059,7 +1156,15 @@ export function CalendarShell({
     () => [
       ...healedEvents
         .filter((event) => activeView === "dayGridMonth" || !idsInAStop.has(event.id))
-        .map((event) => toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id])),
+        .map((event) => {
+          // The card's backup-plan badge: resolve this placement's effective list
+          // (event override ?? activity default) and hand its shape to the adapter.
+          const resolved = resolveAlternates(event, event.activityId ? byId[event.activityId] : undefined);
+          const glyph: AlternatesGlyph | undefined = resolved.length
+            ? { rain: hasRainAlternate(resolved), count: resolved.length }
+            : undefined;
+          return toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id], glyph);
+        }),
       ...bgEvents,
     ],
     [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents]
@@ -1899,6 +2004,130 @@ export function CalendarShell({
       });
     },
     [announce, byId, commitEvents, events, requireStaff, showToast, snap]
+  );
+
+  // Swap a placement to one of its backup plans — the single self-inverse promote,
+  // shared by QuickAdd's Backup rows, the "Swap to backup ▸" context menu, and the
+  // Rain Review panel. planPromote does the pure swap (copy-on-write onto
+  // event.alternates); on a SERIES member the changed fields are stamped into
+  // `custom` (applyCustomStamp) so the swap survives regeneration, exactly like
+  // applyBulkEdit. One undoable commit + a spoken result.
+  const promoteBackup = useCallback(
+    (event: CalendarEvent, index: number) => {
+      if (!requireStaff("change the calendar")) return;
+      const live = events[event.id];
+      if (!live) return;
+      const original = healEvent(live, byId);
+      const resolved = resolveAlternates(original, original.activityId ? byId[original.activityId] : undefined);
+      const target = resolved[index];
+      if (!target) return;
+      let next = planPromote(original, index, resolved);
+      // Durability on a series member: title/activityId/kind/locations/alternates
+      // can all move, so stamp every promote-touched field into `custom`.
+      if (next.seriesId) {
+        const stamped = applyCustomStamp(original, ["title", "activityId", "kind", "locations", "alternates"]);
+        if (stamped.custom) next.custom = stamped.custom;
+        if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+      }
+      next = { ...next, updatedAt: Date.now() };
+      commitEvents([next], []);
+      const label = "Swapped to " + (target.title || "backup");
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents([{ ...original, updatedAt: Date.now() }], []),
+      });
+    },
+    [announce, byId, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Switch every at-risk block on a rainy day to its first backup — the Rain
+  // Review's "Switch all N" as ONE undoable commit. Only rows that actually resolve
+  // to a backup are swapped; a row with no backup on file is left alone. Series
+  // members are stamped so each swap survives regeneration.
+  const promoteAllForDay = useCallback(
+    (date: DateKey) => {
+      if (!requireStaff("change the calendar")) return;
+      const plan = rainPlanByDateRef.current.get(date);
+      if (!plan) return;
+      const before: CalendarEvent[] = [];
+      const after: CalendarEvent[] = [];
+      for (const row of plan.rows) {
+        if (!row.alternates.length) continue;
+        const live = events[row.event.id];
+        if (!live) continue;
+        const original = healEvent(live, byId);
+        const resolved = resolveAlternates(
+          original,
+          original.activityId ? byId[original.activityId] : undefined
+        );
+        if (!resolved.length) continue;
+        let next = planPromote(original, 0, resolved);
+        if (next.seriesId) {
+          const stamped = applyCustomStamp(original, [
+            "title",
+            "activityId",
+            "kind",
+            "locations",
+            "alternates",
+          ]);
+          if (stamped.custom) next.custom = stamped.custom;
+          if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+        }
+        next = { ...next, updatedAt: Date.now() };
+        before.push(original);
+        after.push(next);
+      }
+      if (!after.length) return;
+      commitEvents(after, []);
+      const count = after.length;
+      const label = "Switched " + count + " outdoor block" + (count === 1 ? "" : "s") + " to backups";
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents(before.map((r) => ({ ...r, updatedAt: Date.now() })), []),
+      });
+    },
+    [announce, byId, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Write (or clear) a placement's own backup list — the "Edit backups…" / "No
+  // backups for this day" copy-on-write from QuickAdd, and the Rain Review's "Pick
+  // backup…". `list` REPLACES event.alternates (an empty array is authoritative
+  // "none here"). Series members stamp `alternates` into `custom` so the override
+  // survives regeneration.
+  const setEventAlternates = useCallback(
+    (event: CalendarEvent, list: AlternateRef[]) => {
+      if (!requireStaff("change the calendar")) return;
+      const live = events[event.id];
+      if (!live) return;
+      const original = healEvent(live, byId);
+      let next: CalendarEvent = { ...original, alternates: list };
+      if (next.seriesId) {
+        const stamped = applyCustomStamp(original, ["alternates"]);
+        if (stamped.custom) next.custom = stamped.custom;
+        if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
+      }
+      next = { ...next, updatedAt: Date.now() };
+      commitEvents([next], []);
+      announce("Updated backup plans");
+      showToast({
+        message: "Updated backup plans",
+        onUndo: () => commitEvents([{ ...original, updatedAt: Date.now() }], []),
+      });
+    },
+    [announce, byId, commitEvents, events, requireStaff, showToast]
+  );
+
+  // Dismiss a day's Rain Review for today (device-local, date-keyed). Closes the
+  // panel and drops the day-header lens; the plain weather summary stays.
+  const dismissRainDay = useCallback(
+    (date: DateKey) => {
+      setDismissedRainDays((prev) => (prev.includes(date) ? prev : [...prev, date]));
+      setRainPanel(null);
+      announce("Dismissed the rain review for today");
+    },
+    [announce, setDismissedRainDays]
   );
 
   // Delete a wider slice of a repeating series — the "Delete entire series…"
@@ -3437,6 +3666,25 @@ export function CalendarShell({
     // cards. The card is a size container, so a short block simply clips it.
     const locationText = arg.event.extendedProps.location;
     const location = typeof locationText === "string" && locationText ? locationText : null;
+    // A backup-plan badge: a small corner glyph when this placement resolves to
+    // any alternate (event override ?? activity default) — an umbrella when any is
+    // a rain plan, else a generic swap; the count rides when more than one.
+    const altGlyphRaw = arg.event.extendedProps.alternatesGlyph as AlternatesGlyph | undefined;
+    const altBadge = altGlyphRaw ? (
+      <span
+        className="cal-card__backup"
+        title={
+          altGlyphRaw.count +
+          " backup plan" +
+          (altGlyphRaw.count === 1 ? "" : "s") +
+          (altGlyphRaw.rain ? " (rain)" : "")
+        }
+        aria-label={altGlyphRaw.count + " backup plan" + (altGlyphRaw.count === 1 ? "" : "s")}
+      >
+        {altGlyphRaw.rain ? <BackupUmbrellaGlyph /> : <CampIcon.Repeat />}
+        {altGlyphRaw.count > 1 && <span className="cal-card__backup-n">{altGlyphRaw.count}</span>}
+      </span>
+    ) : null;
 
     // Repaint + distinction, written from HERE rather than eventDidMount: this
     // content renderer re-runs on every data change (a recolor, or an activity→
@@ -3462,6 +3710,7 @@ export function CalendarShell({
           {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
           {isMeal && <MealGlyph className="cal-chip__meal" />}
           {dietaryBadge}
+          {altBadge}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
           {customized && <EditedTickGlyph className="cal-chip__edited" />}
@@ -3483,6 +3732,7 @@ export function CalendarShell({
           {legLabel && <span className="cal-card__leg">{legLabel}</span>}
           {isMeal && <MealGlyph className="cal-card__meal" />}
           {dietaryBadge}
+          {altBadge}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
           {customized && <EditedTickGlyph className="cal-card__edited" />}
@@ -3528,6 +3778,19 @@ export function CalendarShell({
   // fresh from the ref so the value itself isn't a memo dep.
   const dayWxVersion = weatherMode === "day" ? weatherData?.version ?? 0 : 0;
 
+  // The rain lens rides the day-header weather summary, so it needs its own
+  // identity bump when a day's rain plan appears / clears / changes count (a
+  // promote, a move, a threshold change). rainPlanByDate is read LIVE from its ref
+  // inside renderDayHeader — this signature re-arms the FC header only when a
+  // lens would actually change, not on every recompute.
+  const rainChipVersion = useMemo(() => {
+    let sig = "";
+    for (const [date, plan] of rainPlanByDate) {
+      sig += date + ":" + Math.round(plan.probMax) + "x" + plan.rows.length + "|";
+    }
+    return sig;
+  }, [rainPlanByDate]);
+
   // The Gather chip rides in the timed-view column header too, so it needs the
   // same identity bump when the day contention changes (a stock edit, a move, a
   // new event). dayKitByDate is read LIVE from its ref inside renderDayHeader —
@@ -3568,6 +3831,11 @@ export function CalendarShell({
         arg.date.getDate()
       ).padStart(2, "0")}`;
       const dayWx = weatherMode === "day" ? weatherDataRef.current?.daily.get(dateKey) : undefined;
+      // The day's Rain Review, read live from the ref (so a recompute doesn't
+      // re-arm this FC memo). When present it tints the weather summary and swaps
+      // its click from the plain weather card to the Rain Review panel — composed
+      // INTO the existing weather element, not a separate chip.
+      const rain = rainPlanByDateRef.current.get(dateKey);
       // The day's kit contention (read live from the ref so a recompute doesn't
       // re-arm this FC memo). The chip renders only when the day needs at least
       // one material; its tone escalates quiet → amber (soft warning) → red (hard
@@ -3592,17 +3860,29 @@ export function CalendarShell({
           {dayWx && (
             <button
               type="button"
-              className="cal-wx-day"
+              className={"cal-wx-day" + (rain ? " cal-wx-day--rain" : "")}
               data-wx-cond={dayWx.condition}
-              aria-label={`${conditionLabel(dayWx.condition)} — high ${formatTemp(dayWx.tempMax)}, low ${formatTemp(
-                dayWx.tempMin
-              )}. View detail`}
+              aria-label={
+                rain
+                  ? `${Math.round(rain.probMax)}% rain — ${rain.rows.length} outdoor block${
+                      rain.rows.length === 1 ? "" : "s"
+                    } at risk. Open Rain Review`
+                  : `${conditionLabel(dayWx.condition)} — high ${formatTemp(dayWx.tempMax)}, low ${formatTemp(
+                      dayWx.tempMin
+                    )}. View detail`
+              }
               onClick={(e) => {
                 e.stopPropagation();
-                openWxRef.current(
-                  { kind: "day", date: dateKey, weather: dayWx },
-                  e.currentTarget.getBoundingClientRect()
-                );
+                // The rain lens takes priority: it's the actionable surface. With
+                // no rain plan the summary keeps its plain weather-detail card.
+                if (rainPlanByDateRef.current.get(dateKey)) {
+                  openRainRef.current(dateKey as DateKey, e.currentTarget.getBoundingClientRect());
+                } else {
+                  openWxRef.current(
+                    { kind: "day", date: dateKey, weather: dayWx },
+                    e.currentTarget.getBoundingClientRect()
+                  );
+                }
               }}
             >
               <WeatherGlyph condition={dayWx.condition} className="cal-wx-day__glyph" />
@@ -3610,6 +3890,7 @@ export function CalendarShell({
                 <span className="cal-wx-day__hi">{formatTemp(dayWx.tempMax)}</span>
                 <span className="cal-wx-day__lo">{formatTemp(dayWx.tempMin)}</span>
               </span>
+              {rain && <BackupUmbrellaGlyph className="cal-wx-day__rain" />}
             </button>
           )}
           {kitTone && (
@@ -3635,10 +3916,11 @@ export function CalendarShell({
         </div>
       );
     },
-    // weatherDataRef + dayKitByDateRef are read live; dayWxVersion / kitChipVersion
-    // re-arm only when the weather or the kit chip would actually change.
+    // weatherDataRef + dayKitByDateRef + rainPlanByDateRef are read live;
+    // dayWxVersion / kitChipVersion / rainChipVersion re-arm only when the weather,
+    // the kit chip, or the rain lens would actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [weatherMode, dayWxVersion, kitChipVersion]
+    [weatherMode, dayWxVersion, kitChipVersion, rainChipVersion]
   );
 
   // Size the day columns so the active zoom (1 / 7 / N days) fits the viewport:
@@ -4125,6 +4407,16 @@ export function CalendarShell({
   useEffect(() => {
     if (gatherPopover && !(dayKitByDate.get(gatherPopover.date)?.items.length)) setGatherPopover(null);
   }, [dayKitByDate, gatherPopover]);
+
+  // The Rain Review panel is mutually exclusive with the other anchored layers /
+  // editor, and self-closes when its day's rain plan clears (a swap emptied it, or
+  // the day was dismissed).
+  useEffect(() => {
+    if (menu || sheet || scopePrompt || wxPopover || stopPopover || gatherPopover) setRainPanel(null);
+  }, [menu, sheet, scopePrompt, wxPopover, stopPopover, gatherPopover]);
+  useEffect(() => {
+    if (rainPanel && !rainPlanByDate.has(rainPanel.date)) setRainPanel(null);
+  }, [rainPlanByDate, rainPanel]);
 
   // The day-shift card is mutually exclusive with the other anchored layers /
   // editor — opening any of them dismisses it (openShiftRef clears them going the
@@ -4708,6 +5000,9 @@ export function CalendarShell({
                       onWeatherRange={setWeatherRange}
                       weatherHistory={weatherHistory}
                       onWeatherHistory={setWeatherHistory}
+                      rainThreshold={rainThreshold}
+                      onRainThreshold={(v) => setRainThreshold(parseRainThreshold(v, rainThreshold))}
+                      rainThresholdOptions={RAIN_THRESHOLD_OPTIONS}
                       weatherStatus={weatherStatus}
                       weatherCoverage={weatherCoverage}
                     />
@@ -4846,6 +5141,51 @@ export function CalendarShell({
                 }
               : undefined
           }
+          backupAlternates={
+            sheet.draft.id && events[sheet.draft.id]
+              ? resolveAlternates(
+                  healEvent(events[sheet.draft.id], byId),
+                  events[sheet.draft.id].activityId ? byId[events[sheet.draft.id].activityId as string] : undefined
+                )
+              : []
+          }
+          hasOwnBackups={Boolean(sheet.draft.id && events[sheet.draft.id]?.alternates !== undefined)}
+          onSwapBackup={
+            sheet.draft.id
+              ? (index) => {
+                  const existing = events[sheet.draft.id as string];
+                  if (!existing) return;
+                  setSheet(null);
+                  promoteBackup(healEvent(existing, byId), index);
+                }
+              : undefined
+          }
+          onEditBackups={
+            sheet.draft.id
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (!existing) return;
+                  const healed = healEvent(existing, byId);
+                  // Copy-on-write: seed the placement's own list from the resolved
+                  // one so it can diverge from the activity default. A no-op when it
+                  // already carries its own list.
+                  if (healed.alternates !== undefined) return;
+                  const resolved = resolveAlternates(
+                    healed,
+                    healed.activityId ? byId[healed.activityId] : undefined
+                  );
+                  setEventAlternates(healed, resolved.map((a) => ({ ...a })));
+                }
+              : undefined
+          }
+          onClearBackups={
+            sheet.draft.id
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (existing) setEventAlternates(healEvent(existing, byId), []);
+                }
+              : undefined
+          }
           onClose={() => setSheet(null)}
         />
       )}
@@ -4891,6 +5231,9 @@ export function CalendarShell({
               onWeatherRange={setWeatherRange}
               weatherHistory={weatherHistory}
               onWeatherHistory={setWeatherHistory}
+              rainThreshold={rainThreshold}
+              onRainThreshold={(v) => setRainThreshold(parseRainThreshold(v, rainThreshold))}
+              rainThresholdOptions={RAIN_THRESHOLD_OPTIONS}
               weatherStatus={weatherStatus}
               weatherCoverage={weatherCoverage}
             />
@@ -4950,6 +5293,39 @@ export function CalendarShell({
               }
               onMarkPlenty={markPlenty}
               onClose={() => setGatherPopover(null)}
+            />
+          );
+        })()}
+
+      {/* The Rain Review panel — the day's at-risk outdoor blocks + their backups.
+          Rows resolve live from rainPlanByDate so a promote (or a threshold change)
+          re-renders it in place; it self-closes when the day's plan clears. */}
+      {rainPanel &&
+        (() => {
+          const plan = rainPlanByDate.get(rainPanel.date);
+          if (!plan) return null;
+          return (
+            <RainPanel
+              date={rainPanel.date}
+              plan={plan}
+              anchor={rainPanel.anchor}
+              byId={byId}
+              activities={activities}
+              events={events}
+              stock={kitStock}
+              catalog={materialCatalog}
+              onPromote={promoteBackup}
+              onPickBackup={(event, alt) => setEventAlternates(event, [alt])}
+              onSwitchAll={() => promoteAllForDay(rainPanel.date)}
+              onShiftDay={(rect) =>
+                openShiftRef.current({
+                  date: rainPanel.date,
+                  cutoffMin: 0,
+                  anchor: { kind: "rect", rect },
+                })
+              }
+              onDismiss={() => dismissRainDay(rainPanel.date)}
+              onClose={() => setRainPanel(null)}
             />
           );
         })()}
@@ -5041,6 +5417,22 @@ export function CalendarShell({
                   icon: <CampIcon.Copy />,
                   onSelect: () => duplicateEvent(ev),
                 },
+                // Swap to a backup plan — opens the resolved-alternates picker at
+                // the cursor (a secondary FloatingLayer; ContextMenu has no nested
+                // submenu). Only shown when this placement resolves to any backup.
+                ...(resolveAlternates(ev, ev.activityId ? byId[ev.activityId] : undefined).length
+                  ? [
+                      {
+                        label: "Swap to backup",
+                        icon: <BackupUmbrellaGlyph />,
+                        onSelect: () => {
+                          if (!requireStaff("change the calendar")) return;
+                          setMenu(null);
+                          setSwapPicker({ eventId: ev.id, point });
+                        },
+                      },
+                    ]
+                  : []),
                 // Retro-tag as a meal — opens the meal-kind picker at the cursor
                 // (ContextMenu has no nested submenu, so this is a secondary
                 // FloatingLayer). Writes mealKind via applyBulkEdit([id], …) so a
@@ -5361,6 +5753,48 @@ export function CalendarShell({
         </FloatingLayer>
       )}
 
+      {/* "Swap to backup ▸" — the placement's resolved alternates as a picker.
+          Re-derives the live event + list at render so a concurrent edit can't act
+          on a stale row; tapping a row runs the self-inverse promoteBackup. */}
+      {swapPicker &&
+        (() => {
+          const live = events[swapPicker.eventId];
+          if (!live) return null;
+          const ev = healEvent(live, byId);
+          const resolved = resolveAlternates(ev, ev.activityId ? byId[ev.activityId] : undefined);
+          if (!resolved.length) return null;
+          return (
+            <FloatingLayer
+              anchor={{ kind: "point", x: swapPicker.point.x, y: swapPicker.point.y }}
+              onClose={() => setSwapPicker(null)}
+              className="typepick__menu cselect__menu cal-swappick"
+              role="listbox"
+              ariaLabel="Swap to backup plan"
+            >
+              {resolved.map((alt, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  className="cselect__option"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => {
+                    promoteBackup(ev, index);
+                    setSwapPicker(null);
+                  }}
+                >
+                  {alt.reason === "rain" ? (
+                    <BackupUmbrellaGlyph className="cal-swappick__glyph" />
+                  ) : (
+                    <CampIcon.Repeat className="cal-swappick__glyph" />
+                  )}
+                  <span className="cselect__optlabel">{alt.title}</span>
+                </button>
+              ))}
+            </FloatingLayer>
+          );
+        })()}
+
       {/* The "Skip days…" picker — upcoming series occurrences as toggle chips.
           Resolves the live series from the store so a stale seriesId self-closes;
           a batch skip lands as one commit + undo. Cursor-anchored FloatingLayer. */}
@@ -5513,6 +5947,17 @@ function MealGlyph({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
       <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
       <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
+    </svg>
+  );
+}
+
+// The backup-plan glyph on a rain-reason placement — a small umbrella, on the
+// CampIcon 24×24 line grid (icons.tsx is owned elsewhere, so it's inlined here).
+function BackupUmbrellaGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path d="M12 3v2M4 12a8 8 0 0 1 16 0z" />
+      <path d="M12 12v6a2.2 2.2 0 0 1-4.4 0" />
     </svg>
   );
 }
@@ -5742,6 +6187,54 @@ function GatherPopover({
   );
 }
 
+// PREP rank: fewer materials / lower prep first (a rainy-day fallback should be
+// quick to swap in). None < Low < Medium < High.
+const PREP_RANK: Record<string, number> = { None: 0, Low: 1, Medium: 2, High: 3 };
+
+// Rank library activities as rain backups for an at-risk block. The pool is
+// everything the camp CAN run indoors (place Inside or Both) minus the block's own
+// activity; the order is: has-been-used-before (appears anywhere in `events`),
+// then coverage-ready (kit on hand via the stock/catalog lens), then low-prep,
+// then same-type as the outdoor block (the fresh-account fallback — no history, no
+// stock — still surfaces a like-for-like swap first), then title. Pure + capped so
+// the picker stays a short, sensible list.
+function rankBackupSuggestions(
+  outdoor: Activity | undefined,
+  activities: Activity[],
+  events: Record<string, CalendarEvent>,
+  stock: Record<string, StockState>,
+  catalog: Material[] | undefined,
+  limit = 8
+): Activity[] {
+  const used = new Set<string>();
+  for (const event of Object.values(events)) {
+    if (event.activityId) used.add(event.activityId);
+  }
+  const stockKnown = Object.keys(stock).length > 0;
+  const pool = activities.filter(
+    (a) => (a.place === "Inside" || a.place === "Both") && a.id !== outdoor?.id
+  );
+  const scored = pool.map((a) => {
+    const ready = stockKnown ? coverage(a, stock, catalog).state === "ready" : false;
+    return {
+      activity: a,
+      usedBefore: used.has(a.id),
+      ready,
+      prep: PREP_RANK[a.prep] ?? 1,
+      sameType: outdoor ? a.type === outdoor.type : false,
+    };
+  });
+  scored.sort(
+    (x, y) =>
+      Number(y.usedBefore) - Number(x.usedBefore) ||
+      Number(y.ready) - Number(x.ready) ||
+      x.prep - y.prep ||
+      Number(y.sameType) - Number(x.sameType) ||
+      x.activity.title.localeCompare(y.activity.title)
+  );
+  return scored.slice(0, limit).map((s) => s.activity);
+}
+
 // One gather-list row: the material's status glyph (✓ on hand · ↔ via <name> ·
 // low · out · missing) and its name, cycling its stock on tap when staff. A
 // read-only session gets a plain, non-interactive row.
@@ -5806,5 +6299,217 @@ function GatherRow({
         {content}
       </button>
     </li>
+  );
+}
+
+// The Rain Review panel (click a day-header's rain lens) — the day's at-risk
+// outdoor blocks and their backup plans in one place, anchored at the chip like
+// the Gather / weather cards. A row with a backup shows a [Swap] button; a row
+// with none shows [Pick backup…], which opens a ranked library picker. The footer
+// carries the batch "Switch all N", a "Shift day…" handoff, and "Dismiss for
+// today". Never auto-mutates; every action is staff-gated upstream.
+function RainPanel({
+  date,
+  plan,
+  anchor,
+  byId,
+  onPromote,
+  onPickBackup,
+  onSwitchAll,
+  onShiftDay,
+  onDismiss,
+  onClose,
+  activities,
+  events,
+  stock,
+  catalog,
+}: {
+  date: DateKey;
+  plan: RainPlan;
+  anchor: DOMRect;
+  byId: Record<string, Activity>;
+  onPromote: (event: CalendarEvent, index: number) => void;
+  onPickBackup: (event: CalendarEvent, alt: AlternateRef) => void;
+  onSwitchAll: () => void;
+  onShiftDay: (anchorRect: DOMRect) => void;
+  onDismiss: () => void;
+  onClose: () => void;
+  activities: Activity[];
+  events: Record<string, CalendarEvent>;
+  stock: Record<string, StockState>;
+  catalog?: Material[];
+}) {
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const footRef = useRef<HTMLDivElement | null>(null);
+  // The row whose "Pick backup…" picker is open (an event id), plus the ranked
+  // library suggestions — computed lazily when a picker opens.
+  const [picking, setPicking] = useState<string | null>(null);
+
+  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
+  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
+
+  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
+  // (same as the weather / gather cards). The inner picker's scroll is excluded.
+  useEffect(() => {
+    if (docked) return;
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onClose);
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onClose);
+    };
+  }, [docked, onClose]);
+
+  const switchableCount = plan.rows.filter((r) => r.alternates.length).length;
+
+  return (
+    <div className="cal-popover-root">
+      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
+      <div
+        ref={(node) => {
+          dialogRef.current = node;
+          cardRef.current = node;
+        }}
+        className="cal-popover cal-rain"
+        style={
+          docked
+            ? undefined
+            : position
+              ? { left: position.left, top: position.top, visibility: "visible" }
+              : { left: 0, top: 0, visibility: "hidden" }
+        }
+        role="dialog"
+        aria-modal="true"
+        aria-label={"Rain review — " + formatEventDateLabel(date)}
+        tabIndex={-1}
+      >
+        <div className="cal-popover__head">
+          <div className="cal-popover__heading">
+            <h3 className="cal-popover__title">
+              <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
+              {Math.round(plan.probMax)}% rain
+            </h3>
+            <p className="cal-popover__when">
+              {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
+              {plan.rows.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <CampIcon.Close />
+          </button>
+        </div>
+
+        <ul className="cal-rain__list">
+          {plan.rows.map((row) => {
+            const hasBackup = row.alternates.length > 0;
+            const first = row.alternates[0];
+            return (
+              <li key={row.event.id} className="cal-rain__row">
+                <div className="cal-rain__body">
+                  <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
+                  <span className="cal-rain__title">{row.event.title || "block"}</span>
+                  {hasBackup && (
+                    <span className="cal-rain__arrow" aria-hidden="true">
+                      →
+                    </span>
+                  )}
+                  {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
+                </div>
+                {hasBackup ? (
+                  <button
+                    type="button"
+                    className="btn btn--quiet btn--sm cal-rain__swap"
+                    onClick={() => onPromote(row.event, 0)}
+                  >
+                    Swap
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--quiet btn--sm cal-rain__pick"
+                    onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
+                    aria-expanded={picking === row.event.id}
+                  >
+                    Pick backup…
+                  </button>
+                )}
+                {picking === row.event.id && !hasBackup && (
+                  <RainBackupPicker
+                    suggestions={rankBackupSuggestions(
+                      row.event.activityId ? byId[row.event.activityId] : undefined,
+                      activities,
+                      events,
+                      stock,
+                      catalog
+                    )}
+                    onPick={(activity) => {
+                      onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
+                      setPicking(null);
+                    }}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="cal-rain__foot" ref={footRef}>
+          {switchableCount > 0 && (
+            <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
+              Switch all {switchableCount}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm cal-rain__shift"
+            onClick={() => {
+              const rect = footRef.current?.getBoundingClientRect() ?? anchor;
+              onShiftDay(rect);
+            }}
+          >
+            <CampIcon.Clock />
+            Shift day…
+          </button>
+          <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
+            Dismiss for today
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The ranked library picker under a "Pick backup…" row — the top indoor-runnable
+// candidates for an outdoor block, ordered by rankBackupSuggestions. Tapping one
+// writes it as the block's rain backup (the parent then offers Swap).
+function RainBackupPicker({
+  suggestions,
+  onPick,
+}: {
+  suggestions: Activity[];
+  onPick: (activity: Activity) => void;
+}) {
+  if (!suggestions.length) {
+    return <p className="cal-rain__empty">No indoor activities in the library yet.</p>;
+  }
+  return (
+    <ul className="cal-rain__picker">
+      {suggestions.map((a) => (
+        <li key={a.id}>
+          <button type="button" className="cal-rain__pickopt" onClick={() => onPick(a)}>
+            <span className="cal-rain__pickname">{a.title}</span>
+            <span className="cal-rain__pickmeta">
+              {a.type}
+              {a.place === "Both" ? " · in/out" : ""}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

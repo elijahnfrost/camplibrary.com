@@ -1,5 +1,6 @@
 import { normalizeHexColor } from "./color";
 import { AGE_GROUPS, CATEGORIES } from "./data";
+import { normalizeActivityAlternates } from "./alternates";
 import { normalizePlaybook } from "./playbooks";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
 import type {
@@ -231,6 +232,17 @@ export function normalizeActivity(value: unknown): Activity | null {
   if (Array.isArray(value.materialRefs)) {
     const materialRefs = materialRefArray(value.materialRefs);
     if (materialRefs.length) activity.materialRefs = materialRefs;
+  }
+
+  // Default backup plans. Registered on Activity via module augmentation in
+  // lib/alternates; validated with the SAME rules as the event list (title ≤80
+  // required, reason whitelist default "rain", locations rules, cap 3), attached
+  // only when at least one clean row survives — so a malformed payload leaves the
+  // field absent, mirroring the other optionals.
+  delete activity.alternates;
+  if (Array.isArray(value.alternates)) {
+    const alternates = normalizeActivityAlternates(value.alternates);
+    if (alternates.length) activity.alternates = alternates;
   }
 
   delete activity.color;
