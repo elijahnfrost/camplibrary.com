@@ -2,6 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { FloatingLayer } from "./FloatingLayer";
+import { CampIcon } from "../icons";
 
 export type ContextMenuItem = {
   label: string;
@@ -11,6 +12,12 @@ export type ContextMenuItem = {
   disabled?: boolean;
   /** Render a hairline separator BEFORE this item. */
   separatorBefore?: boolean;
+  /** When set, the item is a radio choice (part of a mutually-exclusive
+   *  group like Have/Low/Out) rather than a one-shot command: it renders
+   *  role="menuitemradio" + aria-checked, and the current choice gets a
+   *  trailing check glyph so the selection reads without relying on color
+   *  alone. Leave undefined for an ordinary command item. */
+  selected?: boolean;
 };
 
 // A themed right-click menu. Opens at a cursor point via FloatingLayer, with
@@ -32,7 +39,7 @@ export function ContextMenu({
   const enabledIndexes = items.map((it, i) => (it.disabled ? -1 : i)).filter((i) => i >= 0);
 
   const focusItem = (index: number) => {
-    const btn = listRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[index];
+    const btn = listRef.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')[index];
     btn?.focus({ preventScroll: true });
   };
 
@@ -41,7 +48,7 @@ export function ContextMenu({
       return;
     event.preventDefault();
     const buttons = Array.from(
-      listRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? []
+      listRef.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]:not([aria-disabled="true"])') ?? []
     );
     if (!buttons.length) return;
     const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -67,9 +74,14 @@ export function ContextMenu({
             {item.separatorBefore && <div className="cmenu__sep" role="separator" aria-hidden="true" />}
             <button
               type="button"
-              role="menuitem"
+              role={item.selected === undefined ? "menuitem" : "menuitemradio"}
+              aria-checked={item.selected === undefined ? undefined : item.selected}
               tabIndex={-1}
-              className={"cmenu__item" + (item.danger ? " cmenu__item--danger" : "")}
+              className={
+                "cmenu__item" +
+                (item.danger ? " cmenu__item--danger" : "") +
+                (item.selected ? " is-selected" : "")
+              }
               aria-disabled={item.disabled || undefined}
               disabled={item.disabled}
               data-floating-first={enabledIndexes[0] === i || undefined}
@@ -81,6 +93,11 @@ export function ContextMenu({
             >
               {item.icon && <span className="cmenu__icon" aria-hidden="true">{item.icon}</span>}
               <span className="cmenu__label">{item.label}</span>
+              {item.selected && (
+                <span className="cmenu__sel" aria-hidden="true">
+                  <CampIcon.Check />
+                </span>
+              )}
             </button>
           </div>
         ))}

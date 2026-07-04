@@ -243,3 +243,4 @@ export function coverage(
   const state: CoverageState = uncovered === 0 ? "ready" : uncovered === 1 ? "almost" : "cant";
   return { state, missing, lowCount, substituted };
 }
+

@@ -80,8 +80,6 @@ export function DetailSheet({
   ageUnit = "grades",
   onAgeUnit,
   eventContext,
-  eventMaterialSubs,
-  onPatchEvent,
   libraryActivities,
   backLabel = "Library",
   theme = null,
@@ -124,17 +122,6 @@ export function DetailSheet({
    *  event, surfaced here so it reconciles with the run sheet (it's distinct from
    *  the evergreen Field-notes log in the body, which is per-activity). */
   eventContext?: { dateLabel: string; timeLabel: string; note?: string };
-  /** The calendar event's per-placement material substitutions ({refId: label},
-   *  "" = skipped). Present only when opened FROM an event; drives the Materials
-   *  checklist's per-day Swap / Skip rows. Absent (library-opened) = canonical
-   *  list untouched. */
-  eventMaterialSubs?: Record<string, string>;
-  /** Patch the calendar event this was opened from — the least-coupled bridge for
-   *  per-placement edits (material subs). A closure bound to the specific event in
-   *  CampApp (staff-gated, series-stamped there); absent on library-opened or
-   *  read-only surfaces. Kept SEPARATE from the display-only `eventContext` so that
-   *  stays plain strings. */
-  onPatchEvent?: (changes: Partial<CalendarEvent>) => void;
   /** The library activities — the typeahead pool for the edit-mode "Backup plans"
    *  section's optional activity link. Absent on read-only/public surfaces. */
   libraryActivities?: Activity[];
@@ -508,20 +495,6 @@ export function DetailSheet({
               materialCatalog={materialCatalog}
               onSetStockState={onSetStockState ?? (() => {})}
               onSetRating={onSetRating ? (value) => onSetRating(a.id, value) : undefined}
-              // Per-placement material substitutions — present only when opened
-              // FROM an event (onPatchEvent bound to that event). Library-opened
-              // sheets pass nothing, so the checklist shows the canonical list.
-              materialSubs={onPatchEvent ? eventMaterialSubs ?? {} : undefined}
-              onSetMaterialSub={
-                onPatchEvent
-                  ? (refId, label) => {
-                      const next = { ...(eventMaterialSubs ?? {}) };
-                      if (label === null) delete next[refId];
-                      else next[refId] = label;
-                      onPatchEvent({ materialSubs: next });
-                    }
-                  : undefined
-              }
               // Lets staff jot field notes straight from the read-only viewer
               // while running the game — no edit-mode toggle needed.
               canCapture={Boolean(onSaveRunDoc)}

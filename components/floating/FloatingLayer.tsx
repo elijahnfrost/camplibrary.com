@@ -88,7 +88,7 @@ export function FloatingLayer({
     const frame = window.requestAnimationFrame(() => {
       if (!initialFocus) return;
       const first = layerRef.current?.querySelector<HTMLElement>(
-        '[data-floating-first], [role="menuitem"]:not([aria-disabled="true"]), [role="option"], button:not([disabled])'
+        '[data-floating-first], [role^="menuitem"]:not([aria-disabled="true"]), [role="option"], button:not([disabled])'
       );
       (first ?? layerRef.current)?.focus({ preventScroll: true });
     });

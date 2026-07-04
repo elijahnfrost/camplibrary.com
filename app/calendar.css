@@ -3272,8 +3272,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   flex: none;
   white-space: nowrap;
 }
-/* The gather list — one row per needed material, its status glyph + name +
-   status text, cycling stock on tap when staff. */
+/* The gather list — one row per needed material: the status dot (staff get
+   the bloom-dot control there), name, and status text. Never a cycling tap. */
 .cal-gather__list {
   list-style: none;
   margin: var(--s-5) 0 0;
@@ -3281,36 +3281,20 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   display: flex;
   flex-direction: column;
 }
-.cal-gather__row {
-  border-top: 1px solid var(--line);
-}
-.cal-gather__row:first-child {
-  border-top: 0;
-}
-.cal-gather__cycle,
+/* The row itself is the flex container now (it used to wrap a single
+   .cal-gather__cycle button; the seg replaces that button with its own
+   focusable controls, so the row is plain content, not one big hit target). */
+.cal-gather__row,
 .cal-gather__row--static {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   width: 100%;
   padding: var(--s-3) var(--s-2);
-  border: 0;
-  background: transparent;
-  text-align: left;
-  font: inherit;
-  color: inherit;
+  border-top: 1px solid var(--line);
 }
-.cal-gather__cycle {
-  cursor: pointer;
-  border-radius: var(--r-sm);
-  transition: background-color var(--t-fast) var(--ease);
-}
-.cal-gather__cycle:hover {
-  background: var(--chrome-well);
-}
-.cal-gather__cycle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+.cal-gather__row:first-child {
+  border-top: 0;
 }
 .cal-gather__glyph {
   flex: none;
@@ -3341,6 +3325,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-size: var(--fs-meta);
   color: var(--ink-soft);
 }
+/* Staff rows lead with the bloom dot (StockDot, styled in globals.css) in the
+   glyph's slot — same 22px circle, so interactive and read-only rows align. */
 
 /* ---------- Rain Review panel (reuses .cal-popover surface) ----------
    The day's at-risk outdoor blocks and their backups: a row per block with a

@@ -60,7 +60,7 @@ import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { coverage } from "@/lib/materials";
-import { nextStockState, type StockState } from "@/lib/kitStock";
+import type { StockState } from "@/lib/kitStock";
 import {
   conflictsForEvent,
   dayKit,
@@ -109,6 +109,7 @@ import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
 import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
+import { StockDot } from "../StockDot";
 import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
 import { hasOpenDialog } from "../useDialogFocus";
@@ -5250,11 +5251,7 @@ export function CalendarShell({
               catalog={materialCatalog}
               events={events}
               canEdit={Boolean(setStockState)}
-              onCycleStock={
-                setStockState
-                  ? (id, current) => setStockState(id, nextStockState(current))
-                  : undefined
-              }
+              onSetStock={setStockState}
               onMarkPlenty={markPlenty}
               onClose={() => setGatherPopover(null)}
             />
@@ -6006,9 +6003,12 @@ function SkipDaysPicker({
 // The Gather popover — the day's kit at a glance. Hard conflicts pin on top (two
 // overlapping blocks fighting over one item, each with a "We have several" action
 // that marks the material `plenty`); then the gather list, one row per needed
-// material with its coverage glyph and a staff-gated tap that cycles its stock.
-// Rides the shared .cal-popover floating surface (rect-anchored on desktop,
-// bottom-docked on phones, scroll-closes) like the weather + stop cards.
+// material with its coverage glyph and, for staff, an inline Have/Low/Out seg —
+// the explicit picker, not a cycling tap (this popover IS a FloatingLayer, so it
+// can't nest a ContextMenu the way the run-sheet's chip menu does; see
+// FloatingLayer.tsx's no-nested-layers note). Rides the shared .cal-popover
+// floating surface (rect-anchored on desktop, bottom-docked on phones,
+// scroll-closes) like the weather + stop cards.
 function GatherPopover({
   date,
   day,
@@ -6017,7 +6017,7 @@ function GatherPopover({
   catalog,
   events,
   canEdit,
-  onCycleStock,
+  onSetStock,
   onMarkPlenty,
   onClose,
 }: {
@@ -6027,9 +6027,9 @@ function GatherPopover({
   stock: Record<string, StockState>;
   catalog?: Material[];
   events: Record<string, CalendarEvent>;
-  /** Staff session — read-only sessions see the list inert (no cycle / no action). */
+  /** Staff session — read-only sessions see the list inert (no seg / no action). */
   canEdit: boolean;
-  onCycleStock?: (id: string, current: StockState | undefined) => void;
+  onSetStock?: (id: string, state: StockState) => void;
   onMarkPlenty?: (id: string, label: string) => void;
   onClose: () => void;
 }) {
@@ -6093,7 +6093,7 @@ function GatherPopover({
             catalog={catalog}
             canEdit={canEdit}
             current={stock[item.id]}
-            onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
+            onSetStock={onSetStock ? (state) => onSetStock(item.id, state) : undefined}
           />
         ))}
       </ul>
@@ -6149,21 +6149,23 @@ function rankBackupSuggestions(
   return scored.slice(0, limit).map((s) => s.activity);
 }
 
-// One gather-list row: the material's status glyph (✓ on hand · ↔ via <name> ·
-// low · out · missing) and its name, cycling its stock on tap when staff. A
-// read-only session gets a plain, non-interactive row.
+// One gather-list row. For staff the leading glyph IS the bloom dot (StockDot,
+// the one stock control app-wide): the row rests as status; tapping the dot
+// blooms the explicit Have/Low/Out choices in place. Inline DOM, so it nests
+// happily inside this FloatingLayer popover. A read-only session (or no writer
+// wired) keeps the plain typographic glyph row.
 function GatherRow({
   item,
   catalog,
   canEdit,
   current,
-  onCycle,
+  onSetStock,
 }: {
   item: DayKitItem;
   catalog?: Material[];
   canEdit: boolean;
   current: StockState | undefined;
-  onCycle?: () => void;
+  onSetStock?: (state: StockState) => void;
 }) {
   const glyph =
     item.status === "have"
@@ -6185,33 +6187,33 @@ function GatherRow({
           : item.status === "out"
             ? "out"
             : "missing";
-  const interactive = canEdit && Boolean(onCycle);
-  const content = (
-    <>
-      <span className={"cal-gather__glyph cal-gather__glyph--" + item.status} aria-hidden="true">
-        {glyph}
-      </span>
-      <span className="cal-gather__name">{item.label}</span>
-      <span className="cal-gather__status">{statusText}</span>
-    </>
-  );
+  const interactive = canEdit && Boolean(onSetStock);
   if (!interactive) {
     return (
       <li className="cal-gather__row cal-gather__row--static">
-        {content}
+        <span className={"cal-gather__glyph cal-gather__glyph--" + item.status} aria-hidden="true">
+          {glyph}
+        </span>
+        <span className="cal-gather__name">{item.label}</span>
+        <span className="cal-gather__status">{statusText}</span>
       </li>
     );
   }
+  // The dot's resting face mirrors the row's day-status (via reads as covered);
+  // the bloom highlights the item's OWN recorded state, so fixing a "missing"
+  // row is one tap on the dot + one on a choice.
+  const display =
+    item.status === "substituted" ? ("via" as const) : item.status === "missing" ? current : item.status;
   return (
     <li className="cal-gather__row">
-      <button
-        type="button"
-        className="cal-gather__cycle"
-        onClick={onCycle}
-        aria-label={item.label + " — " + statusText + ". Tap to update stock"}
-      >
-        {content}
-      </button>
+      <StockDot
+        name={item.label}
+        display={display}
+        current={current}
+        onSet={(state) => onSetStock?.(state)}
+      />
+      <span className="cal-gather__name">{item.label}</span>
+      <span className="cal-gather__status">{statusText}</span>
     </li>
   );
 }

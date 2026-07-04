@@ -49,13 +49,10 @@ export default async function RunSheetPage({ params }: Params) {
   // the SAME have/low/out lens the in-app read view does.
   const kitStock = (docs.kitStock as Record<string, StockState> | undefined) ?? {};
   const materialCatalog = (docs.materialCatalog as Material[] | undefined) ?? [];
-  // NOT reachable here: per-day material substitutions (Swap.../Skip today) are
-  // stored on the calendar EVENT (cloud.events[id].materialSubs), keyed by a
-  // specific scheduled occurrence. This route's params are only a feed token +
-  // an activityId — no event id — so there's no placement to resolve subs
-  // against. The materials list below renders the library-canonical state only
-  // (kit stock, no per-day swaps/skips), matching the "library-opened" case of
-  // the in-app checklist (MaterialChecklist with no onSetSub).
+  // The materials list below renders the library-canonical state (kit stock
+  // only) — the same thing the in-app checklist shows everywhere since the
+  // per-day Swap/Skip feature was removed (events' materialSubs is a legacy
+  // field, see lib/calendar/types.ts).
 
   const found = [...extra, ...ACTIVITIES].find((a) => a.id === activityId);
   if (!found) notFound();

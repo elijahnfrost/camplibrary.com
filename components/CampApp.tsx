@@ -7,13 +7,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import type { Activity, LibraryCollection, LibraryView, TabId } from "@/lib/types";
+import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
 import { catalogNameFor } from "@/lib/materialCatalog";
-import type { MaterialSort, MaterialStockFilter } from "@/lib/kitStock";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
@@ -46,7 +45,8 @@ import { usePreviewAuth } from "./AuthControls";
 import { ConfirmHost, requestConfirm } from "./ConfirmDialog";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
 import { DetailSheet } from "./DetailSheet";
-import { Filters, MaterialsFilters } from "./Filters";
+import { Filters } from "./Filters";
+import { KitModal } from "./KitModal";
 import { LibraryTab } from "./LibraryTab";
 import {
   CampDayStructure,
@@ -87,8 +87,8 @@ type NavTab = { id: TabId; label: string; icon: (typeof CampIcon)[keyof typeof C
 
 // Calendar is now the app's home — the sidebar brand mark goes there, and it's
 // where the retired Home tab's Now/Next glance now lives (the calendar rail's
-// "Today" card). Library / Materials fold together (Materials is a collection
-// dimension inside Library, not a top-level tab).
+// "Today" card). Materials isn't a tab (or even a Library collection) at all —
+// it's the Kit modal, reached from the Library toolbar's Kit dropdown.
 const TABS: NavTab[] = [
   { id: "library", label: "Library", icon: CampIcon.Library },
   { id: "calendar", label: "Calendar", icon: CampIcon.Calendar },
@@ -109,11 +109,11 @@ const ADMIN_TAB: NavTab = {
 const STORED_TAB_KEY = "currentTab";
 const RESTORABLE_TABS = ["library", "calendar", "print"] as const;
 // Legacy stored tabs that no longer exist as surfaces migrate forward: the old
-// "home" tab is now the calendar; "materials" is now a collection inside the
-// library, so it restores to the library (CampApp then selects the Materials
-// collection — see the restore effect). "staff" was a dedicated tab, now a
-// bottom-left profile popover — there's nothing to land on, so it falls back
-// to the calendar. Everything else falls through.
+// "home" tab is now the calendar; "materials" was once its own tab (then a
+// Library collection) and is now the Kit modal — there's no surface of its own
+// to land on any more, so it just restores to the library. "staff" was a
+// dedicated tab, now a bottom-left profile popover — there's nothing to land
+// on, so it falls back to the calendar. Everything else falls through.
 const LEGACY_TAB_MIGRATIONS: Record<string, TabId> = {
   home: "calendar",
   materials: "library",
@@ -354,9 +354,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // Restore the remembered tab before paint, so a reload lands on the last
   // surface with no flash and the heavy-tab veil raised in the same render
   // (setTab handles that). Deep links (?auth=, ?activity=) are explicit intents
-  // that win — their own effects set the tab, so skip restore for them. A legacy
-  // stored "materials" restores to the library's Materials collection (the tab
-  // migrates to "library" via parseStoredTab; the raw value selects the seg).
+  // that win — their own effects set the tab, so skip restore for them. A
+  // legacy stored "materials" now just migrates to "library" via
+  // parseStoredTab — Materials is a modal, not a landable collection, so there's
+  // no second surface to re-select on top of the tab.
   useLayoutEffect(() => {
     if (!persistTab) return;
     const params = new URLSearchParams(window.location.search);
@@ -365,7 +366,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
       typeof v === "string" ? v : f
     );
     const stored = parseStoredTab(rawStored, null);
-    if (rawStored === "materials") setCollection("materials");
     if (stored) setTab(stored);
     // Mount-only: restore once, then let normal navigation drive the tab.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -627,28 +627,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
 
-  // The Library holds two collections behind one tab: the activity catalog
-  // (Activities) and the kit inventory (Materials — formerly a top-level tab).
-  // A seg at the far left of the Library toolbar switches between them; the ONE
-  // toolbar contract (collection seg + search + Add) renders identically for
-  // both — only the Shelf/Deck/Catalog view switch and the Activities filter
-  // rail are Activities-only.
-  const [collection, setCollection] = useState<LibraryCollection>("activities");
-
-  // Materials filter state — the sidebar ledger's Have/Low/Out row, "Restock
-  // only" toggle, and sort control (materials-16's real filter rail, replacing
-  // the old bare hint), plus the collection's own search query (lifted so the
-  // ONE shared toolbar search field can drive either collection — see
-  // LibraryTab). Lives here, not in MaterialsTab, for the same reason the
-  // Activities filters do: the desktop rail renders in the sidenav, outside
-  // LibraryTab.
-  const [materialsQuery, setMaterialsQuery] = useState("");
-  const [materialsStockFilter, setMaterialsStockFilter] = useState<MaterialStockFilter>("all");
-  const [materialsRestockOnly, setMaterialsRestockOnly] = useState(false);
-  const [materialsSort, setMaterialsSort] = useState<MaterialSort>("usage");
-  // Bumped by the toolbar's Add button while Materials is active — tells
-  // MaterialsTab to mint a fresh row and open it in rename mode.
-  const [materialsPendingAdd, setMaterialsPendingAdd] = useState(0);
+  // The Kit availability editor floats over the app as a modal (see KitModal),
+  // reached from the filter rail's Kit group ("Edit stock…", see Filters) —
+  // there's no toolbar dropdown or Activities|Materials toggle to wire up, and
+  // MaterialsTab's own filter state (query/stock/restock/sort/pendingAdd) is
+  // owned by the modal itself, not lifted here.
+  const [kitModalOpen, setKitModalOpen] = useState(false);
 
   // Library filters. State lives here because the desktop filter rail
   // renders inside the sidenav, outside LibraryTab.
@@ -860,15 +844,15 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     setDetail(activity);
   }, []);
 
-  // The Materials view's "Used by N activities →" jump: narrow the Library to
-  // one material and land on the Activities collection. The row promises an
-  // EXACT count ("Used by 3 →"), so every OTHER filter that could hide some of
-  // those activities is cleared too (materials-4) — not just Type, which was
-  // the only one reset before. A stale Age/Place/Theme/Starred/Duration/search
-  // left on from a prior Library session used to silently shrink the landed
-  // list below the promised count with no explanation; now the jump always
-  // shows exactly what it promised. The chip in the Filters rail dismisses the
-  // material narrowing back to null on its own.
+  // The Kit modal's "Used by N activities →" jump: close the modal and narrow
+  // the Library to one material. The row promises an EXACT count ("Used by 3
+  // →"), so every OTHER filter that could hide some of those activities is
+  // cleared too (materials-4) — not just Type, which was the only one reset
+  // before. A stale Age/Place/Theme/Starred/Duration/search left on from a
+  // prior Library session used to silently shrink the landed list below the
+  // promised count with no explanation; now the jump always shows exactly what
+  // it promised. The chip in the Filters rail dismisses the material narrowing
+  // back to null on its own.
   const browseMaterial = useCallback((id: string) => {
     setMaterialId(id);
     setCats(ALL_CATEGORY_IDS);
@@ -879,16 +863,14 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     setMinutesRange(null);
     setKitLens("all");
     setQuery("");
-    setCollection("activities");
+    setKitModalOpen(false);
     setTab("library");
   }, []);
 
-  // The reverse jump: the Filters "kit lens needs stock" hint and the run-sheet
-  // "manage materials" links open the Library's Materials collection.
-  const goMaterials = useCallback(() => {
-    setCollection("materials");
-    setTab("library");
-  }, []);
+  // The reverse jump: the filter rail's "Edit stock…" row opens the Kit modal.
+  // It floats over whatever surface is showing, so — unlike the old Materials
+  // collection — opening it never yanks the user over to the Library tab.
+  const openKitSetup = useCallback(() => setKitModalOpen(true), []);
   // The chip label resolves the active material id to its catalog name (or a
   // humanized slug), so the removable "Material: <name> ×" reads for humans.
   const materialLabel = useMemo(
@@ -932,18 +914,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     setDetail(activityFromForm(BLANK_FORM, "draft-activity"));
   }
 
-  // The Library toolbar's ONE Add button — Activities creates a new activity;
-  // Materials mints a fresh catalog entry and opens it in rename mode (see
-  // MaterialsTab's pendingAdd effect). Gives Materials the same always-visible
-  // Add entry point Activities has (materials-9).
-  function handleLibraryAdd() {
-    if (collection === "materials") {
-      setMaterialsPendingAdd((n) => n + 1);
-      return;
-    }
-    openAddActivity();
-  }
-
   // Edit: open the SAME surface on the existing activity, straight in edit mode.
   function editActivity(activity: Activity) {
     if (!requireStaff("edit activities")) return;
@@ -974,31 +944,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
       closeDetail();
     }
   }
-
-  // Patch the calendar event the detail sheet was opened FROM — the least-coupled
-  // bridge for per-placement edits (material subs). Staff-gated; on a SERIES member
-  // the touched fields are stamped into `custom` (applyCustomStamp) so the per-day
-  // edit survives regeneration, exactly like the calendar's own bulk edits. Absent
-  // event / library-opened = no-op.
-  const patchDetailEvent = useCallback(
-    (changes: Partial<CalendarEvent>) => {
-      if (!detailEventId) return;
-      if (!requireStaff("change the calendar")) return;
-      const live = cloud.events[detailEventId];
-      if (!live) return;
-      const original = healEvent(live, lib.byId);
-      let next: CalendarEvent = { ...original, ...changes };
-      const touched = Object.keys(changes);
-      if (next.seriesId && touched.length) {
-        const stamped = applyCustomStamp(original, touched);
-        if (stamped.custom) next.custom = stamped.custom;
-        if (stamped.origDate !== undefined) next.origDate = stamped.origDate;
-      }
-      next = { ...next, updatedAt: Date.now() };
-      campKit.upsertEvent(next);
-    },
-    [cloud.events, lib.byId, campKit, detailEventId, requireStaff]
-  );
 
   async function deleteActivity(activity: Activity) {
     if (await lib.deleteActivity(activity)) closeDetail();
@@ -1113,11 +1058,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               these renders at a time (gated by `tab`), so there's never more
               than one scrollbar. */}
           <div className="sidenav__scroll">
-            {/* Each Library collection gets its own filter rail in the same
-                sidebar slot — Activities' full ledger, or Materials' smaller
-                Have/Low/Out + Restock-only + Sort ledger (materials-16: this
-                used to be a bare one-line hint here). */}
-            {tab === "library" && collection === "activities" && (
+            {/* The Library's filter rail — Materials no longer gets a second
+                sidebar ledger here (its own filter state now lives inside the
+                Kit modal, see KitModal), so this slot is Activities-only. */}
+            {tab === "library" && (
               <Filters
                 variant="rail"
                 sort={sort}
@@ -1145,17 +1089,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onMinutes={handleMinutes}
                 onKitLens={setKitLens}
                 onMaterial={() => setMaterialId(null)}
-                onGoMaterials={goMaterials}
-              />
-            )}
-            {tab === "library" && collection === "materials" && (
-              <MaterialsFilters
-                stockFilter={materialsStockFilter}
-                onStockFilter={setMaterialsStockFilter}
-                restockOnly={materialsRestockOnly}
-                onRestockOnly={setMaterialsRestockOnly}
-                sort={materialsSort}
-                onSort={setMaterialsSort}
+                onSetupKit={openKitSetup}
               />
             )}
             {tab === "calendar" && isDesktop && <div className="sidenav__calrail" ref={calRailRef} />}
@@ -1221,17 +1155,14 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
         <main className="app__main" id="main">
           {veil != null && <LoadingVeil className="app__veil" label="One moment…" decorative />}
           {tab === "calendar" && <h1 className="sr-only">Calendar</h1>}
-          {/* Both Library collections share one sr-only page title now — the
-              toolbar's collection seg already visibly names which one is
-              showing, so a second, visible "Materials" heading was redundant
-              (materials-7). */}
+          {/* The Library is one surface now — no second collection to name, so
+              its sr-only page title is unconditional whenever the tab shows
+              (materials-7 predates the Kit modal; kept as a single heading). */}
           {tab === "library" && <h1 className="sr-only">Library</h1>}
 
           {tab === "library" && (
             <TabBoundary>
             <LibraryTab
-              collection={collection}
-              onCollection={setCollection}
               view={lib.view}
               onView={(view: LibraryView) => lib.setView(view)}
               query={query}
@@ -1263,37 +1194,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               onMinutes={handleMinutes}
               onKitLens={setKitLens}
               onMaterial={() => setMaterialId(null)}
-              onGoMaterials={goMaterials}
+              onSetupKit={openKitSetup}
               onOpen={openDetail}
               isFav={lib.isFav}
               onToggleFav={lib.toggleFav}
               onContextMenu={(activity, e) => libMenu.open(e, activity)}
-              onAdd={handleLibraryAdd}
+              onAdd={openAddActivity}
               hasLoaded={cloud.hasLoaded}
-              // The Materials collection mounts the existing MaterialsTab content
-              // below the shared toolbar (see collection === "materials").
-              materials={{
-                activities: lib.all,
-                catalog: lib.materialCatalog,
-                kitStock: lib.kitStock,
-                onSetStockState: lib.setStockState,
-                onAddMaterial: lib.addMaterial,
-                onRename: lib.renameMaterial,
-                onSetConsumable: lib.setMaterialConsumable,
-                onSetArchived: lib.setMaterialArchived,
-                onBrowseMaterial: browseMaterial,
-                canEdit: isSignedIn,
-                query: materialsQuery,
-                onQuery: setMaterialsQuery,
-                stockFilter: materialsStockFilter,
-                onStockFilter: setMaterialsStockFilter,
-                restockOnly: materialsRestockOnly,
-                onRestockOnly: setMaterialsRestockOnly,
-                sort: materialsSort,
-                announce: setLiveMsg,
-                pendingAdd: materialsPendingAdd,
-                onPendingAddHandled: () => {},
-              }}
             />
             </TabBoundary>
           )}
@@ -1591,6 +1498,22 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onClose={() => setLocationsManagerOpen(false)}
           />
         )}
+        {kitModalOpen && (
+          <KitModal
+            activities={lib.all}
+            catalog={lib.materialCatalog}
+            kitStock={lib.kitStock}
+            onSetStockState={lib.setStockState}
+            onAddMaterial={lib.addMaterial}
+            onRename={lib.renameMaterial}
+            onSetConsumable={lib.setMaterialConsumable}
+            onSetArchived={lib.setMaterialArchived}
+            onBrowseMaterial={browseMaterial}
+            canEdit={isSignedIn}
+            announce={setLiveMsg}
+            onClose={() => setKitModalOpen(false)}
+          />
+        )}
         {detailActivity && (
           <DetailSheet
             // Remount per open action so the form/play-doc drafts re-seed
@@ -1624,13 +1547,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             ageUnit={ageUnit}
             onAgeUnit={setAgeUnit}
             eventContext={detailEventContext ?? undefined}
-            // Per-placement material subs read LIVE off the event this sheet was
-            // opened from (so a swap re-renders), plus the patch bridge. Both absent
-            // when library-opened, keeping the canonical list untouched there.
-            eventMaterialSubs={
-              detailEventId ? cloud.events[detailEventId]?.materialSubs : undefined
-            }
-            onPatchEvent={isSignedIn && detailEventId ? patchDetailEvent : undefined}
             libraryActivities={lib.all}
             backLabel={navTabs.find((t) => t.id === tab)?.label ?? "Library"}
             theme={lib.themeOf(detailActivity.id)}
