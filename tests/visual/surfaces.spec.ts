@@ -40,7 +40,9 @@ async function nav(page: Page, name: string) {
 }
 
 async function libraryView(page: Page, label: "Shelf" | "Deck" | "Catalog") {
-  await page.getByRole("button", { name: label, exact: true }).click();
+  // The view switch is a MiniSeg — radiogroup/radio semantics (the app-wide
+  // single-choice contract), NOT buttons; getByRole("button") finds nothing.
+  await page.getByRole("radio", { name: label, exact: true }).click();
   await quiet(page);
 }
 
