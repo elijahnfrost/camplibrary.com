@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  effectiveKitStock,
-  foldStockWrite,
-  isStocked,
-  nextStockState,
-  normalizeKitStock,
-  type StockState,
-} from "./kitStock";
+import { effectiveKitStock, foldStockWrite, isStocked, normalizeKitStock } from "./kitStock";
 
 describe("normalizeKitStock validator", () => {
   it("keeps well-formed slug → state pairs", () => {
@@ -112,12 +105,5 @@ describe("stock helpers", () => {
     expect(isStocked("low")).toBe(true);
     expect(isStocked("out")).toBe(false);
     expect(isStocked(undefined)).toBe(false);
-  });
-
-  it("nextStockState cycles have → low → out → have (absent enters at have)", () => {
-    expect(nextStockState(undefined)).toBe<StockState>("have");
-    expect(nextStockState("have")).toBe<StockState>("low");
-    expect(nextStockState("low")).toBe<StockState>("out");
-    expect(nextStockState("out")).toBe<StockState>("have");
   });
 });

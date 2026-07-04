@@ -418,15 +418,6 @@ body {
   outline-offset: -3px;
 }
 
-/* ---------- library collection seg (Activities | Materials) ----------
-   The far-left dimension of the Library toolbar. Built on .viewswitch/.seg-slide,
-   so it inherits the pill + sliding-thumb treatment; it just doesn't want the
-   view switch's wide desktop sizing (only two segments). Mobile inherits the
-   toolbar grid: it sits in row-1 col-1 beside the browse-view switch. */
-.collseg {
-  margin: 0 18px;
-}
-
 /* ---------- canonical search field ----------
    ONE recipe for every text-search input in the app (the library toolbar, the
    library filter's material search, the Materials list, the calendar QuickAdd).
@@ -1307,6 +1298,85 @@ body {
    button on the right. */
 .overlay--manager .overlay__bar {
   padding: 16px var(--s-7) 8px;
+}
+
+/* ---- Kit modal (the availability editor, reached from the Library toolbar's
+   Kit dropdown) — wider than the generic manager card: each material row
+   carries a name, an explicit Have/Low/Out seg, a "Used by N" jump, and an
+   overflow button, which clips hard at the manager's 440px. Height-capped like
+   the generic .overlay--card (see the >=1024px block below); the body scrolls
+   past that (kitmodal__body, mirroring .overlay__body/.manager's own scroll). */
+.overlay--kit {
+  width: min(640px, 92vw);
+}
+.overlay--kit .overlay__bar {
+  padding: var(--s-6) var(--s-7) var(--s-4);
+}
+/* The controls row: search + stock/restock/sort + Add, sitting between the
+   title bar and the scrolling row list. Wraps on narrow widths instead of
+   squeezing every control unreadably thin. */
+/* Two INTENTIONAL rows (not a wrapping soup): find & create (search + Add),
+   then lens & order (the stock seg + the sort dropdown, pushed apart). */
+.kitmodal__controls {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 0 var(--s-7) var(--s-4);
+}
+.kitmodal__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.kitmodal__row--lens {
+  justify-content: space-between;
+}
+/* Same hug-content scoping .ledger__row gives its dropdowns — .cselect is a
+   full-width field by default, which would swallow the row and park the sort
+   trigger flush against the seg instead of at the row's right end. */
+.kitmodal__row--lens > .cselect {
+  flex: 0 0 auto;
+  width: auto;
+}
+/* Pinned to the shared control height (same fix as .toolbar__search /
+   .searchfield--content) so the search, the Add button, and the pills read as
+   one row rather than three heights. */
+.kitmodal__search {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 0;
+  height: var(--control-md);
+}
+/* Add is a plain bordered .btn (NOT primary — setup mode's seed button owns
+   the surface's one green action) sized down to the controls row's height.
+   Compound selector: this rule sits BEFORE the .btn base in the file, so a
+   bare class would lose the height to .btn's own 48px. */
+.btn.kitmodal__add {
+  flex: none;
+  height: var(--control-md);
+  border-radius: var(--r-md);
+}
+/* The row list scrolls under the fixed controls row above it — same recipe as
+   .overlay__body (hidden scrollbar, contained overscroll), just under its own
+   class so KitModal doesn't depend on ListManagerModal's .manager shell. */
+.kitmodal__body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.kitmodal__body::-webkit-scrollbar {
+  display: none;
+}
+/* Inside the modal the materials list no longer needs its own page-level
+   width cap/centering (--lib-col-max) or bottom padding — the modal card
+   already bounds the width and the controls row above already separates it
+   from the title bar. */
+.overlay--kit .materials-tab {
+  padding: 0 var(--s-7) var(--s-6);
+  max-width: none;
+  margin-inline: 0;
 }
 .manager {
   display: flex;
@@ -3420,30 +3490,16 @@ body {
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
-  cursor: pointer;
   font-family: var(--text);
   font-size: var(--fs-body);
   line-height: 1.3;
   color: var(--ink);
   transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.matkit__item:hover {
-  border-color: var(--ink-soft);
-  background: color-mix(in srgb, var(--accent) 5%, var(--card));
-}
-.matkit__item:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-/* The static read of the checklist (print + the public run page — see
-   RunSheetBody's MaterialsList) renders plain rows, not tap-to-cycle buttons:
-   drop the pointer cursor and hover tint so it doesn't look clickable. */
-.matkit--static .matkit__item {
-  cursor: default;
-}
-.matkit--static .matkit__item:hover {
-  border-color: var(--line);
-  background: var(--card);
-}
+/* The chip RESTS as status now — the bloom dot inside it is the only control
+   (StockDot), so the chip carries no cursor and no hover tint on any surface
+   (interactive run sheet, print, and the public run page all read the same;
+   the old .matkit--static override became the universal truth). */
 .matkit__check {
   flex: none;
   width: 22px;
@@ -3549,9 +3605,10 @@ body {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
   color: var(--danger-ink);
 }
-/* Per-placement material substitution (run sheet opened FROM an event): each row
-   pairs its status button with Swap… / Skip today actions; a subbed/skipped row
-   reads "<replacement> — instead of <original>" with a revert ×. */
+/* Per-placement material substitution (run sheet opened FROM an event): a
+   subbed/skipped row reads "<replacement> — instead of <original>"; Swap…/Skip
+   today/Restore all live in the chip's own picker menu now, not separate
+   row buttons. */
 .matkit__rowline {
   display: flex;
   flex-wrap: wrap;
@@ -3562,61 +3619,9 @@ body {
   flex: 1;
   min-width: 60%;
 }
-.matkit__item.is-skip {
-  opacity: 0.6;
-}
-.matkit__item.is-skip .matkit__name {
-  text-decoration: line-through;
-  text-decoration-color: var(--ink-faint);
-}
-.matkit__instead {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-  letter-spacing: 0.02em;
-  text-decoration: none;
-}
-.matkit__acts {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-}
-/* Swap…/Skip today/revert now render as .btn.btn--ghost.btn--sm (the app's one
-   secondary-action button); .matkit__revert only tightens it to icon-only. */
-.matkit__revert {
-  padding-left: var(--s-2);
-  padding-right: var(--s-2);
-}
-/* The mini Swap form under a row: reuses the QuickAdd search-field + result-list
-   anatomy verbatim (.quickadd__search / .quickadd__list / .quickadd__item) so a
-   material swap reads exactly like the app's other typeaheads; these rules only
-   size the wrapper + suggestion list within the swap form's own box. */
-.matkit__swap {
-  flex-basis: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  margin-top: var(--s-2);
-  padding: var(--s-4);
-  background: var(--paper-2);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
-}
-.matkit__swapsearch {
-  margin: 0;
-}
-.matkit__swaplist {
-  max-height: none;
-  margin-top: 0;
-  padding: 0;
-}
-.matkit__swapacts {
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* The kit-lens "mark what you have" hint (shown under the Kit filter row while
-   stock is unset). Non-blocking guidance, not an error. */
+/* The kit-lens "mark what you have" hint (shown under the Can-run filter row
+   while stock is unset). Non-blocking guidance, not an error — the action it
+   points at is the group's own "Edit stock…" row just below. */
 .kitlens__hint {
   margin: var(--s-2) 0 0;
   padding: 0 var(--s-2);
@@ -3624,6 +3629,26 @@ body {
   font-size: var(--fs-meta);
   color: var(--ink-faint);
   line-height: 1.35;
+}
+/* A ledger group's quiet "manage" footer row — the same hand-off voice as the
+   camps rail's "Manage camps…" (controls stay inline, the deep editor is one
+   muted row away). Full-width so the whole line is the target. */
+.ledger__manage {
+  display: block;
+  width: 100%;
+  margin-top: var(--s-2);
+  padding: var(--s-3) var(--s-2) var(--s-1);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  transition: color var(--t-fast) var(--ease);
+}
+.ledger__manage:hover {
+  color: var(--ink);
 }
 /* The category checklist (Type filter) reuses the kit picker's shell; it adds a
    color swatch per row so each category reads by its shelf tint, and pairs the
@@ -4526,12 +4551,11 @@ body {
 /* Mobile: one search field for the library, stacked under the view switch.
    The toolbar is the page's first row (no page-title bar above it), so it
    carries the notch clearance and hosts the auth pill beside the switcher.
-   The collection seg (.collseg) and the 3-way browse-view switch used to be
-   two unplaced grid items landing in the SAME row, where the view switch's
-   wider intrinsic size squeezed the collseg down to two clipped, overlapping
-   labels (library-2). Both now get an EXPLICIT row of their own — a min-width
-   guard on top, so neither switch is ever squeezed by the other's content
-   width regardless of auto-placement specifics. */
+   The view switch gets its own row (an explicit min-width guard used to also
+   protect the old Activities|Materials collection seg sharing this row —
+   library-2 — that seg is gone now that Materials opens as the Kit modal from
+   the filter rail, but the explicit-row layout it required is still the right
+   shape for the view switch on its own). Add closes the stack alone. */
 .toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -4540,23 +4564,13 @@ body {
   padding: max(14px, calc(8px + env(safe-area-inset-top))) 18px 2px;
 }
 /* Scoped to the touch-shell tiers (phone + iPad-portrait) ONLY — >=1024px
-   switches .toolbar to flex (see the desktop blocks below) where .collseg /
-   .viewswitch already have their own working sizing rules; without this guard
-   these higher-specificity grid-placement selectors would outrank and stomp
-   those flex rules' min-width/width instead of just being no-ops. */
+   switches .toolbar to flex (see the desktop blocks below) where .viewswitch
+   already has its own working sizing rules; without this guard these
+   higher-specificity grid-placement selectors would outrank and stomp those
+   flex rules' min-width/width instead of just being no-ops. */
 @media (max-width: 1023px) {
-  .toolbar .collseg {
+  .toolbar .viewswitch {
     grid-row: 1;
-    grid-column: 1;
-    /* Two icon+label pills need at least this much to read cleanly — never let
-       a sibling's auto-placement width squeeze it below it. */
-    min-width: 190px;
-    width: auto;
-    justify-self: start;
-    margin: 0;
-  }
-  .toolbar .viewswitch:not(.collseg) {
-    grid-row: 2;
     grid-column: 1 / -1;
     min-width: 0;
     width: 100%;
@@ -4566,7 +4580,7 @@ body {
 .toolbar__auth {
   display: flex;
   align-items: center;
-  /* Beside the collection seg on row 1 — grid auto-placement never backtracks
+  /* Beside the view switch on row 1 — grid auto-placement never backtracks
      to row 1's empty second cell, so place it explicitly. */
   grid-row: 1;
   grid-column: 2;
@@ -4576,14 +4590,12 @@ body {
    only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
    wider tiers below), not the field's visual recipe. */
 .toolbar__search {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+.toolbar__add {
   grid-row: 3;
   grid-column: 1 / -1;
-}
-.toolbar__add {
-  grid-row: 4;
-  grid-column: 1 / -1;
-}
-.toolbar__add {
   height: var(--control-md);
   border-radius: var(--r-md);
   justify-self: start;
@@ -5113,19 +5125,18 @@ body {
     max-width: 360px;
     margin: 0;
   }
-  /* Only two segments — narrower than the browse-view switch, and it leads the
-     row rather than sharing the 300px minimum. */
-  .collseg.viewswitch {
-    min-width: 0;
-    width: auto;
-    max-width: none;
-  }
-  /* Desk toolbar: the canonical .searchfield handles the pill; this only sizes it
-     in the flex row (grow, capped, pushed to the right of the view switch). */
+  /* Desk toolbar: the canonical .searchfield handles the pill; this sizes it
+     in the flex row (grow, capped, pushed to the right of the view switch) and
+     pins it to the row's shared control height — the base recipe's --tap
+     min-height (44px, the touch floor) runs 4px taller than the view switch /
+     Kit / Add at --control-md, which reads as a mismatched row once they sit
+     side by side (same fix .searchfield--content applies inside QuickAdd). */
   .toolbar__search {
     flex: 1;
     max-width: 380px;
     margin-left: auto;
+    min-height: 0;
+    height: var(--control-md);
   }
 
   /* ---- content: capped, centered column with consistent room ----
@@ -5224,6 +5235,13 @@ body {
   .overlay--quickadd.overlay--card {
     width: min(540px, 92vw);
     max-height: min(800px, 92vh);
+  }
+  /* The Kit modal carries a full material row list (name + seg + used + more
+     per row) below its own controls row — wider AND taller than the generic
+     card so the list reads as a real working surface, not a cramped popover. */
+  .overlay--kit.overlay--card {
+    width: min(640px, 92vw);
+    max-height: min(760px, 90vh);
   }
   .overlay--card .overlay__handle,
   .overlay--viewer .overlay__handle {
@@ -8294,11 +8312,6 @@ button.rl-node--pick:focus-visible {
     max-width: 360px;
     margin: 0;
   }
-  /* The 2-segment collection seg doesn't need to grow — keep it compact so the
-     browse-view switch and search take the width. */
-  .collseg.viewswitch {
-    flex: 0 0 auto;
-  }
   .toolbar__search {
     flex: 1 1 240px;
     max-width: 420px;
@@ -8313,12 +8326,11 @@ button.rl-node--pick:focus-visible {
 }
 /* desktop re-assertions (the sidebar rail replaces the bar there). Gated to
    the app's next named breakpoint (1320px), NOT 1024px — at 1024–1319px
-   (tablet-tier desktop) the collection seg + view switch + search + Add
-   genuinely don't fit on one nowrap row (confirmed live: the Add button and
-   part of the search field render past the viewport edge with no scroll
-   affordance — library-1). The 1024px block above already lets the toolbar
-   wrap there; this only re-asserts a single row once there's actually room
-   for one. */
+   (tablet-tier desktop) the view switch + search + Add genuinely don't fit on
+   one nowrap row (confirmed live: the Add button and part of the search field
+   render past the viewport edge with no scroll affordance — library-1). The
+   1024px block above already lets the toolbar wrap there; this only re-asserts
+   a single row once there's actually room for one. */
 @media (min-width: 1320px) {
   .toolbar {
     flex-wrap: nowrap;
@@ -8540,6 +8552,30 @@ button.rl-node--pick:focus-visible {
   height: 0;
   margin: var(--s-2) var(--s-2);
   border-top: 1.5px solid var(--line-soft);
+}
+/* A menuitemradio's current choice (e.g. the Have/Low/Out picker) — a small
+   trailing check so the selection reads without relying on the label's own
+   color, which a colorblind or grayscale render would lose. */
+.cmenu__item.is-selected {
+  color: var(--ink);
+  font-weight: 600;
+}
+.cmenu__sel {
+  flex: none;
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+  color: var(--accent);
+}
+.cmenu__sel svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ---- custom <select> (Select.tsx) ---- */
@@ -10544,24 +10580,112 @@ button.rl-node--pick:focus-visible {
   background: var(--card);
   color: var(--ink);
 }
-.matrow__dot {
+/* ---------- the bloom dot (StockDot.tsx) ----------
+   THE stock control app-wide: rests as one status dot; tapping blooms the
+   three explicit choices in place (inline DOM, never a floating layer). The
+   circle anatomy and state palette are the old .matrow__dot's, so rows read
+   exactly as before — the dot just became the control. */
+.stockdot {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+.stockdot--bloom {
+  gap: var(--s-3);
+}
+.stockdot__dot,
+.stockdot__opt {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  padding: 0;
   border-radius: var(--r-round);
   border: 1.5px solid var(--line);
   background: var(--chrome-well);
   color: var(--card);
+  cursor: pointer;
+  position: relative;
 }
-.matrow__dot svg {
+.stockdot__dot:disabled {
+  cursor: default;
+}
+/* An invisible halo widens the touch target to ~42px without growing the
+   quiet 22px face (the dot is the row's ONLY control, so it must be easy). */
+.stockdot__dot::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: var(--r-round);
+}
+.stockdot__dot svg,
+.stockdot__opt svg {
   width: 14px;
   height: 14px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
+}
+.stockdot__dot.is-have,
+.stockdot__dot.is-via,
+.stockdot__opt--have {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.stockdot__dot.is-low,
+.stockdot__opt--low {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.stockdot__dot.is-out,
+.stockdot__opt--out {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+}
+/* Bloomed: the item's OWN state stays full strength, the other two read as
+   offers. Hovering an offer commits it visually before the tap. */
+.stockdot__opt.is-dim {
+  opacity: 0.45;
+}
+.stockdot__opt:hover,
+.stockdot__opt:focus-visible {
+  opacity: 1;
+  transform: scale(1.12);
+}
+.stockdot__opt {
+  /* fill-mode backwards, not both: a lingering final keyframe would override
+     the hover/focus scale and the .is-dim opacity after the pop settles. */
+  animation: stockdot-pop var(--t-fast) var(--ease-overlay) backwards;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.stockdot__opt:nth-child(2) {
+  animation-delay: 0.03s;
+}
+.stockdot__opt:nth-child(3) {
+  animation-delay: 0.06s;
+}
+/* Transform only — an opacity keyframe with fill:both would pin opacity at 1
+   forever and silently defeat .is-dim. */
+@keyframes stockdot-pop {
+  from {
+    transform: scale(0.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stockdot__opt {
+    animation: none;
+    transition: none;
+  }
+  .stockdot__opt:hover,
+  .stockdot__opt:focus-visible {
+    transform: none;
+  }
 }
 .matrow__body {
   flex: 1;
@@ -10596,39 +10720,11 @@ button.rl-node--pick:focus-visible {
 .matrow__rename:focus {
   outline: none;
 }
-/* The explicit Have/Low/Out control — same MiniSeg used everywhere else, just
-   hugging its own content on the row's right side (matches
-   .rldetail__row .miniseg). Its own is-on styling already carries the
-   selected label; the row still tints its border to match (below), so the
-   whole row — not just the pill — reads at a glance. */
-.matrow .miniseg {
-  flex: none;
-}
-/* Unlike every other MiniSeg in the app, a fresh row's stock is genuinely
-   unselected (id "" matches none of the 3 options) — the shared seg-slide
-   thumb has no home for that (its geometry assumes --seg-i is always >= 0)
-   and would otherwise paint a stray sliver at the pill's left edge. Hide the
-   thumb for exactly that state; is-unset is the same modifier the dot/border
-   already key off. */
-.matrow.is-unset .miniseg::before {
-  display: none;
-}
-/* Stock states — the run sheet's palette, keyed off the row modifier so the
-   dot and the row border both carry the color. */
-.matrow.is-have .matrow__dot {
-  background: var(--accent);
-  border-color: var(--accent-ink);
-}
-.matrow.is-low .matrow__dot {
-  background: var(--amber);
-  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
-}
+/* Stock states — the dot itself is the StockDot control now (it carries its
+   own palette); the row modifier only tints the row border so the whole row —
+   not just the dot — reads at a glance. */
 .matrow.is-low {
   border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
-}
-.matrow.is-out .matrow__dot {
-  background: var(--danger);
-  border-color: var(--danger-ink);
 }
 .matrow.is-out {
   border-color: color-mix(in srgb, var(--danger) 35%, var(--line));

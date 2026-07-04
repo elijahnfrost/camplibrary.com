@@ -128,12 +128,3 @@ export function foldStockWrite(
   if (id) next[id] = state;
   return next;
 }
-
-// Cycle a need through the 3 states in a fixed, predictable order:
-// have → low → out → have. Absent (never reviewed) enters the cycle at "have"
-// on first tap, so a single tap on a fresh row marks it present.
-export function nextStockState(current: StockState | undefined): StockState {
-  if (current === "have") return "low";
-  if (current === "low") return "out";
-  return "have";
-}

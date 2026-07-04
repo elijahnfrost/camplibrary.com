@@ -14,9 +14,9 @@
 
 import type { CSSProperties, ElementType, FC, ReactNode } from "react";
 import { ageSpan, code, durLabel, ENERGY, groupLabel } from "@/lib/data";
-import { coverage, materialNeedsForActivity, materialTagId, type ResolvedRef } from "@/lib/materials";
+import { coverage, materialNeedsForActivity } from "@/lib/materials";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import { isStocked, type StockState } from "@/lib/kitStock";
+import type { StockState } from "@/lib/kitStock";
 import {
   defaultRunIcon,
   detailTagsForActivity,
@@ -174,45 +174,34 @@ function DecoIcon({ type, icon, color }: { type: string; icon?: RunIcon; color?:
 }
 
 // ---- Materials — a STATIC read of the same 3-state stock lens the in-app
-// checklist uses (MaterialChecklist in ActivityRunList.tsx), without the tap-
-// to-cycle/Swap/Skip affordances a printed or public page can't act on. Renders
-// the coverage pill, per-row have/low/out state, and any per-day substitution
-// ("<replacement> — instead of <original>") or skip already recorded — so a
-// printed sheet or shared link shows the SAME availability signal staff see
-// in-app, not just bare item names. `kitStock`/`materialSubs` are optional: a
-// caller that hasn't threaded them through (or a route with no per-event
-// context — see the public run-sheet page's comment) just gets the canonical,
-// un-decorated list.
+// checklist uses (MaterialChecklist in ActivityRunList.tsx), without its bloom
+// dot (a printed or public page can't act on stock). Renders the coverage pill
+// and per-row have/low/out state, so a printed sheet or shared link shows the
+// SAME availability signal staff see in-app, not just bare item names.
+// `kitStock` is optional: a caller that hasn't threaded it through just gets
+// the canonical, un-decorated list. (Per-day materialSubs decoration was
+// removed with the Swap/Skip feature — the event field is legacy, see
+// lib/calendar/types.ts.)
 function MaterialsList({
   activity,
   c,
   kitStock,
   materialCatalog,
-  materialSubs,
 }: {
   activity: Activity;
   c: Vars;
   kitStock?: Record<string, StockState>;
   materialCatalog?: Material[];
-  materialSubs?: Record<string, string>;
 }) {
   const needs = materialNeedsForActivity(activity, materialCatalog);
   if (!needs.length) return <p className={c.muted || undefined}>None needed.</p>;
 
   const stock = kitStock ?? {};
-  const rows = needs.map((n: ResolvedRef) => {
-    const sub = materialSubs?.[n.id];
-    if (sub === undefined) return { ...n, kind: "plain" as const, coverId: n.id, coverLabel: n.label };
-    if (sub === "") return { ...n, kind: "skip" as const, coverId: n.id, coverLabel: n.label };
-    const coverId = materialTagId(sub);
-    return { ...n, kind: "sub" as const, subLabel: sub, coverId, coverLabel: sub };
-  });
-
   const unset = Object.keys(stock).length === 0;
   const cov = unset
     ? null
     : coverage(
-        { materialRefs: rows.filter((r) => r.kind !== "skip").map((r) => ({ id: r.coverId })) } as Activity,
+        { materialRefs: needs.map((n) => ({ id: n.id })) } as Activity,
         stock,
         materialCatalog
       );
@@ -244,37 +233,28 @@ function MaterialsList({
         </div>
       )}
       <div className="matkit__list">
-        {rows.map((n) => {
-          const skipped = n.kind === "skip";
-          const subbed = n.kind === "sub";
-          const viaId = viaById.get(n.coverId);
-          const own = stock[n.coverId];
+        {needs.map((n) => {
+          const viaId = viaById.get(n.id);
+          const own = stock[n.id];
           const state: StockState | "via" = viaId ? "via" : own ?? "out";
           const viaName = viaId ? catalogNameFor(materialCatalog, viaId) : "";
-          const rowClass = skipped
-            ? " is-skip"
-            : unset
-              ? ""
-              : state === "have" || state === "via"
-                ? " is-have"
-                : state === "low"
-                  ? " is-low"
-                  : " is-out";
+          const rowClass = unset
+            ? ""
+            : state === "have" || state === "via"
+              ? " is-have"
+              : state === "low"
+                ? " is-low"
+                : " is-out";
           return (
             <div key={n.id} className="matkit__rowline">
               <div className={"matkit__item" + rowClass} aria-hidden={false}>
                 <span className="matkit__check" aria-hidden="true">
-                  {skipped && <CampIcon.Minus />}
-                  {!skipped && !unset && (state === "have" || state === "via") && <CampIcon.Check />}
-                  {!skipped && !unset && state === "low" && <CampIcon.Minus />}
-                  {!skipped && !unset && state === "out" && <CampIcon.Close />}
+                  {!unset && (state === "have" || state === "via") && <CampIcon.Check />}
+                  {!unset && state === "low" && <CampIcon.Minus />}
+                  {!unset && state === "out" && <CampIcon.Close />}
                 </span>
-                <span className="matkit__name">
-                  {subbed ? n.subLabel : n.label}
-                  {subbed && <span className="matkit__instead"> — instead of {n.label}</span>}
-                  {skipped && <span className="matkit__instead"> — skipped today</span>}
-                </span>
-                {!skipped && !unset && state === "via" && (
+                <span className="matkit__name">{n.label}</span>
+                {!unset && state === "via" && (
                   <span className="matkit__via">
                     <CampIcon.Repeat />
                     via {viaName}
@@ -312,14 +292,12 @@ function RunChildView({
   c,
   kitStock,
   materialCatalog,
-  materialSubs,
 }: {
   child: RunChild;
   activity: Activity;
   c: Vars;
   kitStock?: Record<string, StockState>;
   materialCatalog?: Material[];
-  materialSubs?: Record<string, string>;
 }) {
   if (child.type === "materials") {
     return (
@@ -330,7 +308,6 @@ function RunChildView({
           c={c}
           kitStock={kitStock}
           materialCatalog={materialCatalog}
-          materialSubs={materialSubs}
         />
       </div>
     );
@@ -388,14 +365,12 @@ function RunBlockView({
   c,
   kitStock,
   materialCatalog,
-  materialSubs,
 }: {
   block: RunBlock;
   activity: Activity;
   c: Vars;
   kitStock?: Record<string, StockState>;
   materialCatalog?: Material[];
-  materialSubs?: Record<string, string>;
 }) {
   const Heading = c.headingTag;
   if (block.type === "heading") {
@@ -444,7 +419,6 @@ function RunBlockView({
           c={c}
           kitStock={kitStock}
           materialCatalog={materialCatalog}
-          materialSubs={materialSubs}
         />
       </section>
     );
@@ -465,7 +439,6 @@ function RunBlockView({
             c={c}
             kitStock={kitStock}
             materialCatalog={materialCatalog}
-            materialSubs={materialSubs}
           />
         ))}
       </section>
@@ -499,7 +472,6 @@ export function RunSheetBody({
   variant,
   kitStock,
   materialCatalog,
-  materialSubs,
 }: {
   activity: Activity;
   runDoc: RunDoc;
@@ -514,7 +486,6 @@ export function RunSheetBody({
   // scheduled occurrence — the public /run page has no event in its URL (just a
   // feed token + activity id), so it can't resolve these; see that route's
   // comment for the documented limitation.
-  materialSubs?: Record<string, string>;
 }) {
   const c = VARIANTS[variant];
   const Title = c.titleTag;
@@ -554,7 +525,6 @@ export function RunSheetBody({
               c={c}
               kitStock={kitStock}
               materialCatalog={materialCatalog}
-              materialSubs={materialSubs}
             />
           ))}
         </div>

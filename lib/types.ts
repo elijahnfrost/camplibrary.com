@@ -116,12 +116,8 @@ export interface Activity {
 
 export type LibraryView = "shelf" | "deck" | "catalog";
 
-// The two collections the Library tab holds: the activity catalog, and the kit
-// inventory (Materials — formerly a top-level tab, now a collection dimension
-// switched by a seg at the head of the Library toolbar).
-export type LibraryCollection = "activities" | "materials";
-
 // "home", "materials", and "staff" are retired surfaces kept ONLY so a stored
-// last-tab can migrate forward (home → calendar, materials → the library's
-// Materials collection, staff → calendar); they are never set as a live tab.
+// last-tab can migrate forward (home → calendar, materials → the library —
+// Materials is now the Kit modal, not a surface of its own, staff → calendar);
+// they are never set as a live tab.
 export type TabId = "library" | "calendar" | "print" | "admin";

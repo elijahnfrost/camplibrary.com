@@ -4,7 +4,6 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
-import type { MaterialSort, MaterialStockFilter } from "@/lib/kitStock";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
@@ -201,8 +200,8 @@ interface FiltersProps {
   onKitLens: (v: KitLens) => void;
   /** Clears the material filter (the chip's remove + Clear all). */
   onMaterial?: (v: null) => void;
-  /** Jumps to the Materials tab (the Kit-lens "Set up your kit →" link). */
-  onGoMaterials?: () => void;
+  /** Opens the Kit modal (the Kit group's "Edit stock…" row). */
+  onSetupKit?: () => void;
 }
 
 // The Type filter — a multi-select checklist of categories (the same collapsible
@@ -300,25 +299,24 @@ function CategoryPicker({
 
 // The kit availability lens — one ledger line: a MiniSeg of All / Ready /
 // +Almost. "Ready" keeps only activities the camp can fully run right now;
-// "+Almost" also keeps the one-item-short ones. When the stock map is UNSET the
-// lens is inert (it passes everything), so choosing Ready/+Almost surfaces a
-// hint whose "Set up your kit →" link jumps to the Materials tab rather than
-// silently doing nothing.
+// "+Almost" also keeps the one-item-short ones. Lives in the rail's own "Kit"
+// group (labelled "Can run" there, since the group title already says Kit).
+// When the stock map is UNSET the lens is inert (it passes everything), so
+// choosing Ready/+Almost surfaces a hint — the fix is one row down, the
+// group's own "Edit stock…" entry, so the hint no longer carries its own link.
 function KitFilter({
   value,
   unset,
   onChange,
-  onGoMaterials,
 }: {
   value: KitLens;
   unset: boolean;
   onChange: (v: KitLens) => void;
-  onGoMaterials?: () => void;
 }) {
   return (
     <>
       <div className={"ledger__row" + (value !== "all" ? " is-active" : "")}>
-        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Kit</span>
+        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Can run</span>
         <MiniSeg
           ariaLabel="Filter by what you can run"
           value={value}
@@ -331,14 +329,7 @@ function KitFilter({
         />
       </div>
       {value !== "all" && unset && (
-        <p className="kitlens__hint">
-          Mark what you have to use this.{" "}
-          {onGoMaterials && (
-            <button type="button" className="kitlens__hintlink" onClick={onGoMaterials}>
-              Set up your kit →
-            </button>
-          )}
-        </p>
+        <p className="kitlens__hint">Mark what you have (Edit stock below) to use this.</p>
       )}
     </>
   );
@@ -444,15 +435,15 @@ function LedgerFilters({
   onStarredOnly,
   onMinutes,
   onKitLens,
-  onGoMaterials,
+  onSetupKit,
 }: Omit<FiltersProps, "variant" | "resultCount">) {
   return (
     <div className="filtergroups">
       {/* Activity — every way you narrow the catalog, in one open group: the
           everyday axes (type, theme, in/out, who it's for) followed by the finer
-          narrowing (length, saved only, kit on hand). Each finer row self-hides
-          when it doesn't apply (no duration spread / no favorites / no kit), so
-          the group is never padded with dead controls. */}
+          narrowing (length, saved only). Each finer row self-hides when it
+          doesn't apply (no duration spread / no favorites), so the group is
+          never padded with dead controls. Kit gets its own group below. */}
       <FilterGroup title="Activity" defaultOpen>
         <CategoryPicker value={cats} onChange={onCats} />
         {/* Always shown so themes are discoverable — the menu footer creates the
@@ -491,7 +482,20 @@ function LedgerFilters({
             />
           </div>
         )}
-        <KitFilter value={kitLens} unset={kitUnset} onChange={onKitLens} onGoMaterials={onGoMaterials} />
+      </FilterGroup>
+
+      {/* Kit — the camp's stock gets ONE home: the Can-run lens plus the one
+          entry into the stock editor, mirroring the calendar rail's Camps
+          section (controls inline, the deep editor one quiet "manage" row
+          away). Rests closed unless a lens is already narrowing, so the
+          everyday rail stays short. */}
+      <FilterGroup title="Kit" defaultOpen={kitLens !== "all"}>
+        <KitFilter value={kitLens} unset={kitUnset} onChange={onKitLens} />
+        {onSetupKit && (
+          <button type="button" className="ledger__manage" onClick={onSetupKit}>
+            Edit stock…
+          </button>
+        )}
       </FilterGroup>
 
       {/* Sort & display — list presentation, not a filter: the whole-list order
@@ -528,87 +532,6 @@ function LedgerFilters({
   );
 }
 
-// The Materials collection's sidebar rail — a real filter ledger (materials-16)
-// in place of the old bare one-line hint, built on the SAME ledger-row/MiniSeg/
-// ToggleSwitch vocabulary as LedgerFilters above so the rail reads as one family
-// whichever collection is active. Deliberately smaller than the Activities
-// ledger (Materials has fewer dimensions worth filtering): a Have/Low/Out stock
-// row, a "Restock only" toggle, and a sort control.
-export function MaterialsFilters({
-  stockFilter,
-  onStockFilter,
-  restockOnly,
-  onRestockOnly,
-  sort,
-  onSort,
-}: {
-  stockFilter: MaterialStockFilter;
-  onStockFilter: (v: MaterialStockFilter) => void;
-  restockOnly: boolean;
-  onRestockOnly: (v: boolean) => void;
-  sort: MaterialSort;
-  onSort: (v: MaterialSort) => void;
-}) {
-  const anyOn = stockFilter !== "all" || restockOnly;
-  const clearAll = () => {
-    onStockFilter("all");
-    onRestockOnly(false);
-  };
-  return (
-    <div className="sidesection sidefilters-rail">
-      {anyOn && (
-        <div className="sidefilters__clear">
-          <button type="button" className="sidesection__action" onClick={clearAll}>
-            Clear all
-          </button>
-        </div>
-      )}
-      <div className="sidesection__body sidefilters">
-        <div className="filtergroups">
-          <FilterGroup title="Kit" defaultOpen>
-            <div className="ledger__row">
-              <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Stock</span>
-              <MiniSeg
-                ariaLabel="Filter materials by stock state"
-                value={stockFilter}
-                onChange={onStockFilter}
-                options={[
-                  { id: "all" as MaterialStockFilter, label: "All" },
-                  { id: "have" as MaterialStockFilter, label: "Have" },
-                  { id: "low" as MaterialStockFilter, label: "Low" },
-                  { id: "out" as MaterialStockFilter, label: "Out" },
-                ]}
-              />
-            </div>
-            <div className="ledger__row">
-              <span className="ledger__label"><CampIcon.Bolt className="ledger__ic" />Restock only</span>
-              <ToggleSwitch
-                on={restockOnly}
-                onChange={onRestockOnly}
-                ariaLabel="Show only materials that need restocking"
-              />
-            </div>
-          </FilterGroup>
-          <FilterGroup title="Sort & display">
-            <div className="ledger__row">
-              <span className="ledger__label"><CampIcon.Sort className="ledger__ic" />Sort</span>
-              <MiniSeg
-                ariaLabel="Sort materials"
-                value={sort}
-                onChange={onSort}
-                options={[
-                  { id: "usage" as MaterialSort, label: "Usage" },
-                  { id: "az" as MaterialSort, label: "A–Z" },
-                ]}
-              />
-            </div>
-          </FilterGroup>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function Filters({
   variant,
   sort,
@@ -637,7 +560,7 @@ export function Filters({
   onMinutes,
   onKitLens,
   onMaterial,
-  onGoMaterials,
+  onSetupKit,
 }: FiltersProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const minutesOn = minutesNarrowed(minutes, minutesBounds);
@@ -711,7 +634,7 @@ export function Filters({
       onMinutes={onMinutes}
       onKitLens={onKitLens}
       onMaterial={onMaterial}
-      onGoMaterials={onGoMaterials}
+      onSetupKit={onSetupKit}
     />
   );
 

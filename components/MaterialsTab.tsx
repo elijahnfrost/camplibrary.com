@@ -1,6 +1,6 @@
 "use client";
 
-// Camp Library — the Materials collection (inside the Library tab).
+// Camp Library — the kit availability editor, mounted as KitModal's body.
 //
 // A light surface for reviewing what the camp has on hand. It reads ONE
 // vocabulary — the union of the catalog's named entries and the materials
@@ -11,16 +11,17 @@
 //    over the same usage-sorted list, plus bulk shortcuts to mark a lot at
 //    once. It's PURELY presentation — the first stock write (any tap) flips the
 //    tab to normal mode naturally, because the map is no longer empty.
-//  · NORMAL mode: a pinned "Restock" section (the low/out rows, one tap back to
-//    have), then the full searchable list. Each row shows an explicit Have/
-//    Low/Out control (all three states visible at once — no tap-to-cycle) and
-//    carries an overflow menu (rename / consumable / archive) and a "Used by N
-//    activities →" jump into the pre-filtered Library.
+//  · NORMAL mode: a pinned "Restock" section (the low/out rows), then the full
+//    searchable list. Each row leads with the bloom dot (StockDot — the row
+//    rests as status; tapping blooms the explicit Have/Low/Out choices in
+//    place) and carries an overflow menu (rename / consumable / archive) and a
+//    "Used by N activities →" jump into the pre-filtered Library.
 //
-// This collection now shares the Library toolbar's search field and Add button
-// (see LibraryTab) and the sidebar's filter-rail contract (see CampApp's
-// materials ledger) instead of owning its own header/search/hint — the two
-// collections behind the Library tab read as one surface, not two.
+// Materials no longer lives behind its own Library collection tab — this is
+// now purely KitModal's body (see components/KitModal.tsx), which owns the
+// search field, stock/restock/sort controls, and Add button that used to live
+// in the Library toolbar and sidebar. Every row/setup/restock behavior below
+// is unchanged; only the outer chrome it used to share has moved.
 //
 // Every mutation flows through useActivityLibrary's staff-gated setters, so an
 // anonymous/read-only visitor's taps are inert (the gate returns false).
@@ -34,7 +35,7 @@ import { normalizeSearchText } from "@/lib/activityFilters";
 import { CampIcon } from "./icons";
 import { requestConfirm } from "./ConfirmDialog";
 import { ContextMenu } from "./floating/ContextMenu";
-import { MiniSeg } from "./primitives";
+import { StockDot } from "./StockDot";
 
 // The top-N most-used materials the opt-in "Start from your most-used kit"
 // button marks as Have. Data-driven (never a default), so a fresh account only
@@ -100,18 +101,6 @@ function sortRows(rows: MaterialRow[], sort: MaterialSort): MaterialRow[] {
   return rows; // buildRows already sorts usage-desc
 }
 
-// The explicit 3-way control every row shows — Have / Low / Out, all visible
-// at once (replaces the old tap-to-cycle button, which hid the other two
-// states until you tapped through them). A row with no state yet renders
-// with none selected; MiniSeg's active index is just -1, no bespoke case
-// needed. Kept local (not the sidebar's stock-filter MiniSeg) since options are
-// per-row identical but the value differs per row.
-const STOCK_OPTIONS: { id: StockState; label: string; ariaLabel: string }[] = [
-  { id: "have", label: "Have", ariaLabel: "Have" },
-  { id: "low", label: "Low", ariaLabel: "Low" },
-  { id: "out", label: "Out", ariaLabel: "Out" },
-];
-
 function matchesQuery(name: string, q: string): boolean {
   return !q || normalizeSearchText(name).includes(q);
 }
@@ -155,25 +144,24 @@ export function MaterialsTab({
   /** False for anonymous/read-only visitors — the taps are inert either way (the
    *  staff gate blocks the write), but we present read-only affordances. */
   canEdit: boolean;
-  /** The toolbar's search field value — lifted to CampApp so the same field
-   *  drives both collections (see LibraryTab). */
+  /** KitModal's own search field value (its controls row owns this locally). */
   query: string;
-  /** Clears the toolbar search (the empty state's "Clear search" recovery). */
+  /** Clears the search (the empty state's "Clear search" recovery). */
   onQuery: (query: string) => void;
-  /** The sidebar ledger's Have/Low/Out filter row. */
+  /** KitModal's Have/Low/Out filter control. */
   stockFilter: MaterialStockFilter;
   /** Clears the stock filter (the empty state's "Clear filters" recovery). */
   onStockFilter: (v: MaterialStockFilter) => void;
-  /** The sidebar ledger's "Restock only" toggle (low/out rows only). */
+  /** KitModal's "Restock only" toggle (low/out rows only). */
   restockOnly: boolean;
   /** Clears the restock-only toggle (the empty state's "Clear filters" recovery). */
   onRestockOnly: (v: boolean) => void;
-  /** The sidebar ledger's sort control. */
+  /** KitModal's sort control. */
   sort: MaterialSort;
   /** The app's one shared live-region announcer (mirrors the Activities
    *  collection's filtered-count announcements). */
   announce: (message: string) => void;
-  /** Bumped by the toolbar's Add button — opens a fresh blank row in rename
+  /** Bumped by KitModal's Add button — opens a fresh blank row in rename
    *  mode so typing a name mints the entry (the Materials "Add" entry point). */
   pendingAdd?: number;
   onPendingAddHandled?: () => void;
@@ -279,13 +267,17 @@ export function MaterialsTab({
     const stateClass = row.state ? " is-" + row.state : " is-unset";
     return (
       <li key={row.id} className={"matrow" + stateClass}>
-        <span className="matrow__dot" aria-hidden="true">
-          {/* Have reads as satisfied (check); Low reads as thin/warning (minus) —
-              the same glyph split the run-sheet's own material checklist uses,
-              so the two surfaces sharing this data agree on iconography. */}
-          {row.state === "have" && <CampIcon.Check />}
-          {row.state === "low" && <CampIcon.Minus />}
-        </span>
+        {/* The bloom dot IS the row's stock control (StockDot): the old status
+            dot and the old Have/Low/Out seg collapsed into one thing — the row
+            rests as status, tapping the dot blooms the three choices in place.
+            A read-only visitor gets the status face with no bloom. */}
+        <StockDot
+          name={row.name}
+          display={row.state}
+          current={row.state}
+          disabled={!canEdit}
+          onSet={(state) => onSetStockState(row.id, state)}
+        />
         <span className="matrow__body">
           {isRenaming ? (
             <input
@@ -313,17 +305,6 @@ export function MaterialsTab({
             </span>
           )}
         </span>
-        {/* Explicit 3-state control — Have/Low/Out all shown at once, so the
-            other states are never hidden behind repeated taps. Unset renders
-            with nothing selected (MiniSeg's active index is just -1). A
-            read-only visitor still sees the current state; taps are inert
-            (mirrors every other staff-gated control here). */}
-        <MiniSeg
-          ariaLabel={"Stock for " + row.name}
-          value={(row.state ?? "") as StockState}
-          onChange={(v) => canEdit && onSetStockState(row.id, v)}
-          options={STOCK_OPTIONS}
-        />
         <span
           className="matrow__used"
           role="button"
@@ -357,7 +338,7 @@ export function MaterialsTab({
   };
 
   return (
-    <div className="app__scroll">
+    <>
       <div className="materials-tab">
         <p className="materials-tab__scope">
           {markedCount} of {allRows.length} marked · {readyCount}{" "}
@@ -379,8 +360,11 @@ export function MaterialsTab({
                     Start from your most-used kit
                   </button>
                 )}
+                {/* Both secondary paths wear the same quiet shade — the seed
+                    button above is the banner's ONE primary; the old
+                    ghost/quiet mix read as three different-weight actions. */}
                 {canEdit && rows.length > 0 && (
-                  <button type="button" className="btn btn--ghost" onClick={markVisibleHave}>
+                  <button type="button" className="btn btn--quiet" onClick={markVisibleHave}>
                     Mark visible as Have
                   </button>
                 )}
@@ -495,6 +479,6 @@ export function MaterialsTab({
           ]}
         />
       )}
-    </div>
+    </>
   );
 }

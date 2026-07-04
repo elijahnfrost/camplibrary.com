@@ -111,9 +111,10 @@ export interface CalendarEvent {
   // alternates; PRESENT — including an empty list — is authoritative here, so
   // [] must survive the round-trip (it means "no backups on this placement").
   alternates?: AlternateRef[];
-  // Per-placement material substitutions (see MATERIAL_SUBS_MAX above). Keys not
-  // among the activity's current needs stay dormant, not deleted, so a promote
-  // and swap-back round-trips losslessly.
+  // LEGACY — the per-placement Swap/Skip UI was removed (2026-07-03 materials
+  // rework); no surface reads or writes this any more. The field stays
+  // allowlisted so stored events keep validating and round-tripping losslessly;
+  // do not repurpose the key.
   materialSubs?: Record<string, string>;
   // Reserved for capacity checks: planned/actual headcount. UI ships later; the
   // field is allowlisted now so nothing strips it when it does.
