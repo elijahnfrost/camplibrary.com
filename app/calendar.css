@@ -1093,9 +1093,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-linecap: round;
   stroke-linejoin: round;
   color: var(--ink-soft);
-  transition:
-    transform var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease);
+  /* Rotation is INSTANT — the glyph flips the moment the section toggles, only
+     the hover colour eases. Animating the transform lagged the chevron behind
+     the open/close, which read as unresponsive. */
+  transition: color var(--t-fast) var(--ease);
 }
 .cal-view.is-open .cal-view__chev {
   /* Right when collapsed, down when open — the one disclosure affordance used
@@ -2563,13 +2564,23 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   opacity: 0.9;
 }
 .fc .fc-bg-event.cal-closed {
-  background: repeating-linear-gradient(
+  /* Soft diagonal hatch marking out-of-window time. Two things keep it clean:
+     (1) the stripe is a SMOOTH triangular ramp (transparent → tint → transparent)
+     rather than hard 6px bars, so the slash edges read as feathered lines, not
+     jagged blocks; (2) background-attachment: fixed anchors the pattern to the
+     viewport instead of each day cell, so adjacent columns are slices of ONE
+     continuous hatch and the slashes line up across the whole grid instead of
+     restarting at every column seam. */
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
     -45deg,
-    color-mix(in srgb, var(--ink-soft) 10%, transparent),
-    color-mix(in srgb, var(--ink-soft) 10%, transparent) 6px,
-    transparent 6px,
-    transparent 12px
+    transparent 0,
+    transparent 3.5px,
+    color-mix(in srgb, var(--ink-soft) 13%, transparent) 5.5px,
+    transparent 7.5px,
+    transparent 11px
   );
+  background-attachment: fixed;
   opacity: 1;
 }
 
