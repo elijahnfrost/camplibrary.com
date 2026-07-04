@@ -345,9 +345,10 @@ function KitFilter({
 }
 
 // The duration window — one ledger line like the others: a small-caps "Minutes"
-// label, then a compact dual-handle slider with a quiet readout on the right.
-// The readout reads "Any" at full span and "lo–hi" once narrowed. Hidden when
-// the library has no duration spread to slide over (every activity one length).
+// label with its current value beside it (the way every other row names its
+// value), then the dual-handle slider as the control on the right. The readout
+// reads "Any" at full span and "lo–hi" once narrowed. Hidden when the library
+// has no duration spread to slide over (every activity one length).
 function MinutesFilter({
   value,
   bounds,
@@ -364,20 +365,21 @@ function MinutesFilter({
   const step = 5;
   return (
     <div className={"ledger__row minrange" + (narrowed ? " is-active" : "")}>
-      <span className="ledger__label"><CampIcon.Clock className="ledger__ic" />Minutes</span>
-      <div className="minrange__control">
-        <RangeSlider
-          min={bounds.min}
-          max={bounds.max}
-          step={step}
-          value={value}
-          onChange={onChange}
-          ariaLabelMin="Shortest length, minutes"
-          ariaLabelMax="Longest length, minutes"
-          format={(v) => v + " minutes"}
-        />
+      <span className="ledger__label">
+        <CampIcon.Clock className="ledger__ic" />
+        Minutes
         <span className="minrange__readout">{narrowed ? value[0] + "–" + value[1] : "Any"}</span>
-      </div>
+      </span>
+      <RangeSlider
+        min={bounds.min}
+        max={bounds.max}
+        step={step}
+        value={value}
+        onChange={onChange}
+        ariaLabelMin="Shortest length, minutes"
+        ariaLabelMax="Longest length, minutes"
+        format={(v) => v + " minutes"}
+      />
     </div>
   );
 }

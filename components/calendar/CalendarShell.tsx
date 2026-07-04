@@ -1810,6 +1810,32 @@ export function CalendarShell({
     [announce, commitEvents, events, requireStaff, showToast]
   );
 
+  // Turn a one-off placement into a reusable library activity — the same one-tap
+  // path the create-toast's "Save to library" offers, but reachable later from
+  // the event's own menu. Creates the Routine activity and links THIS event to
+  // it; undo unlinks. Only offered for an ISOLATED event (no library link) that
+  // carries a title — an attached event already lives in the library.
+  const saveToLibrary = useCallback(
+    (event: CalendarEvent) => {
+      if (!requireStaff("change the library")) return;
+      const isReminder = !event.allDay && event.endMin === event.startMin;
+      const duration = event.allDay || isReminder ? 0 : event.endMin - event.startMin;
+      const created = onCreateActivity(event.title, duration);
+      if (!created) return; // staff gate / empty title blocked it
+      upsertEvent({
+        ...event,
+        activityId: created.id,
+        kind: "activity",
+        title: created.title,
+        updatedAt: Date.now(),
+      });
+      const label = "Saved " + created.title + " to library";
+      announce(label);
+      showToast({ message: label, onUndo: () => upsertEvent(event) });
+    },
+    [announce, onCreateActivity, requireStaff, showToast, upsertEvent]
+  );
+
   // Commit a day-shift plan (the ShiftBar's Commit button). The bar computed the
   // plan.upserts; here we run the staff gate, commit ONE batch (removes always []
   // — day-shift never deletes), snapshot the before-rows for a single Undo, and
@@ -5296,13 +5322,20 @@ export function CalendarShell({
           const point = menu.point;
           const isTimed = !ev.allDay;
           const isReminder = isTimed && ev.endMin === ev.startMin; // 0-min
+          // The one axis the menu keys off: is this placement ATTACHED to a
+          // library activity, or an ISOLATED one-off? Attached → open its Run
+          // List; isolated (with a title) → offer to save it into the library.
+          // Everything below the identity item is common to both.
+          const isLibraryLinked = !!(ev.activityId && byId[ev.activityId]);
+          const hasIdentityItem = isLibraryLinked || !!ev.title;
           return (
             <ContextMenu
               point={point}
               ariaLabel={ev.title || "Event"}
               onClose={() => setMenu(null)}
               items={[
-                ...(ev.activityId && byId[ev.activityId]
+                // ── Library identity — the one contextual header of the menu.
+                ...(isLibraryLinked
                   ? [
                       {
                         label: "Open Run List",
@@ -5313,10 +5346,24 @@ export function CalendarShell({
                         },
                       },
                     ]
-                  : []),
+                  : ev.title
+                    ? [
+                        {
+                          label: "Save to library",
+                          icon: <CampIcon.Bookmark />,
+                          onSelect: () => {
+                            setMenu(null);
+                            saveToLibrary(ev);
+                          },
+                        },
+                      ]
+                    : []),
                 {
                   label: "Edit",
                   icon: <CampIcon.Pencil />,
+                  // Sits under the library header when there is one, so the
+                  // identity action reads apart from the property edits.
+                  separatorBefore: hasIdentityItem,
                   onSelect: () => {
                     if (!requireStaff("change the calendar")) return;
                     setSheet({ draft: draftFromEvent(ev), pickTime: true });

@@ -1699,6 +1699,18 @@ body {
     transition: none;
   }
 }
+/* Library filter rail (Where, Kit): size each equal segment to the WIDEST label
+   so a longer option like "+Almost" can't clip. Equal grid columns give the same
+   equal-width segments as flex without the flex-basis:0 undersizing that cut the
+   last label off; the sliding thumb still spans one --seg-w and stays aligned. */
+.sidefilters .miniseg.seg-slide {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.sidefilters .miniseg.seg-slide > button {
+  flex: none;
+}
 
 .miniseg {
   display: inline-flex;
@@ -1768,23 +1780,16 @@ body {
 
 /* ---------- duration window: a quiet ledger row ----------
    "Minutes" reads as one ledger line like every other filter: small-caps label
-   left, a compact dual-handle slider + readout on the right. Deliberately
-   neutral — line/ink tones, no accent fill — so it sits quietly among the rows
-   instead of pulling the eye. The readout says "Any" at full span and "lo–hi"
-   once narrowed. */
-.minrange__control {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
+   left, the dual-handle slider as the control on the right. The value rides
+   beside the label (the way every other row names its current value) rather than
+   floating as a stray word on the right — "Any" at full span, "lo–hi" once
+   narrowed. Deliberately neutral — line/ink tones, no accent fill. */
 .minrange__readout {
   font-family: var(--hand-sc);
   font-size: var(--fs-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  min-width: 30px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
   transition: color var(--t-fast) var(--ease);
 }
@@ -1931,7 +1936,7 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
   color: var(--ink-faint);
-  transition: transform var(--t-fast) var(--ease);
+  /* Instant flip on open/close — the rotation no longer trails the disclosure. */
 }
 .material-filter[open] > .material-filter__summary .material-filter__state svg {
   transform: rotate(180deg);
@@ -4878,7 +4883,10 @@ body {
     stroke-linecap: round;
     stroke-linejoin: round;
     color: var(--ink-soft);
-    transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+    /* The rotation is INSTANT (the glyph flips the moment the section toggles) —
+       only the hover colour eases. Animating the transform made the chevron lag
+       behind the open/close, which read as unresponsive. */
+    transition: color var(--t-fast) var(--ease);
   }
   .camprail.is-open .camprail__chev {
     transform: rotate(90deg);
@@ -6600,6 +6608,29 @@ button.rl-node--pick:focus-visible {
   transform: scale(0.97);
 }
 
+/* ---------- primary blocks: the icon badge carries the colour ----------
+   Every TOP-LEVEL block's node — the circular "bracket" that holds its type
+   icon — is a FILLED colour badge in the block's own colour, matching the step's
+   number circle and the field-note flag. The row TEXT stays completely flat: no
+   fill, no border, just the badge beside it. The colour key --rl-blkc is set per
+   type below (and overridable inline when a text block carries a custom colour).
+   Detail CHILDREN keep their lighter outline node; section headings have none. */
+.rl-block--step { --rl-blkc: var(--accent); }
+.rl-block--note { --rl-blkc: var(--rl-note); }
+.rl-block--safety { --rl-blkc: var(--rl-safety); }
+.rl-block--video { --rl-blkc: var(--rl-video); }
+.rl-block--variation { --rl-blkc: var(--rl-variation); }
+.rl-block--fieldnote { --rl-blkc: var(--rl-fieldnote); }
+.rl-block--details { --rl-blkc: var(--accent-ink); }
+.rl-block--materials { --rl-blkc: var(--accent-ink); }
+.rl-block--playbook { --rl-blkc: var(--accent-ink); }
+.rl-block:not(.rl-block--detail):not(.rl-block--heading):not(.rl-block--add)
+  > .rl-node--type {
+  background: var(--rl-blkc, var(--accent-ink));
+  color: var(--on-accent);
+  border: 3px solid var(--rl-bg);
+}
+
 /* ---------- attached detail children ---------- */
 .rl-block--detail {
   --rl-next-gap: var(--rl-detail-gap);
@@ -7243,16 +7274,10 @@ button.rl-node--pick:focus-visible {
    type straight from the read-only viewer (like the rating dots stay
    interactive) — no edit mode. Now printed/shared like any other block; see
    RunSheetBody. */
-.rl-row--fieldnote {
-  background: transparent;
-  border-color: transparent;
-  border-left: 3px solid var(--rl-fieldnote);
-}
-.rl-row--detail.rl-row--fieldnote {
-  background: transparent;
-  border-color: transparent;
-  border-left: 3px solid color-mix(in srgb, var(--rl-fieldnote) 82%, transparent);
-}
+/* Field-note rows join the block family like every other row — the amber Flag
+   node carries the identity (a filled badge, like every primary block), so the
+   old left bar is gone (it never matched the rail) and the row text stays flat.
+   The dated ENTRIES ride flat beneath it, exactly like a step's sub-items. */
 /* Field-note text stays a text caret even in the otherwise-static read view. */
 .rl.is-readonly .rl-row--fieldnote .rl-ed {
   cursor: text;
@@ -9629,7 +9654,7 @@ button.rl-node--pick:focus-visible {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transition: transform var(--t-fast) var(--ease);
+  /* Instant flip on open/close — the rotation no longer trails the disclosure. */
 }
 @keyframes prail-reveal {
   from {

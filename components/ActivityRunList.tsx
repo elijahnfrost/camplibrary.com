@@ -2589,6 +2589,13 @@ export function ActivityRunList({
                   {...dragBind({ kind: "top", id: b.id })}
                   {...dropBind({ kind: "top", id: b.id })}
                   className={"rl-block rl-block--" + b.type + itemStateClass({ kind: "top", id: b.id })}
+                  // A custom block colour drives the node badge's fill (via
+                  // --rl-blkc), so a recoloured block's icon bracket matches.
+                  style={
+                    b.color && b.color !== "none"
+                      ? ({ ["--rl-blkc"]: RUN_COLOR_TOKEN[b.color] } as CSSProperties)
+                      : undefined
+                  }
                 >
                   {decoNode(topRailKey(b.id), { kind: "top", id: b.id }, b.type, b.icon, b.color)}
                   <div className="rl-block__main">
