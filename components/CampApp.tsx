@@ -211,7 +211,6 @@ function CampsRail({
   onSwitch,
   onEditCamp,
   onAddCamp,
-  onOpenGuides,
 }: {
   camps: Camp[];
   activeCampId: string | null;
@@ -220,8 +219,6 @@ function CampsRail({
   onEditCamp: (id: string) => void;
   /** Creates a camp with this name (the host opens its popup on success). */
   onAddCamp: (name: string) => void;
-  /** Opens the global day-structure guidance-bands editor. */
-  onOpenGuides: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -324,12 +321,6 @@ function CampsRail({
               Add camp
             </button>
           )}
-
-          {/* Global day-structure guidance bands — not per-camp, so they get
-              their own quiet entry rather than living in any camp's popup. */}
-          <button type="button" className="camprail__manage" onClick={onOpenGuides}>
-            Day-structure guides…
-          </button>
         </div>
       )}
     </div>
@@ -655,29 +646,48 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     [cloud, requireStaff]
   );
 
-  // Guides doc mutators (add / update / delete a guidance band).
-  const addGuide = useCallback(() => {
-    if (!requireStaff("manage camps")) return;
-    const band: GuideBand = {
-      id: createGuideId(),
-      label: "New band",
-      startMin: 9 * 60,
-      endMin: 10 * 60,
-      weekdays: [1, 2, 3, 4, 5],
-    };
-    cloud.setDoc("guides", (prev) => [...prev, band]);
-  }, [cloud, requireStaff]);
-  const updateGuide = useCallback(
-    (id: string, patch: Partial<GuideBand>) => {
+  // Per-camp guidance-band mutators. Guidance bands are PER-CAMP now — each camp
+  // shapes its day differently. A camp that hasn't set its own inherits the
+  // legacy shared `guides` doc as a display baseline; the first edit here FORKS
+  // that baseline into the camp (c.guides ?? cloud.docs.guides), after which the
+  // camp's bands diverge freely and never touch the shared doc again.
+  const addCampGuide = useCallback(
+    (campId: string) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("guides", (prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+      const band: GuideBand = {
+        id: createGuideId(),
+        label: "New band",
+        startMin: 9 * 60,
+        endMin: 10 * 60,
+        weekdays: [1, 2, 3, 4, 5],
+      };
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => (c.id === campId ? { ...c, guides: [...(c.guides ?? cloud.docs.guides), band] } : c))
+      );
     },
     [cloud, requireStaff]
   );
-  const deleteGuide = useCallback(
-    (id: string) => {
+  const updateCampGuide = useCallback(
+    (campId: string, id: string, patch: Partial<GuideBand>) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("guides", (prev) => prev.filter((b) => b.id !== id));
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) =>
+          c.id === campId
+            ? { ...c, guides: (c.guides ?? cloud.docs.guides).map((b) => (b.id === id ? { ...b, ...patch } : b)) }
+            : c
+        )
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const deleteCampGuide = useCallback(
+    (campId: string, id: string) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) =>
+          c.id === campId ? { ...c, guides: (c.guides ?? cloud.docs.guides).filter((b) => b.id !== id) } : c
+        )
+      );
     },
     [cloud, requireStaff]
   );
@@ -691,10 +701,9 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // Desktop camp management: which camp's editor popup is open (null = none) and
   // the global day-structure guidance-bands modal. The camps ListManagerModal
   // (campsManagerOpen) now serves ONLY the mobile/tablet settings sheet
-  // (onOpenCamps); on desktop the rail edits each camp in CampEditorPopup and
-  // guidance bands in their own small modal.
+  // (onOpenCamps); on desktop the rail edits each camp in CampEditorPopup —
+  // including that camp's own guidance bands.
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
-  const [guidesModalOpen, setGuidesModalOpen] = useState(false);
 
   // The Kit availability editor floats over the app as a modal (see KitModal),
   // reached from the filter rail's Kit group ("Edit stock…", see Filters) —
@@ -1186,7 +1195,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                   const created = await campKit.createCamp(name);
                   if (created) setEditingCampId(created.id);
                 }}
-                onOpenGuides={() => setGuidesModalOpen(true)}
               />
             )}
             {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
@@ -1317,7 +1325,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
                 activeCamp={campKit.activeCamp}
-                guides={cloud.docs.guides}
+                // Guidance bands are per-camp: the active camp's own set, or the
+                // legacy shared `guides` doc as a baseline (also the source when
+                // no camp is active — the single shared-calendar mode).
+                guides={campKit.activeCamp?.guides ?? cloud.docs.guides}
                 // Only wire the Subscribe control when signed in — anonymous
                 // visitors have no feed, and gating here keeps the rail/sheet
                 // section wrapper from rendering an empty box.
@@ -1512,31 +1523,29 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             renderRowExtra={(item) => {
               const camp = campKit.camps.find((c) => c.id === item.id);
               if (!camp) return null;
+              // Guidance bands are per-camp now — this camp's own set, or the
+              // inherited legacy shared baseline until its first edit forks a copy.
               return (
-                <CampDayStructure
-                  camp={camp}
-                  hourOptions={overrideHourOptions}
-                  onSetWeekday={setCampWeekdayHours}
-                  onSetDate={setCampDateHours}
-                  onSetSnap={setCampSnap}
-                />
+                <>
+                  <CampDayStructure
+                    camp={camp}
+                    hourOptions={overrideHourOptions}
+                    onSetWeekday={setCampWeekdayHours}
+                    onSetDate={setCampDateHours}
+                    onSetSnap={setCampSnap}
+                  />
+                  <GuidesSection
+                    label="Guidance bands"
+                    guides={camp.guides ?? cloud.docs.guides}
+                    hourOptions={overrideHourOptions}
+                    canEdit={isSignedIn}
+                    onAdd={() => addCampGuide(camp.id)}
+                    onUpdate={(id, patch) => updateCampGuide(camp.id, id, patch)}
+                    onDelete={(id) => deleteCampGuide(camp.id, id)}
+                  />
+                </>
               );
             }}
-            footer={
-              // Guidance bands live here under a clear "Day structure" label so
-              // they read as camp-scheduling vocabulary.
-              <div className="manager__sections">
-                <GuidesSection
-                  label="Day structure — guidance bands"
-                  guides={cloud.docs.guides}
-                  hourOptions={overrideHourOptions}
-                  canEdit={isSignedIn}
-                  onAdd={addGuide}
-                  onUpdate={updateGuide}
-                  onDelete={deleteGuide}
-                />
-              </div>
-            }
             onClose={() => setCampsManagerOpen(false)}
           />
         )}
@@ -1561,6 +1570,20 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             onSetWeekday={(dow, val) => setCampWeekdayHours(editingCamp.id, dow, val)}
             onSetDate={(date, val) => setCampDateHours(editingCamp.id, date, val)}
             onSetSnap={(s) => setCampSnap(editingCamp.id, s)}
+            guides={editingCamp.guides ?? cloud.docs.guides}
+            canEditGuides={isSignedIn}
+            onAddGuide={() => addCampGuide(editingCamp.id)}
+            onUpdateGuide={(id, patch) => updateCampGuide(editingCamp.id, id, patch)}
+            onDeleteGuide={async (id) => {
+              if (!requireStaff("manage camps")) return;
+              const ok = await requestConfirm({
+                title: "Delete this guidance band?",
+                body: "This can't be undone.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) deleteCampGuide(editingCamp.id, id);
+            }}
             onDelete={async () => {
               if (!requireStaff("manage camps")) return;
               const ok = await requestConfirm({
@@ -1575,35 +1598,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               }
             }}
             onClose={() => setEditingCampId(null)}
-          />
-        )}
-        {/* Global day-structure guidance bands — their own small modal on desktop
-            (reached from the Camps rail); the mobile camps manager keeps them in
-            its footer. Guidance bands aren't per-camp, so they don't belong in a
-            single camp's popup. */}
-        {guidesModalOpen && (
-          <ListManagerModal
-            title="Day structure"
-            intro="Guidance bands are soft day-structure frames shared across every camp — gentle time markers on the calendar, not hard rules."
-            hideCreate
-            items={[]}
-            onCreate={() => {}}
-            onRename={() => {}}
-            onDelete={() => {}}
-            footer={
-              <div className="manager__sections">
-                <GuidesSection
-                  label="Guidance bands"
-                  guides={cloud.docs.guides}
-                  hourOptions={overrideHourOptions}
-                  canEdit={isSignedIn}
-                  onAdd={addGuide}
-                  onUpdate={updateGuide}
-                  onDelete={deleteGuide}
-                />
-              </div>
-            }
-            onClose={() => setGuidesModalOpen(false)}
           />
         )}
         {locationsManagerOpen && (

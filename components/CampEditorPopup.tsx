@@ -19,6 +19,7 @@ import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
 import { MiniSeg } from "./primitives";
 import { MAX_CAMP_NAME, type Camp, type CampSnapMin, type Weekday } from "@/lib/camps";
+import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
 import { formatClock } from "@/lib/calendar/time";
 import { fromDateKey, todayKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
@@ -34,12 +35,17 @@ export function CampEditorPopup({
   tint,
   hourOptions,
   overrideHourOptions,
+  guides,
+  canEditGuides,
   onRename,
   onSetOpen,
   onSetClose,
   onSetWeekday,
   onSetDate,
   onSetSnap,
+  onAddGuide,
+  onUpdateGuide,
+  onDeleteGuide,
   onDelete,
   onClose,
 }: {
@@ -50,12 +56,21 @@ export function CampEditorPopup({
   hourOptions: HourOpts;
   /** Wider 5:00–22:00 clock options for the per-weekday / dated overrides. */
   overrideHourOptions: HourOpts;
+  /** This camp's EFFECTIVE guidance bands — its own if set, else the inherited
+   *  legacy shared baseline. Editing forks a per-camp copy (host-side). */
+  guides: GuideBand[];
+  /** Gate the guides editor like every other staff surface (read-only otherwise). */
+  canEditGuides: boolean;
   onRename: (name: string) => void;
   onSetOpen: (v: number) => void;
   onSetClose: (v: number) => void;
   onSetWeekday: (dow: Weekday, val: "default" | "closed" | { openMin: number; closeMin: number }) => void;
   onSetDate: (date: DateKey, val: "closed" | { openMin: number; closeMin: number } | null) => void;
   onSetSnap: (s: CampSnapMin) => void;
+  onAddGuide: () => void;
+  onUpdateGuide: (id: string, patch: Partial<GuideBand>) => void;
+  /** Delete a band (the host owns any confirm dialog). */
+  onDeleteGuide: (id: string) => void;
   /** Confirm + delete this camp (the host owns the confirm dialog). */
   onDelete: () => void;
   onClose: () => void;
@@ -233,6 +248,85 @@ export function CampEditorPopup({
                 </button>
               </div>
             </div>
+          </Disclosure>
+
+          {/* guidance bands (per-camp) ------------------------------------ */}
+          <Disclosure
+            label="Guidance bands"
+            summary={guides.length ? guides.length + (guides.length === 1 ? " band" : " bands") : "day-structure frames"}
+          >
+            {guides.length > 0 && (
+              <ul className="manager__guides">
+                {guides.map((band) => (
+                  <li key={band.id} className={"manager__guide" + (canEditGuides ? "" : " is-readonly")}>
+                    <input
+                      className="input manager__guide-label"
+                      value={band.label}
+                      maxLength={GUIDE_LABEL_MAX}
+                      aria-label="Band label"
+                      readOnly={!canEditGuides}
+                      disabled={!canEditGuides}
+                      onChange={(e) => onUpdateGuide(band.id, { label: e.target.value })}
+                    />
+                    <span className="manager__hoursfield manager__hoursfield--inline">
+                      <Select
+                        value={band.startMin}
+                        options={overrideHourOptions}
+                        onChange={(v) => onUpdateGuide(band.id, { startMin: v, endMin: band.endMin })}
+                        ariaLabel={"Band " + (band.label || "untitled") + " start"}
+                      />
+                      <span className="manager__hoursdash" aria-hidden="true">–</span>
+                      <Select
+                        value={band.endMin}
+                        options={overrideHourOptions}
+                        onChange={(v) => onUpdateGuide(band.id, { startMin: band.startMin, endMin: v })}
+                        ariaLabel={"Band " + (band.label || "untitled") + " end"}
+                      />
+                    </span>
+                    <span className="manager__guide-days">
+                      {WEEKDAYS.map((label, dow) => {
+                        const on = band.weekdays.includes(dow);
+                        return (
+                          <button
+                            type="button"
+                            key={dow}
+                            className={"manager__daytog" + (on ? " is-on" : "")}
+                            aria-pressed={on}
+                            aria-label={label + (on ? " on" : " off")}
+                            disabled={!canEditGuides}
+                            onClick={() => {
+                              if (!canEditGuides) return;
+                              const next = on
+                                ? band.weekdays.filter((d) => d !== dow)
+                                : [...band.weekdays, dow].sort((a, b) => a - b);
+                              if (next.length) onUpdateGuide(band.id, { weekdays: next });
+                            }}
+                          >
+                            {label[0]}
+                          </button>
+                        );
+                      })}
+                    </span>
+                    {canEditGuides && (
+                      <button
+                        type="button"
+                        className="icon-btn manager__rowbtn manager__rowbtn--danger"
+                        aria-label={"Delete band " + (band.label || "untitled")}
+                        onClick={() => onDeleteGuide(band.id)}
+                      >
+                        <CampIcon.Trash />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canEditGuides && (
+              <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAddGuide}>
+                <CampIcon.Plus />
+                Add band
+              </button>
+            )}
           </Disclosure>
 
           {/* snap grid ---------------------------------------------------- */}
