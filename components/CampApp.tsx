@@ -53,6 +53,7 @@ import {
   GuidesSection,
   ListManagerModal,
 } from "./ListManagerModal";
+import { CampEditorPopup } from "./CampEditorPopup";
 import { Modal } from "./Modal";
 import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
 import { Select } from "./floating/Select";
@@ -195,28 +196,42 @@ function StaffPromptModal({
   );
 }
 
-// The desktop sidebar's ONE entry point into camps: a collapsed-by-default
-// section under the calendar rail (mirrors the calendar's own View/Weather
-// disclosures). Picking a camp switches it inline. The deep editor (per-camp
-// hours, guidance bands, rename, delete) is too rich for a 260px rail, so ONE
-// quiet "Manage camps…" footer row hands off to the existing ListManagerModal —
-// there's no per-row Edit pencil anymore. camps-5/7: "New camp" was removed —
-// it opened the exact same modal as "Manage camps…" with no lighter/faster path
-// of its own, so keeping both only implied two actions where there was one; a
-// user who wants a new camp opens the manager, whose create field autofocuses.
+// The desktop sidebar's Camps section — the selector AND the editor entry.
+// Picking a camp switches it inline; a per-row Edit pencil (revealed on hover)
+// opens THAT camp's own popup (CampEditorPopup) for its hours/rename/delete;
+// "Add camp" creates one inline and opens its popup. Global day-structure
+// guidance bands — not per-camp — get their own quiet footer entry. This
+// reverses camps-5/7 ("no per-row pencil, one Manage-camps modal"): the deep
+// editor that was "too rich for a 260px rail" now lives in a focused per-camp
+// popup, so the rail no longer hands off to the all-camps ListManagerModal
+// (that modal stays only for the mobile/tablet settings sheet).
 function CampsRail({
   camps,
   activeCampId,
   onSwitch,
-  onManage,
+  onEditCamp,
+  onAddCamp,
 }: {
   camps: Camp[];
   activeCampId: string | null;
   onSwitch: (id: string) => void;
-  /** Opens the camp manager (rename / delete / per-camp hours). */
-  onManage: () => void;
+  /** Opens the per-camp editor popup for this camp. */
+  onEditCamp: (id: string) => void;
+  /** Creates a camp with this name (the host opens its popup on success). */
+  onAddCamp: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draftName, setDraftName] = useState("");
+
+  const commitAdd = () => {
+    const name = draftName.trim();
+    if (!name) return;
+    onAddCamp(name);
+    setDraftName("");
+    setAdding(false);
+  };
+
   return (
     <div className={"sidesection sidesection--fixed camprail" + (open ? " is-open" : "")}>
       <button
@@ -255,6 +270,16 @@ function CampsRail({
                       />
                       <span className="camprail__name">{camp.name}</span>
                     </button>
+                    {/* Revealed on row hover (see .camprail__edit) — opens this
+                        camp's own editor popup. */}
+                    <button
+                      type="button"
+                      className="icon-btn camprail__edit"
+                      aria-label={"Edit " + camp.name}
+                      onClick={() => onEditCamp(camp.id)}
+                    >
+                      <CampIcon.Pencil />
+                    </button>
                   </li>
                 );
               })}
@@ -262,12 +287,40 @@ function CampsRail({
           ) : (
             <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
           )}
-          {/* The ONE manage entry — a quiet footer row (typepick__manage voice)
-              that opens the full camp editor. Replaces the per-row Edit pencils
-              and the old separate "New camp" shortcut. */}
-          <button type="button" className="camprail__manage" onClick={onManage}>
-            Manage camps…
-          </button>
+
+          {adding ? (
+            <form
+              className="camprail__addform"
+              onSubmit={(e) => {
+                e.preventDefault();
+                commitAdd();
+              }}
+            >
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+              <input
+                className="input camprail__addinput"
+                value={draftName}
+                autoFocus
+                placeholder="e.g. Summer Day Camp"
+                aria-label="New camp name"
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setAdding(false);
+                    setDraftName("");
+                  }
+                }}
+              />
+              <button type="submit" className="icon-btn" aria-label="Create camp" disabled={!draftName.trim()}>
+                <CampIcon.Check />
+              </button>
+            </form>
+          ) : (
+            <button type="button" className="camprail__new" onClick={() => setAdding(true)}>
+              <CampIcon.Plus />
+              Add camp
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -593,29 +646,48 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     [cloud, requireStaff]
   );
 
-  // Guides doc mutators (add / update / delete a guidance band).
-  const addGuide = useCallback(() => {
-    if (!requireStaff("manage camps")) return;
-    const band: GuideBand = {
-      id: createGuideId(),
-      label: "New band",
-      startMin: 9 * 60,
-      endMin: 10 * 60,
-      weekdays: [1, 2, 3, 4, 5],
-    };
-    cloud.setDoc("guides", (prev) => [...prev, band]);
-  }, [cloud, requireStaff]);
-  const updateGuide = useCallback(
-    (id: string, patch: Partial<GuideBand>) => {
+  // Per-camp guidance-band mutators. Guidance bands are PER-CAMP now — each camp
+  // shapes its day differently. A camp that hasn't set its own inherits the
+  // legacy shared `guides` doc as a display baseline; the first edit here FORKS
+  // that baseline into the camp (c.guides ?? cloud.docs.guides), after which the
+  // camp's bands diverge freely and never touch the shared doc again.
+  const addCampGuide = useCallback(
+    (campId: string) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("guides", (prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+      const band: GuideBand = {
+        id: createGuideId(),
+        label: "New band",
+        startMin: 9 * 60,
+        endMin: 10 * 60,
+        weekdays: [1, 2, 3, 4, 5],
+      };
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) => (c.id === campId ? { ...c, guides: [...(c.guides ?? cloud.docs.guides), band] } : c))
+      );
     },
     [cloud, requireStaff]
   );
-  const deleteGuide = useCallback(
-    (id: string) => {
+  const updateCampGuide = useCallback(
+    (campId: string, id: string, patch: Partial<GuideBand>) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("guides", (prev) => prev.filter((b) => b.id !== id));
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) =>
+          c.id === campId
+            ? { ...c, guides: (c.guides ?? cloud.docs.guides).map((b) => (b.id === id ? { ...b, ...patch } : b)) }
+            : c
+        )
+      );
+    },
+    [cloud, requireStaff]
+  );
+  const deleteCampGuide = useCallback(
+    (campId: string, id: string) => {
+      if (!requireStaff("manage camps")) return;
+      cloud.setDoc("camps", (prev) =>
+        prev.map((c) =>
+          c.id === campId ? { ...c, guides: (c.guides ?? cloud.docs.guides).filter((b) => b.id !== id) } : c
+        )
+      );
     },
     [cloud, requireStaff]
   );
@@ -626,6 +698,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // a permanent header pill. Opening is ungated (switching is a local view
   // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
+  // Desktop camp management: which camp's editor popup is open (null = none) and
+  // the global day-structure guidance-bands modal. The camps ListManagerModal
+  // (campsManagerOpen) now serves ONLY the mobile/tablet settings sheet
+  // (onOpenCamps); on desktop the rail edits each camp in CampEditorPopup —
+  // including that camp's own guidance bands.
+  const [editingCampId, setEditingCampId] = useState<string | null>(null);
 
   // The Kit availability editor floats over the app as a modal (see KitModal),
   // reached from the filter rail's Kit group ("Edit stock…", see Filters) —
@@ -1015,6 +1093,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // back target but no longer duplicates the entry point.
   const navTabs = useMemo(() => (tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [tab]);
 
+  // The camp whose editor popup is open (desktop), resolved from editingCampId.
+  // Falls back to null when the id no longer resolves (e.g. just deleted), which
+  // unmounts the popup.
+  const editingCamp = editingCampId != null ? campKit.camps.find((c) => c.id === editingCampId) ?? null : null;
+
   return (
     <AgeUnitProvider value={ageUnit}>
     <div className="stage">
@@ -1106,7 +1189,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 camps={campKit.camps}
                 activeCampId={campKit.activeCampId}
                 onSwitch={campKit.switchCamp}
-                onManage={() => setCampsManagerOpen(true)}
+                onEditCamp={(id) => setEditingCampId(id)}
+                onAddCamp={async (name) => {
+                  if (!requireStaff("manage camps")) return;
+                  const created = await campKit.createCamp(name);
+                  if (created) setEditingCampId(created.id);
+                }}
               />
             )}
             {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
@@ -1237,7 +1325,10 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
                 activeCamp={campKit.activeCamp}
-                guides={cloud.docs.guides}
+                // Guidance bands are per-camp: the active camp's own set, or the
+                // legacy shared `guides` doc as a baseline (also the source when
+                // no camp is active — the single shared-calendar mode).
+                guides={campKit.activeCamp?.guides ?? cloud.docs.guides}
                 // Only wire the Subscribe control when signed in — anonymous
                 // visitors have no feed, and gating here keeps the rail/sheet
                 // section wrapper from rendering an empty box.
@@ -1432,32 +1523,81 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             renderRowExtra={(item) => {
               const camp = campKit.camps.find((c) => c.id === item.id);
               if (!camp) return null;
+              // Guidance bands are per-camp now — this camp's own set, or the
+              // inherited legacy shared baseline until its first edit forks a copy.
               return (
-                <CampDayStructure
-                  camp={camp}
-                  hourOptions={overrideHourOptions}
-                  onSetWeekday={setCampWeekdayHours}
-                  onSetDate={setCampDateHours}
-                  onSetSnap={setCampSnap}
-                />
+                <>
+                  <CampDayStructure
+                    camp={camp}
+                    hourOptions={overrideHourOptions}
+                    onSetWeekday={setCampWeekdayHours}
+                    onSetDate={setCampDateHours}
+                    onSetSnap={setCampSnap}
+                  />
+                  <GuidesSection
+                    label="Guidance bands"
+                    guides={camp.guides ?? cloud.docs.guides}
+                    hourOptions={overrideHourOptions}
+                    canEdit={isSignedIn}
+                    onAdd={() => addCampGuide(camp.id)}
+                    onUpdate={(id, patch) => updateCampGuide(camp.id, id, patch)}
+                    onDelete={(id) => deleteCampGuide(camp.id, id)}
+                  />
+                </>
               );
             }}
-            footer={
-              // Guidance bands live here under a clear "Day structure" label so
-              // they read as camp-scheduling vocabulary.
-              <div className="manager__sections">
-                <GuidesSection
-                  label="Day structure — guidance bands"
-                  guides={cloud.docs.guides}
-                  hourOptions={overrideHourOptions}
-                  canEdit={isSignedIn}
-                  onAdd={addGuide}
-                  onUpdate={updateGuide}
-                  onDelete={deleteGuide}
-                />
-              </div>
-            }
             onClose={() => setCampsManagerOpen(false)}
+          />
+        )}
+        {/* Desktop per-camp editor popup — opened from the Camps rail's Edit
+            pencil or right after creating a camp. Mobile/tablet still edits camps
+            through the ListManagerModal above (its settings sheet). */}
+        {editingCamp && (
+          <CampEditorPopup
+            camp={editingCamp}
+            tint={campTint(editingCamp.id, campKit.camps)}
+            hourOptions={campHourOptions}
+            overrideHourOptions={overrideHourOptions}
+            onRename={(name) => {
+              if (requireStaff("manage camps")) campKit.renameCamp(editingCamp.id, name);
+            }}
+            onSetOpen={(v) => {
+              if (requireStaff("manage camps")) campKit.adjustCampHours(editingCamp.id, "open", v);
+            }}
+            onSetClose={(v) => {
+              if (requireStaff("manage camps")) campKit.adjustCampHours(editingCamp.id, "close", v);
+            }}
+            onSetWeekday={(dow, val) => setCampWeekdayHours(editingCamp.id, dow, val)}
+            onSetDate={(date, val) => setCampDateHours(editingCamp.id, date, val)}
+            onSetSnap={(s) => setCampSnap(editingCamp.id, s)}
+            guides={editingCamp.guides ?? cloud.docs.guides}
+            canEditGuides={isSignedIn}
+            onAddGuide={() => addCampGuide(editingCamp.id)}
+            onUpdateGuide={(id, patch) => updateCampGuide(editingCamp.id, id, patch)}
+            onDeleteGuide={async (id) => {
+              if (!requireStaff("manage camps")) return;
+              const ok = await requestConfirm({
+                title: "Delete this guidance band?",
+                body: "This can't be undone.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) deleteCampGuide(editingCamp.id, id);
+            }}
+            onDelete={async () => {
+              if (!requireStaff("manage camps")) return;
+              const ok = await requestConfirm({
+                title: "Delete the “" + editingCamp.name + "” camp?",
+                body: "Its events stay on the calendar but are no longer grouped.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) {
+                campKit.deleteCamp(editingCamp.id, { announce: true });
+                setEditingCampId(null);
+              }
+            }}
+            onClose={() => setEditingCampId(null)}
           />
         )}
         {locationsManagerOpen && (

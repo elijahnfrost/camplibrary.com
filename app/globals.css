@@ -1300,6 +1300,346 @@ body {
   padding: 16px var(--s-7) 8px;
 }
 
+/* ---- per-camp editor popup (CampEditorPopup) — the flat editor opened from the
+   desktop Camps rail's Edit pencil: editable title, default hours, per-weekday
+   rows (each showing its effective window), holidays/special days, snap, delete.
+   Wears the .overlay--manager card but lays out its own flat body (no boxed
+   CampDayStructure). ---- */
+.campedit__focusguard {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  outline: none;
+}
+.campedit__titlewrap {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.campedit__titledot {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+/* The camp name edits in place as the popup title (no separate Name field). */
+.campedit__titleinput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  padding: var(--s-2) var(--s-4);
+  margin-left: -2px;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.campedit__titleinput:hover {
+  background: var(--paper-2);
+}
+.campedit__titleinput:focus {
+  outline: none;
+  background: var(--card);
+  border-color: var(--accent-ink);
+}
+.campedit__titlepen {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-faint);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.campedit__titlewrap:hover .campedit__titlepen {
+  opacity: 1;
+}
+.campedit__titleinput:focus ~ .campedit__titlepen {
+  opacity: 0;
+}
+.campedit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 0 var(--s-7) var(--s-7);
+}
+.campedit__intro {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.campedit__grouplabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.campedit__hint {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+.campedit__dash {
+  color: var(--ink-faint);
+}
+.campedit__pills {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--s-2);
+  flex-wrap: nowrap;
+}
+/* .cselect is width:100% by default, so pin each Open/Close pill to a fixed
+   width — the pair sits together and both align, Default vs custom rows. */
+.campedit__pills .cselect {
+  flex: 0 0 auto;
+  width: 122px;
+}
+.campedit__pills--indent {
+  padding: var(--s-1) 0 var(--s-2) calc(3.4ch + var(--s-3));
+}
+.campedit__baserow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.campedit__baselabels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+/* A flat disclosure (chevron + label + summary) — a thin rule, no boxed card. */
+.campedit__disc {
+  border-top: 1.5px dashed var(--line-soft);
+  padding-top: var(--s-3);
+}
+.campedit__dischead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-1) 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.campedit__dischead:hover .campedit__grouplabel {
+  color: var(--ink);
+}
+.campedit__dischead:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+.campedit__discchev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-soft);
+  transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.campedit__disc.is-open .campedit__discchev {
+  transform: rotate(90deg);
+  animation: none;
+}
+.campedit__dischead:hover .campedit__discchev {
+  color: var(--ink);
+}
+.campedit__discsum {
+  margin-left: auto;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.campedit__discbody {
+  padding-top: var(--s-3);
+}
+.campedit__week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.campedit__day {
+  border-radius: var(--r-sm);
+  padding: var(--s-1) var(--s-2);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.campedit__day:hover {
+  background: var(--paper-2);
+}
+.campedit__dayline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 34px;
+}
+.campedit__dayname {
+  flex: none;
+  width: 3.4ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+.campedit__day.is-default .campedit__dayname {
+  color: var(--ink-faint);
+}
+.campedit__dayeff {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.campedit__day.is-closed .campedit__dayeff {
+  color: var(--danger);
+}
+.campedit__dayseg {
+  flex: none;
+}
+.campedit__exclist {
+  list-style: none;
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.campedit__exc {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 36px;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.campedit__exc:hover {
+  background: var(--paper-2);
+}
+.campedit__excdate {
+  flex: none;
+  min-width: 8ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink);
+}
+.campedit__excstate {
+  flex: 1 1 auto;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.campedit__excstate--closed {
+  color: var(--danger);
+}
+.campedit__excbtn {
+  width: 30px;
+  height: 30px;
+}
+.campedit__excbtn svg {
+  width: 16px;
+  height: 16px;
+}
+.campedit__excbtn--danger:hover {
+  color: var(--danger);
+}
+.campedit__excadd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.campedit__excaddbtns {
+  display: inline-flex;
+  gap: var(--s-2);
+}
+.campedit__addbtn {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  padding: var(--s-3) var(--s-5);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.campedit__addbtn:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.campedit__addbtn:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+.campedit__snap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  border-top: 1.5px dashed var(--line-soft);
+  padding-top: var(--s-3);
+}
+.campedit__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  border-top: 1.5px dashed var(--line-soft);
+  padding-top: var(--s-4);
+}
+.campedit__del {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  border: 1.5px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  padding: var(--s-2) var(--s-4);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.campedit__del svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.campedit__del:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+}
+.campedit__del:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
 /* ---- Kit modal (the availability editor, reached from the Library toolbar's
    Kit dropdown) — wider than the generic manager card: each material row
    carries a name, an explicit Have/Low/Out seg, a "Used by N" jump, and an
@@ -5018,8 +5358,62 @@ body {
   .camprail__new:hover {
     color: var(--ink);
   }
-  /* The ONE manage entry — a quiet footer row (typepick__manage voice), set
-     apart from the additive "New camp" shortcut by a dashed rule above it. */
+  /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered
+     (fade + grow + slight slide), then does the app's own tool-icon wiggle when
+     the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same
+     animation vocabulary as the rest of the app; reduced-motion strips the
+     transforms + wiggle (fade only). */
+  .camprail__edit {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    opacity: 0;
+    transform: translateX(3px) scale(0.82);
+    transform-origin: center;
+    transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+  }
+  .camprail__edit svg {
+    width: 16px;
+    height: 16px;
+  }
+  .camprail__row:hover .camprail__edit,
+  .camprail__edit:focus-visible {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  .camprail__edit:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    border-radius: var(--r-md);
+  }
+  .camprail__edit:hover svg {
+    animation: cicon-tool-wiggle 0.5s var(--ease) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .camprail__edit {
+      transform: none;
+      transition: opacity var(--t-med) var(--ease), color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+    }
+    .camprail__row:hover .camprail__edit,
+    .camprail__edit:focus-visible {
+      transform: none;
+    }
+    .camprail__edit:hover svg {
+      animation: none;
+    }
+  }
+  /* Inline "Add camp" — the create field replaces the add button in place. */
+  .camprail__addform {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+  .camprail__addinput {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* The quiet footer entry — day-structure guidance bands (global, not
+     per-camp), set apart by a dashed rule above it. */
   .camprail__manage {
     margin-top: var(--s-2);
     padding-top: var(--s-3);

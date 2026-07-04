@@ -15,6 +15,7 @@
 // "use client" directive.
 
 import { fromDateKey } from "./calendar/dates";
+import { normalizeGuides, type GuideBand } from "./calendar/guides";
 import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN, snapMinutes, type DayWindow } from "./calendar/time";
 import { isDateKey, type DateKey } from "./calendar/types";
 import { nextPaletteTint } from "./themes";
@@ -46,6 +47,11 @@ export interface Camp {
   dateHours?: Record<DateKey, DayWindow | null>;
   // The snap grid this camp offers (see CampSnapMin). Absent = app default.
   snapMin?: CampSnapMin;
+  // This camp's own day-structure guidance bands (soft time frames drawn behind
+  // the grid). Per-camp so each camp can shape its day differently. Absent means
+  // the camp hasn't set its own yet — the UI inherits the legacy shared `guides`
+  // doc as a display baseline until the first per-camp edit forks a copy here.
+  guides?: GuideBand[];
 }
 
 export const MAX_CAMP_NAME = 60;
@@ -252,6 +258,7 @@ function normalizeCamp(value: unknown): Camp | null {
   delete camp.weekdayHours;
   delete camp.dateHours;
   delete camp.snapMin;
+  delete camp.guides;
   const weekdayHours = normalizeWeekdayHours(v.weekdayHours);
   if (weekdayHours) camp.weekdayHours = weekdayHours;
   const dateHours = normalizeDateHours(v.dateHours);
@@ -259,6 +266,11 @@ function normalizeCamp(value: unknown): Camp | null {
   if (typeof v.snapMin === "number" && CAMP_SNAP_MINS.has(v.snapMin)) {
     camp.snapMin = v.snapMin as CampSnapMin;
   }
+  // Per-camp guides validate through the shared normalizeGuides (dedupe, caps,
+  // window/weekday sanity). Only attach when the camp actually carries its own
+  // set — an absent field means "inherit the shared baseline" (see the UI).
+  const guides = normalizeGuides(v.guides);
+  if (guides.length) camp.guides = guides;
   return camp;
 }
 
