@@ -24,7 +24,7 @@ describe("user data docs", () => {
   it("returns fresh default instances", () => {
     expect(docDefault("favs")).not.toBe(docDefault("favs"));
     expect(docDefault("ratings")).toEqual({});
-    expect(docDefault("view")).toBe("deck");
+    expect(docDefault("view")).toBe("shelf");
   });
 
   it("normalizes favs: dedupes, drops non-strings, falls back on non-arrays", () => {
@@ -50,7 +50,7 @@ describe("user data docs", () => {
 
   it("normalizes view with fallback", () => {
     expect(normalizeDoc("view", "shelf")).toBe("shelf");
-    expect(normalizeDoc("view", "bogus")).toBe("deck");
+    expect(normalizeDoc("view", "bogus")).toBe("shelf");
   });
 
   it("normalizes run list overrides: keeps valid docs, drops malformed entries", () => {
@@ -113,17 +113,6 @@ describe("user data docs", () => {
     expect(out[0].id).toBe("custom-1");
   });
 
-  it("normalizes the meals doc: roster + date-keyed menu notes, empty default", () => {
-    expect(docDefault("meals")).toEqual({ dietary: [], menuNotes: {} });
-    const out = normalizeDoc("meals", {
-      dietary: [{ id: "d1", label: "Peanuts", severity: "severe" }, { id: "", label: "junk" }],
-      menuNotes: { "2026-07-08": { lunch: "Pizza" }, "bad-date": { lunch: "x" } },
-    });
-    expect(out.dietary).toEqual([{ id: "d1", label: "Peanuts", severity: "severe" }]);
-    expect(out.menuNotes).toEqual({ "2026-07-08": { lunch: "Pizza" } });
-    expect(normalizeDoc("meals", "nope")).toEqual({ dietary: [], menuNotes: {} });
-  });
-
   it("normalizes the guides doc: valid bands only, empty default", () => {
     expect(docDefault("guides")).toEqual([]);
     const out = normalizeDoc("guides", [
@@ -136,7 +125,6 @@ describe("user data docs", () => {
   });
 
   it("maps the new docs to versioned localStorage names", () => {
-    expect(DOC_LOCAL_KEYS.meals).toBe("meals.v1");
     expect(DOC_LOCAL_KEYS.guides).toBe("guides.v1");
   });
 });

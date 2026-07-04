@@ -11,6 +11,7 @@ import { type CSSProperties } from "react";
 import { fromDateKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
+import type { Theme } from "@/lib/themes";
 import {
   timelineHours,
   timelineGridHeightIn,
@@ -25,11 +26,16 @@ import type { PrintOptions } from "@/lib/print/options";
 // stays correct inside the Paged.js-cloned DOM where container support is shaky.
 const SHOW_TIME_MIN_IN = 0.34;
 const SHOW_TYPE_MIN_IN = 0.5;
+// The theme label needs its own line of air — a touch taller than the type
+// line's threshold, since a block would otherwise cram type + theme onto a
+// tiny block with neither readable.
+const SHOW_THEME_MIN_IN = 0.62;
 
 interface ResolvedTint {
   tint: string;
   type: string | null;
   title: string;
+  theme: Theme | null;
 }
 
 function dayHeading(date: string): string {
@@ -52,6 +58,7 @@ function TimelineEventBlock({
   gridHeightIn,
   resolve,
   colorOn,
+  showThemes,
 }: {
   event: CalendarEvent;
   topPct: number;
@@ -61,14 +68,18 @@ function TimelineEventBlock({
   gridHeightIn: number;
   resolve: (event: CalendarEvent) => ResolvedTint;
   colorOn: boolean;
+  showThemes: boolean;
 }) {
-  const { tint, type, title } = resolve(event);
+  const { tint, type, title, theme } = resolve(event);
   // Lay lanes out left→right; a thin gutter between lanes comes from CSS padding.
   const left = (col / cols) * 100;
   const width = (1 / cols) * 100;
   const blockHeightIn = (heightPct / 100) * gridHeightIn;
   const showTime = blockHeightIn >= SHOW_TIME_MIN_IN;
   const showType = type && blockHeightIn >= SHOW_TYPE_MIN_IN;
+  // print-5: same "does it fit" gate the type line uses — a block only shows
+  // the theme once it's tall enough, and only when "Show themes" is on.
+  const showTheme = showThemes && theme && blockHeightIn >= SHOW_THEME_MIN_IN;
   const style: CSSProperties = {
     top: topPct + "%",
     height: heightPct + "%",
@@ -81,6 +92,11 @@ function TimelineEventBlock({
       {showTime && <span className="pd-tl__time">{formatRangeLabel(event.startMin, event.endMin)}</span>}
       <span className="pd-tl__name">{title}</span>
       {showType && <span className="pd-tl__type">{type}</span>}
+      {showTheme && theme && (
+        <span className="pd-tl__theme" style={colorOn ? ({ "--pd-tint": theme.tint } as CSSProperties) : undefined}>
+          {theme.label}
+        </span>
+      )}
     </div>
   );
 }
@@ -93,6 +109,7 @@ function TimelineDaySection({
   gridHeightIn,
   resolve,
   colorOn,
+  showThemes,
 }: {
   date: string;
   allDay: CalendarEvent[];
@@ -101,6 +118,7 @@ function TimelineDaySection({
   gridHeightIn: number;
   resolve: (event: CalendarEvent) => ResolvedTint;
   colorOn: boolean;
+  showThemes: boolean;
 }) {
   return (
     <section className="pd-tlday">
@@ -143,6 +161,7 @@ function TimelineDaySection({
                 gridHeightIn={gridHeightIn}
                 resolve={resolve}
                 colorOn={colorOn}
+                showThemes={showThemes}
               />
             ))
           )}
@@ -165,7 +184,7 @@ export function CalendarTimeline({
 }) {
   const colorOn = options.color === "color";
   const hours = timelineHours(win);
-  const gridHeightIn = timelineGridHeightIn(win, options.timelineDensity);
+  const gridHeightIn = timelineGridHeightIn(win, options.density);
 
   return (
     <div className="pd-timeline">
@@ -179,6 +198,7 @@ export function CalendarTimeline({
           gridHeightIn={gridHeightIn}
           resolve={resolve}
           colorOn={colorOn}
+          showThemes={options.showThemes}
         />
       ))}
     </div>

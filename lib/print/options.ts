@@ -31,18 +31,19 @@ export type ScheduleDetail = "times" | "summary" | "tldr";
 //              duration, like a Google-Calendar day view
 export type PrintLayout = "agenda" | "timeline";
 
-// Vertical spacing of the timeline grid — trades pages for breathing room.
-//   compact — tight rows; fits the most onto one page
-//   cozy    — the balanced default
-//   roomy   — tall rows with air around each block (may spill to a second page)
-export type TimelineDensity = "compact" | "cozy" | "roomy";
-
 // Doc-wide text size — drives the print scale's --pd-scale multiplier so the
 // whole sheet grows/shrinks in lockstep. "regular" is the designed 1.0 baseline.
 export type FontScale = "small" | "regular" | "large";
 
-// Doc-wide spacing — drives --pd-pad-scale so the page paddings/gaps tighten or
-// open up (independent of the timeline grid's own density).
+// ONE doc-wide spacing knob (print-6 merged the old separate "Density" +
+// timeline-only "Spacing" controls into this single field): it drives
+// --pd-pad-scale (page paddings/gaps everywhere) AND — only while
+// layout === "timeline" — the timeline grid's per-hour row height (see
+// lib/print/timeline.ts's DENSITY_ROW_TIER mapping). One knob, one mental
+// model: tighter always means more fits on a page, in both layouts.
+//   tight   — tightest paddings; tightest timeline rows (was "compact")
+//   regular — the balanced default (was timeline's "cozy")
+//   airy    — the most breathing room; tallest timeline rows (was "roomy")
 export type DocDensity = "tight" | "regular" | "airy";
 
 // The movable document sections, in print order. The cover (toggled separately
@@ -71,8 +72,6 @@ export interface PrintFormat {
   style: PrintStyle;
   // List of events vs. a blocked-out time grid.
   layout: PrintLayout;
-  // Spacing of the timeline grid (only meaningful when layout === "timeline").
-  timelineDensity: TimelineDensity;
   scheduleDetail: ScheduleDetail;
   // Append a full run sheet (the activity-book level of detail) for every
   // distinct activity scheduled in the range, after the schedule.
@@ -96,8 +95,6 @@ export interface PrintFormat {
   // --pd-pad-scale, so the whole sheet grows/tightens in lockstep).
   fontScale: FontScale;
   density: DocDensity;
-  // A "Page N of M" footer on every printed page.
-  pageNumbers: boolean;
   // The order of the movable document sections beneath the cover.
   sectionOrder: DocSection[];
 }
@@ -123,7 +120,6 @@ export const DEFAULT_PRINT_FORMAT: PrintFormat = {
   color: "color",
   style: "styled",
   layout: "agenda",
-  timelineDensity: "cozy",
   scheduleDetail: "summary",
   appendRunSheets: false,
   includeAllDay: true,
@@ -135,14 +131,12 @@ export const DEFAULT_PRINT_FORMAT: PrintFormat = {
   showCover: true,
   fontScale: "regular",
   density: "regular",
-  pageNumbers: false,
   sectionOrder: DOC_SECTIONS,
 };
 
 const COLORS: PrintColor[] = ["color", "mono"];
 const STYLES: PrintStyle[] = ["styled", "plain"];
 const LAYOUTS: PrintLayout[] = ["agenda", "timeline"];
-const DENSITIES: TimelineDensity[] = ["compact", "cozy", "roomy"];
 const DETAILS: ScheduleDetail[] = ["times", "summary", "tldr"];
 const FONT_SCALES: FontScale[] = ["small", "regular", "large"];
 const DOC_DENSITIES: DocDensity[] = ["tight", "regular", "airy"];
@@ -181,7 +175,6 @@ export const printFormatStorage: StorageValidator<PrintFormat> = (value, fallbac
     color: oneOf(v.color, COLORS, fallback.color),
     style: oneOf(v.style, STYLES, fallback.style),
     layout: oneOf(v.layout, LAYOUTS, fallback.layout),
-    timelineDensity: oneOf(v.timelineDensity, DENSITIES, fallback.timelineDensity),
     scheduleDetail: oneOf(v.scheduleDetail, DETAILS, fallback.scheduleDetail),
     appendRunSheets: bool(v.appendRunSheets, fallback.appendRunSheets),
     includeAllDay: bool(v.includeAllDay, fallback.includeAllDay),
@@ -193,7 +186,6 @@ export const printFormatStorage: StorageValidator<PrintFormat> = (value, fallbac
     showCover: bool(v.showCover, fallback.showCover),
     fontScale: oneOf(v.fontScale, FONT_SCALES, fallback.fontScale),
     density: oneOf(v.density, DOC_DENSITIES, fallback.density),
-    pageNumbers: bool(v.pageNumbers, fallback.pageNumbers),
     sectionOrder: sectionOrder(v.sectionOrder, fallback.sectionOrder),
   };
 };

@@ -33,6 +33,7 @@ import { coverage, materialTagId, resolveRefs, type ResolvedRef } from "@/lib/ma
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { isStocked, nextStockState, type StockState } from "@/lib/kitStock";
 import {
+  MAX_ACTIVITY_DURATION_MIN,
   mintMaterialRow,
   renameMaterialRow,
   validateForm,
@@ -964,7 +965,7 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           ariaLabel="Prep effort"
         />
       </div>
-      <div className="ledger__row rldetail__row">
+      <div className={"ledger__row rldetail__row rldetail__row--minutes" + (v.durationInvalid ? " is-invalid" : "")}>
         <span className="ledger__label">Minutes</span>
         <div className="rldetail__minutes">
           <input
@@ -977,6 +978,11 @@ function DetailFormControls({ form, onFormChange, themeKit, ageUnit, onAgeUnit }
           />
           <span className="rldetail__minunit" aria-hidden="true">min</span>
         </div>
+        {v.durationInvalid && (
+          <span className="rldetail__grouperr rldetail__grouperr--minutes" role="alert">
+            Enter a whole number of minutes, up to {MAX_ACTIVITY_DURATION_MIN}.
+          </span>
+        )}
       </div>
       <div className="ledger__row rldetail__row">
         <span className="ledger__label">Ages</span>
@@ -1927,7 +1933,17 @@ export function ActivityRunList({
   // ---- a single attached detail row (a sibling on the same rail) ------------
   const renderChild = (stepId: string, k: RunChild, closingNow: boolean): ReactNode => {
     const Icon = TYPE_ICON[k.type];
-    const label = RUN_CHILD_META[k.type].label;
+    // event-detail-2: the Materials block's header silently switches between
+    // the library's canonical kit list and a per-day-substitutable one purely
+    // based on whether materialSubs is wired (canSub), with identical chrome —
+    // no label told a staffer which mode they were looking at. materialSubs
+    // is PRESENT (even {}) only when this sheet was opened FROM a calendar
+    // event (see the prop doc above), so its mere presence is the per-day
+    // signal; a plain "Materials" heading stays library-wide.
+    const label =
+      k.type === "materials" && materialSubs !== undefined
+        ? RUN_CHILD_META[k.type].label + " · Today only"
+        : RUN_CHILD_META[k.type].label;
     // A field-note entry reads as a dated log line: the date+time chip IS its
     // header (the parent log already says "Field notes"), so the type label is
     // suppressed unless the entry somehow has no stamp.
@@ -2744,6 +2760,14 @@ export function ActivityRunList({
             </Fragment>
           ))}
         </ul>
+
+        {/* An override cleared down to {blocks: []} is a supported empty state
+            (see lib/runListResolve.ts) — say so in read mode rather than
+            showing a bare, contentless rail. Edit mode already has its own
+            affordance (the "Add a block" button just below). */}
+        {!editable && doc.blocks.length === 0 && (
+          <p className="rl-empty">This run sheet is empty.</p>
+        )}
 
         {editable && (
           <div className="rl-addwrap">

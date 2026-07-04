@@ -1,6 +1,6 @@
 import { getSql } from "./db";
 import { cacheUntilFailure } from "./once";
-import { EVENT_NOTE_MAX_LENGTH, MEAL_KINDS } from "@/lib/calendar/types";
+import { EVENT_NOTE_MAX_LENGTH } from "@/lib/calendar/types";
 import {
   isUserDocKey,
   normalizeDoc,
@@ -194,13 +194,12 @@ export function normalizeCalendarEventInput(
     delete payload.note;
   }
   // Same boundary hygiene for the newer payload-riding flags: pinned must be a
-  // literal true and mealKind one of the known kinds, or they're dropped. The
-  // richer optional structures (alternates, materialSubs, custom…) are guarded
-  // by the client normalizer, which runs on every read.
+  // literal true or it's dropped. A retired `mealKind` from a stale client is
+  // always dropped so it never accumulates in the JSONB. The richer optional
+  // structures (alternates, materialSubs, custom…) are guarded by the client
+  // normalizer, which runs on every read.
   if (payload.pinned !== true) delete payload.pinned;
-  if (typeof value.mealKind !== "string" || !(MEAL_KINDS as readonly string[]).includes(value.mealKind)) {
-    delete payload.mealKind;
-  }
+  delete payload.mealKind;
 
   return {
     ok: true,

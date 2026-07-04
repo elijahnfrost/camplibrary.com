@@ -51,7 +51,7 @@ describe("normalizeGuides", () => {
     expect(b.label.length).toBe(GUIDE_LABEL_MAX);
   });
 
-  it("keeps optional from/until bounds and mealKind, dropping bad ones", () => {
+  it("keeps optional from/until bounds, dropping a malformed untilKey", () => {
     const [b] = normalizeGuides([
       {
         id: "g1",
@@ -61,17 +61,17 @@ describe("normalizeGuides", () => {
         weekdays: [1],
         fromKey: "2026-07-01",
         untilKey: "not-a-date",
-        mealKind: "lunch",
       },
     ]);
     expect(b.fromKey).toBe("2026-07-01");
     expect(b.untilKey).toBeUndefined();
-    expect(b.mealKind).toBe("lunch");
+  });
 
-    const [b2] = normalizeGuides([
-      { id: "g2", label: "X", startMin: 720, endMin: 765, weekdays: [1], mealKind: "brunch" },
+  it("drops a stray mealKind field (meals-3: the field was removed — nothing read it)", () => {
+    const [b] = normalizeGuides([
+      { id: "g2", label: "X", startMin: 720, endMin: 765, weekdays: [1], mealKind: "lunch" },
     ]);
-    expect(b2.mealKind).toBeUndefined();
+    expect((b as unknown as Record<string, unknown>).mealKind).toBeUndefined();
   });
 });
 

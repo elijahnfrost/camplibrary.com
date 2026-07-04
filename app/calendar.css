@@ -329,15 +329,32 @@
   font-family: var(--hand-sc);
   color: var(--accent-ink);
 }
+/* FullCalendar's own "+N more" day-cell overflow popover. The vendor stylesheet
+   hardcodes z-index:9999 (above every app overlay, including modals/lightbox),
+   so pull it into the app's own z-ladder at the floating-root tier (220) —
+   the same tier every other portaled menu/popover uses — and restyle its shell
+   to the app's card vocabulary so it stops reading as foreign chrome. */
 .calshell .fc .fc-popover {
+  z-index: 220;
   background: var(--card);
   border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow: var(--e3);
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
 }
 .calshell .fc .fc-popover-header {
   background: var(--paper-2);
+  border-bottom: 1.5px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   font-family: var(--hand-sc);
+}
+.calshell .fc .fc-popover-title {
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.calshell .fc .fc-popover-close {
+  color: var(--ink-soft);
 }
 /* The all-day strip stays a slim shelf, not a second header. */
 .calshell .fc .fc-timegrid-axis-cushion {
@@ -916,16 +933,23 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 /* ---------- calendar rail (portal slot CampApp owns) ----------
    On desktop the mini-month + View settings render into this slot; the shared
    .sidesection rules (globals.css) own the header treatment and rhythm. The
-   sidenav is display:none on phones — there the FAB + header Add cover mobile. */
+   sidenav is display:none on phones — there the FAB + header Add cover mobile.
+   This div sits INSIDE the shared .sidenav__scroll zone (see globals.css), so
+   it must size honestly to its own content — flex:1/min-height:0 here used to
+   let it claim a share of the sidebar's height independent of its children,
+   which is exactly what let the portaled content (Today card + mini-month +
+   View + Weather + Subscribe) paint past a box shorter than they are. flex:none
+   + no min-height means its height is just the sum of its children, and the
+   ancestor scroll container is the only thing that can ever clip/scroll it. */
 .sidenav__calrail {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: none;
 }
-/* The View ledger sits flush like the mini-month above it (the shared
-   .sidesection__body bleeds its edges by -18px to seat a scrollbar; the View
-   section never scrolls, so undo that). */
+/* The View ledger sits flush like the mini-month above it (the .sidesection__body
+   rule it inherits has no inline bleed of its own now — the shared scroll
+   ancestor carries the gutter — so this override is now a no-op kept only in
+   case a future rule reintroduces inline spacing at the section-body level). */
 .sidenav__calrail .cal-view__body {
   margin-inline: 0;
   padding-inline: 0;
@@ -1031,14 +1055,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .caltoday__time {
   color: var(--ink-soft);
 }
-.caltoday__meal {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--s-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  color: var(--ink-soft);
-}
 .caltoday__empty {
   display: inline-flex;
   align-items: center;
@@ -1055,34 +1071,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke: currentColor;
   fill: none;
   stroke-width: 1.6;
-}
-
-/* ---------- rail "Subscribe" section (.ics feed) ----------
-   The Subscribe control, moved off the calendar header into the rail. It sits as
-   its own section below View / Weather; the trigger stretches full-width so it
-   reads as a rail row rather than a floating header pill. The popover itself is
-   unchanged (it anchors to the trigger). */
-.cal-subscribe {
-  flex: none;
-}
-.cal-subscribe .campswitch,
-.calset__subscribe .campswitch {
-  display: flex;
-}
-.cal-subscribe .campswitch__trigger,
-.calset__subscribe .campswitch__trigger {
-  width: 100%;
-  max-width: none;
-  justify-content: flex-start;
-}
-/* The trailing chevron pushes to the right edge, like the View section head. */
-.cal-subscribe .campswitch__trigger > svg:last-child,
-.calset__subscribe .campswitch__trigger > svg:last-child {
-  margin-left: auto;
-}
-/* Mobile sheet: a touch-tall trigger to match the sheet's other controls. */
-.calset__subscribe .campswitch__trigger {
-  height: var(--tap);
 }
 
 /* The "View" header is a toggle (folds the whole settings ledger away to keep the
@@ -1113,6 +1101,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   /* Right when collapsed, down when open — the one disclosure affordance used
      by every collapsible (camps rail, manager sections). */
   transform: rotate(90deg);
+  /* Open = pointing down, so the closed-state chev-right hover nudge (global
+     translateX animation) must not run — it would override this rotate and snap
+     the glyph back to facing right on hover. Nudge stays closed-state only. */
+  animation: none;
 }
 .cal-view__head:hover .sidesection__title,
 .cal-view__head:hover .cal-view__chev {
@@ -1501,12 +1493,40 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 /* The library-backed event reads as a clean title block — category eyebrow +
    name + quiet inline links — the run-sheet header vocabulary, NOT a boxed
-   summary card, so editing an event and opening its sheet feel like one surface. */
+   summary card, so editing an event and opening its sheet feel like one surface.
+   It's also a NAVIGATING card (to the run sheet): position:relative anchors the
+   .stretch overlay button, and the whole-card hover/active dim mirrors the
+   book-cover/spine interactive-card convention (.shelfbook) rather than
+   inventing a new one — a card the whole app already treats as clickable. */
 .quickadd__act {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
   margin: var(--s-4) var(--qa-gx) 0;
+  border-radius: var(--r-md);
+  transition: filter var(--t-fast) var(--ease);
+}
+.quickadd__act:has(.quickadd__act-open):hover {
+  filter: brightness(0.95);
+}
+.quickadd__act:has(.quickadd__act-open):active {
+  filter: brightness(0.9);
+}
+/* The full-card click target (the app's stretched-button-card recipe — see
+   .stretch / .deck-card__open): sits BELOW the links row in paint order but its
+   ::after covers the whole card, so .quickadd__act-links must ride above it. */
+.quickadd__act-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.quickadd__act:has(.quickadd__act-open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.quickadd__act-open:focus-visible {
+  outline: none;
 }
 .quickadd__act-eyebrow {
   display: inline-flex;
@@ -1533,6 +1553,8 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   color: var(--ink);
 }
 .quickadd__act-links {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--s-6);
@@ -1561,7 +1583,24 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   text-decoration: underline;
 }
 .quickadd__act-link--quiet {
+  /* A real sibling button (Change activity swaps the linked activity — a
+     DIFFERENT action from the card's own navigate-to-run-sheet), so it must
+     win over the full-card .stretch overlay underneath it — cursor:pointer
+     here (not "inherit") stops the parent's clickable cursor from bleeding
+     through onto this distinct click target. */
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
   color: var(--ink-faint);
+}
+/* The static "Open Run List" echo: the click now belongs to the whole-card
+   .stretch overlay, so this label is decorative (not its own button) — it
+   still LOOKS like the other link for visual consistency, just non-interactive. */
+.quickadd__act-link--static {
+  cursor: default;
+}
+.quickadd__act-link--static:hover {
+  text-decoration: none;
 }
 /* Picker rows: a LIGHT list — a small category dot, the name, a muted meta, and
    a check when chosen. No heavy spine; the hover wash + dot carry the identity. */
@@ -1641,130 +1680,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
 }
-/* ---------- meal preset chips (QuickAdd create empty state) ----------
-   A first-class shortcut for the day's meals, shown only before any typing so it
-   never intrudes on the fast type-to-place path. A quiet eyebrow + a row of soft
-   chips; each pre-fills the editor. A "tag them instead" hint (when same-titled
-   untagged events exist) routes the retro-tag bulk so a chip never double-books. */
-.quickadd__meals {
-  padding: var(--s-3) var(--qa-gx) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.quickadd__meals-eyebrow {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  color: var(--ink-faint);
-}
-.quickadd__mealchips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-.quickadd__mealchip {
-  padding: var(--s-2) var(--s-4);
-  border-radius: var(--r-md);
-  border: 1.5px solid var(--line);
-  background: var(--paper-2);
-  color: var(--ink);
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  cursor: pointer;
-}
-.quickadd__mealchip:hover {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
-}
-.quickadd__mealhint {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
-  text-align: left;
-  color: var(--amber);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* ---------- meal editor: read-only dietary panel ----------
-   Pinned at the top of a meal event's editor so the highest-stakes constraints
-   (severe first) are seen before anything else. Quiet card with severity-coded
-   rows and a "Manage…" link to the roster editor. */
-.quickadd__diet {
-  margin: var(--s-3) var(--qa-gx) 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--paper-2);
-}
-.quickadd__diet-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-3);
-}
-.quickadd__diet-title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-}
-.quickadd__diet-manage {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-}
-.quickadd__diet-list {
-  list-style: none;
-  margin: var(--s-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.quickadd__diet-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  color: var(--ink);
-}
-.quickadd__diet-sev {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-round);
-  background: var(--ink-faint);
-}
-.quickadd__diet-row--avoid .quickadd__diet-sev {
-  background: var(--amber);
-}
-.quickadd__diet-row--severe .quickadd__diet-sev {
-  background: var(--danger);
-}
-.quickadd__diet-row--severe .quickadd__diet-label {
-  font-weight: 600;
-}
-.quickadd__diet-detail {
-  color: var(--ink-soft);
-}
-.quickadd__diet-empty {
-  margin: var(--s-2) 0 0;
-  color: var(--ink-faint);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-}
-
 .quickadd__searchform {
   display: contents;
 }
@@ -2010,6 +1925,99 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .quickadd__settings > :last-child {
   border-bottom: 0;
 }
+/* Default-face SUMMARY rows (Color/Location/Meal/Repeat/Day note when already
+   set, and All day when on) — a compact read-only echo that opens "More
+   options" on tap, so anything already true about the event stays visible
+   without needing the section open. Plain-text button dressed as a value, not
+   a heavy control — it reads like the same PropRow value slot every other row
+   uses. */
+.quickadd__summarybtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+}
+.quickadd__summarybtn:hover .quickadd__summaryval {
+  text-decoration: underline;
+}
+.quickadd__summarydot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-round);
+}
+.quickadd__summaryval {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The Day note summary can be a full sentence — let it wrap onto a couple of
+   lines instead of the single-line ellipsis every other summary row uses. */
+.quickadd__summarybtn--note {
+  align-items: flex-start;
+}
+.quickadd__summarybtn--note .quickadd__summaryval {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* "More options" — the ONE inline expansion (pattern 5) holding every setting
+   not shown by default. Reuses the app's existing Collapsible chevron-header
+   idiom (see .manager__sect in globals.css, the ListManagerModal Guidance-
+   bands / Dietary-roster sections) rather than inventing a new disclosure. */
+.quickadd__more {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.quickadd__more-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.quickadd__more-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+.quickadd__more.is-open .quickadd__more-chev {
+  transform: rotate(90deg);
+}
+.quickadd__more-label {
+  flex: 1 1 auto;
+}
+.quickadd__more-body {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.quickadd__more-body > .prop-row {
+  padding-left: 0;
+  padding-right: 0;
+}
 /* The date · start · length · color · location · repeat controls are the shared
    PILL dropdowns (see .cselect__trigger + the .ledger__row hug rule in
    globals.css): hug-content, right-aligned, sage-tint when open — the same
@@ -2017,17 +2025,24 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    width/typography override here anymore; the base pill rules own the look.) */
 .quickadd__foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-4);
+  gap: var(--s-3) var(--s-4);
 }
-/* What the commit will do (or why it's disabled) — always present so the
-   chosen activity is named even when its row is scrolled out of view. */
-.quickadd__hint {
-  flex: 1;
-  margin: 0;
+/* J5: explicit Save, no simultaneous status line — the primary Save/Add button
+   is the one thing that always pins to the trailing edge; every other footer
+   action (Duplicate/Pin/Delete/…) wraps freely before it. */
+.quickadd__save {
+  margin-left: auto;
+}
+/* quickadd-14: the inline "would link, not duplicate" warning shown above the
+   footer when a typed custom-event title exactly matches an existing library
+   activity — amber, same register as the same-day kit conflict note. */
+.quickadd__tolib-warn {
+  margin: var(--s-3) var(--qa-gx) 0;
+  color: var(--amber);
   font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink-faint);
+  font-size: var(--fs-meta);
 }
 
 /* mobile add FAB (opens the event window) */
@@ -2065,25 +2080,19 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 
 /* ---------- anchored floating card surface ----------
-   The shared base for the calendar's small anchored cards. The click-to-edit
-   event popover was retired (clicking an event now opens the editor; quick
-   actions live on the right-click menu + inside the editor), but the WeatherPopover
-   detail card still rides this surface (.cal-popover.cal-wx-pop). */
-.cal-popover-root {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-}
-.cal-popover__scrim {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: transparent;
-  cursor: default;
-}
+   The shared base for the calendar's small anchored cards (WeatherPopover,
+   StopPopover, ShiftBar, GatherPopover, RainPanel). All five are hosted in the
+   shared FloatingLayer engine (.floating-root/.floating__scrim in globals.css
+   supply the portal, scrim, z-index, and Escape/outside-click/scroll dismissal);
+   this class only supplies the card's own surface, sizing, and touch-docking
+   look. Clamp height so a long conflict/backup list scrolls inside the card
+   instead of running off-viewport (the position engine only flips/clamps the
+   card's origin, never its height). */
 .cal-popover {
   position: fixed;
-  width: 300px;
+  width: min(300px, calc(100vw - 2 * var(--s-4)));
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
   background: var(--card);
   border: 1.5px solid var(--line);
   /* --r-md matches the floating-popover family (cdate__pop, ccolor__pop, the
@@ -2328,92 +2337,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   box-shadow: 1px 0 0 var(--fc-border-color);
 }
 
-/* ---------- camp hours sheet ---------- */
-.calhours {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: 4px var(--page-x) 14px;
-}
-.calhours__intro {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-label);
-  line-height: 1.4;
-  color: var(--ink-soft);
-}
-.calhours__list {
-  display: flex;
-  flex-direction: column;
-}
-.calhours__camp {
-  padding: var(--s-3) 0 var(--s-4);
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.calhours__camp:last-child {
-  border-bottom: 0;
-}
-.calhours__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
-  min-height: 38px;
-}
-.calhours__name {
-  font-family: var(--hand);
-  font-size: var(--fs-body);
-  color: var(--ink);
-}
-/* A disabled camp greys its name (its hours no longer move the grid) but keeps
-   the toggle bright so re-enabling stays one tap away. */
-.calhours__camp:not(.is-on) .calhours__name {
-  color: var(--ink-faint);
-}
-.calhours__times {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--s-3);
-  margin-top: var(--s-3);
-}
-.calhours__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  flex: 1;
-  min-width: 0;
-}
-.calhours__fieldlabel {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.calhours__field .cselect {
-  width: 100%;
-}
-.calhours__field .cselect__trigger {
-  width: 100%;
-}
-.calhours__dash {
-  padding-bottom: var(--s-4);
-  color: var(--ink-faint);
-}
-.calhours__summary {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-.calhours__summary strong {
-  font-family: var(--hand-sc);
-  color: var(--accent-ink);
-}
-.calhours__done {
-  margin-top: var(--s-2);
-}
-
 /* ---------- responsive ---------- */
 @media (min-width: 1024px) {
   .calshell__fab {
@@ -2463,14 +2386,11 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     top: auto !important;
     bottom: 0;
     width: auto;
+    max-height: 60vh;
     border-bottom: 0;
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
     animation: cl-rise 220ms var(--ease-overlay) both;
-  }
-  .cal-popover__scrim {
-    background: var(--scrim-bg);
-    animation: cl-fade 180ms ease both;
   }
   /* month chips need a real touch target */
   .calshell .fc-daygrid-event {
@@ -2561,45 +2481,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   opacity: 0.9;
 }
 
-/* ---------- meal glyph + severe-dietary badge ----------
-   A meal block (lunch, AM/PM snack) wears a small fork+spoon glyph beside the
-   pin/repeat glyphs, sharing their muted, subtle treatment. When the camp has any
-   SEVERE dietary constraint on file, a meal card ALSO shows a compact red count
-   badge — a persistent reminder to check the roster before serving. */
-.cal-card__meal,
-.cal-chip__meal {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  color: var(--ink-soft);
-  opacity: 0.85;
-}
-.cal-chip__meal {
-  width: 11px;
-  height: 11px;
-}
-.cal-card__diet {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-family: var(--hand-sc);
-  font-size: 0.6rem;
-  line-height: 1;
-  padding: 1px 4px;
-  border-radius: var(--r-round);
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
 /* ---------- backup-plan badge ----------
    A small corner glyph on any card whose placement resolves to a backup plan (an
    umbrella for a rain plan, else a generic swap loop; a count when >1). Shares the
-   muted, subtle treatment of the pin/repeat/meal glyphs. */
+   muted, subtle treatment of the pin/repeat glyphs. */
 .cal-card__backup,
 .cal-chip__backup {
   flex: none;
@@ -2627,6 +2512,25 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand-sc);
   font-size: 0.58rem;
   line-height: 1;
+}
+
+/* ---------- "shared" badge (camps-2/J2) ----------
+   A quiet, NEUTRAL glyph (no color, unlike the backup badge which carries
+   real signal) marking an event with no campId of its own — it shows under
+   every camp. Painted only while a specific camp is active (extendedProps.shared
+   is only ever true in that case), so single-camp users never see it. Shares
+   the muted treatment of the pin/repeat glyphs so it reads as quiet
+   metadata, not a warning. One class for both the month chip and the timed
+   card (same size in both). */
+.cal-card__shared {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-faint);
+  opacity: 0.8;
 }
 
 /* ---------- guidance bands + closed-day shading (FC background events) ----------
@@ -2667,22 +2571,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     transparent 12px
   );
   opacity: 1;
-}
-
-/* ---------- "Mark as meal" picker (retro-tag) ----------
-   The cursor-anchored meal-kind picker (single event OR multi-select). Shares the
-   cselect option vocabulary; the leading meal glyph reads as the tag it applies. */
-.cal-mealpick__glyph {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  color: var(--ink-soft);
-}
-.cal-mealpick__clear {
-  color: var(--ink-soft);
 }
 
 /* ---------- the Repeat control inside QuickAdd ----------
@@ -2729,6 +2617,13 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+/* The 366-occurrence-cap heads-up (quickadd-3): a quiet amber note appended to
+   the plain-language summary when the picked "Ends" date is actually beyond
+   what the series can materialize. Not an error — the series is still valid,
+   just shorter than the date implies. */
+.repeatfield__truncated {
+  color: var(--amber);
 }
 
 /* The BLACKOUT toggles (Except row) reuse the weekday-toggle shape but paint the
@@ -3441,8 +3336,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    [Swap] or [Pick backup…], a "N% rain" header, and a footer (Switch all / Shift
    day / Dismiss). */
 .cal-rain {
-  width: 320px;
-  max-width: min(320px, 92vw);
+  width: min(320px, calc(100vw - 2 * var(--s-4)));
 }
 .cal-rain__title-glyph {
   width: 16px;
@@ -3798,9 +3692,9 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 
 /* ---- ShiftBar (.cal-shift) — the day-shift / running-long card ----
-   Composes the .cal-popover frame. Delta chips read like the QuickAdd meal
-   chips (selected = the app's chip-on green); the hold pin is the checkbox's
-   own label, so the row stays one quiet line: title · old→new · pin. */
+   Composes the .cal-popover frame. Delta chips use the app's selected-pill
+   vocabulary (selected = the app's chip-on green); the hold pin is the
+   checkbox's own label, so the row stays one quiet line: title · old→new · pin. */
 .cal-shift {
   width: min(340px, calc(100vw - 2 * var(--s-6)));
 }

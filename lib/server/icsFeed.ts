@@ -90,10 +90,14 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
         ? runSheetUrl(input.appBaseUrl, input.feedToken, event.activityId)
         : null;
 
+    const summary = event.title.trim() || "Untitled";
+    const descriptionLines: string[] = [];
+    if (link) descriptionLines.push(`Run sheet: ${link}`);
+
     cal.createEvent({
       id: `${event.id}@camplibrary`,
       sequence: sequenceFromUpdatedAt(event.updatedAt),
-      summary: event.title.trim() || "Untitled",
+      summary,
       ...(timed
         ? {
             start: floatingAt(event.date, event.startMin as number),
@@ -101,7 +105,8 @@ export function buildCalendarFeed(input: CalendarFeedInput): string {
             floating: true,
           }
         : { start: dayAt(event.date), allDay: true }),
-      ...(link ? { url: link, description: `Run sheet: ${link}` } : {}),
+      ...(link ? { url: link } : {}),
+      ...(descriptionLines.length ? { description: descriptionLines.join("\n") } : {}),
       ...(eventLocation ? { location: eventLocation } : {}),
     });
   }

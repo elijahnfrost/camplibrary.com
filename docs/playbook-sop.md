@@ -1,5 +1,14 @@
 # Activity Playbook SOP
 
+> **Stale (2026-07-03 sweep):** the "Editing flow" section below (double-click a
+> stage / "Edit diagram" button) describes an `onRequestEdit` affordance in
+> `ActivityPlaybook.tsx` that no live caller wires up. The actual entry point is
+> the `.rl-diagram--open` button in `components/ActivityRunList.tsx`, which opens
+> `DiagramLightbox` (read) or `DiagramEditModal` (edit) full-screen. The "Revert"
+> command also references `components/AddView.tsx`, which no longer exists
+> (`DetailSheet.tsx` is now the unified create/edit/browse surface). Needs a full
+> rewrite, not a line fix — flagged here rather than guessed at.
+
 ## Current State
 
 Activity playbooks are coach-view field diagrams embedded in an activity's book under

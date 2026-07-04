@@ -116,4 +116,10 @@ describe("buildCalendarFeed", () => {
     });
     expect(ics).toContain("LOCATION:Playground");
   });
+
+  it("uses the event title verbatim as the summary", () => {
+    const ics = buildCalendarFeed({ ...base, events: [event({ title: "Capture the Flag" })] });
+    const body = vevents(ics)[0];
+    expect(body).toContain("SUMMARY:Capture the Flag");
+  });
 });

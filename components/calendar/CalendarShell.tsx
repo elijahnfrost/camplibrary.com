@@ -57,13 +57,6 @@ import {
 } from "@/lib/calendar/time";
 import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
 import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
-import {
-  dietaryBySeverity,
-  menuNoteFor,
-  setMenuNote,
-  type DietaryEntry,
-  type MealsDoc,
-} from "@/lib/meals";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { coverage } from "@/lib/materials";
@@ -77,13 +70,11 @@ import {
 } from "@/lib/calendar/kitConflicts";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import {
-  MEAL_KINDS,
   isDateKey,
   normalizeCalendarEvent,
   type AlternateRef,
   type CalendarEvent,
   type DateKey,
-  type MealKind,
 } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
 import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
@@ -120,9 +111,7 @@ import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
-import { useDialogFocus } from "../useDialogFocus";
-import { useFloatingPosition } from "../floating/useFloatingPosition";
-import { DESKTOP_MIN } from "../useDeviceShape";
+import { hasOpenDialog } from "../useDialogFocus";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarTodayCard } from "./CalendarTodayCard";
 import { CalendarViewSettings } from "./CalendarViewSettings";
@@ -222,23 +211,12 @@ type MenuState =
   // An empty-slot right-click inside a timed day column: one item that opens the
   // day-shift card at the clicked date + minute.
   | { kind: "shift"; date: DateKey; cutoffMin: number; point: { x: number; y: number } };
-// A bulk Color… / Location… / Meal menu item opens its picker cursor-anchored at
-// the same point (the floating-picker pattern), carrying the ids it acts on. The
-// meal picker also carries the current mealKind (single-event retro-tag) so the
-// active row reads as selected; undefined = a mixed/untagged selection.
+// A bulk Color… / Location… menu item opens its picker cursor-anchored at the
+// same point (the floating-picker pattern), carrying the ids it acts on.
 type BulkPickerState =
   | { kind: "color"; ids: string[]; point: { x: number; y: number } }
-  | { kind: "location"; ids: string[]; point: { x: number; y: number } }
-  | { kind: "meal"; ids: string[]; current?: MealKind; point: { x: number; y: number } };
+  | { kind: "location"; ids: string[]; point: { x: number; y: number } };
 
-// The human labels for each meal kind — the retro-tag picker rows + a menu hint.
-const MEAL_KIND_LABELS: Record<MealKind, string> = {
-  breakfast: "Breakfast",
-  "am-snack": "AM snack",
-  lunch: "Lunch",
-  "pm-snack": "PM snack",
-  other: "Meal",
-};
 // A non-undo toast button (label + click). The escalation wave needs a toast to
 // carry MORE than one — "Moved this Tue only · [All] [Following]" — so the toast
 // holds an ordered `actions` array. The legacy single `action` is still accepted
@@ -270,10 +248,6 @@ export type BulkEditChanges = {
   allDay?: boolean;
   dayShift?: number;
   minShift?: number;
-  // Meal tag: presence (`"mealKind" in changes`) means "set this field"; the
-  // value `undefined` clears it (un-tag), a MealKind sets it. Same presence-vs-
-  // clear semantics as `color`.
-  mealKind?: MealKind | undefined;
 };
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -375,10 +349,7 @@ export function CalendarShell({
   onCreateActivity,
   dayWindow,
   activeCamp,
-  meals,
   guides = [],
-  onSetMenuNote,
-  onManageDietary,
   subscribeControl,
   themeOf,
   kitStock = {},
@@ -436,22 +407,9 @@ export function CalendarShell({
    *  when no camp is active, in which case every day uses the classic 8:00–18:00
    *  band and the default 15-min snap (identical to today's behavior). */
   activeCamp: Camp | null;
-  /** The meals sidecar doc: the camp-wide dietary roster + date-keyed menu notes.
-   *  Drives the meal card's dietary badge, the editor's read-only dietary panel,
-   *  and the (date, mealKind) menu-note row. */
-  meals: MealsDoc;
   /** The guidance bands (soft, recurring day-structure frames). Expanded over the
    *  rendered strip into FullCalendar background events. Empty = none drawn. */
   guides?: GuideBand[];
-  /** Write (or clear) one (date, mealKind) menu note on the meals doc — the
-   *  editor's "Menu note" row. Keyed by date + mealKind, NOT stored on the event
-   *  (so regenerating a meal series never erases a season of menus). Absent for
-   *  hosts that don't wire meals. */
-  onSetMenuNote?: (date: DateKey, mealKind: MealKind, text: string) => void;
-  /** Open the dietary roster manager (the camp manager's Dietary section) — the
-   *  "Manage…" link on a meal editor's dietary panel. Absent for hosts without
-   *  meals. */
-  onManageDietary?: () => void;
   /** The camp-scoped Subscribe / .ics feed control, composed by CampApp (where
    *  the camp data lives). It lives in the sidebar rail (a "Subscribe" section
    *  beside View settings) on desktop and in the mobile View-settings sheet — NOT
@@ -724,12 +682,11 @@ export function CalendarShell({
   const commitThisEditRef = useRef<
     (existing: CalendarEvent, next: CalendarEvent, verb: string) => void
   >(() => {});
-  // Same deal for the editor-save "following" (rule changed/cleared) commit and the
-  // instant "skip this day" delete — saveDraft / deleteEvent sit above their
-  // declarations, so they invoke through refs kept fresh once the callbacks exist.
-  const commitFollowingEditRef = useRef<
-    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => void
-  >(() => {});
+  // Same deal for the instant "skip this day" delete — deleteEvent sits above
+  // its declaration, so it invokes through a ref kept fresh once the callback
+  // exists. (The editor-save rule-changed path no longer auto-commits — it
+  // opens scopePrompt instead, and the dialog's onPick calls commitScopedEdit
+  // directly once it's declared, so no ref indirection is needed there.)
   const commitSkipThisRef = useRef<(event: CalendarEvent) => void>(() => {});
   // The weather detail card (click an hour chip or a day-header summary). Mutually
   // exclusive with the event menu (an effect below closes it whenever one
@@ -1117,7 +1074,7 @@ export function CalendarShell({
           display: "background",
           classNames: ["cal-band"],
           title: band.label,
-          extendedProps: { bgKind: "band", mealKind: band.mealKind },
+          extendedProps: { bgKind: "band" },
         });
       }
     }
@@ -1166,11 +1123,17 @@ export function CalendarShell({
           const glyph: AlternatesGlyph | undefined = resolved.length
             ? { rain: hasRainAlternate(resolved), count: resolved.length }
             : undefined;
-          return toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id], glyph);
+          // camps-2/J2: this event is "shared" (shows under every camp) when a
+          // camp IS active and the event doesn't belong to it — the only way an
+          // event reaches here at all with a camp active is via useCamps.filter-
+          // Events, which already lets through exactly the active camp's own
+          // events plus unscoped/dangling ones, so a plain id mismatch is enough.
+          const shared = Boolean(activeCamp) && event.campId !== activeCamp?.id;
+          return toFcEvent(event, byId, themeOf, colorMode, locationColors, legLabels[event.id], glyph, shared);
         }),
       ...bgEvents,
     ],
-    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents]
+    [healedEvents, idsInAStop, byId, themeOf, colorMode, locationColors, activeView, legLabels, bgEvents, activeCamp]
   );
 
   const scrollTime = useMemo(() => {
@@ -1578,17 +1541,12 @@ export function CalendarShell({
   // whole series is one batch write, so a single Undo removes it.
   const createSeries = useCallback(
     (draft: EditorDraft, rule: RecurrenceRule, existing?: CalendarEvent) => {
-      // buildTemplate carries pinned (a template field); mealKind is NOT a
-      // SeriesTemplate field, so a meal series materializes it by post-processing
-      // the built occurrences below — this keeps the recurrence module untouched
-      // while every row of a meal series still carries its tag. (mealKind is
-      // allowlisted in normalizeCalendarEvent + CUSTOMIZABLE_FIELDS, so it round-
-      // trips and a later this/following/all edit preserves it like any field.)
+      // buildTemplate carries pinned (a template field).
       const template = buildTemplate(draft, existing?.campId, draft.pinned);
       const seriesId = crypto.randomUUID();
       const anchorId = draft.id ?? crypto.randomUUID();
       const dates = recurrenceDates(draft.date, rule);
-      let occurrences = buildSeriesEvents(
+      const occurrences = buildSeriesEvents(
         template,
         dates,
         seriesId,
@@ -1597,10 +1555,6 @@ export function CalendarShell({
         draft.date,
         anchorId
       );
-      if (draft.mealKind) {
-        const mealKind = draft.mealKind;
-        occurrences = occurrences.map((occurrence) => ({ ...occurrence, mealKind }));
-      }
       upsertEvents(occurrences);
       setSheet(null);
       announce("Added repeating " + template.title);
@@ -1687,27 +1641,31 @@ export function CalendarShell({
       else delete event.locations;
       if (draft.note) event.note = draft.note;
       else delete event.note;
-      // Meal tag + pin ride the draft (seeded by a meal preset chip on create, or
-      // carried off the edited row): the draft's value wins, including a clear. A
-      // meal preset chip is the ONLY create path that sets these; a plain edit
-      // carries them through unchanged (draftFromEvent seeds them off the event).
-      if (draft.mealKind) event.mealKind = draft.mealKind;
-      else delete event.mealKind;
+      // Pin rides the draft (carried off the edited row): the draft's value wins,
+      // including a clear. A plain edit carries it through unchanged (draftFromEvent
+      // seeds it off the event).
       if (draft.pinned) event.pinned = true;
       else delete event.pinned;
 
-      // Editing an event that ALREADY belongs to a series: commit at an instant
-      // default scope (no this/following/all dialog). Rule UNTOUCHED → "this" (a
-      // per-occurrence exception via commitThisEdit, with an escalation toast).
-      // Rule CHANGED or CLEARED → "following" (collapsing to "all" at the anchor)
-      // via commitFollowingEdit. The pattern the editor stages rides on the draft.
+      // Editing an event that ALREADY belongs to a series. Rule UNTOUCHED → an
+      // instant "this" commit (a per-occurrence exception via commitThisEdit,
+      // with an escalation toast) — "this" already has its own well-understood
+      // instant path, so no dialog for a plain field edit. Rule CHANGED or
+      // CLEARED → ASK the scope via SeriesScopeDialog (quickadd-1/2: this used
+      // to silently auto-pick "following" with zero visibility into what
+      // "following" vs "all" actually means before committing; now the user
+      // picks, same as the "Delete entire series…" safety hatch already does).
       if (existing?.seriesId) {
         if (rulesEqual(existing.recurrence, draft.recurrence)) {
           // Keep the series fields on the this-edit row (planOccurrenceEdit reads
           // the target's own rule; the patched `event` carries them via the spread).
           commitThisEditRef.current(existing, event, draft.id ? "Updated" : "Moved");
         } else {
-          commitFollowingEditRef.current({ mode: "edit", event: existing, draft });
+          // Close the editor sheet first — the scope dialog is a decision on
+          // TOP of the edit, never stacked alongside it (pattern 2's "never two
+          // stacked modals" contract).
+          setSheet(null);
+          setScopePrompt({ mode: "edit", event: existing, draft });
         }
         return;
       }
@@ -1969,14 +1927,6 @@ export function CalendarShell({
           }
           touchedFields.push("allDay", "startMin", "endMin");
         }
-        // Meal tag: set a MealKind, or clear it (un-tag). Rides the same presence-
-        // vs-clear rule as color — "mealKind" in changes means "this edit touches
-        // the field", and the value decides set vs clear.
-        if ("mealKind" in changes) {
-          if (changes.mealKind) next.mealKind = changes.mealKind;
-          else delete next.mealKind;
-          touchedFields.push("mealKind");
-        }
         // A date/time shift rides last so it composes with an all-day change.
         if (shift) {
           next = applyMoveDelta(next, shift, snap);
@@ -2007,6 +1957,38 @@ export function CalendarShell({
       });
     },
     [announce, byId, commitEvents, events, requireStaff, showToast, snap]
+  );
+
+  // camps-2/J2: "Claim into <active camp>" — stamps campId onto every SHARED
+  // (unscoped/dangling) event in the selection, one undoable commit. Only ever
+  // offered when a camp is active (the context-menu items below gate on it);
+  // events already belonging to a DIFFERENT camp are left untouched (claiming is
+  // additive, never a forced re-assignment away from another camp).
+  const claimIntoActiveCamp = useCallback(
+    (ids: string[]) => {
+      if (!activeCamp) return;
+      if (!requireStaff("change the calendar")) return;
+      const before: CalendarEvent[] = [];
+      const after: CalendarEvent[] = [];
+      for (const id of ids) {
+        const live = events[id];
+        if (!live) continue;
+        const original = healEvent(live, byId);
+        if (original.campId) continue; // already scoped to a camp — leave it.
+        before.push(original);
+        after.push({ ...original, campId: activeCamp.id, updatedAt: Date.now() });
+      }
+      if (!after.length) return;
+      commitEvents(after, []);
+      const count = after.length;
+      const label = "Claimed " + count + (count === 1 ? " event" : " events") + " into " + activeCamp.name;
+      announce(label);
+      showToast({
+        message: label,
+        onUndo: () => commitEvents(before, []),
+      });
+    },
+    [activeCamp, announce, byId, commitEvents, events, requireStaff, showToast]
   );
 
   // Swap a placement to one of its backup plans — the single self-inverse promote,
@@ -2281,19 +2263,24 @@ export function CalendarShell({
     commitThisEditRef.current = commitThisEdit;
   }, [commitThisEdit]);
 
-  // Commit an editor save whose RULE CHANGED at "following" (collapsing to "all"
-  // when the edited row is the series anchor = earliest). Toast: "Updated from here
-  // on" + [Whole series]. The rule-CLEARED case keeps the same planner branch
-  // (planSeriesEdit with rule undefined) at "following".
-  const commitFollowingEdit = useCallback(
-    (prompt: Extract<ScopePrompt, { mode: "edit" }>) => {
+  // Commit an editor save whose RULE CHANGED, at an EXPLICIT scope the user
+  // picked from SeriesScopeDialog (quickadd-1/2: this used to auto-pick
+  // "following" with no dialog — see saveDraft below, which now opens the
+  // dialog instead of calling this directly). Still collapses "following" to
+  // "all" when the edited row is the series anchor (its "following" span
+  // already covers the whole series, and "all" reads cleaner) — the dialog
+  // only offers "following"/"all" ("this" has its own instant unchanged-rule
+  // path in saveDraft), so this collapse just picks the cleaner of the two
+  // when they're equivalent. Toast: "Updated from here on" + [Whole series].
+  // The rule-CLEARED case keeps the same planner branch (planSeriesEdit with
+  // rule undefined) at whichever scope was picked/collapsed to.
+  const commitScopedEdit = useCallback(
+    (prompt: Extract<ScopePrompt, { mode: "edit" }>, pickedScope: SeriesScope) => {
       const seriesId = prompt.event.seriesId;
       if (!seriesId) return;
       const snapshot = eventsInSeries(events, seriesId);
-      // Collapse "following" to "all" when the edited row is the earliest (its
-      // "following" span already covers the whole series, and "all" reads cleaner).
       const isAnchor = snapshot.length > 0 && snapshot[0].id === prompt.event.id;
-      const scope: SeriesScope = isAnchor ? "all" : "following";
+      const scope: SeriesScope = isAnchor ? "all" : pickedScope;
       const template = buildTemplate(prompt.draft, prompt.event.campId, prompt.event.pinned);
       const plan = planSeriesEdit(
         snapshot,
@@ -2347,9 +2334,6 @@ export function CalendarShell({
     },
     [announce, buildTemplate, commitEvents, escalateSeries, events, showToast]
   );
-  useEffect(() => {
-    commitFollowingEditRef.current = commitFollowingEdit;
-  }, [commitFollowingEdit]);
 
   // Commit an instant "skip this day" delete of a series member (planSeriesSkip,
   // a durable exdate). Toast: "Skipped this day" + [Delete following] [Delete all].
@@ -2558,9 +2542,9 @@ export function CalendarShell({
       const dayEvents = healedEvents.filter((e) => e.date === event.date);
       const free = nextFreeStartForDay(dayEvents, Math.max(duration, 1), event.endMin, window_);
       const startMin = free ?? event.startMin;
-      // The clone shares identity (title/activityId/kind/color/locations/mealKind/
-      // pinned) but NOT seriesId/recurrence/custom/origDate/note — a fresh one-off
-      // leg. It carries the shared linkId.
+      // The clone shares identity (title/activityId/kind/color/locations/pinned)
+      // but NOT seriesId/recurrence/custom/origDate/note — a fresh one-off leg. It
+      // carries the shared linkId.
       const clone: CalendarEvent = {
         id: crypto.randomUUID(),
         date: event.date,
@@ -2575,7 +2559,6 @@ export function CalendarShell({
       if (event.campId) clone.campId = event.campId;
       if (event.color) clone.color = event.color;
       if (event.locations?.length) clone.locations = [...event.locations];
-      if (event.mealKind) clone.mealKind = event.mealKind;
       if (event.pinned) clone.pinned = true;
       if (event.allDay) clone.allDay = true;
 
@@ -2741,73 +2724,6 @@ export function CalendarShell({
       pickTime: true,
     });
   }, [requireStaff]);
-
-  // Tap a meal preset chip → PRE-FILL the editor (no instant commit): title, meal
-  // tag, pinned intent (a meal holds its slot on a day-shift), a sensible span
-  // clamped into the day's visible window, and a Mon–Fri weekly repeat defaulting
-  // until +8 weeks. The operator reviews the draft and hits the normal commit.
-  const applyMealPreset = useCallback(
-    (kind: MealKind, defaultStart: number, defaultLen: number) => {
-      if (!requireStaff("plan the calendar")) return;
-      const date = focusDateRef.current;
-      // Clamp the span into the day window so a preset never seeds off-grid /
-      // outside the drawn day (the window auto-extends around events elsewhere).
-      const win = resolveDayWindow(activeCamp, date) ?? window_;
-      const start = snapMinutes(Math.max(win.startMin, Math.min(defaultStart, win.endMin - defaultLen)), snap);
-      const end = Math.min(win.endMin, start + defaultLen);
-      const until = addDays(date, 7 * 8); // +8 weeks
-      const rule: RecurrenceRule = { freq: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], until };
-      setSheet({
-        draft: {
-          date,
-          startMin: start,
-          durationMin: Math.max(snap, end - start),
-          allDay: false,
-          title: MEAL_KIND_LABELS[kind],
-          explicitDuration: true,
-          mealKind: kind,
-          pinned: true,
-          recurrence: rule,
-        },
-        pickTime: true,
-      });
-    },
-    [requireStaff, activeCamp, window_, snap]
-  );
-
-  // The meal preset chips shown in QuickAdd's create empty state, plus — per chip
-  // — a count of same-titled UNTAGGED events already on the calendar so the editor
-  // can offer to tag those instead of double-booking. Only surfaced when meals are
-  // wired (onSetMenuNote present). Each chip's onApply pre-fills; onTagExisting
-  // runs the retro-tag bulk over the untagged matches.
-  const mealPresets = useMemo(() => {
-    if (!onSetMenuNote) return undefined;
-    const specs: { kind: MealKind; start: number; len: number }[] = [
-      { kind: "lunch", start: 12 * 60, len: 30 },
-      { kind: "am-snack", start: 10 * 60, len: 15 },
-      { kind: "pm-snack", start: 15 * 60, len: 15 },
-    ];
-    return specs.map((spec) => {
-      const label = MEAL_KIND_LABELS[spec.kind];
-      const lower = label.toLowerCase();
-      const untaggedIds = healedEvents
-        .filter((event) => !event.mealKind && event.title.trim().toLowerCase() === lower)
-        .map((event) => event.id);
-      return {
-        kind: spec.kind,
-        label,
-        existingUntagged: untaggedIds.length,
-        onApply: () => applyMealPreset(spec.kind, spec.start, spec.len),
-        onTagExisting: () => {
-          setSheet(null);
-          applyBulkEdit(untaggedIds, { mealKind: spec.kind });
-        },
-      };
-    });
-    // applyBulkEdit is stable enough (it's a useCallback); listing healedEvents +
-    // applyMealPreset keeps the counts + handlers fresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onSetMenuNote, healedEvents, applyMealPreset, applyBulkEdit]);
 
   // --- FullCalendar callbacks -------------------------------------------
 
@@ -3574,20 +3490,6 @@ export function CalendarShell({
     [announce, byId, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_, snap]
   );
 
-  // The dietary roster sorted for display (severe first) and the count of SEVERE
-  // (anaphylaxis / medical) entries. A meal card wears a compact red count badge
-  // when any severe entry exists, so the highest-stakes constraints are never
-  // buried behind a meal. Read live through a ref inside renderEventContent (a
-  // stable FC-memo callback); severeDietaryCount re-arms the memo only when the
-  // number actually changes, not on every meals-doc touch.
-  const dietarySorted = useMemo(() => dietaryBySeverity(meals), [meals]);
-  const severeDietaryCount = useMemo(
-    () => dietarySorted.filter((entry) => entry.severity === "severe").length,
-    [dietarySorted]
-  );
-  const severeDietaryCountRef = useRef(severeDietaryCount);
-  severeDietaryCountRef.current = severeDietaryCount;
-
   // Tint flows through a CSS variable so the stylesheet can mix it with paper.
   const onEventDidMount = useCallback((info: EventMountArg) => {
     // Background events (guidance bands + closed-day shading) are non-interactive:
@@ -3648,23 +3550,21 @@ export function CalendarShell({
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
-    // A meal block wears a small, quiet meal glyph beside the pin/repeat glyphs
-    // (threaded via extendedProps.mealKind by the adapter). When the camp has any
-    // SEVERE dietary constraint on file, meal cards ALSO show a compact red count
-    // badge — a persistent reminder to check the roster before serving. The count
-    // is read live through a ref so this stays a stable FC-memo callback.
-    const isMeal = typeof arg.event.extendedProps.mealKind === "string";
-    const severeCount = severeDietaryCountRef.current;
-    const dietaryBadge =
-      isMeal && severeCount > 0 ? (
-        <span
-          className="cal-card__diet"
-          title={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s") + " on file"}
-          aria-label={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s")}
-        >
-          <span aria-hidden="true">⚠</span> {severeCount}
-        </span>
-      ) : null;
+    // camps-2/J2: a small neutral "shared" badge on any event that shows under
+    // EVERY camp (no campId of its own) while a specific camp is active — so
+    // switching camps reads as "most of the calendar predates camps" rather
+    // than "the switcher does nothing." Quiet by design (a plain glyph, no
+    // color), distinct from the backup badge which carries real signal.
+    const shared = arg.event.extendedProps.shared === true;
+    const sharedBadge = shared ? (
+      <span
+        className="cal-card__shared"
+        title="Shown under every camp (not assigned to one)"
+        aria-label="Shared across every camp"
+      >
+        <CampIcon.Users />
+      </span>
+    ) : null;
     // Where the block happens (gym, field…), shown under the time on taller
     // cards. The card is a size container, so a short block simply clips it.
     const locationText = arg.event.extendedProps.location;
@@ -3711,9 +3611,8 @@ export function CalendarShell({
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
           {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
-          {isMeal && <MealGlyph className="cal-chip__meal" />}
-          {dietaryBadge}
           {altBadge}
+          {sharedBadge}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
           {repeats && <CampIcon.Repeat className="cal-chip__repeat" />}
           {customized && <EditedTickGlyph className="cal-chip__edited" />}
@@ -3733,9 +3632,8 @@ export function CalendarShell({
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
           {legLabel && <span className="cal-card__leg">{legLabel}</span>}
-          {isMeal && <MealGlyph className="cal-card__meal" />}
-          {dietaryBadge}
           {altBadge}
+          {sharedBadge}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
           {repeats && <CampIcon.Repeat className="cal-card__repeat" />}
           {customized && <EditedTickGlyph className="cal-card__edited" />}
@@ -3749,10 +3647,9 @@ export function CalendarShell({
         )}
       </div>
     );
-    // severeDietaryCount is read live via the ref; the value is a dep only so the
-    // FC memo re-arms (and meal badges repaint) when the count actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [severeDietaryCount]);
+    // Stable: the callback reads only per-event extendedProps and module-level
+    // glyphs, so it never needs to re-arm on a state change.
+  }, []);
 
   // Paint the multi-selection onto FullCalendar's (non-React) event DOM. The
   // cards aren't ours to render a className onto, so — like the contextmenu id
@@ -4781,6 +4678,12 @@ export function CalendarShell({
     if (!selection.size || menu || sheet || scopePrompt || settingsOpen || bulkPicker) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== "Escape") return;
+      // A dialog opened OUTSIDE this shell's own local state (e.g. the run-sheet
+      // modal opened from an event, tracked in CampApp) can leave a stray 1-item
+      // selection alive underneath it. Without this bail this capture-phase
+      // listener still fires first and eats the Escape meant for that dialog's
+      // useDialogFocus stack.
+      if (hasOpenDialog()) return;
       event.preventDefault();
       clearSelection();
     };
@@ -4979,6 +4882,7 @@ export function CalendarShell({
                       onWeekStart={setWeekStart}
                       onChangeView={changeView}
                       onOpenCamps={onOpenCamps}
+                      subscribeControl={subscribeControl}
                     />
                   </div>
                 )}
@@ -5015,14 +4919,6 @@ export function CalendarShell({
                   </div>
                 )}
               </div>
-              {/* Subscribe (the .ics feed control) sits below the View / Weather
-                  sections — it's camp-scoped, so it belongs beside the settings,
-                  not in the header. Only renders when CampApp wires it (signed-in). */}
-              {subscribeControl && (
-                <div className="sidesection sidesection--fixed cal-subscribe">
-                  {subscribeControl}
-                </div>
-              )}
             </>,
             railSlot
           )}
@@ -5040,6 +4936,19 @@ export function CalendarShell({
 
       {sheet && (
         <QuickAdd
+          // quickadd-11: QuickAdd's local state (query/date/recurrence/
+          // etc.) is seeded ONLY via useState initializers from `draft` at mount,
+          // with no reset-on-prop-change effect. Without a key, if `sheet` were
+          // ever replaced from one non-null draft straight to a different
+          // non-null draft (no intervening null), React would reuse the mounted
+          // instance and keep the STALE draft's state. Every current call site
+          // happens to route through a null transition first, so this "worked",
+          // but nothing in QuickAdd itself guarded against it. Keying the mount
+          // on the draft's identity (its id, or "new" while creating) forces a
+          // clean remount — and a fresh useState seed — on every distinct sheet,
+          // the idiomatic React reset-on-remount fix, simpler than adding a
+          // parallel reset-effect that would have to shadow every field.
+          key={sheet.draft.id ?? "new"}
           draft={sheet.draft}
           pickTime={sheet.pickTime}
           activities={activities}
@@ -5049,10 +4958,6 @@ export function CalendarShell({
           byId={byId}
           window={window_}
           snap={snap}
-          meals={meals}
-          mealPresets={mealPresets}
-          onSetMenuNote={onSetMenuNote}
-          onManageDietary={onManageDietary}
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
@@ -5063,6 +4968,24 @@ export function CalendarShell({
               ? () => {
                   const existing = events[sheet.draft.id as string];
                   if (existing) deleteEvent(existing);
+                }
+              : undefined
+          }
+          // quickadd-2: Delete on a series member only skips THIS day (instant,
+          // with a toast escalation) — a staffer who opened the sheet SPECIFICALLY
+          // to delete the whole series had no way to do that without closing the
+          // sheet and right-clicking. This mirrors the context menu's "Delete
+          // entire series…" safety hatch exactly (same scopePrompt, same dialog),
+          // just reachable from the touch/edit surface too. Only rendered for an
+          // existing series member.
+          onDeleteSeries={
+            sheet.draft.id && events[sheet.draft.id]?.seriesId
+              ? () => {
+                  const existing = events[sheet.draft.id as string];
+                  if (!existing) return;
+                  if (!requireStaff("change the calendar")) return;
+                  setSheet(null);
+                  setScopePrompt({ mode: "delete", event: existing });
                 }
               : undefined
           }
@@ -5232,6 +5155,7 @@ export function CalendarShell({
                 setSettingsOpen(false);
                 onOpenCamps();
               }}
+              subscribeControl={subscribeControl}
             />
             <h3 className="calset__sheettitle">Weather</h3>
             <WeatherSettings
@@ -5251,14 +5175,6 @@ export function CalendarShell({
               weatherStatus={weatherStatus}
               weatherCoverage={weatherCoverage}
             />
-            {/* Subscribe / .ics feed — the same rail-only control, in the mobile
-                sheet (the header carries no camp actions on any viewport now). */}
-            {subscribeControl && (
-              <>
-                <h3 className="calset__sheettitle">Subscribe</h3>
-                <div className="calset__subscribe">{subscribeControl}</div>
-              </>
-            )}
           </div>
         </Modal>
       )}
@@ -5406,6 +5322,21 @@ export function CalendarShell({
                     setSheet({ draft: draftFromEvent(ev), pickTime: true });
                   },
                 },
+                // camps-2/J2: only offered when a camp IS active and this event
+                // is one of the "shared" ones (no campId of its own) — claiming
+                // moves it out of every-camp visibility into just this one.
+                ...(activeCamp && !ev.campId
+                  ? [
+                      {
+                        label: "Claim into " + activeCamp.name,
+                        icon: <CampIcon.Home />,
+                        onSelect: () => {
+                          setMenu(null);
+                          claimIntoActiveCamp([ev.id]);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   // The right-click way into recurrence: opens the editor where the
                   // Repeat control lives (reads "Edit repeat…" once a rule is set).
@@ -5455,20 +5386,6 @@ export function CalendarShell({
                       },
                     ]
                   : []),
-                // Retro-tag as a meal — opens the meal-kind picker at the cursor
-                // (ContextMenu has no nested submenu, so this is a secondary
-                // FloatingLayer). Writes mealKind via applyBulkEdit([id], …) so a
-                // series member's tag is a durable this-edit. Reads "Change meal…"
-                // once tagged.
-                {
-                  label: ev.mealKind ? "Change meal…" : "Mark as meal…",
-                  icon: <MealGlyph />,
-                  onSelect: () => {
-                    if (!requireStaff("change the calendar")) return;
-                    setMenu(null);
-                    setBulkPicker({ kind: "meal", ids: [ev.id], current: ev.mealKind, point });
-                  },
-                },
                 // Split days — "Add second run today" clones this event's identity
                 // onto the next free slot of the same day, sharing a fresh linkId so
                 // the two read as legs of one unit (rule 8). Timed events only.
@@ -5619,12 +5536,36 @@ export function CalendarShell({
           // If EVERY selected event is already all-day, the toggle offers "Timed";
           // otherwise it offers "All day" (so a mixed set lands all-day first).
           const allAreAllDay = ids.every((id) => events[id]?.allDay);
+          // camps-2/J2: how many of the selected events are "shared" (no campId
+          // of their own) — the claim action only ever touches those, and is
+          // hidden entirely when none of the selection qualifies.
+          const claimableCount = activeCamp
+            ? ids.filter((id) => events[id] && !events[id].campId).length
+            : 0;
           return (
             <ContextMenu
               point={point}
               ariaLabel={count + " selected " + noun}
               onClose={() => setMenu(null)}
               items={[
+                ...(activeCamp && claimableCount > 0
+                  ? [
+                      {
+                        label:
+                          "Claim " +
+                          claimableCount +
+                          " " +
+                          (claimableCount === 1 ? "event" : "events") +
+                          " into " +
+                          activeCamp.name,
+                        icon: <CampIcon.Home />,
+                        onSelect: () => {
+                          setMenu(null);
+                          claimIntoActiveCamp(ids);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   label: "Color…",
                   icon: <CampIcon.Palette />,
@@ -5639,17 +5580,6 @@ export function CalendarShell({
                   onSelect: () => {
                     if (!requireStaff("change the calendar")) return;
                     setBulkPicker({ kind: "location", ids, point });
-                  },
-                },
-                {
-                  // Bulk retro-tag the whole selection as a meal (or clear it) —
-                  // opens the same meal-kind picker; no single "current" tag across
-                  // a heterogeneous set, so nothing reads as preselected.
-                  label: "Mark as meal…",
-                  icon: <MealGlyph />,
-                  onSelect: () => {
-                    if (!requireStaff("change the calendar")) return;
-                    setBulkPicker({ kind: "meal", ids, point });
                   },
                 },
                 {
@@ -5726,55 +5656,6 @@ export function CalendarShell({
           />
         </FloatingLayer>
       )}
-      {/* "Mark as meal" — the retro-tag picker (single event OR a multi-select).
-          Tapping a kind writes mealKind through applyBulkEdit, which respects
-          series stamping (applyCustomStamp) exactly like the other bulk edits, so
-          tagging one occurrence of a repeating meal is a durable this-edit. "Not a
-          meal" clears the tag. NEVER creates events — it only tags the ones
-          already on the calendar. */}
-      {bulkPicker?.kind === "meal" && (
-        <FloatingLayer
-          anchor={{ kind: "point", x: bulkPicker.point.x, y: bulkPicker.point.y }}
-          onClose={() => setBulkPicker(null)}
-          className="typepick__menu cselect__menu cal-mealpick"
-          role="listbox"
-          ariaLabel="Mark as meal"
-        >
-          {MEAL_KINDS.map((kind) => {
-            const on = bulkPicker.current === kind;
-            return (
-              <button
-                type="button"
-                key={kind}
-                className={"cselect__option" + (on ? " is-selected" : "")}
-                role="option"
-                aria-selected={on}
-                onClick={() => {
-                  applyBulkEdit(bulkPicker.ids, { mealKind: kind });
-                  setBulkPicker(null);
-                }}
-              >
-                <MealGlyph className="cal-mealpick__glyph" />
-                <span className="cselect__optlabel">{MEAL_KIND_LABELS[kind]}</span>
-                {on && <CampIcon.Check className="cselect__optcheck" />}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            className="cselect__option cal-mealpick__clear"
-            role="option"
-            aria-selected={false}
-            onClick={() => {
-              applyBulkEdit(bulkPicker.ids, { mealKind: undefined });
-              setBulkPicker(null);
-            }}
-          >
-            <span className="cselect__optlabel">Not a meal</span>
-          </button>
-        </FloatingLayer>
-      )}
-
       {/* "Swap to backup ▸" — the placement's resolved alternates as a picker.
           Re-derives the live event + list at render so a concurrent edit can't act
           on a stale row; tapping a row runs the self-inverse promoteBackup. */}
@@ -5847,16 +5728,28 @@ export function CalendarShell({
           );
         })()}
 
-      {/* The scope dialog survives ONLY as the deliberate "Delete entire series…"
-          safety hatch (a right-click item): its instant paths cover this/following/
-          all everywhere else. Delete-mode, following/all only ("this" has its own
-          instant skip). */}
+      {/* The scope dialog: the deliberate "Delete entire series…" safety hatch
+          (a right-click item — its instant skip-this-day path covers "this"
+          everywhere else), AND (quickadd-1/2) the editor's save when a series
+          member's REPEAT RULE changed or cleared — an unchanged rule still
+          commits instantly as "this" (see saveDraft), but a changed rule now
+          asks rather than silently auto-picking "following". Both modes offer
+          following/all only ("this" has its own instant path in each case). */}
       {scopePrompt?.mode === "delete" && (
         <SeriesScopeDialog
           action="delete"
           title={scopePrompt.event.title}
           scopes={["following", "all"]}
           onPick={(scope) => commitSeriesDelete(scopePrompt.event, scope)}
+          onClose={() => setScopePrompt(null)}
+        />
+      )}
+      {scopePrompt?.mode === "edit" && (
+        <SeriesScopeDialog
+          action="edit"
+          title={scopePrompt.event.title}
+          scopes={["following", "all"]}
+          onPick={(scope) => commitScopedEdit(scopePrompt, scope)}
           onClose={() => setScopePrompt(null)}
         />
       )}
@@ -5957,18 +5850,6 @@ function KitGlyph({ className }: { className?: string }) {
       <path d="M4 9h16l-1.2 9.5a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9L4 9z" />
       <path d="M8.5 9 12 4.5 15.5 9" />
       <path d="M9.5 12.5v3.5M14.5 12.5v3.5" />
-    </svg>
-  );
-}
-
-// A meal block's card glyph — a small fork + spoon, so a lunch/snack event reads
-// as a meal at a glance. Inlined on the icon set's 24×24 stroke grid (icons.tsx
-// is owned elsewhere), tone from the card's own color like the pin/repeat glyphs.
-function MealGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
-      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
     </svg>
   );
 }
@@ -6105,28 +5986,6 @@ function GatherPopover({
   onMarkPlenty?: (id: string, label: string) => void;
   onClose: () => void;
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
-
-  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
-  // through FullCalendar re-renders (same as the weather / stop cards).
-  useEffect(() => {
-    if (docked) return;
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.removeEventListener("resize", onClose);
-    };
-  }, [docked, onClose]);
-
   // A short "10:00 Parachute Games" label for an event in a conflict, in the
   // blocks' own order (dayKit already sorts eventIds chronologically).
   const eventLabel = (id: string): string => {
@@ -6136,76 +5995,62 @@ function GatherPopover({
   };
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-gather"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={"Gather — " + formatEventDateLabel(date)}
-        tabIndex={-1}
-      >
-        <div className="cal-popover__head">
-          <div className="cal-popover__heading">
-            <h3 className="cal-popover__title">Gather</h3>
-            <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
+    <FloatingLayer
+      anchor={{ kind: "rect", rect: anchor }}
+      onClose={onClose}
+      className="cal-popover cal-gather"
+      role="dialog"
+      ariaLabel={"Gather — " + formatEventDateLabel(date)}
+    >
+      <div className="cal-popover__head">
+        <div className="cal-popover__heading">
+          <h3 className="cal-popover__title">Gather</h3>
+          <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
         </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
+      </div>
 
-        {day.hardConflicts.length > 0 && (
-          <ul className="cal-gather__conflicts">
-            {day.hardConflicts.map((conflict) => (
-              <li key={conflict.id} className="cal-gather__conflict">
-                <div className="cal-gather__conflict-body">
-                  <span className="cal-gather__conflict-title">
-                    {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
-                  </span>
-                  <span className="cal-gather__conflict-blocks">
-                    {conflict.eventIds.map(eventLabel).join(" · ")}
-                  </span>
-                </div>
-                {canEdit && onMarkPlenty && (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-gather__plenty"
-                    onClick={() => onMarkPlenty(conflict.id, conflict.label)}
-                  >
-                    We have several
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <ul className="cal-gather__list">
-          {day.items.map((item) => (
-            <GatherRow
-              key={item.id}
-              item={item}
-              catalog={catalog}
-              canEdit={canEdit}
-              current={stock[item.id]}
-              onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
-            />
+      {day.hardConflicts.length > 0 && (
+        <ul className="cal-gather__conflicts">
+          {day.hardConflicts.map((conflict) => (
+            <li key={conflict.id} className="cal-gather__conflict">
+              <div className="cal-gather__conflict-body">
+                <span className="cal-gather__conflict-title">
+                  {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
+                </span>
+                <span className="cal-gather__conflict-blocks">
+                  {conflict.eventIds.map(eventLabel).join(" · ")}
+                </span>
+              </div>
+              {canEdit && onMarkPlenty && (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-gather__plenty"
+                  onClick={() => onMarkPlenty(conflict.id, conflict.label)}
+                >
+                  We have several
+                </button>
+              )}
+            </li>
           ))}
         </ul>
-      </div>
-    </div>
+      )}
+
+      <ul className="cal-gather__list">
+        {day.items.map((item) => (
+          <GatherRow
+            key={item.id}
+            item={item}
+            catalog={catalog}
+            canEdit={canEdit}
+            current={stock[item.id]}
+            onCycle={onCycleStock ? () => onCycleStock(item.id, stock[item.id]) : undefined}
+          />
+        ))}
+      </ul>
+    </FloatingLayer>
   );
 }
 
@@ -6361,148 +6206,113 @@ function RainPanel({
   stock: Record<string, StockState>;
   catalog?: Material[];
 }) {
-  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const footRef = useRef<HTMLDivElement | null>(null);
   // The row whose "Pick backup…" picker is open (an event id), plus the ranked
   // library suggestions — computed lazily when a picker opens.
   const [picking, setPicking] = useState<string | null>(null);
 
-  const docked = typeof window !== "undefined" && window.innerWidth < DESKTOP_MIN;
-  const position = useFloatingPosition({ kind: "rect", rect: anchor }, cardRef, docked);
-
-  // Anchored to a grid chip — a scroll detaches it, so close rather than chase it
-  // (same as the weather / gather cards). The inner picker's scroll is excluded.
-  useEffect(() => {
-    if (docked) return;
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Node && cardRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("scroll", onScroll, { capture: true });
-      window.removeEventListener("resize", onClose);
-    };
-  }, [docked, onClose]);
-
   const switchableCount = plan.rows.filter((r) => r.alternates.length).length;
 
   return (
-    <div className="cal-popover-root">
-      <button type="button" className="cal-popover__scrim" aria-label="Close" onClick={onClose} />
-      <div
-        ref={(node) => {
-          dialogRef.current = node;
-          cardRef.current = node;
-        }}
-        className="cal-popover cal-rain"
-        style={
-          docked
-            ? undefined
-            : position
-              ? { left: position.left, top: position.top, visibility: "visible" }
-              : { left: 0, top: 0, visibility: "hidden" }
-        }
-        role="dialog"
-        aria-modal="true"
-        aria-label={"Rain review — " + formatEventDateLabel(date)}
-        tabIndex={-1}
-      >
-        <div className="cal-popover__head">
-          <div className="cal-popover__heading">
-            <h3 className="cal-popover__title">
-              <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
-              {Math.round(plan.probMax)}% rain
-            </h3>
-            <p className="cal-popover__when">
-              {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
-              {plan.rows.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <CampIcon.Close />
-          </button>
+    <FloatingLayer
+      anchor={{ kind: "rect", rect: anchor }}
+      onClose={onClose}
+      className="cal-popover cal-rain"
+      role="dialog"
+      ariaLabel={"Rain review — " + formatEventDateLabel(date)}
+    >
+      <div className="cal-popover__head">
+        <div className="cal-popover__heading">
+          <h3 className="cal-popover__title">
+            <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
+            {Math.round(plan.probMax)}% rain
+          </h3>
+          <p className="cal-popover__when">
+            {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
+            {plan.rows.length === 1 ? "" : "s"}
+          </p>
         </div>
-
-        <ul className="cal-rain__list">
-          {plan.rows.map((row) => {
-            const hasBackup = row.alternates.length > 0;
-            const first = row.alternates[0];
-            return (
-              <li key={row.event.id} className="cal-rain__row">
-                <div className="cal-rain__body">
-                  <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
-                  <span className="cal-rain__title">{row.event.title || "block"}</span>
-                  {hasBackup && (
-                    <span className="cal-rain__arrow" aria-hidden="true">
-                      →
-                    </span>
-                  )}
-                  {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
-                </div>
-                {hasBackup ? (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-rain__swap"
-                    onClick={() => onPromote(row.event, 0)}
-                  >
-                    Swap
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn--quiet btn--sm cal-rain__pick"
-                    onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
-                    aria-expanded={picking === row.event.id}
-                  >
-                    Pick backup…
-                  </button>
-                )}
-                {picking === row.event.id && !hasBackup && (
-                  <RainBackupPicker
-                    suggestions={rankBackupSuggestions(
-                      row.event.activityId ? byId[row.event.activityId] : undefined,
-                      activities,
-                      events,
-                      stock,
-                      catalog
-                    )}
-                    onPick={(activity) => {
-                      onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
-                      setPicking(null);
-                    }}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="cal-rain__foot" ref={footRef}>
-          {switchableCount > 0 && (
-            <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
-              Switch all {switchableCount}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm cal-rain__shift"
-            onClick={() => {
-              const rect = footRef.current?.getBoundingClientRect() ?? anchor;
-              onShiftDay(rect);
-            }}
-          >
-            <CampIcon.Clock />
-            Shift day…
-          </button>
-          <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
-            Dismiss for today
-          </button>
-        </div>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+          <CampIcon.Close />
+        </button>
       </div>
-    </div>
+
+      <ul className="cal-rain__list">
+        {plan.rows.map((row) => {
+          const hasBackup = row.alternates.length > 0;
+          const first = row.alternates[0];
+          return (
+            <li key={row.event.id} className="cal-rain__row">
+              <div className="cal-rain__body">
+                <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
+                <span className="cal-rain__title">{row.event.title || "block"}</span>
+                {hasBackup && (
+                  <span className="cal-rain__arrow" aria-hidden="true">
+                    →
+                  </span>
+                )}
+                {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
+              </div>
+              {hasBackup ? (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-rain__swap"
+                  onClick={() => onPromote(row.event, 0)}
+                >
+                  Swap
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--quiet btn--sm cal-rain__pick"
+                  onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
+                  aria-expanded={picking === row.event.id}
+                >
+                  Pick backup…
+                </button>
+              )}
+              {picking === row.event.id && !hasBackup && (
+                <RainBackupPicker
+                  suggestions={rankBackupSuggestions(
+                    row.event.activityId ? byId[row.event.activityId] : undefined,
+                    activities,
+                    events,
+                    stock,
+                    catalog
+                  )}
+                  onPick={(activity) => {
+                    onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
+                    setPicking(null);
+                  }}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="cal-rain__foot" ref={footRef}>
+        {switchableCount > 0 && (
+          <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
+            Switch all {switchableCount}
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm cal-rain__shift"
+          onClick={() => {
+            const rect = footRef.current?.getBoundingClientRect() ?? anchor;
+            onShiftDay(rect);
+          }}
+        >
+          <CampIcon.Clock />
+          Shift day…
+        </button>
+        <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
+          Dismiss for today
+        </button>
+      </div>
+    </FloatingLayer>
   );
 }
 

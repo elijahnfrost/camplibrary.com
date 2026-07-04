@@ -15,6 +15,7 @@ import {
   planSeriesSkip,
   planSeriesSkipMany,
   recurrenceDates,
+  recurrenceIsTruncated,
   rulesEqual,
   summarizeRecurrence,
   type RecurrenceRule,
@@ -565,6 +566,43 @@ describe("summarizeRecurrence", () => {
       until: "2026-07-31",
     });
     expect(out).toContain("daily · except Wed");
+  });
+});
+
+describe("recurrenceIsTruncated", () => {
+  it("is false for a short rule that reaches its own until", () => {
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-07-31" };
+    expect(recurrenceIsTruncated("2026-06-21", rule)).toBe(false);
+  });
+
+  it("is true when a daily rule's until is more than 366 days out", () => {
+    // 2026-06-21 + 366 days lands well before 2028 — a daily rule with a
+    // multi-year horizon silently stops at MAX_SERIES_OCCURRENCES.
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2028-06-21" };
+    expect(recurrenceIsTruncated("2026-06-21", rule)).toBe(true);
+  });
+
+  it("is false for a weekly rule whose until is within the cap", () => {
+    const rule: RecurrenceRule = { freq: "weekly", interval: 1, weekdays: [1], until: "2027-01-01" };
+    expect(recurrenceIsTruncated("2026-06-22", rule)).toBe(false);
+  });
+
+  it("is true for a weekly rule (all 7 days) stretched past 366 occurrences", () => {
+    // Every day of the week, every week, for ~3 years: 366 occurrences land
+    // well within the 800-day scan window, so the occurrence cap (not the scan
+    // cap) is what truncates this one short of its 3-year until.
+    const rule: RecurrenceRule = {
+      freq: "weekly",
+      interval: 1,
+      weekdays: [0, 1, 2, 3, 4, 5, 6],
+      until: "2029-06-22",
+    };
+    expect(recurrenceIsTruncated("2026-06-22", rule)).toBe(true);
+  });
+
+  it("is false when until is on/before the start (single-occurrence rule)", () => {
+    const rule: RecurrenceRule = { freq: "daily", interval: 1, until: "2026-06-20" };
+    expect(recurrenceIsTruncated("2026-06-21", rule)).toBe(false);
   });
 });
 

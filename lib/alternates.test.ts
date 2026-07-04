@@ -133,12 +133,11 @@ describe("planPromote", () => {
   });
 
   it("touches nothing but title/activityId/kind/locations/alternates", () => {
-    const e = event({ pinned: true, mealKind: "lunch", materialSubs: { p: "x" }, note: "hi" });
+    const e = event({ pinned: true, materialSubs: { p: "x" }, note: "hi" });
     const out = planPromote(e, 0, [{ title: "Alt", reason: "rain" }]);
     expect(out.startMin).toBe(e.startMin);
     expect(out.endMin).toBe(e.endMin);
     expect(out.pinned).toBe(true);
-    expect(out.mealKind).toBe("lunch");
     expect(out.materialSubs).toEqual({ p: "x" });
     expect(out.note).toBe("hi");
   });

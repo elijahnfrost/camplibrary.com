@@ -4,10 +4,30 @@
 // same body the Print tab uses, so the printed and published sheets stay identical.
 // Server-renderable: no editor, no state, no "use client".
 
+import type { Material } from "@/lib/materialCatalog";
+import type { StockState } from "@/lib/kitStock";
 import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
 import { RunSheetBody } from "./RunSheetBody";
 
-export function RunSheetView({ activity, runDoc }: { activity: Activity; runDoc: RunDoc }) {
-  return <RunSheetBody activity={activity} runDoc={runDoc} variant="web" />;
+export function RunSheetView({
+  activity,
+  runDoc,
+  kitStock,
+  materialCatalog,
+}: {
+  activity: Activity;
+  runDoc: RunDoc;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+}) {
+  return (
+    <RunSheetBody
+      activity={activity}
+      runDoc={runDoc}
+      variant="web"
+      kitStock={kitStock}
+      materialCatalog={materialCatalog}
+    />
+  );
 }

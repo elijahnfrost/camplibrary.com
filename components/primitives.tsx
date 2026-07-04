@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { AGE_GROUPS, bandLong, CATEGORIES, categoryTint, ENERGY, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
+import { useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
+import { AGE_GROUPS, bandLong, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
+import { FloatingLayer } from "./floating/FloatingLayer";
 
 // ---- The "switch ledger" control family (desktop sidebar rails) ----
 // Every filter dimension is ONE ledger line: small-caps label left, a compact
-// control right. The pieces below are that family: TypePicker (a swatch +
-// label trigger that opens an inline type menu), MiniSeg (a small segmented
-// pill for 2–4 way choices), and ToggleSwitch (a true on/off switch). The
-// mobile filter sheet keeps full chips — these controls are pointer-sized.
+// control right. The pieces below are that family: AgePicker/ThemePicker/
+// MenuPicker (a swatch + label trigger that opens an inline menu, via the
+// shared SwatchPicker core), MiniSeg (a small segmented pill for 2–4 way
+// choices), and ToggleSwitch (a true on/off switch). The mobile filter sheet
+// keeps full chips — these controls are pointer-sized.
 
 type SwatchOption = { id: string; label: string; tint?: string };
 type IconCmp = FC<{ className?: string }>;
 
 /** The shared swatch-menu core: one pill trigger showing the current option
  *  (with its color swatch), expanding an inline menu. `label` wraps it in a
- *  ledger row; without it the trigger stands alone (the calendar rail). Both
- *  the category TypePicker and the user-definable ThemePicker render through
+ *  ledger row; without it the trigger stands alone (the calendar rail). The
+ *  age-group AgePicker and the user-definable ThemePicker both render through
  *  this, so the two tag filters read identically. */
 function SwatchPicker({
   value,
@@ -42,25 +44,7 @@ function SwatchPicker({
   onManage?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const current = options.find((o) => o.id === value) ?? options[0];
   // Swatches only when a dimension actually carries color (Type, Theme). A
   // color-less dimension (Ages) renders label-only, so the menu isn't a column
@@ -68,6 +52,7 @@ function SwatchPicker({
   const showSwatch = options.some((o) => o.tint);
   const trigger = (
     <button
+      ref={triggerRef}
       type="button"
       className="typepick__trigger"
       aria-haspopup="listbox"
@@ -87,7 +72,7 @@ function SwatchPicker({
     </button>
   );
   return (
-    <div className={"typepick" + (open ? " is-open" : "")} ref={rootRef}>
+    <div className={"typepick" + (open ? " is-open" : "")}>
       {label ? (
         <div className="ledger__row">
           <span className="ledger__label">
@@ -99,8 +84,14 @@ function SwatchPicker({
       ) : (
         trigger
       )}
-      {open && (
-        <div className="typepick__menu" role="listbox" aria-label={ariaLabel}>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect(), matchWidth: true }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu"
+          role="listbox"
+          ariaLabel={ariaLabel}
+        >
           {options.map((o) => (
             <button
               type="button"
@@ -141,41 +132,14 @@ function SwatchPicker({
               </button>
             </>
           )}
-        </div>
+        </FloatingLayer>
       )}
     </div>
   );
 }
 
-/** The category type selector (the fixed Types — Games … Routines). */
-export function TypePicker<T extends string>({
-  value,
-  onChange,
-  label,
-  ariaLabel,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  label?: string;
-  ariaLabel: string;
-}) {
-  const options: SwatchOption[] = [
-    { id: "All", label: "All types" },
-    ...CATEGORIES.map((c) => ({ id: c.id, label: c.label, tint: categoryTint(c.id) })),
-  ];
-  return (
-    <SwatchPicker
-      value={value}
-      onChange={(v) => onChange(v as T)}
-      options={options}
-      label={label}
-      ariaLabel={ariaLabel}
-    />
-  );
-}
-
 /** The age-group selector — a label-only picker (no color swatches). Lives in
- *  the same menu family as TypePicker so the filter ledger reads consistently,
+ *  the same menu family as the category swatch picker so the filter ledger reads consistently,
  *  and unlike the old MiniSeg it scales past 3–4 groups without cramping the
  *  narrow rail. Value is "All" or an AgeGroupId. */
 export function AgePicker<T extends string>({
@@ -210,9 +174,10 @@ export function AgePicker<T extends string>({
   );
 }
 
-/** The theme selector — the user-definable parallel to TypePicker, fed the
- *  current theme vocabulary. Selection-only (create/rename live in the editor's
- *  ThemeField); value is "All" or a themeId. */
+/** The theme selector — the user-definable parallel to the category filter's
+ *  swatch picker, fed the current theme vocabulary. Selection-only
+ *  (create/rename live in the editor's ThemeField); value is "All" or a
+ *  themeId. */
 export function ThemePicker({
   value,
   onChange,
@@ -298,30 +263,47 @@ export function ThemeBadge({ theme, className }: { theme: Theme | null; classNam
 }
 
 /** A compact segmented pill for 2–4 way single choices (Where, Ages). Labels
- *  are display-short ("In"/"Out"); ariaLabel carries the full name. */
+ *  are display-short ("In"/"Out"); ariaLabel carries the full name. An
+ *  optional per-option `icon` renders before the label — the Library
+ *  toolbar's collection seg (Activities|Materials) and browse-view seg
+ *  (Shelf|Deck|Catalog) both need an icon+label option, so this is the ONE
+ *  shared segmented-control implementation for every single-choice pill in
+ *  the app (radiogroup/radio semantics throughout — no bespoke ARIA per
+ *  control). `variant="toolbar"` swaps the compact `.miniseg` shell for the
+ *  toolbar's larger `.viewswitch` shell (same seg-slide thumb mechanism,
+ *  bigger touch targets) — used ONLY by the two Library toolbar switches. */
 export function MiniSeg<T extends string>({
   options,
   value,
   onChange,
   ariaLabel,
+  variant = "mini",
+  className,
 }: {
-  options: { id: T; label: string; ariaLabel?: string }[];
+  options: { id: T; label: string; ariaLabel?: string; icon?: IconCmp }[];
   value: T;
   onChange: (v: T) => void;
   ariaLabel: string;
+  variant?: "mini" | "toolbar";
+  /** Extra class(es) appended after the variant's base shell class — e.g. the
+   *  Library toolbar's collection seg adds `.collseg` on top of `.viewswitch`
+   *  for its narrower desktop sizing. */
+  className?: string;
 }) {
   // --seg-n / --seg-i drive the sliding thumb (the ::before pill) so the green
   // selection glides between options instead of teleporting. -1 hides it.
   const activeIndex = options.findIndex((opt) => opt.id === value);
+  const base = variant === "toolbar" ? "viewswitch seg-slide" : "miniseg seg-slide";
   return (
     <span
-      className="miniseg seg-slide"
+      className={className ? base + " " + className : base}
       role="radiogroup"
       aria-label={ariaLabel}
       style={{ "--seg-n": options.length, "--seg-i": activeIndex } as CSSProperties}
     >
       {options.map((opt) => {
         const on = value === opt.id;
+        const Icon = opt.icon;
         return (
           <button
             type="button"
@@ -334,6 +316,7 @@ export function MiniSeg<T extends string>({
               if (!on) onChange(opt.id);
             }}
           >
+            {Icon && <Icon />}
             {opt.label}
           </button>
         );
@@ -430,31 +413,6 @@ export function RangeSlider({
   );
 }
 
-export function EnergyMeter({ level }: { level: number }) {
-  return (
-    <span className="meter" aria-label={ENERGY[level] + " energy"}>
-      {[1, 2, 3].map((n) => (
-        <i key={n} className={n <= level ? "on" : ""} />
-      ))}
-    </span>
-  );
-}
-
-export function ApprovalDots({ rating }: { rating: number }) {
-  const c = ratingColor(rating);
-  return (
-    <span className="meter" aria-label={"Approval " + rating + " of 5"}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <i
-          key={n}
-          className={n <= rating ? "on" : ""}
-          style={n <= rating ? { background: c, borderColor: c } : undefined}
-        />
-      ))}
-    </span>
-  );
-}
-
 // Compact approval rating — five dots that fill with the warm rating colour,
 // plus the rating word. Short enough to sit inline in the viewer header.
 // Tap a filled dot again to clear.
@@ -534,101 +492,6 @@ export function SaveButton({
     >
       {variant === "ribbon" ? <RibbonMark /> : <CampIcon.Bookmark />}
     </button>
-  );
-}
-
-// The shared skeleton for the sidebar's lower zone. Both the Library tab's
-// filter rail and the Calendar tab's activity rail render through this, so the
-// header (small-caps title + optional trailing action) and vertical rhythm read
-// as one sidebar in two contexts — not two unrelated panels. Content diverges
-// in `children`; the header treatment never does.
-export function SidebarSection({
-  title,
-  action,
-  className,
-  bodyClassName,
-  children,
-}: {
-  title: string;
-  /** Optional trailing control in the header (e.g. "Clear all"). */
-  action?: ReactNode;
-  className?: string;
-  bodyClassName?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={"sidesection" + (className ? " " + className : "")}>
-      <div className="sidesection__head">
-        <span className="sidesection__title">{title}</span>
-        {action}
-      </div>
-      <div className={"sidesection__body" + (bodyClassName ? " " + bodyClassName : "")}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-export function Seg<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  options: readonly T[];
-  value: T;
-  onChange: (v: T) => void;
-  ariaLabel?: string;
-}) {
-  const activeIndex = options.indexOf(value);
-  return (
-    <div
-      className="seg seg-slide"
-      role="group"
-      aria-label={ariaLabel}
-      style={{ "--seg-n": options.length, "--seg-i": activeIndex } as CSSProperties}
-    >
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          className={value === o ? "is-on" : ""}
-          aria-pressed={value === o}
-          onClick={() => onChange(o)}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function Fact({ k, children }: { k: string; children: ReactNode }) {
-  return (
-    <div className="facts__cell">
-      <span className="facts__k">{k}</span>
-      <span className="facts__v">{children}</span>
-    </div>
-  );
-}
-
-export function Block({
-  num,
-  name,
-  children,
-}: {
-  num: string;
-  name: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="block">
-      <div className="block__label">
-        <span className="block__num">{num}</span>
-        <span className="block__name">{name}</span>
-      </div>
-      {children}
-    </div>
   );
 }
 

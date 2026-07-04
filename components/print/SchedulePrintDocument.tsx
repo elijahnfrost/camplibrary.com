@@ -262,12 +262,17 @@ export function SchedulePrintDocument({
         tint: r.tint,
         type: r.activity?.type ?? null,
         title: r.activity?.title || event.title || "Untitled",
+        // print-5: the timeline now carries theme data too (label + tint), so
+        // "Show themes" isn't silently dead when Layout=Timeline — the block
+        // itself decides whether it has room to show it (mirrors how it
+        // already hides the type line on a short block).
+        theme: r.theme,
       };
     };
   }, [resolve]);
   const tlFit = useMemo(
-    () => timelineFit(timelineDays, timelineWin, options.timelineDensity),
-    [timelineDays, timelineWin, options.timelineDensity]
+    () => timelineFit(timelineDays, timelineWin, options.density),
+    [timelineDays, timelineWin, options.density]
   );
 
   // Distinct activities scheduled in range, in first-seen order — drives the
@@ -350,8 +355,7 @@ export function SchedulePrintDocument({
     options.style +
     " print-doc--" +
     options.layout +
-    (options.pageBreakPerDay ? " print-doc--paged" : "") +
-    (options.pageNumbers ? " print-doc--numbered" : "");
+    (options.pageBreakPerDay ? " print-doc--paged" : "");
 
   // The print scale's two user-facing multipliers, set as CSS vars on the doc
   // root so every pd- type/spacing token (which read --pd-scale / --pd-pad-scale)
@@ -419,7 +423,13 @@ export function SchedulePrintDocument({
     ) : (
       <div className="pd-schedule" key="schedule">
         {days.map((day) => (
-          <ScheduleDaySection key={day.date} day={day} resolve={resolve} options={options} summaries={summaries} />
+          <ScheduleDaySection
+            key={day.date}
+            day={day}
+            resolve={resolve}
+            options={options}
+            summaries={summaries}
+          />
         ))}
       </div>
     );
@@ -430,7 +440,13 @@ export function SchedulePrintDocument({
       <div className="pd-runsheets" key="appendix">
         <h2 className="pd-runsheets__head">Run sheets</h2>
         {runSheetActivities.map((activity) => (
-          <PrintRunSheet key={activity.id} activity={activity} runDoc={resolveRunDoc(activity)} />
+          <PrintRunSheet
+            key={activity.id}
+            activity={activity}
+            runDoc={resolveRunDoc(activity)}
+            kitStock={kitStock}
+            materialCatalog={materialCatalog}
+          />
         ))}
       </div>
     ) : null;
@@ -464,8 +480,8 @@ export function SchedulePrintDocument({
       {isTimeline && !tlFit.fits && wrap === "preview" && (
         <p className="pd-warn" role="status">
           <strong>This won’t fit on one page.</strong> A day’s timeline is about{" "}
-          {tlFit.tallestIn.toFixed(1)}in tall at this spacing (a page holds ~{tlFit.budgetIn.toFixed(1)}in).
-          Switch Spacing to Compact, or narrow the date range, to fit each day on its own page.
+          {tlFit.tallestIn.toFixed(1)}in tall at this density (a page holds ~{tlFit.budgetIn.toFixed(1)}in).
+          Switch Density to Tight, or narrow the date range, to fit each day on its own page.
         </p>
       )}
 

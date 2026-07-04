@@ -13,8 +13,6 @@ export interface RunSummary {
   steps: string[];
   // Safety calls — pulled from both top-level safety blocks and step children.
   safety: string[];
-  // Notes / variations worth carrying onto the schedule.
-  notes: string[];
   // Distinct materials (kit) labels in authored order.
   materials: string[];
   // Whether the full run sheet carries a field diagram (so the schedule can
@@ -33,7 +31,6 @@ function pushText(into: string[], value: string | undefined): void {
 export function summarizeRunDoc(activity: Activity, doc: RunDoc): RunSummary {
   const steps: string[] = [];
   const safety: string[] = [];
-  const notes: string[] = [];
   let hasDiagram = false;
 
   for (const block of doc.blocks) {
@@ -43,28 +40,29 @@ export function summarizeRunDoc(activity: Activity, doc: RunDoc): RunSummary {
       if (text) steps.push(cue ? cue + " — " + text : text);
     } else if (block.type === "safety") {
       pushText(safety, block.text);
-    } else if (block.type === "note" || block.type === "variation") {
-      pushText(notes, block.text);
     }
 
     for (const child of block.children || []) {
       if (child.type === "safety") pushText(safety, child.text);
-      else if (child.type === "note" || child.type === "variation") pushText(notes, child.text);
       else if (child.type === "diagram") hasDiagram = true;
     }
   }
 
   const materials = materialNeedsForActivity(activity).map((need) => need.label);
-  return { steps, safety, notes, materials, hasDiagram };
+  return { steps, safety, materials, hasDiagram };
 }
 
 // True when there is anything worth printing as a TLDR (so the schedule can
-// skip the block entirely for a bare custom event).
+// skip the block entirely for a bare custom event) — one check per thing
+// EventTldr actually renders: steps, safety, materials, and the diagram hint.
+// Notes/variations are intentionally NOT counted here (and not collected
+// above) — they never rendered in EventTldr, so counting them could make the
+// block render completely empty (print-13).
 export function hasSummaryContent(summary: RunSummary): boolean {
   return (
     summary.steps.length > 0 ||
     summary.safety.length > 0 ||
-    summary.notes.length > 0 ||
-    summary.materials.length > 0
+    summary.materials.length > 0 ||
+    summary.hasDiagram
   );
 }

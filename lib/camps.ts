@@ -17,6 +17,7 @@
 import { fromDateKey } from "./calendar/dates";
 import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN, snapMinutes, type DayWindow } from "./calendar/time";
 import { isDateKey, type DateKey } from "./calendar/types";
+import { nextPaletteTint } from "./themes";
 
 // A weekday index (0 = Sunday … 6 = Saturday), matching Date.getDay().
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -96,6 +97,19 @@ export function clampOverrideWindow(openMin: number, closeMin: number): DayWindo
 // The snap grid a camp offers — its whitelisted snapMin, or the app default.
 export function campSnapMin(camp: Camp | null | undefined): number {
   return camp?.snapMin ?? SNAP_MIN;
+}
+
+// camps-6: a leading identity swatch for camp rows in the manager, like Themes/
+// Locations rows. Camps carry no color field of their own (a camp's "signature"
+// color isn't otherwise used anywhere in the app, unlike a theme or a location),
+// so rather than add a new persisted field this derives a STABLE tint from the
+// camp's position in the (creation-ordered) list — the exact round-robin recipe
+// themes already use — keyed by id so it survives reordering/insertion the same
+// way a theme's tint would. Deterministic: the same camp always gets the same
+// tint for a given roster, with no per-string hashing.
+export function campTint(campId: string, camps: readonly Camp[]): string {
+  const index = camps.findIndex((c) => c.id === campId);
+  return nextPaletteTint(index < 0 ? camps.length : index);
 }
 
 // Move a camp's open time, pushing close out if the move would cross it.

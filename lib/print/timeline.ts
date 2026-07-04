@@ -9,20 +9,25 @@
 import { DAY_START_MIN, DAY_END_MIN, effectiveWindow, MINUTES_PER_DAY } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { ScheduleDay } from "@/lib/print/schedule";
-import type { TimelineDensity } from "@/lib/print/options";
+import type { DocDensity } from "@/lib/print/options";
 
 export interface DayWindow {
   startMin: number;
   endMin: number;
 }
 
-// Per-hour row height (inches) for each density. These are the single source of
-// truth for both the rendered grid height AND the does-it-fit check, so the two
-// can never disagree.
-export const TIMELINE_ROW_IN: Record<TimelineDensity, number> = {
-  compact: 0.46,
-  cozy: 0.62,
-  roomy: 0.8,
+// print-6 merged the old timeline-only "Spacing" control into the single
+// doc-wide "Density" field (DocDensity). The timeline grid's per-hour row
+// height still needs its own three-tier mapping (inches, not the --pd-pad-scale
+// multiplier the rest of the doc uses) — this is that mapping, keyed by the
+// SAME tight/regular/airy values the rest of the document reads. Tier names
+// carried over 1:1 from the old TimelineDensity: tight↔compact, regular↔cozy,
+// airy↔roomy. These are the single source of truth for both the rendered grid
+// height AND the does-it-fit check, so the two can never disagree.
+export const TIMELINE_ROW_IN: Record<DocDensity, number> = {
+  tight: 0.46,
+  regular: 0.62,
+  airy: 0.8,
 };
 
 // Fixed vertical costs of a day, added to the grid height for the fit check.
@@ -161,12 +166,12 @@ export function timelineHours(win: DayWindow): TimelineHour[] {
 
 // Inches a single day's timeline occupies, including its header and (optionally)
 // an all-day strip — the basis for the fit check and the rendered grid height.
-export function timelineGridHeightIn(win: DayWindow, density: TimelineDensity): number {
+export function timelineGridHeightIn(win: DayWindow, density: DocDensity): number {
   const hours = (win.endMin - win.startMin) / 60;
   return hours * TIMELINE_ROW_IN[density];
 }
 
-export function timelineDayHeightIn(win: DayWindow, density: TimelineDensity, hasAllDay: boolean): number {
+export function timelineDayHeightIn(win: DayWindow, density: DocDensity, hasAllDay: boolean): number {
   return TIMELINE_DAY_HEADER_IN + (hasAllDay ? TIMELINE_ALLDAY_IN : 0) + timelineGridHeightIn(win, density);
 }
 
@@ -178,7 +183,7 @@ export interface TimelineFit {
 
 // Whether every day's timeline fits on one page at this density. Returns the
 // tallest day so the UI can explain by how much it's over.
-export function timelineFit(days: TimelineDay[], win: DayWindow, density: TimelineDensity): TimelineFit {
+export function timelineFit(days: TimelineDay[], win: DayWindow, density: DocDensity): TimelineFit {
   let tallestIn = 0;
   if (days.length === 0) {
     tallestIn = timelineDayHeightIn(win, density, false);

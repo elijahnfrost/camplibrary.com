@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CampIcon } from "../icons";
 import { MiniSeg, ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
@@ -34,6 +35,7 @@ export function CalendarViewSettings({
   onWeekStart,
   onChangeView,
   onOpenCamps,
+  subscribeControl,
 }: {
   view: ViewKey;
   colorMode: ColorMode;
@@ -44,6 +46,10 @@ export function CalendarViewSettings({
   onWeekStart: (start: WeekStart) => void;
   onChangeView: (v: ViewKey) => void;
   onOpenCamps: () => void;
+  /** The calendar's .ics feed trigger (SubscribeFeedButton) — the ledger's
+   *  final row, control-only (its own popover). Undefined when signed out
+   *  (no feed to subscribe to), so the row doesn't render at all. */
+  subscribeControl?: ReactNode;
 }) {
   // The Days control belongs to Week: Day/Week/N-days are the same timed strip at
   // a different day count, so it appears only while a multi-day window is active
@@ -109,6 +115,15 @@ export function CalendarViewSettings({
             <CampIcon.ChevronRight />
           </span>
         </button>
+      )}
+      {/* Subscribe (the .ics feed control) — the ledger's final row, camp-
+          scoped like everything above it. One mount here reaches both desktop
+          (rail) and mobile (settings sheet), since both render this ledger. */}
+      {subscribeControl && (
+        <div className="ledger__row">
+          <span className="ledger__label"><CampIcon.Calendar className="ledger__ic" />Subscribe</span>
+          {subscribeControl}
+        </div>
       )}
     </div>
   );

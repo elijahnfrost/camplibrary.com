@@ -18,13 +18,6 @@ export type CalendarEventKind = "activity" | "custom";
 // Longest a per-event note may be (a short nudge / detail, not an essay).
 export const EVENT_NOTE_MAX_LENGTH = 280;
 
-// Meals are ordinary events flagged with a mealKind: the flag drives the meal
-// glyph and dietary surfaces without introducing a new `kind` value, so the
-// two-site kind coercion (client + server) is never armed.
-export const MEAL_KINDS = ["breakfast", "am-snack", "lunch", "pm-snack", "other"] as const;
-export type MealKind = (typeof MEAL_KINDS)[number];
-const MEAL_KIND_SET = new Set<string>(MEAL_KINDS);
-
 // A fallback plan attached to a placement (rainy-day backup, overflow option,
 // open choice). Title is denormalized like event.title; activityId is optional
 // so a custom (title-only) fallback works; locations, when present, replace the
@@ -66,7 +59,6 @@ const CUSTOMIZABLE_FIELDS = new Set([
   "note",
   "campId",
   "pinned",
-  "mealKind",
   "alternates",
   "materialSubs",
   "linkId",
@@ -107,8 +99,6 @@ export interface CalendarEvent {
   // planned operation (day shift) moves the rest of the day. It guards PLANNED
   // operations only — direct drag/resize always wins; it is not a lock.
   pinned?: boolean;
-  // Marks a meal block. Rides the payload; `kind` stays activity/custom.
-  mealKind?: MealKind;
   // Series-member durability: which fields a this-scoped or bulk edit overrode
   // (series regeneration preserves them), and the rule slot this row occupies
   // (an RFC 5545 RECURRENCE-ID analog) once a this-edit moves its date. Only
@@ -309,9 +299,6 @@ export function normalizeCalendarEvent(raw: unknown): CalendarEvent | null {
   // one must be explicitly re-attached here or it is stripped on every read and
   // every optimistic write (commitEvents re-normalizes upserts).
   if (value.pinned === true) event.pinned = true;
-  if (typeof value.mealKind === "string" && MEAL_KIND_SET.has(value.mealKind)) {
-    event.mealKind = value.mealKind as MealKind;
-  }
   const linkId =
     typeof value.linkId === "string" ? value.linkId.trim().slice(0, LINK_ID_MAX_LENGTH) : "";
   if (linkId) event.linkId = linkId;

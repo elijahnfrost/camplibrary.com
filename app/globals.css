@@ -214,12 +214,14 @@ body {
   white-space: nowrap;
   border: 0;
 }
-/* Skip link — first focusable element; revealed on focus. */
+/* Skip link — first focusable element; revealed on focus. Sits ABOVE every
+   overlay (z-ladder top, 300) so a keyboard user tabbing to it can always
+   reach it, even while a lightbox/diagram-editor/floating menu is open. */
 .skip-link {
   position: absolute;
   left: 12px;
   top: -60px;
-  z-index: 200;
+  z-index: 300;
   padding: 8px 14px;
   background: var(--card);
   color: var(--ink);
@@ -238,12 +240,7 @@ body {
    text (catalog meta, schedule times, blurbs, steps, form fields) in the quiet
    sans so it stays legible at small sizes and clears WCAG AA. */
 .deck-card__meta,
-.cat-stamps,
 .stamp,
-.detail__blurb,
-.steps,
-.safety,
-.facts__v,
 .input,
 .textarea,
 .select {
@@ -395,19 +392,28 @@ body {
   --seg-gap: var(--s-1);
   --seg-radius: var(--r-sm);
 }
-.viewswitch button.is-active {
+/* .is-active (the calendar's ViewSwitch, a plain toggle-group) and .is-on (the
+   Library toolbar's two switches, built on the shared MiniSeg radiogroup) are
+   the same visual state on this shell — one bespoke class per control family,
+   painted identically so Day/Week/Month and Shelf/Deck/Catalog read as one
+   control vocabulary despite the ARIA-pattern difference between them. */
+.viewswitch button.is-active,
+.viewswitch button.is-on {
   /* Green is painted by the sliding thumb; the active label just goes light. */
   background: transparent;
   color: var(--on-accent);
 }
-.viewswitch button.is-active:hover {
+.viewswitch button.is-active:hover,
+.viewswitch button.is-on:hover {
   background: transparent;
   color: var(--on-accent);
 }
-.viewswitch button.is-active:active {
+.viewswitch button.is-active:active,
+.viewswitch button.is-on:active {
   background: transparent;
 }
-.viewswitch button.is-active:focus-visible {
+.viewswitch button.is-active:focus-visible,
+.viewswitch button.is-on:focus-visible {
   outline-color: var(--on-accent);
   outline-offset: -3px;
 }
@@ -419,16 +425,6 @@ body {
    toolbar grid: it sits in row-1 col-1 beside the browse-view switch. */
 .collseg {
   margin: 0 18px;
-}
-
-/* The Materials collection has no library filter rail — a one-line hint sits
-   where the filters would, in the sidebar's quiet ledger voice. */
-.sidenav__railhint {
-  margin: var(--s-6) 18px 0;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  line-height: 1.5;
-  color: var(--ink-faint);
 }
 
 /* ---------- canonical search field ----------
@@ -613,24 +609,21 @@ body {
 .filtertrigger__active::-webkit-scrollbar {
   display: none;
 }
-/* Shared dimension group — desktop rail AND mobile sheet render these. */
-.filtergroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.filtergroup__label {
-  font-family: var(--hand-sc);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.filtergroup__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+/* Pill-recipe survey (2026-07-03 sweep): the app has several "small labeled
+   pill" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min,
+   6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not
+   --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day
+   icon-button, no border),
+   .book-print-chip (36px-tall clickable control sized to match its header
+   siblings), .admin-status (static per-state badge, no min-height/cursor),
+   and .theme-badge (swatch + label, no border/background at all). Each was
+   checked for a safe merge into this shared .chip base and rejected: every
+   one carries a DELIBERATE size, radius, or interaction difference (touch
+   target, click vs static, or genuinely non-pill shape) that a shared class
+   would either break or require per-site overrides to preserve — i.e. fewer
+   than 3 were byte-for-byte redundant, so consolidating further risked a
+   visible regression for no real de-duplication win. Left as-is; revisit only
+   if a recipe's own job changes. */
 .chip {
   flex: none;
   display: inline-flex;
@@ -683,23 +676,6 @@ body {
 }
 .chip.is-on:focus-visible {
   outline-color: var(--ink);
-}
-/* The "All" option is the cleared/resting state — selected, but quiet, so an
-   unfiltered view never reads as a wall of accent. */
-.chip--all.is-on {
-  background: var(--chrome-well);
-  color: var(--ink);
-  border-color: var(--ink-soft);
-}
-.chip--all.is-on:hover {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-  border-color: var(--ink-soft);
-}
-.chip--all.is-on:active {
-  background: color-mix(in srgb, var(--ink) 12%, var(--chrome-well));
-}
-.chip--all.is-on:focus-visible {
-  outline-color: var(--accent);
 }
 /* ---------- the switch ledger (desktop rails) ----------
    Every filter dimension is ONE ledger line: small-caps label on the left, a
@@ -923,22 +899,21 @@ body {
 .typepick.is-open .typepick__trigger svg {
   transform: rotate(180deg);
 }
-/* The menu floats OVER the layout (absolute, anchored to .typepick) instead of
-   expanding in flow — opening it never shifts the ledger rows below. It spans
-   the rail width and lifts on a shadow so it reads as a layer. */
+/* The card/border look shared by every swatch-menu consumer (SwatchPicker's
+   TypePicker/AgePicker/ThemePicker/MenuPicker, LedgerMenu/AgeGroupsMenu/
+   GroupSizeMenu, ThemeField, and Select's .cselect__menu). All are hosted in
+   the portaled FloatingLayer, which drives position/width via inline style —
+   this class only supplies the surface, sizing, and touch-docking behavior.
+   Match the sibling floating menus (.cmenu/.cdate__pop) which already pop in. */
 .typepick__menu {
-  position: absolute;
-  top: calc(100% + var(--s-2));
-  left: 0;
-  right: 0;
-  z-index: 20;
+  position: fixed;
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   background: var(--card);
   box-shadow: var(--e3);
   padding: var(--s-2);
-  /* Match the sibling floating menus (.cmenu/.cdate__pop) which already pop in;
-     the Select/TypePicker menu was the lone desktop menu that snapped in. */
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
 .typepick__option {
@@ -1030,9 +1005,6 @@ body {
 .rlv-theme {
   margin-top: var(--s-3);
 }
-.cal-popover__theme {
-  margin-top: var(--s-2);
-}
 
 /* The editor's theme control: a pill trigger (the sidebar `.typepick` look, so it
    reads as the same family as the Type/Ages pickers) + a floating menu that
@@ -1080,16 +1052,11 @@ body {
   height: 8px;
   color: var(--ink-soft);
 }
-/* Position is driven inline by FloatingLayer (portaled to body); clear the
-   .typepick anchoring it doesn't use, and scroll a long list inside the layer. */
+/* .typepick__menu supplies the surface/sizing; this only widens it slightly
+   for the longer theme-management rows. */
 .themefield__menu {
-  position: fixed;
-  top: auto;
-  left: auto;
-  right: auto;
   min-width: 208px;
   max-height: min(340px, 60vh);
-  overflow-y: auto;
 }
 .themefield__pick {
   flex: 1 1 auto;
@@ -1134,9 +1101,6 @@ body {
   background: var(--chrome-well);
   color: var(--ink);
 }
-.themefield__rowbtn--danger:hover {
-  color: var(--danger);
-}
 .themefield__rowbtn:disabled {
   opacity: 0.5;
   cursor: default;
@@ -1160,77 +1124,58 @@ body {
   color: var(--ink-soft);
 }
 
-/* The calendar's Subscribe pill (.ics feed), in the header controls cluster.
-   Sized to the Today / view-segment controls (--control-md height, --r-md
-   radius) so it reads as a peer, not a bolt-on. Opens the subscription popover. */
-.campswitch {
+/* The calendar's Subscribe control — the View settings ledger's final row
+   (CalendarViewSettings). The label lives in the shared .ledger__label on the
+   left; this is just the row's control-right affordance, in the same hug-right
+   PILL vocabulary as .cselect__trigger/.typepick__trigger, sized like a
+   ledger-row control rather than a header pill. Opens the subscription popover. */
+.subfeed {
   display: inline-flex;
 }
-.campswitch__trigger {
+.subfeed__trigger {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  max-width: 240px;
-  height: var(--control-md);
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   border: 1.5px solid var(--line);
-  border-radius: var(--r-md);
+  border-radius: var(--r-round);
   background: var(--card);
-  padding: 0 var(--s-4);
   cursor: pointer;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
-.campswitch__trigger:hover,
-.campswitch__trigger.is-open {
+.subfeed__trigger:hover,
+.subfeed__trigger.is-open {
   background: var(--chrome-well);
   border-color: var(--ink-soft);
+  color: var(--ink);
 }
-.campswitch__trigger.is-empty {
-  color: var(--ink-soft);
-}
-.campswitch__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.campswitch__trigger > svg {
+.subfeed__trigger svg {
   flex: none;
   width: 15px;
   height: 15px;
-  color: var(--ink-faint);
-  /* The line icons (the calendar glyph + chevron) are stroke-drawn; without
-     this they fall back to a solid fill and read as a heavy blob. Matches the
-     per-context icon treatment used elsewhere (.icon-btn svg, .chip svg, …). */
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-/* The trailing chevron flips while the switcher is open, like the custom
-   <select>, so the pill reads as a live dropdown rather than a static label. */
-.campswitch__trigger > svg:last-child {
   transition: transform var(--t-fast) var(--ease);
 }
-.campswitch__trigger.is-open > svg:last-child {
+.subfeed__trigger.is-open svg {
   transform: rotate(180deg);
 }
-@media (max-width: 640px) {
-  .campswitch__name {
-    max-width: 110px;
-  }
-}
 
-/* ---- Floating menu shell (shared) ----------------------------------------
-   The card/border/shadow family in the context-menu vocabulary, reused by the
-   calendar Subscribe dropdown (via `.campmenu subfeed__menu`). Portaled by
-   FloatingLayer, so it bottom-docks on phones like the other floating menus. */
-.campmenu {
+/* ---- Calendar subscription (.ics feed) popover ----------------------------
+   Reuses the shared floating-menu card shell (the same border/shadow/padding/
+   pop-in recipe as .profilemenu), given its own class so it can carry
+   subscribe-specific sizing without touching the other menus that share the
+   recipe. Portaled by FloatingLayer, so it bottom-docks on phones like every
+   other floating menu (Select, ProfileControl, TypePicker). */
+.subfeed__menu {
   position: fixed;
-  min-width: 232px;
-  max-width: 300px;
+  min-width: 288px;
+  max-width: 360px;
   background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--r-md);
@@ -1238,7 +1183,7 @@ body {
   padding: var(--s-2);
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
-.campmenu__eyebrow {
+.subfeed__eyebrow {
   margin: 0;
   padding: var(--s-2) var(--s-3) var(--s-1);
   font-family: var(--hand-sc);
@@ -1246,13 +1191,6 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
-}
-
-/* ---- Calendar subscription (.ics feed) dropdown ---- */
-/* Reuses the .campmenu shell; widened to fit a subscribe URL. */
-.subfeed__menu {
-  min-width: 288px;
-  max-width: 360px;
 }
 .subfeed__intro {
   margin: 0;
@@ -1265,17 +1203,25 @@ body {
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  padding: 0 var(--s-3);
 }
 .subfeed__url {
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--fs-meta);
 }
+.subfeed__copyhint {
+  margin: 0;
+  padding: var(--s-1) var(--s-3) 0;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+}
 .subfeed__links {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   margin-top: var(--s-2);
+  padding: 0 var(--s-3);
 }
 .subfeed__links .btn {
   flex: 1 1 auto;
@@ -1290,7 +1236,7 @@ body {
   align-items: center;
   gap: var(--s-2);
   margin-top: var(--s-3);
-  padding-top: var(--s-3);
+  padding: var(--s-3) var(--s-3) 0;
   border-top: 1px solid var(--line-soft);
 }
 .subfeed__qr-tile {
@@ -1313,7 +1259,7 @@ body {
 }
 .subfeed__reset {
   align-self: flex-start;
-  margin-top: var(--s-3);
+  margin: var(--s-3) 0 0 var(--s-3);
   background: none;
   border: none;
   font-size: var(--fs-meta);
@@ -1333,6 +1279,23 @@ body {
   padding: 0 var(--s-3) var(--s-2);
   font-size: var(--fs-meta);
   color: var(--ink-faint);
+}
+
+/* Error state: a designed inline block (message + Try again), not a half-
+   styled banner — the request failed (e.g. the backend has no database in
+   this workspace), so the popover explains that plainly and offers a retry. */
+.subfeed__errstate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3) var(--s-3);
+}
+.subfeed__errmsg {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  color: var(--danger-ink);
 }
 
 /* ---- List manager modal (Camps, Themes) — a clear create/manage screen ---- */
@@ -1367,10 +1330,17 @@ body {
 }
 .manager__create {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-3);
 }
+/* camps-8: a flex-basis (not just min-width:0) so the input claims real room
+   before the row ever wraps — measured live at 390px width, "Add camp" (icon +
+   label) plus gap took ~125px, leaving the input only 180px and clipping its
+   own placeholder ("e.g. Summer Day Car…"). flex-wrap above lets the button
+   drop to its own line on the narrowest phones instead of squeezing the input
+   below a usable width. */
 .manager__createinput {
-  flex: 1 1 auto;
+  flex: 1 1 220px;
   min-width: 0;
 }
 .manager__createbtn {
@@ -1506,8 +1476,8 @@ body {
 
 /* ---------- camp day-structure authoring (the camps manager sections) ----------
    Per-row weekday hours / dated exceptions / snap, plus the global guidance-bands
-   and dietary-roster sections in the footer. Every block is a COLLAPSIBLE with a
-   chevron header so the modal stays calm; open reveals a quiet body. */
+   section in the footer. Every block is a COLLAPSIBLE with a chevron header so
+   the modal stays calm; open reveals a quiet body. */
 .manager__daystruct {
   padding: 0 var(--s-4) var(--s-3);
   display: flex;
@@ -1551,6 +1521,9 @@ body {
 }
 .manager__sect.is-open .manager__sect-chev {
   transform: rotate(90deg);
+  /* Open = pointing down; suppress the closed-state chev-right hover nudge so it
+     can't override this rotate and snap the glyph back to facing right. */
+  animation: none;
 }
 .manager__sect-label {
   flex: 1 1 auto;
@@ -1568,13 +1541,23 @@ body {
   flex-direction: column;
   gap: var(--s-3);
 }
+/* camps-1 fix: the pair must wrap as ONE atomic unit onto a fresh line when its
+   row is tight (day name + MiniSeg already consume most of the row width) —
+   never split the Open/dash/Close trio across two lines mid-control, which is
+   what visually crashed into the row below it. flex-wrap:wrap HERE (on the
+   pair itself) is what caused that; the row's own wrap (.manager__weekday /
+   .manager__dateexc, both already flex-wrap:wrap) is what should absorb the
+   overflow instead — exactly how GuidesSection's own Select-dash-Select already
+   behaves without this modifier. min-width:0 lets the pair shrink to fit
+   alongside the row's other content before wrapping is ever needed. */
 .manager__hoursfield--inline {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: none;
+  min-width: 0;
 }
 .manager__weekdays,
 .manager__dates,
-.manager__guides,
-.manager__diet {
+.manager__guides {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1584,12 +1567,20 @@ body {
 }
 .manager__weekday,
 .manager__dateexc,
-.manager__guide,
-.manager__dietrow {
+.manager__guide {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--s-2) var(--s-3);
+}
+/* A read-only (non-staff) guidance-band row — inputs already carry the native
+   disabled/readOnly attribute, but MiniSeg has no disabled prop of its own, so
+   its buttons would otherwise still look and behave clickable. Suppressing
+   pointer-events here matches the app's "non-navigating must not look
+   interactive" rule without touching the shared MiniSeg primitive. */
+.manager__guide.is-readonly .miniseg {
+  pointer-events: none;
+  opacity: 0.75;
 }
 .manager__weekday-name,
 .manager__dateexc-date {
@@ -1624,19 +1615,9 @@ body {
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-.manager__guide-label,
-.manager__diet-label {
+.manager__guide-label {
   flex: 1 1 8ch;
   min-width: 6ch;
-}
-.manager__diet-detail {
-  flex: 1 1 10ch;
-  min-width: 8ch;
-}
-.manager__guide-times {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
 }
 .manager__guide-days {
   display: inline-flex;
@@ -2447,12 +2428,6 @@ body {
   padding: 2px 7px;
   white-space: nowrap;
 }
-.stamp--accent {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent-ink);
-}
-
 /* ---------- stretched-button cards (no nested interactives) ----------
    A card's primary action is one real <button class="stretch"> whose ::after
    covers the whole (position:relative) container; secondary controls (the star)
@@ -2505,23 +2480,6 @@ body {
 .deck-card__open:focus-visible,
 .cat-row__open:focus-visible {
   outline: none;
-}
-
-.meter {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-}
-.meter i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  border: 1.4px solid var(--ink-soft);
-  display: block;
-}
-.meter i.on {
-  background: var(--accent);
-  border-color: var(--accent-ink);
 }
 
 /* ---------- bookmark (save) ---------- */
@@ -2837,9 +2795,6 @@ body {
 }
 
 /* ---------- auth controls ---------- */
-.auth-required {
-  gap: 14px;
-}
 .auth-route {
   min-height: 100dvh;
   display: grid;
@@ -2902,12 +2857,6 @@ body {
 .auth-form__subsection {
   color: var(--ink);
 }
-.auth-form__account-email {
-  margin: -6px 0 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
 .auth-form__hint a {
   color: var(--accent-ink);
   text-decoration-thickness: 1.5px;
@@ -2955,14 +2904,6 @@ body {
   color: var(--ink);
   font-family: var(--hand);
 }
-.admin-page__head {
-  width: min(100%, 1120px);
-  margin: 0 auto 22px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-}
 .admin-page__grid {
   width: min(100%, 1120px);
   margin: 0 auto;
@@ -2987,380 +2928,6 @@ body {
   font-size: 28px;
   line-height: 1;
   color: var(--ink);
-}
-
-/* ---- staff tab (the dedicated sign-in / account + dashboard surface) ----
-   Signed out: shares the admin page's head treatment; the body is a centered
-   column so the self-contained auth-form card sits comfortably rather than
-   stretching wide. Signed in (.staff-tab--dash): widens to the full page and
-   lays out the usage dashboard in the home-* card idiom. */
-.staff-tab {
-  padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
-}
-.staff-tab__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-5);
-  width: min(100%, 1120px);
-  margin: 0 auto 16px;
-}
-.staff-tab__title {
-  margin: 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 28px;
-  line-height: 1;
-  color: var(--ink);
-}
-.staff-tab__body {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  width: min(100%, 420px);
-  margin: 0 auto;
-}
-/* The auth-form card defaults to 420px and fills the centered column. */
-.staff-tab__body .auth-form {
-  width: 100%;
-}
-.staff-tab__switch {
-  margin: 0;
-}
-
-/* ---- staff dashboard (signed-in) ----
-   A responsive card grid mirroring the Home surface: one column on phones, two
-   from tablet up. Each card reuses the home section-head + boxed-card idiom. */
-.staff-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--s-7);
-  width: min(100%, 1120px);
-  margin: 0 auto;
-}
-.staff-stat {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.staff-stat__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-5);
-  margin-bottom: var(--s-5);
-}
-.staff-stat__title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.staff-stat__sub {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.staff-stat__card {
-  background: var(--content);
-  border: 2px solid var(--ink);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-/* Empty / loading states sit flush inside the card (the card already supplies
-   the border), so drop the home-empty box edge when nested here. */
-.staff-stat__empty {
-  border: 0;
-  border-radius: 0;
-}
-.staff-stat__loading {
-  margin: 0;
-  padding: var(--s-7) var(--s-6);
-  text-align: center;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-}
-
-/* ---- account card ---- */
-.staff-account {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-6);
-}
-.staff-account__name {
-  margin: 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-title-sm);
-  line-height: 1.05;
-  color: var(--ink);
-}
-.staff-account__email {
-  margin: -2px 0 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-  overflow-wrap: anywhere;
-}
-.staff-account__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-top: var(--s-2);
-}
-.staff-tag {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-pill);
-  background: var(--accent-tint);
-  border: 1.5px solid var(--accent-ink);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-ink);
-}
-.staff-tag--quiet {
-  background: var(--chrome-well);
-  border-color: var(--line);
-  color: var(--ink-faint);
-}
-.staff-account__sync {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin: var(--s-2) 0 0;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  color: var(--ink-soft);
-}
-.staff-account__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-round);
-  background: var(--ink-faint);
-}
-.staff-account__dot--synced {
-  background: var(--accent);
-}
-.staff-account__dot--syncing {
-  background: var(--accent-ink);
-}
-.staff-account__dot--pending {
-  background: var(--amber);
-}
-.staff-account__dot--offline {
-  background: var(--ink-faint);
-}
-.staff-account__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-4);
-  margin-top: var(--s-3);
-}
-.staff-account__actions .btn {
-  flex: 1;
-  min-width: 130px;
-}
-
-/* ---- ranked usage rows (category-tinted) ---- */
-.staff-rank {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.staff-rank__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-5) var(--s-6);
-  border-left: 3px solid var(--cal-tint, var(--line));
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.staff-rank__row:last-child {
-  border-bottom: 0;
-}
-.staff-rank__mono {
-  flex: none;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-round);
-  background: color-mix(in srgb, var(--cal-tint, var(--line)) 22%, var(--card));
-  border: 1.5px solid color-mix(in srgb, var(--cal-tint, var(--line)) 55%, var(--line));
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-ui);
-  line-height: 1;
-  color: var(--ink);
-}
-.staff-rank__title {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1.1;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-rank__count {
-  flex: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--s-1);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-title-sm);
-  letter-spacing: 0.02em;
-  color: var(--accent-ink);
-}
-.staff-rank__unit {
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-}
-
-/* ---- field notes log ---- */
-.staff-notes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.staff-notes__row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  padding: var(--s-5) var(--s-6);
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.staff-notes__row:last-child {
-  border-bottom: 0;
-}
-.staff-notes__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-4);
-}
-.staff-notes__activity {
-  min-width: 0;
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body-lg);
-  line-height: 1.1;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-notes__date {
-  flex: none;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.staff-notes__text {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  line-height: 1.45;
-  color: var(--ink-soft);
-}
-
-/* ---- recent activity feed ---- */
-.staff-recent {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.staff-recent__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-5) var(--s-6);
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.staff-recent__row:last-child {
-  border-bottom: 0;
-}
-.staff-recent__icon {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-round);
-  background: var(--chrome-well);
-  color: var(--ink-soft);
-}
-.staff-recent__icon--note {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-}
-.staff-recent__icon svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.staff-recent__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.staff-recent__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-title-sm);
-  line-height: 1.1;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-recent__detail {
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  line-height: 1.35;
-  color: var(--ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.staff-recent__when {
-  flex: none;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-/* Two-up dashboard from tablet width: the account card leads, the three stat
-   cards flow beside it. */
-@media (min-width: 768px) {
-  .staff-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .admin-panel {
@@ -3462,10 +3029,6 @@ body {
   background: var(--paper-2);
   color: var(--ink-soft);
 }
-.admin-status--used,
-.admin-status--revoked {
-  opacity: 0.62;
-}
 .admin-table__status {
   display: flex;
   flex-direction: column;
@@ -3535,46 +3098,6 @@ body {
   color: var(--ink-soft);
 }
 
-/* ---- shared empty state (used by StaffTab; formerly the Home tab too) ---- */
-.home-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-5);
-  padding: var(--s-8) var(--page-x);
-  text-align: center;
-  background: var(--content);
-  border: 1.5px dashed var(--line);
-  border-radius: var(--r-lg);
-}
-.home-empty__mark {
-  display: inline-flex;
-  color: var(--ink-faint);
-}
-.home-empty__mark svg {
-  width: 28px;
-  height: 28px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.home-empty__title {
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-.home-empty__hint {
-  margin: -4px 0 2px;
-  max-width: 34ch;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  line-height: 1.5;
-  color: var(--ink-faint);
-}
-
 @media (min-width: 860px) {
   .admin-page {
     padding: 34px;
@@ -3634,8 +3157,11 @@ body {
 .modal-root {
   display: contents;
 }
-/* z-ladder: tabbar 24 < fab 26 < scrim 30 / overlay 31 < picker-sheet 60
-   < popover 70 < toast 80 < present 200 < lightbox 210. */
+/* z-ladder: tabbar 24 < fab 26 < scrim 30 / overlay 31 < toast 80
+   < lightbox 210 < diagram-edit 215 < floating-root 220 (portaled Select/
+   DatePopover/ContextMenu/the calendar's .cal-popover family/rl-toast, plus
+   FullCalendar's own .fc-popover forced into this tier — see calendar.css)
+   < skip-link 300 (always reachable, even over an open lightbox/menu). */
 .scrim {
   position: absolute;
   inset: 0;
@@ -3701,6 +3227,42 @@ body {
 .overlay--auth .auth-form {
   width: 100%;
 }
+/* ---------- themed confirm (native confirm() replacement) ---------- */
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+}
+.confirm__title {
+  display: block;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.confirm__copy {
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.confirm__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.confirm__btn--danger {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+  color: var(--on-accent);
+}
+.confirm__btn--danger:hover {
+  background: var(--danger-ink);
+}
+.confirm__btn--danger:active {
+  background: var(--danger-ink);
+}
 @keyframes cl-rise {
   from {
     transform: translateY(100%);
@@ -3735,15 +3297,6 @@ body {
   padding: 14px 12px 8px;
   gap: 8px;
 }
-.overlay__bar-spacer {
-  flex: 1;
-}
-/* Right-aligned cluster in an overlay title bar (e.g. Reset + Close). */
-.overlay__bar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-}
 .overlay__handle {
   position: absolute;
   top: 8px;
@@ -3764,57 +3317,6 @@ body {
   display: none;
 }
 
-/* ---------- detail ---------- */
-.detail__hero {
-  position: relative;
-  height: 208px;
-  border-bottom: 1.5px solid var(--ink);
-  background: var(--paper);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.detail__ribbon {
-  position: absolute;
-  /* tuck the top under the page edge so the ribbon reads as hanging FROM the
-     top — clips away the top outline and the gap above it. Kept clear of the
-     24px corner radius so the clip stays a clean horizontal line. */
-  top: -6px;
-  right: 26px;
-  z-index: 2;
-  --ribbon-w: 34px;
-}
-.detail__mono {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 104px;
-  color: var(--ink-soft);
-  position: relative;
-  line-height: 1;
-}
-.detail__pad {
-  padding: 20px 22px 28px;
-}
-.detail__eyebrow {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 6px;
-}
-.detail__eyebrow-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  margin-bottom: 6px;
-}
-.detail__eyebrow-row .detail__eyebrow {
-  flex: 1;
-  min-width: 0;
-  margin-bottom: 0;
-}
 .book-print-chip {
   flex: none;
   display: inline-flex;
@@ -3873,98 +3375,6 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.detail__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 46px;
-  line-height: 1;
-  color: var(--ink);
-  margin: 0;
-}
-.detail__blurb {
-  font-family: var(--script);
-  font-weight: 500;
-  font-size: 25px;
-  line-height: 1.1;
-  color: var(--ink-soft);
-  margin-top: 15px;
-}
-.detail__stamps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 16px;
-}
-.facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border: 1.5px solid var(--ink);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 22px;
-}
-.facts__cell {
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  border-right: 1.5px solid var(--line-soft);
-  border-bottom: 1.5px solid var(--line-soft);
-}
-.facts__cell:nth-child(even) {
-  border-right: 0;
-}
-.facts__cell:nth-last-child(-n + 2) {
-  border-bottom: 0;
-}
-.facts__k {
-  font-family: var(--hand-sc);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.facts__v {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 24px;
-  line-height: 0.8;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.facts__v small {
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.block {
-  margin-top: 24px;
-}
-.block__label {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  border-top: 2px dashed var(--line);
-  padding-top: 12px;
-  margin-bottom: 12px;
-}
-.block__num {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--accent);
-}
-.block__name {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
 /* ---------- materials kit checklist ---------- */
 .matkit {
   margin-top: 4px;
@@ -4018,6 +3428,16 @@ body {
 }
 .matkit__item:active {
   background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+/* The static read of the checklist (print + the public run page — see
+   RunSheetBody's MaterialsList) renders plain rows, not tap-to-cycle buttons:
+   drop the pointer cursor and hover tint so it doesn't look clickable. */
+.matkit--static .matkit__item {
+  cursor: default;
+}
+.matkit--static .matkit__item:hover {
+  border-color: var(--line);
+  background: var(--card);
 }
 .matkit__check {
   flex: none;
@@ -4214,82 +3634,6 @@ body {
   display: inline-flex;
   gap: var(--s-3);
 }
-/* The flat step list / notes prose / safety callout were retired when the
-   instruction document moved to the Run List (.rl); see the Run List section. */
-.detail__actions {
-  flex: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
-  border-top: 1.5px solid var(--line);
-  background: var(--paper);
-}
-.detail__owner {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-.detail__owner-btn {
-  flex: 1;
-}
-.detail__owner-btn svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.detail__owner-btn--danger {
-  color: var(--clay);
-  border-color: color-mix(in srgb, var(--clay) 45%, var(--line));
-}
-
-.book-spread {
-  min-height: 100%;
-  padding: 14px;
-  display: grid;
-  gap: 0;
-  box-sizing: border-box;
-}
-.book-page {
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: color-mix(in srgb, var(--card) 72%, var(--paper));
-  border: 1.5px solid var(--ink);
-}
-.book-page--summary {
-  border-radius: 16px 16px 0 0;
-}
-.book-page--instructions {
-  border-top: 0;
-  border-radius: 0 0 16px 16px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-.book-page .detail__hero {
-  height: 156px;
-  flex: none;
-}
-.book-page .detail__pad {
-  padding: 18px 20px 24px;
-}
-.book-page .detail__title {
-  font-size: clamp(32px, 5vw, 42px);
-}
-.book-page .detail__blurb {
-  font-family: var(--text);
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.45;
-  color: var(--ink);
-}
-
 /* ---------- activity playbooks ---------- */
 .playbook {
   container: playbook / inline-size;
@@ -4440,8 +3784,7 @@ body {
 .playbook-field__zone--c-ink {
   stroke: color-mix(in srgb, var(--ink) 64%, transparent);
 }
-.playbook-field__zlabel,
-.playbook-field__label {
+.playbook-field__zlabel {
   font-family: var(--hand-sc);
   font-size: 3px;
   letter-spacing: 0.04em;
@@ -4641,16 +3984,6 @@ body {
   stroke-linejoin: round;
 }
 
-.book-page--instructions .playbook__intro {
-  padding: 0 0 12px;
-}
-.book-page--instructions .playbook__frames {
-  padding: 14px 0 0;
-}
-.book-page--instructions .playbook-field {
-  min-height: 250px;
-}
-
 @media (min-width: 560px) {
   .playbook__intro {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -4678,20 +4011,6 @@ body {
   font-family: var(--text);
   font-size: 11px;
   color: var(--ink-faint);
-}
-
-.pb-editwrap {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-}
-.pb-editwrap__actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.pb-add {
-  margin-top: 12px;
 }
 
 .pbe {
@@ -4977,22 +4296,6 @@ body {
   border-top: 1px dashed var(--line-soft);
   padding-top: 10px;
 }
-.form__playbook {
-  display: grid;
-  gap: 10px;
-}
-.form__blockgrid {
-  display: grid;
-  gap: 12px;
-}
-.form__runlist {
-  margin-top: -2px;
-  padding: 10px 0 2px;
-}
-.form__runlist .rl-toolbar {
-  padding-top: 0;
-}
-
 /* ---------- empty states ---------- */
 .empty {
   padding: 60px 32px;
@@ -5029,12 +4332,6 @@ body {
 }
 
 /* ---------- add form ---------- */
-.form {
-  padding: 16px 18px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
 .field {
   display: flex;
   flex-direction: column;
@@ -5199,135 +4496,6 @@ body {
   font-size: 10px;
   letter-spacing: 0.04em;
 }
-.row2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.form__section {
-  font-family: var(--script);
-  font-weight: 700;
-  /* Match the read-mode book headings (.rl-heading__t: 23px/ink) so a section
-     like "Details" or "How to play" reads identically opening vs editing. */
-  font-size: 23px;
-  line-height: 1;
-  color: var(--ink);
-  margin-top: 8px;
-  padding-bottom: 9px;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.form__section:first-child {
-  margin-top: 0;
-}
-/* The Details section: a responsive grid of plain form fields (these used to
-   live inside the run-list editor as a draggable block — never again). */
-.form__grid {
-  display: grid;
-  gap: 12px 20px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-}
-.form__grid .field {
-  margin: 0;
-}
-.form__wide {
-  grid-column: 1 / -1;
-}
-/* The age-section header carries the label on the left and the Grades⇄Ages
-   caption toggle on the right, on one line. */
-.form__agehead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  flex-wrap: wrap;
-}
-.form__runlist {
-  min-width: 0;
-}
-.form--activity .form__runlist {
-  grid-column: 1 / -1;
-}
-.form--activity .rl {
-  --rl-node-size: 30px;
-  --rl-detail-node-size: 28px;
-  --rl-block-gap: 18px;
-  --rl-detail-gap: 14px;
-}
-/* Steps-only editor in the form: the collapse/expand toolbar is viewer
-   ergonomics, not authoring — hide it here. */
-.form--activity .rl-toolbar {
-  display: none;
-}
-.form--activity .rl-block,
-.form--activity .rl-addwrap {
-  gap: calc(var(--s-4) + var(--s-1));
-}
-.form--activity .rl-row {
-  padding-right: calc(var(--s-5) + var(--s-1));
-}
-.form--activity .rl-rowtools {
-  opacity: 1;
-  pointer-events: auto;
-}
-.form--activity .rl-rail {
-  display: none;
-}
-.form--activity .rl-block--heading {
-  gap: var(--s-0);
-}
-.form--activity .rl-block--heading > .rl-node {
-  display: none;
-}
-.form__editbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 12px;
-  border: 1.5px solid var(--wood-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--amber) 12%, var(--card));
-}
-.form__editbar span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--hand);
-  font-size: 15px;
-  color: var(--wood);
-}
-.field__hint {
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: var(--hand);
-  font-size: 13px;
-  color: var(--ink-faint);
-  margin-left: 4px;
-}
-.chiprow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.chip--lg {
-  font-size: 12px;
-  padding: 8px 14px;
-  border-radius: 16px;
-}
-
-/* ---------- picker ---------- */
-.picker__head {
-  padding: 4px 18px 8px;
-}
-.picker__q {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 28px;
-  color: var(--ink);
-  line-height: 0.85;
-}
-
 /* ---------- misc ---------- */
 .fadein {
   animation: cl-enter 240ms var(--ease-overlay) both;
@@ -5350,116 +4518,15 @@ body {
     animation: none;
   }
 }
-.label {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.catalog__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0 2px;
-}
-.sortbtn {
-  background: transparent;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  padding: 4px 11px;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.sortbtn:hover {
-  background: var(--paper-2);
-}
-.sortbtn:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
-}
-
-/* ---------- approval rating ---------- */
-.approval {
-  margin-top: 18px;
-}
-.approval__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 9px;
-}
-.approval__row .meter i {
-  width: 8px;
-  height: 8px;
-}
-.approval__word {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 21px;
-  line-height: 1;
-}
-.approval__num {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
-.approval__scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 5px;
-  font-family: var(--hand-sc);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.rating-range {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 22px;
-  background: transparent;
-  cursor: pointer;
-  margin: 0;
-}
-.rating-range::-webkit-slider-runnable-track {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
-}
-.rating-range::-moz-range-track {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
-}
-.rating-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  margin-top: -8.5px;
-  border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--ink);
-}
-.rating-range::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--card);
-  border: 2px solid var(--ink);
-}
-
 /* Mobile: one search field for the library, stacked under the view switch.
    The toolbar is the page's first row (no page-title bar above it), so it
-   carries the notch clearance and hosts the auth pill beside the switcher. */
+   carries the notch clearance and hosts the auth pill beside the switcher.
+   The collection seg (.collseg) and the 3-way browse-view switch used to be
+   two unplaced grid items landing in the SAME row, where the view switch's
+   wider intrinsic size squeezed the collseg down to two clipped, overlapping
+   labels (library-2). Both now get an EXPLICIT row of their own — a min-width
+   guard on top, so neither switch is ever squeezed by the other's content
+   width regardless of auto-placement specifics. */
 .toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5467,11 +4534,35 @@ body {
   gap: 10px;
   padding: max(14px, calc(8px + env(safe-area-inset-top))) 18px 2px;
 }
+/* Scoped to the touch-shell tiers (phone + iPad-portrait) ONLY — >=1024px
+   switches .toolbar to flex (see the desktop blocks below) where .collseg /
+   .viewswitch already have their own working sizing rules; without this guard
+   these higher-specificity grid-placement selectors would outrank and stomp
+   those flex rules' min-width/width instead of just being no-ops. */
+@media (max-width: 1023px) {
+  .toolbar .collseg {
+    grid-row: 1;
+    grid-column: 1;
+    /* Two icon+label pills need at least this much to read cleanly — never let
+       a sibling's auto-placement width squeeze it below it. */
+    min-width: 190px;
+    width: auto;
+    justify-self: start;
+    margin: 0;
+  }
+  .toolbar .viewswitch:not(.collseg) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+}
 .toolbar__auth {
   display: flex;
   align-items: center;
-  /* Last in the DOM but beside the switcher on screen — grid auto-placement
-     never backtracks to row 1's empty second cell, so place it explicitly. */
+  /* Beside the collection seg on row 1 — grid auto-placement never backtracks
+     to row 1's empty second cell, so place it explicitly. */
   grid-row: 1;
   grid-column: 2;
   justify-self: end;
@@ -5480,9 +4571,11 @@ body {
    only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
    wider tiers below), not the field's visual recipe. */
 .toolbar__search {
+  grid-row: 3;
   grid-column: 1 / -1;
 }
 .toolbar__add {
+  grid-row: 4;
   grid-column: 1 / -1;
 }
 .toolbar__add {
@@ -5555,8 +4648,9 @@ body {
 
   /* ---- full-height sidebar: a FIXED FRAME ----
      Brand + nav are pinned at the top, the foot is pinned at the bottom, and
-     ONLY the section body scrolls (see .sidesection__body). The sidebar itself
-     never scrolls as a whole, so the foot can never be overrun by a long list. */
+     ONLY the rail zone between them scrolls (see .sidenav__scroll — the ONE
+     scroll container for every tab-scoped section). The sidebar itself never
+     scrolls as a whole, so the foot can never be overrun by a long list. */
   .sidenav {
     flex: none;
     width: clamp(272px, 22vw, 312px);
@@ -5650,16 +4744,59 @@ body {
   .sidenav__item.is-active:focus-visible {
     outline-color: var(--ink);
   }
-  /* ---- shared sidebar section (the lower zone, both tabs) ----
-     One skeleton for the third zone so the Library filter rail and the
-     Calendar activity rail read as one sidebar: same header treatment, same
-     rhythm. No top separator — the zone title ("Filter" / "Activities") and
-     the spacing carry the break; a dashed rule here over-fenced the chrome
-     and was absent on the Calendar rail anyway (an inconsistency). */
-  .sidesection {
-    flex: 1;
+  /* ---- the rail zone (the lower zone, ONE scroll container, both tabs) ----
+     Everything tab-scoped — the Library filter rail, the Calendar rail portal
+     + Camps section, or the Print rail portal — renders inside this ONE
+     wrapper so sections stack in normal flow and can never overlap: it is the
+     sidebar's only flex:1 child below the nav, and it is the only element that
+     scrolls. Its own children (a .sidesection, or the calrail/printrail portal
+     divs) stay flex:none and size to their real content; height only ever
+     comes from this outer box, never from a stale/derived height on an inner
+     wrapper. */
+  .sidenav__scroll {
+    flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+    margin-inline: -18px;
+    padding-inline: 18px;
+    /* The rail's top rhythm (was each child's own margin-top: 26px) now lives
+       once on the shared scroll container, so every variant — Filters rail,
+       calendar rail, print rail — gets identical spacing from the nav above
+       without re-declaring it. margin (not padding) so it matches the
+       pre-existing .sidesection margin-top:26px it replaces. */
     margin-top: 26px;
+  }
+  .sidenav__scroll::-webkit-scrollbar {
+    display: none;
+  }
+  /* The sidebar's ONE fixed foot (sync pill + profile row). Never part of the
+     scroll zone, never overlapped by it — a real divider using the app's
+     existing dashed section-break vocabulary (matches .camprail__manage's
+     border-top above). */
+  .sidenav__foot {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1.5px dashed var(--line);
+  }
+  /* ---- shared sidebar section (content shape within the rail zone) ----
+     One skeleton so the Library filter rail and the Calendar activity rail
+     read as one sidebar: same header treatment, same rhythm. Sits INSIDE
+     .sidenav__scroll now, so it no longer needs to be the scroll zone itself —
+     it sizes to its content and the outer wrapper scrolls when it's tall. Top
+     rhythm comes from .sidenav__scroll's own padding-top, not a per-section
+     margin, so stacked sections (e.g. the calendar rail's Camps section below
+     the calrail portal) still need their OWN gap — see .camprail's margin-top
+     below. */
+  .sidesection {
+    flex: none;
     display: flex;
     flex-direction: column;
   }
@@ -5680,30 +4817,26 @@ body {
     text-transform: uppercase;
     color: var(--ink-soft);
   }
-  /* The one scroll zone. Everything above (brand/nav/header) and the foot below
-     stay put; the filter groups / activity list scroll inside here. The negative
-     inline margin + matching padding lets a scrollbar sit at the rail edge
-     without the content losing its gutter. */
+  /* The section body sizes to its own content — the ONE scroll zone is the
+     shared .sidenav__scroll ancestor now, so nesting a second overflow-y:auto
+     here would just stack a redundant inner scrollbar. Kept flush with the
+     rail edge (no inline margin/padding of its own to undo) since the scroll
+     container above already carries that gutter. */
   .sidesection__body {
-    flex: 1;
-    min-height: 0;
+    flex: none;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-    scrollbar-width: none;
-    margin-inline: -18px;
-    padding-inline: 18px;
   }
-  .sidesection__body::-webkit-scrollbar {
-    display: none;
-  }
-  /* A fixed-height sidebar section: it sizes to its content and never becomes the
-     scroll zone. The calendar rail stacks two (View + Activities); the View
-     ledger is --fixed so ONLY the Activities list scrolls (like the mini-month
-     above it). */
+  /* .sidesection--fixed sections (View/Weather/Subscribe/Camps) are the ones
+     stacked as REPEATED siblings within a single rail (the calendar rail nests
+     several under one .sidenav__calrail; Camps sits after it) — each needs its
+     own top gap since they're not the rail's sole/first section the way the
+     Filters rail is. The plain (non-fixed) .sidesection doesn't set this: it's
+     always the lone section in its rail, so .sidenav__scroll's padding-top
+     alone gives it correct spacing from the nav above. */
   .sidesection--fixed {
     flex: none;
+    margin-top: 26px;
   }
   .sidesection--fixed > .sidesection__body {
     flex: none;
@@ -5749,6 +4882,11 @@ body {
   }
   .camprail.is-open .camprail__chev {
     transform: rotate(90deg);
+    /* Once open the chevron points DOWN, so the closed-state hover nudge
+       (the global cicon--chev-right translateX animation) no longer applies —
+       its transform would otherwise clobber this rotate and snap the glyph back
+       to facing right on hover. Keep the nudge exclusive to the closed state. */
+    animation: none;
   }
   .camprail__head:hover .sidesection__title,
   .camprail__head:hover .camprail__chev {
@@ -5803,17 +4941,22 @@ body {
   .camprail__pick:hover {
     color: var(--ink);
   }
+  /* camps-6: filled with the camp's derived identity tint (--camp-tint, set
+     inline per row) — the same "a colored dot IS the identity" convention
+     Themes/Locations rows use, rather than a blank outline. The active state
+     adds a ring around it instead of replacing the fill, so the tint stays
+     visible whether or not the row is the active camp. */
   .camprail__dot {
     flex: none;
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    border: 1.5px solid var(--line);
-    background: transparent;
+    border: 1.5px solid color-mix(in srgb, var(--camp-tint, var(--line)) 55%, transparent);
+    background: var(--camp-tint, transparent);
   }
   .camprail__row.is-active .camprail__dot {
-    border-color: var(--accent-ink);
-    background: var(--accent-ink);
+    /* token-exempt: a two-layer ring (page-color gap + accent ring) around the identity dot — no --e* elevation token expresses a same-plane focus/active ring (they're all drop-shadows for raised surfaces). */
+    box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--accent-ink);
   }
   .camprail__row.is-active .camprail__name {
     color: var(--ink);
@@ -6010,39 +5153,8 @@ body {
     margin-inline: auto;
   }
 
-  .form {
-    max-width: 680px;
-    margin-inline: auto;
-    padding: 22px 32px 36px;
-  }
   .empty {
     padding: 90px 32px;
-  }
-
-  .detail__title {
-    font-size: 46px;
-  }
-}
-
-@media (min-width: 1000px) {
-                    .form {
-    max-width: 920px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-    gap: 18px 24px;
-  }
-  .form__section,
-  .form > .form__grid,
-  .form > .form__editbar,
-  .form .field:has(.textarea),
-  .form > .btn--block,
-  .form > div[style] {
-    grid-column: 1 / -1;
-  }
-  .form > .btn--block {
-    width: min(360px, 100%);
-    justify-self: end;
   }
 }
 
@@ -6063,11 +5175,6 @@ body {
   .overlay--viewer {
     top: max(12px, env(safe-area-inset-top));
     overflow: visible;
-    background: transparent;
-  }
-  .overlay--viewer .detail__actions {
-    padding: 8px 18px calc(16px + env(safe-area-inset-bottom));
-    border: 0;
     background: transparent;
   }
 }
@@ -6140,35 +5247,6 @@ body {
     max-width: 940px;
     padding: 26px 40px 76px;
   }
-}
-
-/* ============================================================
- * Book viewer — edit mode
- * The reading view flips into editing in place, without leaving the
- * book: a bottom sheet on phones, a centered card on larger screens.
- * The embedded form stays a single calm column, overriding the
- * page-level multi-column "Add" form.
- * ============================================================ */
-.overlay--viewer .form {
-  display: flex;
-  flex-direction: column;
-  grid-template-columns: none;
-  max-width: none;
-  margin-inline: 0;
-}
-/* The add/edit activity form inside the sheet: a calm centered column whose
-   fields actually fill it (the page-level grid's align-items: start would
-   otherwise shrink-wrap every input). */
-.overlay--viewer .form--activity {
-  align-items: stretch;
-  width: 100%;
-  max-width: 720px;
-  margin-inline: auto;
-}
-.overlay--viewer .form > .btn--block {
-  width: 100%;
-  min-width: 0;
-  margin-left: 0;
 }
 
 /* ============================================================
@@ -7100,46 +6178,6 @@ body {
   line-height: 1.4;
   color: var(--ink-faint);
 }
-.rlv-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 12px;
-  margin-top: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1.5px dashed var(--line-soft);
-}
-.rlv-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.rlv-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  font-family: var(--hand-sc);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  border: 1.3px solid var(--line);
-  border-radius: 5px;
-  padding: 3px 9px;
-  background: var(--card);
-}
-.rlv-chip svg {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.75;
-}
-
 /* ---------- compact dot rating ---------- */
 .ratingdots {
   display: inline-flex;
@@ -7266,6 +6304,15 @@ body {
   background: var(--line-soft);
   border-radius: 2px;
 }
+/* A cleared-to-empty run doc (read mode only — edit mode's own "Add a block"
+   button already covers this). Same quiet muted-text vocabulary as the
+   library's "No activities match…" empty state. */
+.rl-empty {
+  margin: var(--s-4) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+}
 .rl-block {
   --rl-next-gap: var(--rl-block-gap);
   display: flex;
@@ -7372,6 +6419,25 @@ button.rl-node {
 .rl-node--tinted {
   color: var(--rl-blk);
   border-color: color-mix(in srgb, var(--rl-blk) 45%, var(--line));
+}
+/* The same "block wears an icon (+ optional colour)" idea, inline before a
+   print/public run-sheet heading (RunSheetBody's DecoIcon) instead of a full
+   circular rail node — no ring/background, just the glyph at label size. Colour
+   (when set) comes through inline `color` on the wrapping span. */
+.rl-node--mini {
+  display: inline-flex;
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+.rl-node--mini svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 /* The node doubles as the icon/colour picker trigger in edit mode. */
 button.rl-node--pick {
@@ -7582,10 +6648,12 @@ button.rl-node--pick:focus-visible {
 .rl-row--detail .rl-time {
   color: var(--ink-faint);
 }
+/* Flat like every other block on the rail — the icon node carries the emphasis,
+   not a tinted card (see the "inked card is gone" comment above). */
 .rl-row--details {
-  background: color-mix(in srgb, var(--accent) 7%, var(--card));
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
-  box-shadow: var(--e1);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .rl-detailtags {
   display: flex;
@@ -7719,6 +6787,18 @@ button.rl-node--pick:focus-visible {
   text-transform: uppercase;
   color: var(--ink-faint);
 }
+/* Invalid Minutes drops to a second line for the visible error message — the
+   same plain-language treatment Group size shows in its popover
+   (.rldetail__grouperr), surfaced inline here since Minutes has no popover. */
+.rldetail__row--minutes.is-invalid {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.rldetail__row--minutes .rldetail__grouperr--minutes {
+  flex: 1 0 100%;
+  margin-top: 0;
+  text-align: right;
+}
 /* Rating sits in the ledger like any other property — push the dots to the
    right edge so they line up with the controls above. */
 .rldetail__row--rating .ratingdots {
@@ -7729,18 +6809,11 @@ button.rl-node--pick:focus-visible {
   flex: 0 0 auto;
   width: auto;
 }
-/* These three menus reuse .typepick__menu for the card/border look but are
-   hosted in the portaled FloatingLayer (position driven inline), NOT anchored
-   in flow like the sidebar pickers. Clear the .typepick__menu absolute anchor
-   (left:0; right:0) it doesn't use here — the leftover right:0 was stretching
-   the popover to full viewport width. Same reset .cselect__menu already does. */
+/* These three menus reuse .typepick__menu for the card/border/sizing look;
+   position is driven inline by the FloatingLayer they're hosted in. */
 .rldetail__menu,
 .rldetail__agemenu,
 .rldetail__groupmenu {
-  position: fixed;
-  top: auto;
-  left: auto;
-  right: auto;
   min-width: 180px;
 }
 .rldetail__agemenu,
@@ -8053,21 +7126,19 @@ button.rl-node--pick:focus-visible {
 /* The title field fills the row's remaining width (a free-text name, not a
    hug-content fact pill like the other ledger controls). */
 .rlv-backups__titlewrap {
-  position: relative;
   flex: 1;
   min-width: 0;
 }
 .rlv-backups__search {
   width: 100%;
 }
-/* The library-match dropdown floats under the field, reusing the QuickAdd
-   result-list look (.quickadd__list/.quickadd__item) verbatim. */
+/* The library-match dropdown reuses the QuickAdd result-list look
+   (.quickadd__list/.quickadd__item) verbatim, hosted in a portaled
+   FloatingLayer so it escapes the Modal's overflow. left/top come inline
+   from FloatingLayer; position: fixed must stay declared here so that
+   inline style actually takes effect. */
 .rlv-backups__results {
-  position: absolute;
-  top: calc(100% + var(--s-2));
-  left: 0;
-  right: 0;
-  z-index: 20;
+  position: fixed;
   max-height: 220px;
   margin-top: 0;
   padding: var(--s-2);
@@ -8167,17 +7238,19 @@ button.rl-node--pick:focus-visible {
 
 /* ---------- field notes (the "change this later" log) ----------
    A self-contained, flagged block kept visually apart from the cozy
-   instructional "Note". It holds dated ENTRIES you type straight from the
-   read-only viewer (like the rating dots stay interactive) — no edit mode.
-   Never printed (excluded in RunSheetBody / ActivityBookPrint). */
+   instructional "Note" by its amber flag glyph (.rl-node--fnhead), not a card
+   fill — flat like every other block on the rail. It holds dated ENTRIES you
+   type straight from the read-only viewer (like the rating dots stay
+   interactive) — no edit mode. Now printed/shared like any other block; see
+   RunSheetBody. */
 .rl-row--fieldnote {
-  background: color-mix(in srgb, var(--amber) 12%, var(--card));
-  border-color: color-mix(in srgb, var(--amber) 50%, var(--ink));
+  background: transparent;
+  border-color: transparent;
   border-left: 3px solid var(--rl-fieldnote);
 }
 .rl-row--detail.rl-row--fieldnote {
-  background: color-mix(in srgb, var(--amber) 10%, var(--card));
-  border-color: color-mix(in srgb, var(--amber) 38%, var(--line));
+  background: transparent;
+  border-color: transparent;
   border-left: 3px solid color-mix(in srgb, var(--rl-fieldnote) 82%, transparent);
 }
 /* Field-note text stays a text caret even in the otherwise-static read view. */
@@ -8227,11 +7300,6 @@ button.rl-node--pick:focus-visible {
 .rl-block--fnlog.is-closing .rl-node--fnhead {
   transform: scale(0.97);
 }
-/* The open log gets the same "owns the rows below" footer cue a step has
-   (keep the base --e2 lift, add the inset accent — exactly like the step row). */
-.rl-block--fnlog.has-children:not(.is-collapsed) > .rl-block__main > .rl-row {
-  box-shadow: var(--e2), inset 0 -3px 0 color-mix(in srgb, var(--rl-fieldnote) 18%, transparent);
-}
 /* The composer line on the parent row — the always-ready "jot a note" input. */
 .rl-fncompose {
   cursor: text;
@@ -8269,9 +7337,6 @@ button.rl-node--pick:focus-visible {
 .rl-iconbtn:active {
   background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
   color: var(--ink);
-}
-.rl-iconbtn--quiet {
-  cursor: default;
 }
 /* Advertises that the whole row drags — sized like its sibling icon buttons. */
 .rl-grip {
@@ -8341,50 +7406,6 @@ button.rl-node--pick:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.rl-vid__thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 7px;
-  background: var(--ink);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.rl-vid__thumb::before {
-  content: "";
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 3px solid var(--paper);
-  background: rgba(243, 236, 221, 0.12);
-}
-.rl-vid__thumb::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-36%, -50%);
-  border-left: 15px solid var(--paper);
-  border-top: 9px solid transparent;
-  border-bottom: 9px solid transparent;
-}
-.rl-vid__tag {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--paper);
-}
-.rl-vid__fields {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .rl-vid__url {
   display: block;
@@ -8603,27 +7624,6 @@ button.rl-node--pick:focus-visible {
   margin-top: 6px;
   padding-left: calc(var(--rl-node-size) + 16px);
 }
-.rl-addnode {
-  flex: none;
-  width: var(--rl-node-size, 34px);
-  height: var(--rl-node-size, 34px);
-  border-radius: 50%;
-  border: 1.6px dashed var(--line);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-faint);
-  background: var(--rl-bg);
-  z-index: 1;
-}
-.rl-addnode svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-}
 .rl-addmain {
   flex: 1;
   min-width: 0;
@@ -8733,10 +7733,12 @@ button.rl-node--pick:focus-visible {
 .rl-row--diagram {
   align-items: stretch;
 }
+/* Flat like every other block on the rail — the checklist itself (.matkit) is
+   already visually distinct row-by-row, so it doesn't need a card behind it. */
 .rl-block--materials > .rl-block__main > .rl-row--materials {
-  background: color-mix(in srgb, var(--card) 62%, var(--paper));
-  border-color: var(--line);
-  box-shadow: var(--e1);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .rl-row--materials .matkit {
   margin-top: 6px;
@@ -8896,8 +7898,7 @@ button.rl-node--pick:focus-visible {
   .rl-addwrap {
     gap: 16px;
   }
-  .rl-node,
-  .rl-addnode {
+  .rl-node {
     font-size: 17px;
   }
 }
@@ -9230,6 +8231,17 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
   white-space: pre-wrap;
 }
+/* event-detail-9: a quiet caption disambiguating the per-placement Day note
+   above from the per-activity Field Notes log further down — informational,
+   not a warning, so it stays muted rather than amber/danger-toned. */
+.rlv-fieldnote-hint {
+  align-self: stretch;
+  max-width: 760px;
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
 @media (prefers-reduced-motion: reduce) {
   .rl-insert__btn {
     transition: none;
@@ -9274,8 +8286,15 @@ button.rl-node--pick:focus-visible {
     padding-inline: var(--s-7);
   }
 }
-/* desktop re-assertions (the sidebar rail replaces the bar there) */
-@media (min-width: 1024px) {
+/* desktop re-assertions (the sidebar rail replaces the bar there). Gated to
+   the app's next named breakpoint (1320px), NOT 1024px — at 1024–1319px
+   (tablet-tier desktop) the collection seg + view switch + search + Add
+   genuinely don't fit on one nowrap row (confirmed live: the Add button and
+   part of the search field render past the viewport edge with no scroll
+   affordance — library-1). The 1024px block above already lets the toolbar
+   wrap there; this only re-asserts a single row once there's actually room
+   for one. */
+@media (min-width: 1320px) {
   .toolbar {
     flex-wrap: nowrap;
     padding: var(--s-5) var(--s-8) var(--s-5);
@@ -9319,19 +8338,6 @@ button.rl-node--pick:focus-visible {
     opacity: 1;
     pointer-events: auto;
   }
-}
-
-/* ---- add/edit sheet header (always-visible escape hatch) ---- */
-.sheet-head {
-  padding: var(--s-5) var(--page-x) 0;
-  margin-bottom: 0;
-}
-.sheet-head__title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
 }
 
 /* ---- run-list video detail: clean caption + link (no fake player) ---- */
@@ -9380,19 +8386,24 @@ button.rl-node--pick:focus-visible {
 /* ============================================================
  * Floating controls — custom dropdowns + right-click menus
  * One portaled layer engine (FloatingLayer) backs the Select, the
- * DatePopover, and the right-click ContextMenu. All three wear the same
- * card surface + ink border the rest of the app uses (the .typepick menu
- * recipe), so a dropdown and a context menu read as the same family.
- * They portal to <body>, so they sit ABOVE every overlay (z-index 80 >
- * cal-popover 70 > overlays 30/31) and escape modal overflow clipping.
+ * DatePopover, the right-click ContextMenu, and (as of the calendar overlay
+ * containment pass) every calendar anchored card — WeatherPopover, StopPopover,
+ * ShiftBar, GatherPopover, RainPanel (.cal-popover family in calendar.css). All
+ * wear the same card surface + ink border the rest of the app uses (the
+ * .typepick menu recipe), so a dropdown, a context menu, and a calendar popover
+ * all read as the same family. They portal to <body>, so they sit ABOVE every
+ * overlay (z-index 220 > toast 80 > overlays 30/31) and escape modal overflow
+ * clipping. Only the skip-link (300) and FullCalendar's native "+N more"
+ * popover (forced into this same 220 tier — see calendar.css) share this top
+ * of the stack.
  * ============================================================ */
 .floating-root {
   position: fixed;
   inset: 0;
-  /* Top of the stack: the portaled menus (custom Select, DatePopover, the
-     right-click ContextMenu) must clear the diagram-edit modal (215) and the
-     lightbox (210), or a piece menu opened inside the diagram editor renders
-     BEHIND the modal. Above present mode (200) too — a menu is always clickable. */
+  /* Top of the stack (bar the skip-link, 300): the portaled menus (custom
+     Select, DatePopover, the right-click ContextMenu, every calendar anchored
+     card) must clear the diagram-edit modal (215) and the lightbox (210), or a
+     piece menu opened inside the diagram editor renders BEHIND the modal. */
   z-index: 220;
 }
 .floating__scrim {
@@ -9413,6 +8424,11 @@ button.rl-node--pick:focus-visible {
   border-radius: var(--r-md);
   box-shadow: var(--e3);
   padding: var(--s-2);
+  /* A long menu (many conditional rows — recurring/pinned/meal/backup items all
+     stack on one event) scrolls inside the card instead of running off-viewport;
+     matches the .typepick__menu / .cselect__menu clamp precedent. */
+  max-height: min(440px, 60vh);
+  overflow: hidden;
   animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
 }
 @keyframes cmenu-pop {
@@ -9429,6 +8445,8 @@ button.rl-node--pick:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  max-height: inherit;
+  overflow-y: auto;
   outline: none;
 }
 .cmenu__item {
@@ -9580,15 +8598,10 @@ button.rl-node--pick:focus-visible {
   color: var(--accent-ink);
   transform: rotate(180deg);
 }
-/* The open menu reuses .typepick__menu (card/border/shadow). Position is
-   driven inline by FloatingLayer; clear the .typepick anchoring it doesn't
-   use here, and cap height so a long time list scrolls inside the layer. */
+/* .typepick__menu supplies the surface/sizing/scroll; Select nests its own
+   .cselect__list as the scroll+focus container instead, so hand that scroll
+   back to the inner list here (an outer + inner scrollbar would double up). */
 .cselect__menu {
-  position: fixed;
-  top: auto;
-  left: auto;
-  right: auto;
-  max-height: min(320px, 60vh);
   overflow: hidden;
 }
 .cselect__list {
@@ -9794,7 +8807,10 @@ button.rl-node--pick:focus-visible {
 @media (max-width: 1023px) {
   .cmenu,
   .cselect__menu,
-  .cdate__pop {
+  .cdate__pop,
+  .typepick__menu,
+  .profilemenu,
+  .subfeed__menu {
     left: 0 !important;
     right: 0;
     top: auto !important;
@@ -9806,7 +8822,10 @@ button.rl-node--pick:focus-visible {
     padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
     animation: cl-rise 220ms var(--ease-overlay) both;
   }
-  .cselect__menu {
+  .cselect__menu,
+  .typepick__menu,
+  .profilemenu,
+  .subfeed__menu {
     max-height: 60vh;
   }
   .cselect__list {
@@ -9952,35 +8971,25 @@ button.rl-node--pick:focus-visible {
 }
 
 /* The desktop sidebar slot the controls portal into (the same primary sidebar
-   the Library filters / Calendar settings share — no second sidebar). It is the
-   rail's scroll container: the options can run past the viewport, and only this
-   zone scrolls (brand + nav stay pinned). The edge-bleed seats a scrollbar at
-   the rail edge, matching the Library/Calendar rails. Desktop-only — the sidebar
-   is display:none below 768px, where the controls open in the options sheet. */
+   the Library filters / Calendar settings share — no second sidebar). It sits
+   INSIDE the shared .sidenav__scroll zone now, which is the rail's ONE scroll
+   container (brand + nav + foot stay pinned outside it) — so this div sizes to
+   its own content instead of also scrolling, avoiding a nested scrollbar.
+   Desktop-only — the sidebar is display:none below 768px, where the controls
+   open in the options sheet. */
 .sidenav__printrail {
-  flex: 1;
-  min-height: 0;
-  margin-top: 26px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-width: none;
-  margin-inline: -18px;
-  padding-inline: 18px;
-}
-.sidenav__printrail::-webkit-scrollbar {
-  display: none;
 }
 
 /* ---- Sidebar sync pill + app-level error toast ----
-   Sync state surfaced where edits happen (Calendar/Library), not just the Staff
-   card. The pill is QUIET by default — it only renders when something needs
-   attention (pending writes, offline, refused write) and taps through to the
-   Staff tab's full sync line. The toast makes a server-refused write visible;
-   it mirrors .calshell__toast so the two read as one system. */
+   Sync state surfaced where edits happen (Calendar/Library), not just the
+   profile popover. The pill is QUIET by default — it only renders when
+   something needs attention (pending writes, offline, refused write) and taps
+   through to the SAME profile popover as the row below it, where the full
+   sync line lives. The toast makes a server-refused write visible; it mirrors
+   .calshell__toast so the two read as one system. */
 .sidenav__sync {
-  margin-top: auto;
   display: inline-flex;
   align-items: center;
   gap: var(--s-3);
@@ -10005,6 +9014,242 @@ button.rl-node--pick:focus-visible {
 }
 .sidenav__sync.is-error .sidenav__sync-dot {
   background: var(--danger);
+}
+
+/* ---- Profile control (bottom-left account row + popover) ----
+   The common app pattern, replacing the old dedicated Staff tab: one row in
+   the sidebar foot — avatar, display name, chevron — opening a themed popover
+   (FloatingLayer; docks as a bottom sheet under 1024px like every other
+   floating menu — see the touch-shell dropdown rule below). The row itself
+   borrows the sidenav__item quiet hover treatment; the popover body reuses the
+   .typepick__option row recipe so it reads as the same menu family as every
+   other dropdown in the app. */
+.profilerow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  padding: var(--s-3) var(--s-4);
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.profilerow:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.profilerow:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.profilerow[aria-expanded="true"] {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.profilerow__avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-round);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-ui);
+  line-height: 1;
+}
+.profilerow__avatar svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profilerow__name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand-sc);
+  font-size: 12.5px;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilerow__chev {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+}
+
+/* The popover body: reuses .typepick__menu's card surface via its own class
+   (so the touch-shell bottom-dock rule can target it directly), then a small
+   identity head + tag row + sync line above the same .typepick__option rows
+   every other dropdown uses. */
+.profilemenu {
+  position: fixed;
+  width: 260px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.profilemenu__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+}
+.profilemenu__avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-round);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+}
+.profilemenu__avatar svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profilemenu__id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.profilemenu__name {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.15;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilemenu__email {
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilemenu__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+}
+.profilemenu__tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.profilemenu__tag--quiet {
+  background: var(--chrome-well);
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+.profilemenu__sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.profilemenu__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.profilemenu__dot--synced {
+  background: var(--accent);
+}
+.profilemenu__dot--syncing {
+  background: var(--accent-ink);
+}
+.profilemenu__dot--pending {
+  background: var(--amber);
+}
+.profilemenu__dot--offline {
+  background: var(--ink-faint);
+}
+.profilemenu__dot--error {
+  background: var(--danger);
+}
+.profilemenu__div {
+  height: 1px;
+  margin: var(--s-2) var(--s-2);
+  background: var(--line);
+}
+.profilemenu__muted {
+  margin: 0;
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+/* The action rows reuse .typepick__option verbatim, which (unlike .cmenu__item)
+   has no icon-sizing rule of its own — every existing consumer only ever put a
+   .typepick__swatch dot in that slot. Scope the CampIcon glyph size here rather
+   than touch the shared .typepick__option recipe every other menu relies on. */
+.profilemenu .typepick__option svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .app-toast {
   position: fixed;
@@ -10051,32 +9296,6 @@ button.rl-node--pick:focus-visible {
 .prail {
   display: flex;
   flex-direction: column;
-}
-
-/* Break-sheet download — a quiet footer row at the bottom of the controls rail
-   (moved here from the print header so the head keeps one primary action). Set
-   apart from the option groups above it by a dashed rule, in the rail's quiet
-   ledger voice. */
-.prail__docdownload {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin-top: var(--s-4);
-  padding-top: var(--s-4);
-  border-top: 1.5px dashed var(--line-soft);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  text-decoration: none;
-  transition: color var(--t-fast) var(--ease);
-}
-.prail__docdownload:hover {
-  color: var(--ink);
-}
-.prail__docdownload .ledger__ic {
-  color: var(--ink-faint);
 }
 
 /* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
@@ -10395,31 +9614,11 @@ button.rl-node--pick:focus-visible {
   color: var(--ink-faint);
 }
 
-/* "More options" — the set-once / niche settings folded behind ONE ledger row,
-   the Library "Available kit" pattern: a <summary> that IS a ledger row (label
-   left, chevron right) expanding a sub-ledger. Keeps the resting rail short. */
-.prail__more {
-  width: 100%;
-}
-.prail__moresum {
-  cursor: pointer;
-  list-style: none;
-  /* It's the last row of the Format ledger; the Materials row above is the
-     divider, and an open panel reads as one unit with the summary. */
-  border-bottom: 0;
-}
-.prail__moresum::-webkit-details-marker {
-  display: none;
-}
 .prail__morestate {
   display: inline-flex;
   align-items: center;
   color: var(--ink-faint);
   transition: color var(--t-fast) var(--ease);
-}
-.prail__moresum:hover .ledger__label,
-.prail__moresum:hover .prail__morestate {
-  color: var(--ink);
 }
 .prail__morestate svg {
   flex: none;
@@ -10431,19 +9630,6 @@ button.rl-node--pick:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: transform var(--t-fast) var(--ease);
-}
-.prail__more[open] > .prail__moresum .prail__morestate svg {
-  transform: rotate(180deg);
-}
-/* The folded sub-ledger sits flush under the summary (the kit panel's rhythm). */
-.prail__morepanel {
-  margin-top: var(--s-2);
-  animation: prail-reveal var(--t-fast) var(--ease);
-}
-@media (prefers-reduced-motion: reduce) {
-  .prail__morepanel {
-    animation: none;
-  }
 }
 @keyframes prail-reveal {
   from {
@@ -11082,6 +10268,9 @@ button.rl-node--pick:focus-visible {
 }
 .pd-child h4 {
   margin: 0 0 0.03in;
+  display: flex;
+  align-items: center;
+  gap: 0.06in;
   font-family: var(--hand-sc);
   font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
@@ -11103,6 +10292,9 @@ button.rl-node--pick:focus-visible {
 }
 .pd-run-note h3 {
   margin: 0 0 0.03in;
+  display: flex;
+  align-items: center;
+  gap: 0.06in;
   font-family: var(--hand-sc);
   font-size: var(--pd-fs-label);
   letter-spacing: 0.06em;
@@ -11189,37 +10381,27 @@ button.rl-node--pick:focus-visible {
 }
 
 /* =====================================================================
-   Materials tab — the kit review surface. Two presentations off one list
-   (Setup while stock is unset, then the normal restock + full list). Reuses
-   the tab-header vocabulary (.printhead → .materials-tab__head) and the run
-   sheet's stock palette (green have / amber low / red out).
+   Materials collection — the kit review surface inside the Library tab.
+   Two presentations off one list (Setup while stock is unset, then the
+   normal restock + full list). Shares the run sheet's stock palette (green
+   have / amber low / red out) and now the SAME width/layout contract as the
+   Activities browse views (--lib-col-max, centered) instead of its own
+   narrower capped column (materials-1) — switching the Activities|Materials
+   seg no longer visibly resizes the content column.
    ===================================================================== */
 .materials-tab {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  max-width: 720px;
-  margin: 0 auto;
-  padding: var(--s-5) var(--page-x) var(--s-8);
   width: 100%;
+  padding: var(--s-5) var(--page-x) var(--s-8);
 }
-.materials-tab__head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-4);
-}
-.materials-tab__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  min-width: 0;
-}
-.materials-tab__title {
-  margin: 0;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  line-height: 1;
-  color: var(--ink);
+@media (min-width: 1024px) {
+  .materials-tab {
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+    padding: var(--s-5) var(--s-8) var(--s-8);
+  }
 }
 .materials-tab__scope {
   margin: 0;
@@ -11296,11 +10478,23 @@ button.rl-node--pick:focus-visible {
 .materials-section--restock .materials-section__title {
   color: var(--amber);
 }
+/* Say why it's empty and offer the one-tap way back — the same shape as
+   .library-empty (materials-8/11: this collection used to be a single plain
+   line with no recovery action). */
 .materials-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
   margin: var(--s-4) 0;
-  font-size: var(--fs-body);
-  color: var(--ink-faint);
+  padding: clamp(32px, 8vh, 80px) var(--page-x);
   text-align: center;
+}
+.materials-empty__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
 }
 
 /* The list + rows. Each row is a status dot + name on the left, then the
@@ -11746,7 +10940,9 @@ button.rl-node--pick:focus-visible {
   color: var(--ink-soft);
 }
 .pd-tl__name {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 0.04in;
   font-family: var(--hand);
   font-weight: 700;
   font-size: calc(9.5pt);
@@ -11760,6 +10956,24 @@ button.rl-node--pick:focus-visible {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--ink-faint);
+}
+/* Theme label (print-5: "Show themes" now works on the timeline too) — same
+   small-caps line as .pd-tl__type, tinted with the theme's own color like the
+   agenda's .pd-event__theme, so a themed week reads the same in both layouts. */
+.pd-tl__theme {
+  display: block;
+  margin-top: 0.01in;
+  font-family: var(--hand-sc);
+  font-size: calc(6.8pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.print-doc--color .pd-tl__theme {
+  color: var(--pd-tint, var(--ink-faint));
+}
+.print-doc--mono .pd-tl__theme {
+  color: #000;
 }
 /* Short blocks shed their time/type lines so the title always survives — the
    drop is decided from geometry in CalendarTimeline (not an @container query, so
@@ -11793,6 +11007,7 @@ button.rl-node--pick:focus-visible {
 /* Plain: drop the small-caps decoration to a text-first grid. */
 .print-doc--plain .pd-tl__time,
 .print-doc--plain .pd-tl__type,
+.print-doc--plain .pd-tl__theme,
 .print-doc--plain .pd-tl__hour,
 .print-doc--plain .pd-tl__alldaytag {
   font-family: var(--text);

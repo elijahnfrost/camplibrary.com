@@ -121,7 +121,7 @@ export type LibraryView = "shelf" | "deck" | "catalog";
 // switched by a seg at the head of the Library toolbar).
 export type LibraryCollection = "activities" | "materials";
 
-// "home" and "materials" are retired surfaces kept ONLY so a stored last-tab can
-// migrate forward (home → calendar, materials → the library's Materials
-// collection); they are never set as a live tab.
-export type TabId = "library" | "calendar" | "print" | "staff" | "admin";
+// "home", "materials", and "staff" are retired surfaces kept ONLY so a stored
+// last-tab can migrate forward (home → calendar, materials → the library's
+// Materials collection, staff → calendar); they are never set as a live tab.
+export type TabId = "library" | "calendar" | "print" | "admin";

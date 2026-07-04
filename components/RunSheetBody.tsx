@@ -4,12 +4,32 @@
 // walks of the RunDoc that drifted (different facts, diagram clamp); this is the
 // single source so a new block type or fact lands in both at once. The SVG
 // diagram (ActivityPlaybook) was already shared; now the whole body is.
+//
+// This is also the READ path's content model: it now renders the SAME resolved
+// RunDoc the in-app read view (ActivityRunList editable={false}) shows — the
+// `details` block's tags (falling back to detailTagsForActivity only when the
+// block carries none), field notes, and per-block icon/colour — so a hand-edit
+// made in the editor (a detail tag, a field note, a recoloured block) actually
+// reaches print and the public link instead of being silently regenerated away.
 
-import type { ElementType } from "react";
+import type { CSSProperties, ElementType, FC, ReactNode } from "react";
 import { ageSpan, code, durLabel, ENERGY, groupLabel } from "@/lib/data";
-import { materialNeedsForActivity } from "@/lib/materials";
-import type { RunBlock, RunChild, RunDoc } from "@/lib/runList";
+import { coverage, materialNeedsForActivity, materialTagId, type ResolvedRef } from "@/lib/materials";
+import { catalogNameFor, type Material } from "@/lib/materialCatalog";
+import { isStocked, type StockState } from "@/lib/kitStock";
+import {
+  defaultRunIcon,
+  detailTagsForActivity,
+  RUN_COLOR_TOKEN,
+  type RunBlock,
+  type RunChild,
+  type RunColor,
+  type RunDetailTag,
+  type RunDoc,
+  type RunIcon,
+} from "@/lib/runList";
 import type { Activity } from "@/lib/types";
+import { CampIcon } from "./icons";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 
 export type RunSheetVariant = "print" | "web";
@@ -19,11 +39,43 @@ const CHILD_LABEL: Record<RunChild["type"], string> = {
   safety: "Safety",
   video: "Media",
   variation: "Variation",
-  // Field notes are a private "change later" log — never printed (see RunChildView).
   fieldnote: "Field note",
   substep: "Sub-step",
   diagram: "Diagram",
   materials: "Materials",
+};
+
+type IconCmp = FC<{ className?: string }>;
+
+// The glyph a block/child wears — mirrors ActivityRunList's decoNode: an
+// explicit icon override wins, else the type's default glyph.
+const RUN_ICON_CMP: Record<RunIcon, IconCmp> = {
+  note: CampIcon.Note,
+  safety: CampIcon.Shield,
+  tip: CampIcon.Variation,
+  bell: CampIcon.Bell,
+  star: CampIcon.Star,
+  flag: CampIcon.Flag,
+};
+const NODE_ICON: Record<string, IconCmp> = {
+  note: CampIcon.Note,
+  safety: CampIcon.Shield,
+  video: CampIcon.Video,
+  variation: CampIcon.Variation,
+  fieldnote: CampIcon.Flag,
+  substep: CampIcon.SubStep,
+  diagram: CampIcon.Deck,
+  materials: CampIcon.Card,
+  details: CampIcon.Card,
+};
+const DETAIL_TAG_ICON: Record<string, IconCmp> = {
+  pin: CampIcon.Pin,
+  users: CampIcon.Users,
+  clock: CampIcon.Clock,
+  type: CampIcon.Tag,
+  energy: CampIcon.Bolt,
+  prep: CampIcon.Tool,
+  rating: CampIcon.Star,
 };
 
 // The two presentational vocabularies. Structure is identical; only class names,
@@ -50,6 +102,10 @@ const VARIANTS = {
     diagramChild: "pd-child pd-playbook",
     chips: "pd-chips",
     muted: "",
+    empty: "pd-empty",
+    detailtags: "rl-detailtags",
+    detailtag: "rl-detailtag",
+    fndate: "rl-fndate",
     linkVideos: false,
   },
   web: {
@@ -73,35 +129,209 @@ const VARIANTS = {
     diagramChild: "runsheet__detail runsheet__detail--diagram",
     chips: "runsheet__chips",
     muted: "runsheet__muted",
+    empty: "runsheet__muted",
+    detailtags: "rl-detailtags",
+    detailtag: "rl-detailtag",
+    fndate: "rl-fndate",
     linkVideos: true,
   },
 } as const;
 
 type Vars = (typeof VARIANTS)[RunSheetVariant];
 
-function MaterialsList({ activity, c }: { activity: Activity; c: Vars }) {
-  const needs = materialNeedsForActivity(activity);
-  const labels = needs.length ? needs.map((need) => need.label) : activity.materials;
-  return labels.length ? (
-    <ul className={c.chips}>
-      {labels.map((material) => (
-        <li key={material}>{material}</li>
-      ))}
-    </ul>
-  ) : (
-    <p className={c.muted || undefined}>None needed.</p>
+// "Jun 23 · 2:05 PM" from a local "YYYY-MM-DDTHH:mm" (mirrors ActivityRunList's
+// formatStamp — kept local since this module has no other date-formatting need).
+function formatStamp(at: string): string {
+  const [datePart, timePart] = at.split("T");
+  const d = new Date(datePart + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return at;
+  const dateLabel = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (!timePart) return dateLabel;
+  const [h, m] = timePart.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return dateLabel;
+  const t = new Date();
+  t.setHours(h, m, 0, 0);
+  const timeLabel = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return dateLabel + " · " + timeLabel;
+}
+
+// The presentation node (icon + optional colour tint) a text-ish block/child
+// wears — matches ActivityRunList's decoNode look, minus the click-to-pick
+// interaction (this is a read-only renderer). Falls back to the type's default
+// icon (note/safety/tip) exactly like defaultRunIcon.
+function DecoIcon({ type, icon, color }: { type: string; icon?: RunIcon; color?: RunColor }) {
+  const Glyph =
+    RUN_ICON_CMP[icon ?? defaultRunIcon(type as Parameters<typeof defaultRunIcon>[0])] ??
+    NODE_ICON[type] ??
+    CampIcon.Note;
+  const tinted = !!color && color !== "none";
+  const style = tinted ? ({ color: RUN_COLOR_TOKEN[color] } as CSSProperties) : undefined;
+  return (
+    <span className="rl-node--type rl-node--mini" style={style} aria-hidden="true">
+      <Glyph />
+    </span>
   );
 }
 
-function RunChildView({ child, activity, c }: { child: RunChild; activity: Activity; c: Vars }) {
-  // Field notes are the counselor's private "change this later" log — kept out of
-  // the printed sheet and the shared run-sheet link.
-  if (child.type === "fieldnote") return null;
+// ---- Materials — a STATIC read of the same 3-state stock lens the in-app
+// checklist uses (MaterialChecklist in ActivityRunList.tsx), without the tap-
+// to-cycle/Swap/Skip affordances a printed or public page can't act on. Renders
+// the coverage pill, per-row have/low/out state, and any per-day substitution
+// ("<replacement> — instead of <original>") or skip already recorded — so a
+// printed sheet or shared link shows the SAME availability signal staff see
+// in-app, not just bare item names. `kitStock`/`materialSubs` are optional: a
+// caller that hasn't threaded them through (or a route with no per-event
+// context — see the public run-sheet page's comment) just gets the canonical,
+// un-decorated list.
+function MaterialsList({
+  activity,
+  c,
+  kitStock,
+  materialCatalog,
+  materialSubs,
+}: {
+  activity: Activity;
+  c: Vars;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+  materialSubs?: Record<string, string>;
+}) {
+  const needs = materialNeedsForActivity(activity, materialCatalog);
+  if (!needs.length) return <p className={c.muted || undefined}>None needed.</p>;
+
+  const stock = kitStock ?? {};
+  const rows = needs.map((n: ResolvedRef) => {
+    const sub = materialSubs?.[n.id];
+    if (sub === undefined) return { ...n, kind: "plain" as const, coverId: n.id, coverLabel: n.label };
+    if (sub === "") return { ...n, kind: "skip" as const, coverId: n.id, coverLabel: n.label };
+    const coverId = materialTagId(sub);
+    return { ...n, kind: "sub" as const, subLabel: sub, coverId, coverLabel: sub };
+  });
+
+  const unset = Object.keys(stock).length === 0;
+  const cov = unset
+    ? null
+    : coverage(
+        { materialRefs: rows.filter((r) => r.kind !== "skip").map((r) => ({ id: r.coverId })) } as Activity,
+        stock,
+        materialCatalog
+      );
+  const viaById = new Map<string, string>();
+  cov?.substituted.forEach((s) => viaById.set(s.id, s.viaId));
+
+  const pill = unset
+    ? null
+    : cov!.state === "ready"
+      ? "Ready"
+      : cov!.missing.length + " missing";
+
+  return (
+    <div className="matkit matkit--static">
+      {pill && (
+        <div className="matkit__bar">
+          <span
+            className={
+              "matkit__pill" +
+              (cov!.state === "ready"
+                ? " matkit__pill--ready" + (cov!.lowCount ? " matkit__pill--low" : "")
+                : cov!.state === "almost"
+                  ? " matkit__pill--almost"
+                  : " matkit__pill--cant")
+            }
+          >
+            {pill}
+          </span>
+        </div>
+      )}
+      <div className="matkit__list">
+        {rows.map((n) => {
+          const skipped = n.kind === "skip";
+          const subbed = n.kind === "sub";
+          const viaId = viaById.get(n.coverId);
+          const own = stock[n.coverId];
+          const state: StockState | "via" = viaId ? "via" : own ?? "out";
+          const viaName = viaId ? catalogNameFor(materialCatalog, viaId) : "";
+          const rowClass = skipped
+            ? " is-skip"
+            : unset
+              ? ""
+              : state === "have" || state === "via"
+                ? " is-have"
+                : state === "low"
+                  ? " is-low"
+                  : " is-out";
+          return (
+            <div key={n.id} className="matkit__rowline">
+              <div className={"matkit__item" + rowClass} aria-hidden={false}>
+                <span className="matkit__check" aria-hidden="true">
+                  {skipped && <CampIcon.Minus />}
+                  {!skipped && !unset && (state === "have" || state === "via") && <CampIcon.Check />}
+                  {!skipped && !unset && state === "low" && <CampIcon.Minus />}
+                  {!skipped && !unset && state === "out" && <CampIcon.Close />}
+                </span>
+                <span className="matkit__name">
+                  {subbed ? n.subLabel : n.label}
+                  {subbed && <span className="matkit__instead"> — instead of {n.label}</span>}
+                  {skipped && <span className="matkit__instead"> — skipped today</span>}
+                </span>
+                {!skipped && !unset && state === "via" && (
+                  <span className="matkit__via">
+                    <CampIcon.Repeat />
+                    via {viaName}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DetailTags({ tags, c }: { tags: RunDetailTag[]; c: Vars }) {
+  if (!tags.length) return null;
+  return (
+    <div className={c.detailtags}>
+      {tags.map((tag) => {
+        const Icon = tag.icon ? DETAIL_TAG_ICON[tag.icon] : null;
+        return (
+          <span className={c.detailtag} key={tag.id}>
+            {Icon ? <Icon /> : null}
+            {tag.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function RunChildView({
+  child,
+  activity,
+  c,
+  kitStock,
+  materialCatalog,
+  materialSubs,
+}: {
+  child: RunChild;
+  activity: Activity;
+  c: Vars;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+  materialSubs?: Record<string, string>;
+}) {
   if (child.type === "materials") {
     return (
       <div className={c.childBase}>
         <h4>Materials</h4>
-        <MaterialsList activity={activity} c={c} />
+        <MaterialsList
+          activity={activity}
+          c={c}
+          kitStock={kitStock}
+          materialCatalog={materialCatalog}
+          materialSubs={materialSubs}
+        />
       </div>
     );
   }
@@ -130,30 +360,92 @@ function RunChildView({ child, activity, c }: { child: RunChild; activity: Activ
       </div>
     );
   }
+  if (child.type === "fieldnote") {
+    // A dated log entry — the stamp reads as the header (mirrors
+    // ActivityRunList's renderChild: the "Field note" type label is suppressed
+    // when a stamp is present since the parent already says "Field notes").
+    return (
+      <div className={c.childBase + " " + c.childBase + "--fieldnote"}>
+        <h4>{child.at ? formatStamp(child.at) : "Field note"}</h4>
+        <p>{child.text}</p>
+      </div>
+    );
+  }
   return (
     <div className={c.childBase + " " + c.childBase + "--" + child.type}>
-      <h4>{CHILD_LABEL[child.type]}</h4>
+      <h4>
+        <DecoIcon type={child.type} icon={child.icon} color={child.color} />
+        {CHILD_LABEL[child.type]}
+      </h4>
       <p>{child.text}</p>
     </div>
   );
 }
 
-function RunBlockView({ block, activity, c }: { block: RunBlock; activity: Activity; c: Vars }) {
+function RunBlockView({
+  block,
+  activity,
+  c,
+  kitStock,
+  materialCatalog,
+  materialSubs,
+}: {
+  block: RunBlock;
+  activity: Activity;
+  c: Vars;
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+  materialSubs?: Record<string, string>;
+}) {
   const Heading = c.headingTag;
   if (block.type === "heading") {
     return <Heading className={c.heading}>{block.text}</Heading>;
   }
-  // The facts grid already prints every activity fact — the derived details block
-  // would repeat it (with icon ids as labels), so skip it here.
-  if (block.type === "details") return null;
-  // Field notes never print (the private "change later" log — see RunChildView).
-  if (block.type === "fieldnote") return null;
+
+  // The resolved `details` block IS the truth once hand-edited (the same
+  // override philosophy as steps/notes/safety) — render its tags, falling back
+  // to the live activity's derived facts only when the block carries none yet
+  // (a doc that predates the details block, or one that was never touched).
+  if (block.type === "details") {
+    const tags = block.tags && block.tags.length ? block.tags : detailTagsForActivity(activity);
+    if (!tags.length) return null;
+    return (
+      <section className={c.noteBase + " " + c.noteBase + "--details"}>
+        <h3>Specific details</h3>
+        <DetailTags tags={tags} c={c} />
+      </section>
+    );
+  }
+
+  // Field notes: the counselor's dated "change this later" log. Staff content,
+  // not a secret — it belongs on the printed sheet and the public link exactly
+  // as it reads in the app (the share token already exposes the whole sheet).
+  if (block.type === "fieldnote") {
+    const notes = (block.children || []).filter((child) => child.type === "fieldnote");
+    if (!notes.length) return null;
+    return (
+      <section className={c.noteBase + " " + c.noteBase + "--fieldnote"}>
+        <h3>Field notes</h3>
+        <div className={c.list}>
+          {notes.map((note) => (
+            <RunChildView key={note.id} child={note} activity={activity} c={c} />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   if (block.type === "materials") {
     return (
       <section className={c.noteBase + " " + c.noteBase + "--materials"}>
         <h3>Materials</h3>
-        <MaterialsList activity={activity} c={c} />
+        <MaterialsList
+          activity={activity}
+          c={c}
+          kitStock={kitStock}
+          materialCatalog={materialCatalog}
+          materialSubs={materialSubs}
+        />
       </section>
     );
   }
@@ -166,7 +458,15 @@ function RunBlockView({ block, activity, c }: { block: RunBlock; activity: Activ
           <p>{block.text}</p>
         </div>
         {(block.children || []).map((child) => (
-          <RunChildView key={child.id} child={child} activity={activity} c={c} />
+          <RunChildView
+            key={child.id}
+            child={child}
+            activity={activity}
+            c={c}
+            kitStock={kitStock}
+            materialCatalog={materialCatalog}
+            materialSubs={materialSubs}
+          />
         ))}
       </section>
     );
@@ -184,7 +484,10 @@ function RunBlockView({ block, activity, c }: { block: RunBlock; activity: Activ
   // note / safety / variation
   return (
     <section className={c.noteBase + " " + c.noteBase + "--" + block.type}>
-      <h3>{block.type === "note" ? "Note" : block.type === "safety" ? "Safety" : "Variation"}</h3>
+      <h3>
+        <DecoIcon type={block.type} icon={block.icon} color={block.color} />
+        {block.type === "note" ? "Note" : block.type === "safety" ? "Safety" : "Variation"}
+      </h3>
       <p>{block.text}</p>
     </section>
   );
@@ -194,10 +497,24 @@ export function RunSheetBody({
   activity,
   runDoc,
   variant,
+  kitStock,
+  materialCatalog,
+  materialSubs,
 }: {
   activity: Activity;
   runDoc: RunDoc;
   variant: RunSheetVariant;
+  // Kit stock + catalog power the SAME have/low/out/substituted lens the in-app
+  // read view shows (see MaterialsList). Optional: a caller that hasn't threaded
+  // them through just gets the canonical, un-decorated materials list.
+  kitStock?: Record<string, StockState>;
+  materialCatalog?: Material[];
+  // Per-PLACEMENT substitutions (Swap.../Skip today, set from a calendar event).
+  // Only meaningful when this run sheet is being rendered FOR a specific
+  // scheduled occurrence — the public /run page has no event in its URL (just a
+  // feed token + activity id), so it can't resolve these; see that route's
+  // comment for the documented limitation.
+  materialSubs?: Record<string, string>;
 }) {
   const c = VARIANTS[variant];
   const Title = c.titleTag;
@@ -225,11 +542,23 @@ export function RunSheetBody({
         <div className={c.fact}><span>Prep</span><strong>{activity.prep}</strong></div>
       </section>
 
-      <div className={c.list}>
-        {runDoc.blocks.map((block) => (
-          <RunBlockView key={block.id} block={block} activity={activity} c={c} />
-        ))}
-      </div>
+      {runDoc.blocks.length === 0 ? (
+        <p className={c.empty}>This run sheet is empty.</p>
+      ) : (
+        <div className={c.list}>
+          {runDoc.blocks.map((block) => (
+            <RunBlockView
+              key={block.id}
+              block={block}
+              activity={activity}
+              c={c}
+              kitStock={kitStock}
+              materialCatalog={materialCatalog}
+              materialSubs={materialSubs}
+            />
+          ))}
+        </div>
+      )}
     </article>
   );
 }

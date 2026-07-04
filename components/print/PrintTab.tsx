@@ -37,7 +37,6 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "color",
   "style",
   "layout",
-  "timelineDensity",
   "scheduleDetail",
   "appendRunSheets",
   "includeAllDay",
@@ -49,7 +48,6 @@ const FORMAT_KEYS: (keyof PrintFormat)[] = [
   "showCover",
   "fontScale",
   "density",
-  "pageNumbers",
   "sectionOrder",
 ];
 
@@ -233,6 +231,7 @@ export function PrintTab({
       scheduledActivities={scheduledActivities}
       scheduleDays={scheduleDays}
       byId={data.byId}
+      announce={announce}
     />
   );
   return (

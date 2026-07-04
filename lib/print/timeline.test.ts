@@ -168,28 +168,28 @@ describe("timelineHours", () => {
 describe("timelineFit", () => {
   const win: DayWindow = { startMin: 450, endMin: 1080 }; // 7:30–18:00 → 10.5h
 
-  it("fits a normal camp day at cozy density", () => {
+  it("fits a normal camp day at regular density", () => {
     const days = buildTimelineDays([day("2026-06-20", [ev({ id: "a" })])], win);
-    expect(timelineFit(days, win, "cozy").fits).toBe(true);
+    expect(timelineFit(days, win, "regular").fits).toBe(true);
   });
 
-  it("flags overflow for a wide window at roomy density", () => {
+  it("flags overflow for a wide window at airy density", () => {
     const wide: DayWindow = { startMin: 6 * 60, endMin: 21 * 60 }; // 15h
     const days = buildTimelineDays([day("2026-06-20", [ev({ id: "a", startMin: 6 * 60, endMin: 7 * 60 })])], wide);
-    const fit = timelineFit(days, wide, "roomy");
+    const fit = timelineFit(days, wide, "airy");
     expect(fit.fits).toBe(false);
     expect(fit.tallestIn).toBeGreaterThan(TIMELINE_PAGE_BUDGET_IN);
   });
 
-  it("compact density rescues a window roomy can't fit", () => {
+  it("tight density rescues a window airy can't fit", () => {
     const wide: DayWindow = { startMin: 6 * 60, endMin: 21 * 60 };
     const days = buildTimelineDays([day("2026-06-20", [ev({ id: "a", startMin: 6 * 60, endMin: 7 * 60 })])], wide);
-    expect(timelineFit(days, wide, "roomy").fits).toBe(false);
-    expect(timelineFit(days, wide, "compact").fits).toBe(true);
+    expect(timelineFit(days, wide, "airy").fits).toBe(false);
+    expect(timelineFit(days, wide, "tight").fits).toBe(true);
   });
 
   it("grid height scales with the per-hour row size", () => {
-    expect(timelineGridHeightIn(win, "roomy")).toBeCloseTo(10.5 * TIMELINE_ROW_IN.roomy);
-    expect(timelineGridHeightIn(win, "compact")).toBeCloseTo(10.5 * TIMELINE_ROW_IN.compact);
+    expect(timelineGridHeightIn(win, "airy")).toBeCloseTo(10.5 * TIMELINE_ROW_IN.airy);
+    expect(timelineGridHeightIn(win, "tight")).toBeCloseTo(10.5 * TIMELINE_ROW_IN.tight);
   });
 });

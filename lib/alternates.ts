@@ -107,8 +107,8 @@ export function hasRainAlternate(list: readonly AlternateRef[]): boolean {
 // backup (title + optional activityId + the primary's locations, if any). The
 // alternate's own locations become the event's places when it carries them;
 // otherwise the event keeps its places. The post-swap list is written to
-// event.alternates (copy-on-write). NOTHING else is touched — times, pinned,
-// mealKind, materialSubs, note, series fields all ride through untouched.
+// event.alternates (copy-on-write). Times, pinned, materialSubs, note, series
+// fields all ride through untouched.
 //
 // Self-inverse: promote(promote(e, i), i) ≡ e (the demoted primary sits back at
 // slot i, so promoting it again restores the original). updatedAt is left to the

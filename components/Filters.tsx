@@ -1,11 +1,10 @@
 "use client";
 
-import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
-import { normalizeSearchText } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
-import type { MaterialOption } from "@/lib/materials";
+import type { MaterialSort, MaterialStockFilter } from "@/lib/kitStock";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
@@ -204,125 +203,6 @@ interface FiltersProps {
   onMaterial?: (v: null) => void;
   /** Jumps to the Materials tab (the Kit-lens "Set up your kit →" link). */
   onGoMaterials?: () => void;
-}
-
-// The old uses-ANY kit BROWSE filter — RETIRED from the library rail (its "can
-// run" job is now the KitFilter lens below). Kept exported (unused here) because
-// the Materials tab (a later chunk) will re-home this browse-by-material value.
-export function MaterialPicker({
-  options,
-  selected,
-  onToggle,
-  onClear,
-  defaultOpen = false,
-}: {
-  options: MaterialOption[];
-  selected: string[];
-  onToggle: (id: string) => void;
-  onClear: () => void;
-  defaultOpen?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [query, setQuery] = useState("");
-  if (!options.length) return null;
-  const selectedSet = new Set(selected);
-  // Accent-/case-insensitive so "mache" finds "papier-mâché" — same normalizer
-  // the library search uses.
-  const q = normalizeSearchText(query.trim());
-  const matchesQuery = (option: MaterialOption) => !q || normalizeSearchText(option.label).includes(q);
-  // Picked kit floats to the top so "what am I filtering by" is always in view.
-  const visibleSelected = options.filter((option) => selectedSet.has(option.id)).filter(matchesQuery);
-  const visibleRest = options.filter((option) => !selectedSet.has(option.id)).filter(matchesQuery);
-  const ordered = [...visibleSelected, ...visibleRest];
-  const selectedCount = selected.length;
-
-  return (
-    <details
-      className="material-filter"
-      open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-    >
-      {/* On the rail this summary IS the kit's ledger row — label left, the
-          picked count + chevron as the right-hand control. In the sheet's
-          always-open KitGroup it's hidden (the group label does the naming). */}
-      <summary
-        className={"material-filter__summary ledger__row" + (selectedCount ? " is-set" : "")}
-        aria-label={"Available kit, " + selectedCount + " of " + options.length + " selected"}
-      >
-        <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Available kit</span>
-        <span className="material-filter__state">
-          {selectedCount ? selectedCount + " picked" : "Any"}
-          <CampIcon.ChevronDown />
-        </span>
-      </summary>
-      <div className="material-filter__panel">
-        <div className="matkit material-filter__kit">
-          {selectedCount > 0 && (
-            <div className="matkit__bar material-filter__kitbar">
-              <span className="matkit__status">{selectedCount} selected</span>
-              <button type="button" className="material-filter__clear" onClick={onClear}>
-                Clear
-              </button>
-            </div>
-          )}
-          <label className="searchfield material-filter__search">
-            <CampIcon.Search />
-            <input
-              className="searchfield__input"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search kit"
-              aria-label="Search available kit"
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            {query && (
-              <button
-                type="button"
-                className="searchfield__clear"
-                onClick={() => setQuery("")}
-                aria-label="Clear kit search"
-              >
-                <CampIcon.Close />
-              </button>
-            )}
-          </label>
-          <div className="matkit__list material-filter__list" role="group" aria-label="Available kit">
-            {ordered.length ? (
-              ordered.map((option, i) => {
-                const has = selectedSet.has(option.id);
-                const divide = i === visibleSelected.length && i > 0 && i < ordered.length;
-                const count = option.count + (option.count === 1 ? " activity" : " activities");
-                return (
-                  <Fragment key={option.id}>
-                    {divide && <span className="matkit__div" role="separator" aria-hidden="true" />}
-                    <button
-                      type="button"
-                      className={"matkit__item material-filter__item" + (has ? " is-have" : "")}
-                      onClick={() => onToggle(option.id)}
-                      aria-pressed={has}
-                      aria-label={(has ? "Selected" : "Not selected") + ": " + option.label + ", used by " + count}
-                      title={count}
-                    >
-                      <span className="matkit__check" aria-hidden="true">
-                        {has && <CampIcon.Check />}
-                      </span>
-                      <span className="matkit__name">{option.label}</span>
-                      <span className="material-filter__count">{option.count}</span>
-                    </button>
-                  </Fragment>
-                );
-              })
-            ) : (
-              <div className="material-filter__empty">No kit items match.</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </details>
-  );
 }
 
 // The Type filter — a multi-select checklist of categories (the same collapsible
@@ -642,6 +522,87 @@ function LedgerFilters({
           />
         </div>
       </FilterGroup>
+    </div>
+  );
+}
+
+// The Materials collection's sidebar rail — a real filter ledger (materials-16)
+// in place of the old bare one-line hint, built on the SAME ledger-row/MiniSeg/
+// ToggleSwitch vocabulary as LedgerFilters above so the rail reads as one family
+// whichever collection is active. Deliberately smaller than the Activities
+// ledger (Materials has fewer dimensions worth filtering): a Have/Low/Out stock
+// row, a "Restock only" toggle, and a sort control.
+export function MaterialsFilters({
+  stockFilter,
+  onStockFilter,
+  restockOnly,
+  onRestockOnly,
+  sort,
+  onSort,
+}: {
+  stockFilter: MaterialStockFilter;
+  onStockFilter: (v: MaterialStockFilter) => void;
+  restockOnly: boolean;
+  onRestockOnly: (v: boolean) => void;
+  sort: MaterialSort;
+  onSort: (v: MaterialSort) => void;
+}) {
+  const anyOn = stockFilter !== "all" || restockOnly;
+  const clearAll = () => {
+    onStockFilter("all");
+    onRestockOnly(false);
+  };
+  return (
+    <div className="sidesection sidefilters-rail">
+      {anyOn && (
+        <div className="sidefilters__clear">
+          <button type="button" className="sidesection__action" onClick={clearAll}>
+            Clear all
+          </button>
+        </div>
+      )}
+      <div className="sidesection__body sidefilters">
+        <div className="filtergroups">
+          <FilterGroup title="Kit" defaultOpen>
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Box className="ledger__ic" />Stock</span>
+              <MiniSeg
+                ariaLabel="Filter materials by stock state"
+                value={stockFilter}
+                onChange={onStockFilter}
+                options={[
+                  { id: "all" as MaterialStockFilter, label: "All" },
+                  { id: "have" as MaterialStockFilter, label: "Have" },
+                  { id: "low" as MaterialStockFilter, label: "Low" },
+                  { id: "out" as MaterialStockFilter, label: "Out" },
+                ]}
+              />
+            </div>
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Bolt className="ledger__ic" />Restock only</span>
+              <ToggleSwitch
+                on={restockOnly}
+                onChange={onRestockOnly}
+                ariaLabel="Show only materials that need restocking"
+              />
+            </div>
+          </FilterGroup>
+          <FilterGroup title="Sort & display">
+            <div className="ledger__row">
+              <span className="ledger__label"><CampIcon.Sort className="ledger__ic" />Sort</span>
+              <MiniSeg
+                ariaLabel="Sort materials"
+                value={sort}
+                onChange={onSort}
+                options={[
+                  { id: "usage" as MaterialSort, label: "Usage" },
+                  { id: "az" as MaterialSort, label: "A–Z" },
+                ]}
+              />
+            </div>
+          </FilterGroup>
+        </div>
+      </div>
     </div>
   );
 }
