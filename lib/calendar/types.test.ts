@@ -23,7 +23,6 @@ describe("normalizeCalendarEvent — payload field allowlist", () => {
     const event = normalizeCalendarEvent({
       ...base,
       pinned: true,
-      mealKind: "lunch",
       linkId: " run-2 ",
       alternates: [
         { title: " Four Corners ", activityId: "a1", reason: "overflow", locations: ["Gym"] },
@@ -33,7 +32,6 @@ describe("normalizeCalendarEvent — payload field allowlist", () => {
       headcount: { planned: 25, actual: 23 },
     });
     expect(event?.pinned).toBe(true);
-    expect(event?.mealKind).toBe("lunch");
     expect(event?.linkId).toBe("run-2");
     expect(event?.alternates).toEqual([
       { title: "Four Corners", activityId: "a1", reason: "overflow", locations: ["Gym"] },
@@ -52,7 +50,6 @@ describe("normalizeCalendarEvent — payload field allowlist", () => {
     const event = normalizeCalendarEvent({
       ...base,
       pinned: "yes",
-      mealKind: "brunch",
       linkId: 7,
       alternates: [{ reason: "rain" }, "nope"],
       materialSubs: { "": "x", cones: 3 },
@@ -60,7 +57,6 @@ describe("normalizeCalendarEvent — payload field allowlist", () => {
     });
     expect(event).not.toBeNull();
     expect(event?.pinned).toBeUndefined();
-    expect(event?.mealKind).toBeUndefined();
     expect(event?.linkId).toBeUndefined();
     expect(event?.alternates).toEqual([]);
     expect(event?.materialSubs).toBeUndefined();

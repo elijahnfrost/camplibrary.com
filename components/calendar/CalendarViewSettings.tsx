@@ -35,7 +35,6 @@ export function CalendarViewSettings({
   onWeekStart,
   onChangeView,
   onOpenCamps,
-  onOpenDietary,
   subscribeControl,
 }: {
   view: ViewKey;
@@ -47,11 +46,6 @@ export function CalendarViewSettings({
   onWeekStart: (start: WeekStart) => void;
   onChangeView: (v: ViewKey) => void;
   onOpenCamps: () => void;
-  /** meals-1: the dietary roster's own small manager — a "Dietary roster" row
-   *  beside "Manage camps…", reachable on every viewport (unlike the camps
-   *  row below, this one isn't desktop-redundant — there's no sidebar rail
-   *  entry point for dietary, so this settings ledger is its ONE way in). */
-  onOpenDietary: () => void;
   /** The calendar's .ics feed trigger (SubscribeFeedButton) — the ledger's
    *  final row, control-only (its own popover). Undefined when signed out
    *  (no feed to subscribe to), so the row doesn't render at all. */
@@ -122,15 +116,6 @@ export function CalendarViewSettings({
           </span>
         </button>
       )}
-      {/* meals-1: the dietary roster's own reachable entry point — no sidebar
-          rail equivalent exists for it (unlike Manage camps above), so this row
-          shows on EVERY viewport, desktop included. */}
-      <button type="button" className="ledger__row calset__rowbtn" onClick={onOpenDietary}>
-        <span className="ledger__label"><CampIcon.Bookmark className="ledger__ic" />Dietary roster</span>
-        <span className="calset__rowval" aria-hidden="true">
-          <CampIcon.ChevronRight />
-        </span>
-      </button>
       {/* Subscribe (the .ics feed control) — the ledger's final row, camp-
           scoped like everything above it. One mount here reaches both desktop
           (rail) and mobile (settings sheet), since both render this ledger. */}

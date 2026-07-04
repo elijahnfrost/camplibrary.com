@@ -11,11 +11,6 @@ import { MiniSeg } from "./primitives";
 import { type Camp, type CampSnapMin, type Weekday } from "@/lib/camps";
 import { todayKey } from "@/lib/calendar/dates";
 import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
-import {
-  DIETARY_LABEL_MAX,
-  type DietaryEntry,
-  type DietarySeverity,
-} from "@/lib/meals";
 import type { DateKey } from "@/lib/calendar/types";
 import type { DayWindow } from "@/lib/calendar/time";
 
@@ -70,8 +65,7 @@ export function ListManagerModal({
   createLabel?: string;
   emptyHint?: string;
   /** Hide the create row + empty-item-list state entirely — for a manager
-   *  whose whole content is a `footer` section with no per-item rows of its
-   *  own (the dietary roster's dedicated modal: DietarySection IS the modal). */
+   *  whose whole content is a `footer` section with no per-item rows of its own. */
   hideCreate?: boolean;
   onCreate: (label: string) => void;
   onRename: (id: string, label: string) => void;
@@ -92,7 +86,7 @@ export function ListManagerModal({
    *  are the host's responsibility so the modal stays calm. */
   renderRowExtra?: (item: ManagedItem) => ReactNode;
   /** Optional content rendered after the whole list — global sections that aren't
-   *  per-item (the camp manager's guidance bands + dietary roster). */
+   *  per-item (the camp manager's guidance bands). */
   footer?: ReactNode;
   onClose: () => void;
 }) {
@@ -508,12 +502,12 @@ export function CampDayStructure({
 //     Undo toast, so a stray delete is one tap to recover. A confirm there would
 //     be noise.
 //   • NON-undoable vocabulary deletes confirm via requestConfirm (themed dialog,
-//     ConfirmDialog.tsx) — removing a theme / camp / location / guidance band /
-//     dietary entry has no undo and can touch every event that used it, so it
-//     asks first. (This matches the existing themes / camps / locations delete
-//     precedent in CampApp.)
-// The guidance-band and dietary-entry row deletes below are non-undoable, so
-// they confirm here, at the click site, exactly like the camps/locations rows.
+//     ConfirmDialog.tsx) — removing a theme / camp / location / guidance band
+//     has no undo and can touch every event that used it, so it asks first.
+//     (This matches the existing themes / camps / locations delete precedent
+//     in CampApp.)
+// The guidance-band row deletes below are non-undoable, so they confirm here,
+// at the click site, exactly like the camps/locations rows.
 export function GuidesSection({
   label = "Guidance bands",
   guides,
@@ -523,14 +517,13 @@ export function GuidesSection({
   onUpdate,
   onDelete,
 }: {
-  /** meals-1: the camps modal now shows this as "Day structure — guidance
-   *  bands" so it reads as camp-scheduling vocabulary rather than a meals
-   *  concept (a caller-supplied override; defaults to the plain original
-   *  label for any other consumer). */
+  /** The camps modal shows this as "Day structure — guidance bands" so it reads
+   *  as camp-scheduling vocabulary (a caller-supplied override; defaults to the
+   *  plain original label for any other consumer). */
   label?: string;
   guides: GuideBand[];
   hourOptions: { value: number; label: string }[];
-  /** meals-9: gate the row's inputs/Add/Delete like every other editable
+  /** Gate the row's inputs/Add/Delete like every other editable
    *  surface in the app gates itself at the UI layer (not just the mutation
    *  callback) — a signed-out visitor otherwise sees fully-interactive-looking
    *  controls that silently no-op (via requireStaff) on commit. Defaults true
@@ -620,80 +613,3 @@ export function GuidesSection({
   );
 }
 
-export function DietarySection({
-  dietary,
-  canEdit = true,
-  onAdd,
-  onUpdate,
-  onDelete,
-}: {
-  dietary: DietaryEntry[];
-  /** meals-9: same UI-layer gating as GuidesSection above — see its comment. */
-  canEdit?: boolean;
-  onAdd: () => void;
-  onUpdate: (id: string, patch: Partial<DietaryEntry>) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <Collapsible label="Dietary roster" summary={dietary.length ? dietary.length + " entr" + (dietary.length === 1 ? "y" : "ies") : "allergies · avoidances"}>
-      <ul className="manager__diet">
-        {dietary.map((entry) => (
-          <li key={entry.id} className={"manager__dietrow" + (canEdit ? "" : " is-readonly")}>
-            <input
-              className="input manager__diet-label"
-              value={entry.label}
-              maxLength={DIETARY_LABEL_MAX}
-              aria-label="Dietary label"
-              readOnly={!canEdit}
-              disabled={!canEdit}
-              onChange={(e) => onUpdate(entry.id, { label: e.target.value })}
-            />
-            <MiniSeg
-              options={[
-                { id: "note", label: "Note" },
-                { id: "avoid", label: "Avoid" },
-                { id: "severe", label: "Severe" },
-              ]}
-              value={entry.severity}
-              onChange={(v) => canEdit && onUpdate(entry.id, { severity: v as DietarySeverity })}
-              ariaLabel="Severity"
-            />
-            <input
-              className="input manager__diet-detail"
-              value={entry.detail ?? ""}
-              placeholder="Detail (optional)"
-              aria-label="Dietary detail"
-              readOnly={!canEdit}
-              disabled={!canEdit}
-              onChange={(e) => onUpdate(entry.id, { detail: e.target.value })}
-            />
-            {canEdit && (
-              <button
-                type="button"
-                className="icon-btn manager__rowbtn manager__rowbtn--danger"
-                aria-label={"Delete " + entry.label}
-                onClick={async () => {
-                  const ok = await requestConfirm({
-                    title: "Delete the “" + (entry.label || "untitled") + "” dietary entry?",
-                    body: "This can't be undone.",
-                    confirmLabel: "Delete",
-                    danger: true,
-                  });
-                  if (ok) onDelete(entry.id);
-                }}
-              >
-                <CampIcon.Trash />
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {canEdit && (
-        <button type="button" className="btn btn--ghost manager__addbtn" onClick={onAdd}>
-          <CampIcon.Plus />
-          Add entry
-        </button>
-      )}
-    </Collapsible>
-  );
-}

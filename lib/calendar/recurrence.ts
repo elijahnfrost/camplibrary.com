@@ -449,7 +449,6 @@ const CUSTOMIZABLE_FIELDS = [
   "note",
   "campId",
   "pinned",
-  "mealKind",
   "alternates",
   "materialSubs",
   "linkId",

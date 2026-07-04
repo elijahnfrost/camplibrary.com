@@ -89,10 +89,10 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .quickadd__mealchip (a selectable rectangular button, --r-md, --hand not --hand-sc — not visually a pill at all), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip|font-size|11px|screen",
+      "id": "app/globals.css|pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip|font-size|11px|screen",
       "file": "app/globals.css",
       "kind": "declaration",
-      "selector": "pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .quickadd__mealchip (a selectable rectangular button, --r-md, --hand not --hand-sc — not visually a pill at all), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip",
+      "selector": "pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip",
       "property": "font-size",
       "value": "11px",
       "context": "screen"
@@ -2861,15 +2861,6 @@
       "context": "screen"
     },
     {
-      "id": "app/calendar.css|.quickadd__meals|padding|var(--s-3) var(--qa-gx) 0|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".quickadd__meals",
-      "property": "padding",
-      "value": "var(--s-3) var(--qa-gx) 0",
-      "context": "screen"
-    },
-    {
       "id": "app/calendar.css|.quickadd__mode-text|gap|1px|screen",
       "file": "app/calendar.css",
       "kind": "declaration",
@@ -2946,33 +2937,6 @@
       "file": "app/calendar.css",
       "kind": "declaration",
       "selector": ".cal-card__leg, .cal-chip__leg",
-      "property": "padding",
-      "value": "1px 4px",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.cal-card__diet|gap|2px|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".cal-card__diet",
-      "property": "gap",
-      "value": "2px",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.cal-card__diet|font-size|0.6rem|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".cal-card__diet",
-      "property": "font-size",
-      "value": "0.6rem",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.cal-card__diet|padding|1px 4px|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".cal-card__diet",
       "property": "padding",
       "value": "1px 4px",
       "context": "screen"

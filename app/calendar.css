@@ -1055,14 +1055,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 .caltoday__time {
   color: var(--ink-soft);
 }
-.caltoday__meal {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--s-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  color: var(--ink-soft);
-}
 .caltoday__empty {
   display: inline-flex;
   align-items: center;
@@ -1688,159 +1680,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   font-family: var(--hand);
   font-size: var(--fs-meta);
 }
-/* ---------- meal preset chips (QuickAdd create empty state) ----------
-   A first-class shortcut for the day's meals, shown only before any typing so it
-   never intrudes on the fast type-to-place path. A quiet eyebrow + a row of soft
-   chips; each pre-fills the editor. A "tag them instead" hint (when same-titled
-   untagged events exist) routes the retro-tag bulk so a chip never double-books. */
-.quickadd__meals {
-  padding: var(--s-3) var(--qa-gx) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-}
-.quickadd__meals-eyebrow {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  color: var(--ink-faint);
-}
-.quickadd__mealchips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-.quickadd__mealchip {
-  padding: var(--s-2) var(--s-4);
-  border-radius: var(--r-md);
-  border: 1.5px solid var(--line);
-  background: var(--paper-2);
-  color: var(--ink);
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  cursor: pointer;
-}
-.quickadd__mealchip:hover {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, var(--paper-2));
-}
-.quickadd__mealhint {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
-  text-align: left;
-  color: var(--amber);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* ---------- meal editor: read-only dietary panel ----------
-   Pinned at the top of a meal event's editor so the highest-stakes constraints
-   (severe first) are seen before anything else. Quiet card with severity-coded
-   rows and a "Manage…" link to the roster editor. */
-.quickadd__diet {
-  margin: var(--s-3) var(--qa-gx) 0;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--paper-2);
-}
-.quickadd__diet-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-3);
-}
-.quickadd__diet-title {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-}
-.quickadd__diet-manage {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-}
-.quickadd__diet-list {
-  list-style: none;
-  margin: var(--s-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.quickadd__diet-row {
-  display: flex;
-  align-items: baseline;
-  /* quickadd-10: guard against a long label+detail pair overflowing the row —
-     the sibling .manager__dietrow (the roster editor's own equivalent row)
-     already wraps; this row didn't. min-width:0 lets the flex children actually
-     shrink/wrap instead of forcing the row wider than the sheet. */
-  flex-wrap: wrap;
-  min-width: 0;
-  gap: var(--s-2);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-  color: var(--ink);
-}
-.quickadd__diet-sev {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-round);
-  background: var(--ink-faint);
-}
-.quickadd__diet-row--avoid .quickadd__diet-sev {
-  background: var(--amber);
-}
-.quickadd__diet-row--severe .quickadd__diet-sev {
-  background: var(--danger);
-}
-/* meals-7: the visible tier word beside the dot — quiet/uppercase-eyebrow
-   voice for "Note", amber for "Avoid", and bold danger-red for "Severe" so the
-   text itself (not just the dot) carries the severity for anyone who can't
-   reliably distinguish the color alone. */
-.quickadd__diet-tier {
-  flex: none;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.quickadd__diet-row--avoid .quickadd__diet-tier {
-  color: var(--amber);
-}
-.quickadd__diet-row--severe .quickadd__diet-tier {
-  color: var(--danger);
-  font-weight: 700;
-}
-.quickadd__diet-row--severe .quickadd__diet-label {
-  font-weight: 600;
-}
-.quickadd__diet-label {
-  min-width: 0;
-}
-.quickadd__diet-detail {
-  min-width: 0;
-  color: var(--ink-soft);
-}
-.quickadd__diet-empty {
-  margin: var(--s-2) 0 0;
-  color: var(--ink-faint);
-  font-family: var(--hand);
-  font-size: var(--fs-meta);
-}
-
 .quickadd__searchform {
   display: contents;
 }
@@ -2642,45 +2481,10 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   opacity: 0.9;
 }
 
-/* ---------- meal glyph + severe-dietary badge ----------
-   A meal block (lunch, AM/PM snack) wears a small fork+spoon glyph beside the
-   pin/repeat glyphs, sharing their muted, subtle treatment. When the camp has any
-   SEVERE dietary constraint on file, a meal card ALSO shows a compact red count
-   badge — a persistent reminder to check the roster before serving. */
-.cal-card__meal,
-.cal-chip__meal {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  color: var(--ink-soft);
-  opacity: 0.85;
-}
-.cal-chip__meal {
-  width: 11px;
-  height: 11px;
-}
-.cal-card__diet {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-family: var(--hand-sc);
-  font-size: 0.6rem;
-  line-height: 1;
-  padding: 1px 4px;
-  border-radius: var(--r-round);
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-}
-
 /* ---------- backup-plan badge ----------
    A small corner glyph on any card whose placement resolves to a backup plan (an
    umbrella for a rain plan, else a generic swap loop; a count when >1). Shares the
-   muted, subtle treatment of the pin/repeat/meal glyphs. */
+   muted, subtle treatment of the pin/repeat glyphs. */
 .cal-card__backup,
 .cal-chip__backup {
   flex: none;
@@ -2711,13 +2515,13 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 
 /* ---------- "shared" badge (camps-2/J2) ----------
-   A quiet, NEUTRAL glyph (no color, unlike the meal/backup badges which carry
+   A quiet, NEUTRAL glyph (no color, unlike the backup badge which carries
    real signal) marking an event with no campId of its own — it shows under
    every camp. Painted only while a specific camp is active (extendedProps.shared
    is only ever true in that case), so single-camp users never see it. Shares
-   the muted treatment of the pin/repeat/meal glyphs so it reads as quiet
+   the muted treatment of the pin/repeat glyphs so it reads as quiet
    metadata, not a warning. One class for both the month chip and the timed
-   card (same size in both, like .cal-card__diet above). */
+   card (same size in both). */
 .cal-card__shared {
   flex: none;
   width: 11px;
@@ -2767,22 +2571,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
     transparent 12px
   );
   opacity: 1;
-}
-
-/* ---------- "Mark as meal" picker (retro-tag) ----------
-   The cursor-anchored meal-kind picker (single event OR multi-select). Shares the
-   cselect option vocabulary; the leading meal glyph reads as the tag it applies. */
-.cal-mealpick__glyph {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-  color: var(--ink-soft);
-}
-.cal-mealpick__clear {
-  color: var(--ink-soft);
 }
 
 /* ---------- the Repeat control inside QuickAdd ----------
@@ -3904,9 +3692,9 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
 }
 
 /* ---- ShiftBar (.cal-shift) — the day-shift / running-long card ----
-   Composes the .cal-popover frame. Delta chips read like the QuickAdd meal
-   chips (selected = the app's chip-on green); the hold pin is the checkbox's
-   own label, so the row stays one quiet line: title · old→new · pin. */
+   Composes the .cal-popover frame. Delta chips use the app's selected-pill
+   vocabulary (selected = the app's chip-on green); the hold pin is the
+   checkbox's own label, so the row stays one quiet line: title · old→new · pin. */
 .cal-shift {
   width: min(340px, calc(100vw - 2 * var(--s-6)));
 }

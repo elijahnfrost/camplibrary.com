@@ -22,8 +22,6 @@ import type { StockState } from "@/lib/kitStock";
 import type { Theme } from "@/lib/themes";
 import type { RunDoc } from "@/lib/runList";
 import type { Activity } from "@/lib/types";
-import { dietaryBySeverity, type DietaryEntry, type MealsDoc } from "@/lib/meals";
-import { MEAL_KIND_LABEL } from "@/lib/print/mealGlyphs";
 import { applyExclusions, buildScheduleDays, selectEvents, type ScheduleDay } from "@/lib/print/schedule";
 import { hasSummaryContent, summarizeRunDoc, type RunSummary } from "@/lib/print/runSummary";
 import { buildShoppingList } from "@/lib/print/shoppingList";
@@ -36,7 +34,6 @@ import {
 } from "@/lib/print/options";
 import { PrintRunSheet } from "./PrintRunSheet";
 import { CalendarTimeline } from "./CalendarTimeline";
-import { DietaryLine } from "./DietaryLine";
 
 export interface SchedulePrintData {
   events: Record<string, CalendarEvent>;
@@ -51,11 +48,6 @@ export interface SchedulePrintData {
   // omits itself — see SchedulePrintDocument's shoppingSection below).
   kitStock?: Record<string, StockState>;
   materialCatalog?: Material[];
-  // The camp's dietary roster + menu notes (approved plan §H, "Meals on
-  // paper") — powers the day-header dietary line. Optional, same pattern as
-  // kitStock/materialCatalog above: a caller that hasn't wired it through yet
-  // just doesn't get the dietary line rather than crashing.
-  mealsDoc?: MealsDoc;
 }
 
 interface ResolvedEvent {
@@ -99,19 +91,6 @@ function rangeLabel(start: string, end: string): string {
 
 function tintStyle(tint: string, on: boolean): CSSProperties | undefined {
   return on ? ({ "--pd-tint": tint } as CSSProperties) : undefined;
-}
-
-// A meal block's print glyph — the same small fork+spoon mark the calendar
-// uses (components/calendar/CalendarShell.tsx's MealGlyph), inlined here
-// since print can't import from components/calendar/* (off limits) and the
-// glyph is tiny enough not to warrant a shared module of its own.
-function MealGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
-      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
-    </svg>
-  );
 }
 
 function EventFacts({ activity }: { activity: Activity }) {
@@ -172,7 +151,6 @@ function ScheduleEvent({
   const colorOn = options.color === "color";
   const timeLabel = event.allDay ? "All day" : formatRangeLabel(event.startMin, event.endMin);
   const showDetail = options.scheduleDetail !== "times" && activity;
-  const mealLabel = event.mealKind ? MEAL_KIND_LABEL[event.mealKind] ?? "Meal" : null;
 
   return (
     <li className="pd-event" style={tintStyle(tint, colorOn)}>
@@ -181,12 +159,6 @@ function ScheduleEvent({
         <div className="pd-event__head">
           <span className="pd-event__name">{activity?.title || event.title || "Untitled"}</span>
           {activity && <span className="pd-event__type">{activity.type}</span>}
-          {mealLabel && (
-            <span className="pd-event__meal">
-              <MealGlyph className="pd-event__mealicon" />
-              {mealLabel}
-            </span>
-          )}
           {options.showThemes && theme && (
             <span className="pd-event__theme" style={tintStyle(theme.tint, colorOn)}>
               {theme.label}
@@ -208,18 +180,15 @@ function ScheduleDaySection({
   resolve,
   options,
   summaries,
-  severeDietary,
 }: {
   day: ScheduleDay;
   resolve: (event: CalendarEvent) => ResolvedEvent;
   options: PrintOptions;
   summaries: Record<string, RunSummary>;
-  severeDietary: DietaryEntry[];
 }) {
   return (
     <section className="pd-day">
       <h2 className="pd-day__head">{dayHeading(day.date)}</h2>
-      <DietaryLine entries={severeDietary} />
       {day.events.length ? (
         <ol className="pd-events">
           {day.events.map((event) => {
@@ -244,17 +213,9 @@ export function SchedulePrintDocument({
   data: SchedulePrintData;
   wrap: "preview" | "root";
 }) {
-  const { events, byId, resolveRunDoc, themeOf, camps, kitStock, materialCatalog, mealsDoc } = data;
+  const { events, byId, resolveRunDoc, themeOf, camps, kitStock, materialCatalog } = data;
 
   const campIds = useMemo(() => new Set(camps.map((c) => c.id)), [camps]);
-
-  // Meals on paper (§H): SEVERE dietary entries only, computed once for the
-  // whole document — the roster is camp-wide (v1 has no per-camp targeting;
-  // see lib/meals.ts), so every day header in this print shares the same list.
-  const severeDietary = useMemo(
-    () => (mealsDoc ? dietaryBySeverity(mealsDoc).filter((entry) => entry.severity === "severe") : []),
-    [mealsDoc]
-  );
 
   const days = useMemo(() => {
     const selected = selectEvents(events, {
@@ -306,9 +267,6 @@ export function SchedulePrintDocument({
         // itself decides whether it has room to show it (mirrors how it
         // already hides the type line on a short block).
         theme: r.theme,
-        // Meals on paper (§H): the meal glyph is driven off the event's own
-        // mealKind flag, same as the agenda.
-        mealLabel: event.mealKind ? MEAL_KIND_LABEL[event.mealKind] ?? "Meal" : null,
       };
     };
   }, [resolve]);
@@ -461,7 +419,6 @@ export function SchedulePrintDocument({
         win={timelineWin}
         options={options}
         resolve={timelineTint}
-        severeDietary={severeDietary}
       />
     ) : (
       <div className="pd-schedule" key="schedule">
@@ -472,7 +429,6 @@ export function SchedulePrintDocument({
             resolve={resolve}
             options={options}
             summaries={summaries}
-            severeDietary={severeDietary}
           />
         ))}
       </div>

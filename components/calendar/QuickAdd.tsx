@@ -9,7 +9,7 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
-import { formatEventDateLabel, fromDateKey } from "@/lib/calendar/dates";
+import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
 import {
@@ -17,9 +17,7 @@ import {
   type AlternateRef,
   type CalendarEvent,
   type DateKey,
-  type MealKind,
 } from "@/lib/calendar/types";
-import { MEAL_KIND_LABELS, dietaryBySeverity, dietarySeverityLabel, type DietaryEntry, type MealsDoc } from "@/lib/meals";
 import { summarizeRecurrence, type RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { coverage } from "@/lib/materials";
@@ -35,16 +33,6 @@ import { DatePopover } from "../floating/DatePopover";
 import { ColorField } from "../floating/ColorField";
 import { LocationField } from "../floating/LocationField";
 import { RepeatField } from "./RepeatField";
-
-// The Meal-tag options for the editor's Meal row — "" is the None (untag)
-// choice; the rest are the MealKind union using the shared label wording above.
-const MEAL_TAG_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "None" },
-  ...(Object.keys(MEAL_KIND_LABELS) as MealKind[]).map((kind) => ({
-    value: kind,
-    label: MEAL_KIND_LABELS[kind],
-  })),
-];
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event
@@ -68,12 +56,9 @@ export type EditorDraft = {
   /** A short free-text note carried by the event (the nudge for a 0-min reminder,
    *  or a detail line on a real block). */
   note?: string;
-  /** A meal tag (lunch / AM snack / …). Seeded by a meal preset chip on create,
-   *  and carried through on edit so a meal event stays a meal across a save. */
-  mealKind?: MealKind;
   /** Whether this placement is pinned (held in place on a day-shift). The editor
-   *  doesn't SET this (Pin is an immediate footer action), but a meal preset chip
-   *  seeds it, and it rides through so a save doesn't silently un-pin. */
+   *  doesn't SET this (Pin is an immediate footer action), but it rides through
+   *  so a save doesn't silently un-pin. */
   pinned?: boolean;
 };
 
@@ -92,7 +77,6 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     color: event.color,
     locations: event.locations,
     note: event.note,
-    mealKind: event.mealKind,
     pinned: event.pinned,
   };
 }
@@ -120,10 +104,6 @@ export function QuickAdd({
   byId = {},
   window: dayWindow,
   snap = SNAP_MIN,
-  meals,
-  mealPresets,
-  onSetMenuNote,
-  onManageDietary,
   locationOptions,
   onManageLocations,
   onPickActivity,
@@ -169,29 +149,6 @@ export function QuickAdd({
    *  steps so the editor offers the same grid placement/editing snaps to. Default
    *  keeps the classic 15-min grid for hosts that don't configure a per-camp snap. */
   snap?: number;
-  /** The meals sidecar doc: the dietary roster (for the meal editor's read-only
-   *  panel) and the date-keyed menu notes (the "Menu note" row). */
-  meals: MealsDoc;
-  /** Meal PRESET chips shown in the create empty state (before any typing, so
-   *  they never intrude on the fast-create path). Tapping `onApply` PRE-FILLS the
-   *  editor (CalendarShell reopens the sheet with the meal draft) — it does NOT
-   *  commit. `existingUntagged` > 0 surfaces a "tag them instead" hint whose tap
-   *  runs `onTagExisting` (the retro-tag bulk) so a chip never double-books the
-   *  live schedule. Absent for hosts that don't wire meals. */
-  mealPresets?: {
-    kind: MealKind;
-    label: string;
-    existingUntagged: number;
-    onApply: () => void;
-    onTagExisting: () => void;
-  }[];
-  /** Write (or clear) one (date, mealKind) menu note — the meal editor's note row.
-   *  Keyed by (date, mealKind), NOT stored on the event. Absent for hosts that
-   *  don't wire meals. */
-  onSetMenuNote?: (date: DateKey, mealKind: MealKind, text: string) => void;
-  /** Open the dietary roster manager — the "Manage…" link on the meal editor's
-   *  dietary panel. Absent for hosts that don't wire meals. */
-  onManageDietary?: () => void;
   /** The user-editable place vocabulary for the Location picker. */
   locationOptions: readonly string[];
   /** Opens the place-list editor from the Location picker's footer. */
@@ -279,16 +236,11 @@ export function QuickAdd({
   const [recurrence, setRecurrence] = useState<RecurrenceRule | undefined>(draft.recurrence);
   const [color, setColor] = useState<string | undefined>(draft.color);
   const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
-  // The meal tag on this placement — editable in the edit posture (the touch
-  // path for meal tagging; the right-click "Mark as meal…" is the desktop twin).
-  // Seeded off the draft; "" (the None option) clears it, and the save path
-  // deletes an absent mealKind, so choosing None un-tags the event.
-  const [mealKind, setMealKind] = useState<MealKind | undefined>(draft.mealKind);
   // Editing an activity event opens with a compact "Editing: <activity>" summary
   // instead of the full searchable list; "Change activity" expands it on demand.
   const [changingActivity, setChangingActivity] = useState(false);
   // "More options" — the ONE inline expansion holding everything besides Date/
-  // Time (All day, Color, Location, Meal, Repeat, Recover time, Day note, Backup
+  // Time (All day, Color, Location, Repeat, Recover time, Day note, Backup
   // plans): see the audit brief's default-face rule. Starts CLOSED — anything
   // already set still shows as a compact read-only summary row on the default
   // face (below), so nothing important goes invisible; opening the section is
@@ -390,21 +342,6 @@ export function QuickAdd({
   const draftIsReminder = !draft.allDay && draft.durationMin === 0;
   const clampedEnd = Math.min(MINUTES_PER_DAY, startMin + durationMin);
 
-  // Meal editor surfaces — only when editing an event carrying a mealKind. The
-  // dietary panel is READ-ONLY (severity-sorted, severe first) with a "Manage…"
-  // link to the roster editor; the menu note is keyed by (event date, mealKind)
-  // on the meals doc, NOT the event, so regenerating a meal series never erases a
-  // season of menus. The note field is local (seeded from the doc) and commits on
-  // blur so typing doesn't thrash the synced doc.
-  const isMealEdit = isEdit && Boolean(draft.mealKind);
-  const dietarySorted = useMemo<DietaryEntry[]>(() => dietaryBySeverity(meals), [meals]);
-  const [menuNote, setMenuNote] = useState(() =>
-    draft.mealKind ? meals.menuNotes[draft.date]?.[draft.mealKind] ?? "" : ""
-  );
-  const commitMenuNote = () => {
-    if (draft.mealKind && onSetMenuNote) onSetMenuNote(draft.date, draft.mealKind, menuNote);
-  };
-
   // Same-day kit conflict for the CURRENT draft: a quiet, informational heads-up
   // (never blocking) shown when placing this activity at this date + time would
   // fight another block for the same material. Computed by running dayKit over the
@@ -485,11 +422,8 @@ export function QuickAdd({
     return recurrence ? { ...recurrence, until: recurrence.until < date ? date : recurrence.until } : undefined;
   }
 
-  // Build the draft an existing-activity commit saves. `mealKind` is now an
-  // editor-owned control (the Meal row in edit posture); on create it's only ever
-  // seeded by a meal preset chip, which sets the draft's value — so reading the
-  // local `mealKind` state (initialized from the draft) covers both. `pinned`
-  // still rides the draft (an immediate footer action, not an editor control).
+  // Build the draft an existing-activity commit saves. `pinned` rides the draft
+  // (an immediate footer action, not an editor control).
   function activityDraft(activity: Activity): EditorDraft {
     return {
       id: draft.id,
@@ -504,7 +438,6 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
-      mealKind,
       pinned: draft.pinned,
     };
   }
@@ -523,7 +456,6 @@ export function QuickAdd({
       color,
       locations,
       note: note.trim() || undefined,
-      mealKind,
       pinned: draft.pinned,
     };
   }
@@ -635,46 +567,6 @@ export function QuickAdd({
             <CampIcon.Close />
           </button>
         </div>
-        {/* Meal editor: a read-only dietary panel pinned at the top so the
-            highest-stakes constraints (severe first) are seen before anything
-            else. A "Manage…" link opens the roster editor. Only when editing a
-            meal-tagged event. */}
-        {isMealEdit && (
-          <div className="quickadd__diet">
-            <div className="quickadd__diet-head">
-              <span className="quickadd__diet-title">Dietary roster</span>
-              {onManageDietary && (
-                <button type="button" className="quickadd__diet-manage" onClick={onManageDietary}>
-                  Manage…
-                </button>
-              )}
-            </div>
-            {dietarySorted.length ? (
-              <ul className="quickadd__diet-list">
-                {dietarySorted.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className={"quickadd__diet-row quickadd__diet-row--" + entry.severity}
-                  >
-                    <span className="quickadd__diet-sev" aria-hidden="true" />
-                    {/* meals-7: severity was color-only (a bare dot) — "avoid"
-                        had no distinguishing text at all, relying on hue alone in
-                        a life-safety context. A visible tier word now sits beside
-                        the dot, using the shared lib/meals label the roster
-                        editor's MiniSeg also derives from. */}
-                    <span className="quickadd__diet-tier">{dietarySeverityLabel(entry.severity)}</span>
-                    <span className="quickadd__diet-label">{entry.label}</span>
-                    {entry.detail && <span className="quickadd__diet-detail">{entry.detail}</span>}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="quickadd__diet-empty">
-                No dietary constraints on file{onManageDietary ? " — add any allergies or avoidances." : "."}
-              </p>
-            )}
-          </div>
-        )}
         {isEdit && selectedActivity && !changingActivity ? (
           // The library-backed event reads as a clean title block (category
           // eyebrow + name), not a boxed summary card — the run-sheet header
@@ -865,43 +757,6 @@ export function QuickAdd({
                 )}
               </div>
             )}
-            {/* Meal preset chips — a first-class shortcut for the day's meals,
-                shown only in the CREATE empty state (before any typing) so they
-                never intrude on the fast type-to-place path. Tapping one PRE-FILLS
-                the editor (title, meal tag, pinned, a sensible span, and a Mon–Fri
-                weekly repeat) for review — it does not commit. When same-titled
-                UNTAGGED events already exist, a one-line hint offers to tag those
-                instead, so a chip never double-books the live schedule. */}
-            {!isEdit && !trimmed && mealPresets && mealPresets.length > 0 && (
-              <div className="quickadd__meals">
-                <span className="quickadd__meals-eyebrow">Add a meal</span>
-                <div className="quickadd__mealchips">
-                  {mealPresets.map((preset) => (
-                    <button
-                      type="button"
-                      key={preset.kind}
-                      className="quickadd__mealchip"
-                      onClick={preset.onApply}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-                {mealPresets
-                  .filter((preset) => preset.existingUntagged > 0)
-                  .map((preset) => (
-                    <button
-                      type="button"
-                      key={"hint-" + preset.kind}
-                      className="quickadd__mealhint"
-                      onClick={preset.onTagExisting}
-                    >
-                      {preset.existingUntagged} existing &ldquo;{preset.label}&rdquo; event
-                      {preset.existingUntagged === 1 ? "" : "s"} — tag {preset.existingUntagged === 1 ? "it" : "them"} instead
-                    </button>
-                  ))}
-              </div>
-            )}
             {/* Slot posture, nothing typed yet: a calm one-line prompt instead of
                 an always-open catalog (the list is type-to-search now). */}
             {!isEdit && !pickTime && !trimmed && (
@@ -930,9 +785,9 @@ export function QuickAdd({
                 shown only as a faint hint.
                 DEFAULT FACE: title/activity card (above) + Date + Time, plus a
                 compact READ-ONLY summary row for anything already set (Color/
-                Location/Meal/Repeat/Day note) — so "what's already true about
+                Location/Repeat/Day note) — so "what's already true about
                 this event" is visible without opening anything. Everything ELSE
-                (All day, Color, Location, Meal, Repeat when UNSET, Recover time,
+                (All day, Color, Location, Repeat when UNSET, Recover time,
                 an EMPTY Day note, Backup plans) lives behind ONE "More options"
                 disclosure below, so a plain event's default face stays to two
                 rows. There is no separate "Reminder" toggle any more — picking
@@ -1000,13 +855,6 @@ export function QuickAdd({
                   </button>
                 </PropRow>
               )}
-              {isEdit && !moreOpen && !isReminder && mealKind && (
-                <PropRow icon={CampIcon.Meal} label="Meal">
-                  <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
-                    <span className="quickadd__summaryval">{MEAL_KIND_LABELS[mealKind]}</span>
-                  </button>
-                </PropRow>
-              )}
               {isEdit && !moreOpen && recurrence && (
                 <PropRow icon={CampIcon.Repeat} label="Repeat">
                   <button type="button" className="quickadd__summarybtn" onClick={() => setMoreOpen(true)}>
@@ -1023,8 +871,8 @@ export function QuickAdd({
               )}
               {/* ONE "More options" inline expansion — the app's existing
                   disclosure idiom (the Collapsible chevron-header shell used by
-                  ListManagerModal's Guidance bands / Dietary roster sections,
-                  same open/close treatment), reused here rather than inventing a
+                  ListManagerModal's Guidance bands section, same open/close
+                  treatment), reused here rather than inventing a
                   new one. Create keeps everything but Date/Time behind it too
                   (a fresh add stays calm); edit shows it once any hidden field
                   is actually set (handled above by the summary rows) but the
@@ -1071,22 +919,6 @@ export function QuickAdd({
                             onChange={setLocations}
                             onManage={onManageLocations}
                             ariaLabel="Event location"
-                          />
-                        </PropRow>
-                      )}
-                      {/* Meal — the TOUCH path for tagging a block as a meal (the
-                          desktop twin is the right-click "Mark as meal…"). None
-                          un-tags it; the save path deletes an absent mealKind, so
-                          choosing None clears it. Non-reminder only (a reminder
-                          isn't a meal block). */}
-                      {!isReminder && (
-                        <PropRow icon={CampIcon.Meal} label="Meal">
-                          <Select
-                            id="quickadd-meal"
-                            value={mealKind ?? ""}
-                            options={MEAL_TAG_OPTIONS}
-                            onChange={(v) => setMealKind((v || undefined) as MealKind | undefined)}
-                            ariaLabel="Meal tag"
                           />
                         </PropRow>
                       )}
@@ -1189,36 +1021,6 @@ export function QuickAdd({
                   )}
                 </div>
               )}
-              {/* Menu note — the day's menu for THIS meal ("pizza + salad bar").
-                  Stored on the meals doc keyed by (date, mealKind), never on the
-                  event, so regenerating the meal series can't erase a season of
-                  menus. Commits on blur. Only for a meal-tagged edit; stays on the
-                  default face (distinct from the More-options set — it's the one
-                  meal-specific field that's directly relevant whenever this sheet
-                  is a meal, not a rarely-touched extra). */}
-              {isMealEdit && onSetMenuNote && (
-                <PropRow
-                  icon={CampIcon.Note}
-                  label={"Menu for " + fromDateKey(draft.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                  // A wider label column than the default 104px — "Menu for Jul
-                  // 15" is longer than the usual one-word Notion-line labels
-                  // (Date/Time/Color/…), and this row's own value column (the
-                  // textarea) doesn't need the extra width the way a Select does.
-                  labelWidth={132}
-                  className="prop-row--top quickadd__noterow"
-                >
-                  <textarea
-                    id="quickadd-menunote"
-                    className="input quickadd__note"
-                    rows={2}
-                    maxLength={280}
-                    placeholder="Today's menu — e.g. pizza + salad bar"
-                    value={menuNote}
-                    onChange={(e) => setMenuNote(e.target.value)}
-                    onBlur={commitMenuNote}
-                  />
-                </PropRow>
-              )}
             </div>
             {/* "Add to library" ONLY while the draft is an unlinked custom title
                 (selectedActivity absent) — hidden once a library match is
@@ -1319,10 +1121,6 @@ export function QuickAdd({
     </Modal>
   );
 }
-
-// meals-10: the Meal axis glyph moved to components/icons.tsx as CampIcon.Meal
-// (it was duplicated verbatim here and in CalendarShell.tsx as two
-// independently hand-inlined copies before this centralized it).
 
 // A small inline umbrella for the "Backup plans" axis row. icons.tsx is owned
 // elsewhere (no umbrella glyph), so it's inlined on the icon set's 24×24 grid.

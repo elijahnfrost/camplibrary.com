@@ -402,7 +402,6 @@ describe("planDayShift — payload preservation", () => {
       campId: "camp-1",
       seriesId: "series-9",
       recurrence: { freq: "daily", interval: 1, until: "2026-06-30" },
-      mealKind: "lunch",
       note: "check allergies",
       locations: ["Kitchen"],
       color: "#aabbcc",
@@ -420,7 +419,6 @@ describe("planDayShift — payload preservation", () => {
     // series rule rides along as a plain row upsert, no scope dialog).
     expect(moved.seriesId).toBe("series-9");
     expect(moved.recurrence).toEqual({ freq: "daily", interval: 1, until: "2026-06-30" });
-    expect(moved.mealKind).toBe("lunch");
     expect(moved.note).toBe("check allergies");
     expect(moved.locations).toEqual(["Kitchen"]);
     expect(moved.color).toBe("#aabbcc");

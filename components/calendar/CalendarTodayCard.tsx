@@ -11,7 +11,6 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import { useTodayNowNext } from "@/lib/calendar/nowNext";
 import { formatClockCompact } from "@/lib/calendar/time";
 import { durLabel, effectiveEventColor } from "@/lib/data";
-import { MEAL_KIND_LABELS } from "@/lib/meals";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../icons";
 
@@ -32,7 +31,6 @@ function NowNextRow({
   const tint = activity ? effectiveEventColor(event, activity) : event.color ?? "var(--line)";
   const time = event.allDay ? "All day" : formatClockCompact(event.startMin);
   const meta = activity ? activity.type + " · " + durLabel(activity) : "Custom block";
-  const mealLabel = event.mealKind ? MEAL_KIND_LABELS[event.mealKind] : null;
   const body = (
     <>
       <span className={"caltoday__badge caltoday__badge--" + status}>{status === "now" ? "Now" : "Next"}</span>
@@ -41,7 +39,6 @@ function NowNextRow({
         <span className="caltoday__meta">
           <span className="caltoday__time">{time}</span>
           {meta}
-          {mealLabel && <span className="caltoday__meal">{mealLabel}</span>}
         </span>
       </span>
     </>

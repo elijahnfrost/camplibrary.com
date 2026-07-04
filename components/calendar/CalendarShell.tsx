@@ -57,12 +57,6 @@ import {
 } from "@/lib/calendar/time";
 import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
 import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
-import {
-  dietaryBySeverity,
-  MEAL_KIND_LABELS,
-  type DietaryEntry,
-  type MealsDoc,
-} from "@/lib/meals";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
 import { catalogNameFor, type Material } from "@/lib/materialCatalog";
 import { coverage } from "@/lib/materials";
@@ -76,13 +70,11 @@ import {
 } from "@/lib/calendar/kitConflicts";
 import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
 import {
-  MEAL_KINDS,
   isDateKey,
   normalizeCalendarEvent,
   type AlternateRef,
   type CalendarEvent,
   type DateKey,
-  type MealKind,
 } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
 import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
@@ -219,17 +211,12 @@ type MenuState =
   // An empty-slot right-click inside a timed day column: one item that opens the
   // day-shift card at the clicked date + minute.
   | { kind: "shift"; date: DateKey; cutoffMin: number; point: { x: number; y: number } };
-// A bulk Color… / Location… / Meal menu item opens its picker cursor-anchored at
-// the same point (the floating-picker pattern), carrying the ids it acts on. The
-// meal picker also carries the current mealKind (single-event retro-tag) so the
-// active row reads as selected; undefined = a mixed/untagged selection.
+// A bulk Color… / Location… menu item opens its picker cursor-anchored at the
+// same point (the floating-picker pattern), carrying the ids it acts on.
 type BulkPickerState =
   | { kind: "color"; ids: string[]; point: { x: number; y: number } }
-  | { kind: "location"; ids: string[]; point: { x: number; y: number } }
-  | { kind: "meal"; ids: string[]; current?: MealKind; point: { x: number; y: number } };
+  | { kind: "location"; ids: string[]; point: { x: number; y: number } };
 
-// The human labels for each meal kind (the retro-tag picker rows + a menu hint)
-// now come from lib/meals.ts's MEAL_KIND_LABELS — the ONE canonical map (meals-4).
 // A non-undo toast button (label + click). The escalation wave needs a toast to
 // carry MORE than one — "Moved this Tue only · [All] [Following]" — so the toast
 // holds an ordered `actions` array. The legacy single `action` is still accepted
@@ -261,10 +248,6 @@ export type BulkEditChanges = {
   allDay?: boolean;
   dayShift?: number;
   minShift?: number;
-  // Meal tag: presence (`"mealKind" in changes`) means "set this field"; the
-  // value `undefined` clears it (un-tag), a MealKind sets it. Same presence-vs-
-  // clear semantics as `color`.
-  mealKind?: MealKind | undefined;
 };
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -366,10 +349,7 @@ export function CalendarShell({
   onCreateActivity,
   dayWindow,
   activeCamp,
-  meals,
   guides = [],
-  onSetMenuNote,
-  onManageDietary,
   subscribeControl,
   themeOf,
   kitStock = {},
@@ -427,22 +407,9 @@ export function CalendarShell({
    *  when no camp is active, in which case every day uses the classic 8:00–18:00
    *  band and the default 15-min snap (identical to today's behavior). */
   activeCamp: Camp | null;
-  /** The meals sidecar doc: the camp-wide dietary roster + date-keyed menu notes.
-   *  Drives the meal card's dietary badge, the editor's read-only dietary panel,
-   *  and the (date, mealKind) menu-note row. */
-  meals: MealsDoc;
   /** The guidance bands (soft, recurring day-structure frames). Expanded over the
    *  rendered strip into FullCalendar background events. Empty = none drawn. */
   guides?: GuideBand[];
-  /** Write (or clear) one (date, mealKind) menu note on the meals doc — the
-   *  editor's "Menu note" row. Keyed by date + mealKind, NOT stored on the event
-   *  (so regenerating a meal series never erases a season of menus). Absent for
-   *  hosts that don't wire meals. */
-  onSetMenuNote?: (date: DateKey, mealKind: MealKind, text: string) => void;
-  /** Open the dietary roster manager (the camp manager's Dietary section) — the
-   *  "Manage…" link on a meal editor's dietary panel. Absent for hosts without
-   *  meals. */
-  onManageDietary?: () => void;
   /** The camp-scoped Subscribe / .ics feed control, composed by CampApp (where
    *  the camp data lives). It lives in the sidebar rail (a "Subscribe" section
    *  beside View settings) on desktop and in the mobile View-settings sheet — NOT
@@ -1574,17 +1541,12 @@ export function CalendarShell({
   // whole series is one batch write, so a single Undo removes it.
   const createSeries = useCallback(
     (draft: EditorDraft, rule: RecurrenceRule, existing?: CalendarEvent) => {
-      // buildTemplate carries pinned (a template field); mealKind is NOT a
-      // SeriesTemplate field, so a meal series materializes it by post-processing
-      // the built occurrences below — this keeps the recurrence module untouched
-      // while every row of a meal series still carries its tag. (mealKind is
-      // allowlisted in normalizeCalendarEvent + CUSTOMIZABLE_FIELDS, so it round-
-      // trips and a later this/following/all edit preserves it like any field.)
+      // buildTemplate carries pinned (a template field).
       const template = buildTemplate(draft, existing?.campId, draft.pinned);
       const seriesId = crypto.randomUUID();
       const anchorId = draft.id ?? crypto.randomUUID();
       const dates = recurrenceDates(draft.date, rule);
-      let occurrences = buildSeriesEvents(
+      const occurrences = buildSeriesEvents(
         template,
         dates,
         seriesId,
@@ -1593,10 +1555,6 @@ export function CalendarShell({
         draft.date,
         anchorId
       );
-      if (draft.mealKind) {
-        const mealKind = draft.mealKind;
-        occurrences = occurrences.map((occurrence) => ({ ...occurrence, mealKind }));
-      }
       upsertEvents(occurrences);
       setSheet(null);
       announce("Added repeating " + template.title);
@@ -1683,12 +1641,9 @@ export function CalendarShell({
       else delete event.locations;
       if (draft.note) event.note = draft.note;
       else delete event.note;
-      // Meal tag + pin ride the draft (seeded by a meal preset chip on create, or
-      // carried off the edited row): the draft's value wins, including a clear. A
-      // meal preset chip is the ONLY create path that sets these; a plain edit
-      // carries them through unchanged (draftFromEvent seeds them off the event).
-      if (draft.mealKind) event.mealKind = draft.mealKind;
-      else delete event.mealKind;
+      // Pin rides the draft (carried off the edited row): the draft's value wins,
+      // including a clear. A plain edit carries it through unchanged (draftFromEvent
+      // seeds it off the event).
       if (draft.pinned) event.pinned = true;
       else delete event.pinned;
 
@@ -1971,14 +1926,6 @@ export function CalendarShell({
             next.endMin = Math.min(MINUTES_PER_DAY, DEFAULT_PLANNING_START_MIN + DEFAULT_DURATION_MIN);
           }
           touchedFields.push("allDay", "startMin", "endMin");
-        }
-        // Meal tag: set a MealKind, or clear it (un-tag). Rides the same presence-
-        // vs-clear rule as color — "mealKind" in changes means "this edit touches
-        // the field", and the value decides set vs clear.
-        if ("mealKind" in changes) {
-          if (changes.mealKind) next.mealKind = changes.mealKind;
-          else delete next.mealKind;
-          touchedFields.push("mealKind");
         }
         // A date/time shift rides last so it composes with an all-day change.
         if (shift) {
@@ -2595,9 +2542,9 @@ export function CalendarShell({
       const dayEvents = healedEvents.filter((e) => e.date === event.date);
       const free = nextFreeStartForDay(dayEvents, Math.max(duration, 1), event.endMin, window_);
       const startMin = free ?? event.startMin;
-      // The clone shares identity (title/activityId/kind/color/locations/mealKind/
-      // pinned) but NOT seriesId/recurrence/custom/origDate/note — a fresh one-off
-      // leg. It carries the shared linkId.
+      // The clone shares identity (title/activityId/kind/color/locations/pinned)
+      // but NOT seriesId/recurrence/custom/origDate/note — a fresh one-off leg. It
+      // carries the shared linkId.
       const clone: CalendarEvent = {
         id: crypto.randomUUID(),
         date: event.date,
@@ -2612,7 +2559,6 @@ export function CalendarShell({
       if (event.campId) clone.campId = event.campId;
       if (event.color) clone.color = event.color;
       if (event.locations?.length) clone.locations = [...event.locations];
-      if (event.mealKind) clone.mealKind = event.mealKind;
       if (event.pinned) clone.pinned = true;
       if (event.allDay) clone.allDay = true;
 
@@ -2778,78 +2724,6 @@ export function CalendarShell({
       pickTime: true,
     });
   }, [requireStaff]);
-
-  // Tap a meal preset chip → PRE-FILL the editor (no instant commit): title, meal
-  // tag, pinned intent (a meal holds its slot on a day-shift), a sensible span
-  // clamped into the day's visible window, and a Mon–Fri weekly repeat defaulting
-  // until +8 weeks. The operator reviews the draft and hits the normal commit.
-  const applyMealPreset = useCallback(
-    (kind: MealKind, defaultStart: number, defaultLen: number) => {
-      if (!requireStaff("plan the calendar")) return;
-      const date = focusDateRef.current;
-      // Clamp the span into the day window so a preset never seeds off-grid /
-      // outside the drawn day (the window auto-extends around events elsewhere).
-      const win = resolveDayWindow(activeCamp, date) ?? window_;
-      const start = snapMinutes(Math.max(win.startMin, Math.min(defaultStart, win.endMin - defaultLen)), snap);
-      const end = Math.min(win.endMin, start + defaultLen);
-      const until = addDays(date, 7 * 8); // +8 weeks
-      const rule: RecurrenceRule = { freq: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5], until };
-      setSheet({
-        draft: {
-          date,
-          startMin: start,
-          durationMin: Math.max(snap, end - start),
-          allDay: false,
-          title: MEAL_KIND_LABELS[kind],
-          explicitDuration: true,
-          mealKind: kind,
-          pinned: true,
-          recurrence: rule,
-        },
-        pickTime: true,
-      });
-    },
-    [requireStaff, activeCamp, window_, snap]
-  );
-
-  // The meal preset chips shown in QuickAdd's create empty state, plus — per chip
-  // — a count of same-titled UNTAGGED events already on the calendar so the editor
-  // can offer to tag those instead of double-booking. Only surfaced when meals are
-  // wired (onSetMenuNote present). Each chip's onApply pre-fills; onTagExisting
-  // runs the retro-tag bulk over the untagged matches.
-  const mealPresets = useMemo(() => {
-    if (!onSetMenuNote) return undefined;
-    // J3 (PLAN.md): the quick-create chips now cover Breakfast / AM snack /
-    // Lunch / PM snack — "other" stays reachable only via the Meal field (it
-    // has no fixed clock-time default worth a chip). Breakfast was previously
-    // missing entirely (meals-11); it defaults ahead of the AM snack.
-    const specs: { kind: MealKind; start: number; len: number }[] = [
-      { kind: "breakfast", start: 8 * 60, len: 30 },
-      { kind: "am-snack", start: 10 * 60, len: 15 },
-      { kind: "lunch", start: 12 * 60, len: 30 },
-      { kind: "pm-snack", start: 15 * 60, len: 15 },
-    ];
-    return specs.map((spec) => {
-      const label = MEAL_KIND_LABELS[spec.kind];
-      const lower = label.toLowerCase();
-      const untaggedIds = healedEvents
-        .filter((event) => !event.mealKind && event.title.trim().toLowerCase() === lower)
-        .map((event) => event.id);
-      return {
-        kind: spec.kind,
-        label,
-        existingUntagged: untaggedIds.length,
-        onApply: () => applyMealPreset(spec.kind, spec.start, spec.len),
-        onTagExisting: () => {
-          setSheet(null);
-          applyBulkEdit(untaggedIds, { mealKind: spec.kind });
-        },
-      };
-    });
-    // applyBulkEdit is stable enough (it's a useCallback); listing healedEvents +
-    // applyMealPreset keeps the counts + handlers fresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onSetMenuNote, healedEvents, applyMealPreset, applyBulkEdit]);
 
   // --- FullCalendar callbacks -------------------------------------------
 
@@ -3616,20 +3490,6 @@ export function CalendarShell({
     [announce, byId, healedEvents, removeEvent, requireStaff, showToast, upsertEvent, window_, snap]
   );
 
-  // The dietary roster sorted for display (severe first) and the count of SEVERE
-  // (anaphylaxis / medical) entries. A meal card wears a compact red count badge
-  // when any severe entry exists, so the highest-stakes constraints are never
-  // buried behind a meal. Read live through a ref inside renderEventContent (a
-  // stable FC-memo callback); severeDietaryCount re-arms the memo only when the
-  // number actually changes, not on every meals-doc touch.
-  const dietarySorted = useMemo(() => dietaryBySeverity(meals), [meals]);
-  const severeDietaryCount = useMemo(
-    () => dietarySorted.filter((entry) => entry.severity === "severe").length,
-    [dietarySorted]
-  );
-  const severeDietaryCountRef = useRef(severeDietaryCount);
-  severeDietaryCountRef.current = severeDietaryCount;
-
   // Tint flows through a CSS variable so the stylesheet can mix it with paper.
   const onEventDidMount = useCallback((info: EventMountArg) => {
     // Background events (guidance bands + closed-day shading) are non-interactive:
@@ -3690,28 +3550,11 @@ export function CalendarShell({
     const tint = arg.event.extendedProps.tint;
     const themeTint = arg.event.extendedProps.themeTint;
     const isCustom = arg.event.extendedProps.kind === "custom";
-    // A meal block wears a small, quiet meal glyph beside the pin/repeat glyphs
-    // (threaded via extendedProps.mealKind by the adapter). When the camp has any
-    // SEVERE dietary constraint on file, meal cards ALSO show a compact red count
-    // badge — a persistent reminder to check the roster before serving. The count
-    // is read live through a ref so this stays a stable FC-memo callback.
-    const isMeal = typeof arg.event.extendedProps.mealKind === "string";
-    const severeCount = severeDietaryCountRef.current;
-    const dietaryBadge =
-      isMeal && severeCount > 0 ? (
-        <span
-          className="cal-card__diet"
-          title={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s") + " on file"}
-          aria-label={severeCount + " severe dietary constraint" + (severeCount === 1 ? "" : "s")}
-        >
-          <span aria-hidden="true">⚠</span> {severeCount}
-        </span>
-      ) : null;
     // camps-2/J2: a small neutral "shared" badge on any event that shows under
     // EVERY camp (no campId of its own) while a specific camp is active — so
     // switching camps reads as "most of the calendar predates camps" rather
     // than "the switcher does nothing." Quiet by design (a plain glyph, no
-    // color), distinct from the meal/backup badges which carry real signal.
+    // color), distinct from the backup badge which carries real signal.
     const shared = arg.event.extendedProps.shared === true;
     const sharedBadge = shared ? (
       <span
@@ -3768,8 +3611,6 @@ export function CalendarShell({
           {!arg.event.allDay && <span className="cal-chip__time">{arg.timeText}</span>}
           <span className="cal-chip__title">{arg.event.title}</span>
           {legLabel && <span className="cal-chip__leg">{legLabel}</span>}
-          {isMeal && <CampIcon.Meal className="cal-chip__meal" />}
-          {dietaryBadge}
           {altBadge}
           {sharedBadge}
           {pinned && <CardPinGlyph className="cal-chip__pin" />}
@@ -3791,8 +3632,6 @@ export function CalendarShell({
           {dot}
           <span className="cal-card__title">{arg.event.title}</span>
           {legLabel && <span className="cal-card__leg">{legLabel}</span>}
-          {isMeal && <CampIcon.Meal className="cal-card__meal" />}
-          {dietaryBadge}
           {altBadge}
           {sharedBadge}
           {pinned && <CardPinGlyph className="cal-card__pin" />}
@@ -3808,10 +3647,9 @@ export function CalendarShell({
         )}
       </div>
     );
-    // severeDietaryCount is read live via the ref; the value is a dep only so the
-    // FC memo re-arms (and meal badges repaint) when the count actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [severeDietaryCount]);
+    // Stable: the callback reads only per-event extendedProps and module-level
+    // glyphs, so it never needs to re-arm on a state change.
+  }, []);
 
   // Paint the multi-selection onto FullCalendar's (non-React) event DOM. The
   // cards aren't ours to render a className onto, so — like the contextmenu id
@@ -5044,7 +4882,6 @@ export function CalendarShell({
                       onWeekStart={setWeekStart}
                       onChangeView={changeView}
                       onOpenCamps={onOpenCamps}
-                      onOpenDietary={() => onManageDietary?.()}
                       subscribeControl={subscribeControl}
                     />
                   </div>
@@ -5099,7 +4936,7 @@ export function CalendarShell({
 
       {sheet && (
         <QuickAdd
-          // quickadd-11: QuickAdd's local state (query/date/recurrence/menuNote/
+          // quickadd-11: QuickAdd's local state (query/date/recurrence/
           // etc.) is seeded ONLY via useState initializers from `draft` at mount,
           // with no reset-on-prop-change effect. Without a key, if `sheet` were
           // ever replaced from one non-null draft straight to a different
@@ -5121,24 +4958,6 @@ export function CalendarShell({
           byId={byId}
           window={window_}
           snap={snap}
-          meals={meals}
-          mealPresets={mealPresets}
-          onSetMenuNote={onSetMenuNote}
-          // meals-5: close THIS sheet before opening the dietary roster modal —
-          // previously the roster modal rose stacked on top of the still-open
-          // meal editor (two independent Modal/scrim/focus-trap instances at
-          // once) because onManageDietary was forwarded raw with no onClose()
-          // call. useDialogFocus's stack still resolved Escape correctly, but
-          // the UX read as "open a manager → close it → the meal editor is
-          // still sitting there, unchanged" — a same-surface handoff instead.
-          onManageDietary={
-            onManageDietary
-              ? () => {
-                  setSheet(null);
-                  onManageDietary();
-                }
-              : undefined
-          }
           locationOptions={locationOptions}
           onManageLocations={onManageLocations}
           onPickActivity={quickAddActivity}
@@ -5335,10 +5154,6 @@ export function CalendarShell({
               onOpenCamps={() => {
                 setSettingsOpen(false);
                 onOpenCamps();
-              }}
-              onOpenDietary={() => {
-                setSettingsOpen(false);
-                onManageDietary?.();
               }}
               subscribeControl={subscribeControl}
             />
@@ -5571,20 +5386,6 @@ export function CalendarShell({
                       },
                     ]
                   : []),
-                // Retro-tag as a meal — opens the meal-kind picker at the cursor
-                // (ContextMenu has no nested submenu, so this is a secondary
-                // FloatingLayer). Writes mealKind via applyBulkEdit([id], …) so a
-                // series member's tag is a durable this-edit. Reads "Change meal…"
-                // once tagged.
-                {
-                  label: ev.mealKind ? "Change meal…" : "Mark as meal…",
-                  icon: <CampIcon.Meal />,
-                  onSelect: () => {
-                    if (!requireStaff("change the calendar")) return;
-                    setMenu(null);
-                    setBulkPicker({ kind: "meal", ids: [ev.id], current: ev.mealKind, point });
-                  },
-                },
                 // Split days — "Add second run today" clones this event's identity
                 // onto the next free slot of the same day, sharing a fresh linkId so
                 // the two read as legs of one unit (rule 8). Timed events only.
@@ -5782,17 +5583,6 @@ export function CalendarShell({
                   },
                 },
                 {
-                  // Bulk retro-tag the whole selection as a meal (or clear it) —
-                  // opens the same meal-kind picker; no single "current" tag across
-                  // a heterogeneous set, so nothing reads as preselected.
-                  label: "Mark as meal…",
-                  icon: <CampIcon.Meal />,
-                  onSelect: () => {
-                    if (!requireStaff("change the calendar")) return;
-                    setBulkPicker({ kind: "meal", ids, point });
-                  },
-                },
-                {
                   label: allAreAllDay ? "Make timed" : "Make all day",
                   icon: <CampIcon.Clock />,
                   onSelect: () => setSelectionAllDay(ids, !allAreAllDay),
@@ -5866,55 +5656,6 @@ export function CalendarShell({
           />
         </FloatingLayer>
       )}
-      {/* "Mark as meal" — the retro-tag picker (single event OR a multi-select).
-          Tapping a kind writes mealKind through applyBulkEdit, which respects
-          series stamping (applyCustomStamp) exactly like the other bulk edits, so
-          tagging one occurrence of a repeating meal is a durable this-edit. "Not a
-          meal" clears the tag. NEVER creates events — it only tags the ones
-          already on the calendar. */}
-      {bulkPicker?.kind === "meal" && (
-        <FloatingLayer
-          anchor={{ kind: "point", x: bulkPicker.point.x, y: bulkPicker.point.y }}
-          onClose={() => setBulkPicker(null)}
-          className="typepick__menu cselect__menu cal-mealpick"
-          role="listbox"
-          ariaLabel="Mark as meal"
-        >
-          {MEAL_KINDS.map((kind) => {
-            const on = bulkPicker.current === kind;
-            return (
-              <button
-                type="button"
-                key={kind}
-                className={"cselect__option" + (on ? " is-selected" : "")}
-                role="option"
-                aria-selected={on}
-                onClick={() => {
-                  applyBulkEdit(bulkPicker.ids, { mealKind: kind });
-                  setBulkPicker(null);
-                }}
-              >
-                <CampIcon.Meal className="cal-mealpick__glyph" />
-                <span className="cselect__optlabel">{MEAL_KIND_LABELS[kind]}</span>
-                {on && <CampIcon.Check className="cselect__optcheck" />}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            className="cselect__option cal-mealpick__clear"
-            role="option"
-            aria-selected={false}
-            onClick={() => {
-              applyBulkEdit(bulkPicker.ids, { mealKind: undefined });
-              setBulkPicker(null);
-            }}
-          >
-            <span className="cselect__optlabel">Not a meal</span>
-          </button>
-        </FloatingLayer>
-      )}
-
       {/* "Swap to backup ▸" — the placement's resolved alternates as a picker.
           Re-derives the live event + list at render so a concurrent edit can't act
           on a stale row; tapping a row runs the self-inverse promoteBackup. */}
@@ -6112,10 +5853,6 @@ function KitGlyph({ className }: { className?: string }) {
     </svg>
   );
 }
-
-// meals-10: the meal glyph (fork + spoon) moved to components/icons.tsx as
-// CampIcon.Meal — it was duplicated verbatim here AND in QuickAdd.tsx as two
-// independently hand-inlined copies. Consumers below now import CampIcon.Meal.
 
 // The backup-plan glyph on a rain-reason placement — a small umbrella, on the
 // CampIcon 24×24 line grid (icons.tsx is owned elsewhere, so it's inlined here).

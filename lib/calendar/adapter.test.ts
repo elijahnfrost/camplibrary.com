@@ -100,15 +100,6 @@ describe("toFcEvent", () => {
     ).toEqual({ rain: true, count: 2 });
   });
 
-  it("threads the meal kind into extendedProps for the meal glyph", () => {
-    // Absent → undefined (so a plain card never draws the meal glyph).
-    expect(toFcEvent(event(), BY_ID).extendedProps?.mealKind).toBeUndefined();
-    // Present → the exact kind, keyed later by the dietary badge + menu note.
-    expect(toFcEvent(event({ mealKind: "lunch" }), BY_ID).extendedProps?.mealKind).toBe("lunch");
-    expect(toFcEvent(event({ mealKind: "am-snack" }), BY_ID).extendedProps?.mealKind).toBe(
-      "am-snack"
-    );
-  });
 });
 
 describe("splitDayLegLabels", () => {

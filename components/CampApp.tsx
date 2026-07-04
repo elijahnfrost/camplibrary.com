@@ -29,9 +29,8 @@ import {
   type CampSnapMin,
   type Weekday,
 } from "@/lib/camps";
-import { createDietaryId, setMenuNote, type DietaryEntry } from "@/lib/meals";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
-import type { CalendarEvent, DateKey, MealKind } from "@/lib/calendar/types";
+import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { applyCustomStamp } from "@/lib/calendar/recurrence";
 import { healEvent } from "@/lib/calendar/adapter";
 import { useCloudUserData } from "@/lib/cloudStore";
@@ -51,7 +50,6 @@ import { Filters, MaterialsFilters } from "./Filters";
 import { LibraryTab } from "./LibraryTab";
 import {
   CampDayStructure,
-  DietarySection,
   GuidesSection,
   ListManagerModal,
 } from "./ListManagerModal";
@@ -544,18 +542,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     return out;
   }, []);
 
-  // Write (or clear) one (date, mealKind) menu note on the meals doc — the meal
-  // editor's "Menu note" row. Pure setMenuNote updater; a blank clears the slot.
-  const setMenuNoteFor = useCallback(
-    (date: DateKey, mealKind: MealKind, text: string) => {
-      if (!requireStaff("edit menus")) return;
-      cloud.setDoc("meals", (prev) => setMenuNote(prev, date, mealKind, text));
-    },
-    [cloud, requireStaff]
-  );
-
   // ---- Per-camp day-structure mutators (weekday hours / dated exceptions / snap)
-  // and the guides + dietary docs. All write straight through cloud.setDoc — the
+  // and the guides doc. All write straight through cloud.setDoc — the
   // camps mutators in useCamps.ts stay lean; these day-structure edits (a rarely
   // touched authoring surface) live with the manager UI that drives them. Every
   // window is forced through clampOverrideWindow so a payload can't escape bounds.
@@ -632,42 +620,12 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     [cloud, requireStaff]
   );
 
-  // Dietary roster mutators (add / update / delete an entry on the meals doc).
-  const addDietary = useCallback(() => {
-    if (!requireStaff("edit menus")) return;
-    const entry: DietaryEntry = { id: createDietaryId(), label: "New entry", severity: "note" };
-    cloud.setDoc("meals", (prev) => ({ ...prev, dietary: [...prev.dietary, entry] }));
-  }, [cloud, requireStaff]);
-  const updateDietary = useCallback(
-    (id: string, patch: Partial<DietaryEntry>) => {
-      if (!requireStaff("edit menus")) return;
-      cloud.setDoc("meals", (prev) => ({
-        ...prev,
-        dietary: prev.dietary.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-      }));
-    },
-    [cloud, requireStaff]
-  );
-  const deleteDietary = useCallback(
-    (id: string) => {
-      if (!requireStaff("edit menus")) return;
-      cloud.setDoc("meals", (prev) => ({ ...prev, dietary: prev.dietary.filter((e) => e.id !== id) }));
-    },
-    [cloud, requireStaff]
-  );
-
   // The camp manager (add / switch / rename / delete) — reached from the
   // sidebar's "Camps" section (desktop) or the calendar settings sheet
   // (mobile/tablet). Camps are a rarely-used option, so they no longer occupy
   // a permanent header pill. Opening is ungated (switching is a local view
   // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
-  // meals-1: the dietary roster's OWN modal — moved out of the Camps manager
-  // (a staff member managing allergies has no reason to land on a screen titled
-  // "Camps" with camp-hours copy). Reached from the calendar's View settings
-  // ("Dietary roster" row, beside "Manage camps…") and from the meal editor's
-  // "Manage…" link (QuickAdd's onManageDietary prop, wired below).
-  const [dietaryManagerOpen, setDietaryManagerOpen] = useState(false);
 
   // The Library holds two collections behind one tab: the activity catalog
   // (Activities) and the kit inventory (Materials — formerly a top-level tab).
@@ -1091,10 +1049,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
       // Kit stock + catalog power the print shopping list (missing & low only).
       kitStock: lib.kitStock,
       materialCatalog: lib.materialCatalog,
-      // The dietary roster + menu notes power the printed day-header dietary
-      // line (approved plan §H, "Meals on paper") — same synced doc the
-      // calendar's meal editor reads/writes (cloud.docs.meals).
-      mealsDoc: cloud.docs.meals,
     }),
     [
       cloud.events,
@@ -1104,7 +1058,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
       campKit.camps,
       lib.kitStock,
       lib.materialCatalog,
-      cloud.docs.meals,
     ]
   );
 
@@ -1209,9 +1162,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             {/* The ONE entry point into camps on desktop — a collapsed-by-default
                 section below the calendar rail. The deep editor (hours, rename,
                 delete) still opens as the existing camps modal — guidance bands
-                and the dietary roster moved OUT of it (see CalendarViewSettings'
-                "Day structure" row and the new Dietary roster modal); this
-                section only picks the active camp or hands off to the hours
+                moved OUT of it (see CalendarViewSettings' "Day structure" row);
+                this section only picks the active camp or hands off to the hours
                 editor. Sits INSIDE the shared scroll zone (not a fixed-to-bottom
                 sibling), so a long camp roster scrolls with the rest of the rail
                 instead of overlapping it. */}
@@ -1378,10 +1330,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 onCreateActivity={createCalendarActivity}
                 dayWindow={calendarDayWindow}
                 activeCamp={campKit.activeCamp}
-                meals={cloud.docs.meals}
                 guides={cloud.docs.guides}
-                onSetMenuNote={setMenuNoteFor}
-                onManageDietary={() => setDietaryManagerOpen(true)}
                 // Only wire the Subscribe control when signed in — anonymous
                 // visitors have no feed, and gating here keeps the rail/sheet
                 // section wrapper from rendering an empty box.
@@ -1587,11 +1536,8 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               );
             }}
             footer={
-              // meals-1: the Dietary roster moved OUT of this modal (its own
-              // "Dietary roster" row lives in Calendar View settings now, next
-              // to "Manage camps…"). Guidance bands stay here for now, but with
-              // a clearer label — "Day structure" reads as camp-scheduling
-              // vocabulary, not a meals concept, matching where it lives.
+              // Guidance bands live here under a clear "Day structure" label so
+              // they read as camp-scheduling vocabulary.
               <div className="manager__sections">
                 <GuidesSection
                   label="Day structure — guidance bands"
@@ -1605,35 +1551,6 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               </div>
             }
             onClose={() => setCampsManagerOpen(false)}
-          />
-        )}
-        {dietaryManagerOpen && (
-          <ListManagerModal
-            title="Dietary roster"
-            intro="Allergies and avoidances staff must honor at every meal — shared across all camps. Severe entries always sort first."
-            items={[]}
-            createPlaceholder=""
-            createLabel=""
-            onCreate={() => {}}
-            onRename={() => {}}
-            onDelete={() => {}}
-            // A create/list surface with no per-item rows of its own — the roster
-            // itself is the modal's whole content, so the create form is hidden
-            // and DietarySection (a footer-only section, per its existing shape)
-            // carries everything. items=[] + emptyHint keeps ListManagerModal's
-            // "no items" branch quiet rather than showing a stray empty state.
-            emptyHint=""
-            hideCreate
-            footer={
-              <DietarySection
-                dietary={cloud.docs.meals.dietary}
-                canEdit={isSignedIn}
-                onAdd={addDietary}
-                onUpdate={updateDietary}
-                onDelete={deleteDietary}
-              />
-            }
-            onClose={() => setDietaryManagerOpen(false)}
           />
         )}
         {locationsManagerOpen && (

@@ -613,8 +613,7 @@ body {
    pill" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min,
    6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not
    --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day
-   icon-button, no border), .quickadd__mealchip (a selectable rectangular
-   button, --r-md, --hand not --hand-sc — not visually a pill at all),
+   icon-button, no border),
    .book-print-chip (36px-tall clickable control sized to match its header
    siblings), .admin-status (static per-state badge, no min-height/cursor),
    and .theme-badge (swatch + label, no border/background at all). Each was
@@ -1477,8 +1476,8 @@ body {
 
 /* ---------- camp day-structure authoring (the camps manager sections) ----------
    Per-row weekday hours / dated exceptions / snap, plus the global guidance-bands
-   and dietary-roster sections in the footer. Every block is a COLLAPSIBLE with a
-   chevron header so the modal stays calm; open reveals a quiet body. */
+   section in the footer. Every block is a COLLAPSIBLE with a chevron header so
+   the modal stays calm; open reveals a quiet body. */
 .manager__daystruct {
   padding: 0 var(--s-4) var(--s-3);
   display: flex;
@@ -1558,8 +1557,7 @@ body {
 }
 .manager__weekdays,
 .manager__dates,
-.manager__guides,
-.manager__diet {
+.manager__guides {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1569,21 +1567,18 @@ body {
 }
 .manager__weekday,
 .manager__dateexc,
-.manager__guide,
-.manager__dietrow {
+.manager__guide {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--s-2) var(--s-3);
 }
-/* meals-9: a read-only (non-staff) guidance-band/dietary row — inputs already
-   carry the native disabled/readOnly attribute, but MiniSeg (the severity
-   control) has no disabled prop of its own, so its buttons would otherwise
-   still look and behave clickable. Suppressing pointer-events here matches the
-   app's "non-navigating must not look interactive" rule without touching the
-   shared MiniSeg primitive. */
-.manager__guide.is-readonly .miniseg,
-.manager__dietrow.is-readonly .miniseg {
+/* A read-only (non-staff) guidance-band row — inputs already carry the native
+   disabled/readOnly attribute, but MiniSeg has no disabled prop of its own, so
+   its buttons would otherwise still look and behave clickable. Suppressing
+   pointer-events here matches the app's "non-navigating must not look
+   interactive" rule without touching the shared MiniSeg primitive. */
+.manager__guide.is-readonly .miniseg {
   pointer-events: none;
   opacity: 0.75;
 }
@@ -1620,14 +1615,9 @@ body {
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-.manager__guide-label,
-.manager__diet-label {
+.manager__guide-label {
   flex: 1 1 8ch;
   min-width: 6ch;
-}
-.manager__diet-detail {
-  flex: 1 1 10ch;
-  min-width: 8ch;
 }
 .manager__guide-days {
   display: inline-flex;
@@ -10026,30 +10016,6 @@ button.rl-node--pick:focus-visible {
   border-top-color: #000;
   color: #000;
 }
-/* Dietary line (approved plan §H, "Meals on paper") — a compact SEVERE-only
-   roster reminder under the day heading, in the app's --danger tone so it
-   reads as an alert even in the print doc's otherwise-quiet ink palette. */
-.pd-day__dietary {
-  margin: 0 0 var(--pd-gap-md);
-  font-size: var(--pd-fs-meta);
-  color: var(--danger-ink);
-}
-.pd-day__dietary-kicker {
-  font-family: var(--hand-sc);
-  font-size: var(--pd-fs-micro);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--danger-ink);
-}
-.print-doc--mono .pd-day__dietary,
-.print-doc--mono .pd-day__dietary-kicker {
-  color: #000;
-}
-.print-doc--plain .pd-day__dietary-kicker {
-  font-family: var(--text);
-  letter-spacing: 0;
-  text-transform: none;
-}
 .pd-events {
   list-style: none;
   margin: 0;
@@ -10098,8 +10064,7 @@ button.rl-node--pick:focus-visible {
   color: var(--ink);
 }
 .pd-event__type,
-.pd-event__theme,
-.pd-event__meal {
+.pd-event__theme {
   font-family: var(--hand-sc);
   font-size: var(--pd-fs-meta);
   letter-spacing: 0.05em;
@@ -10126,28 +10091,6 @@ button.rl-node--pick:focus-visible {
 .print-doc--mono .pd-event__theme {
   color: #000;
   background: transparent;
-  border-color: #000;
-}
-/* Meal badge (approved plan §H, "Meals on paper") — a quiet outline chip like
-   .pd-event__theme (not filled like .pd-event__type), since it's informational
-   rather than a category; the fork+spoon glyph rides inline at cap height. */
-.pd-event__meal {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.03in;
-  color: var(--ink-soft);
-}
-.pd-event__mealicon {
-  width: 0.11in;
-  height: 0.11in;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.print-doc--mono .pd-event__meal {
-  color: #000;
   border-color: #000;
 }
 .pd-event__blurb {
@@ -10414,7 +10357,6 @@ button.rl-node--pick:focus-visible {
 .print-doc--plain .pd-event__time,
 .print-doc--plain .pd-event__type,
 .print-doc--plain .pd-event__theme,
-.print-doc--plain .pd-event__meal,
 .print-doc--plain .pd-facts--inline,
 .print-doc--plain .pd-rollup__head,
 .print-doc--plain .pd-shopping__status,
@@ -11005,21 +10947,6 @@ button.rl-node--pick:focus-visible {
   font-weight: 700;
   font-size: calc(9.5pt);
   line-height: 1.05;
-}
-/* Meal glyph (approved plan §H, "Meals on paper") — rides inline on the title
-   line so it survives even on a short block, unlike the type/theme lines
-   below which need their own row and so get hidden below a height threshold. */
-.pd-tl__mealicon {
-  flex: none;
-  width: 0.11in;
-  height: 0.11in;
-  align-self: center;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--ink-soft);
 }
 .pd-tl__type {
   display: inline-block;

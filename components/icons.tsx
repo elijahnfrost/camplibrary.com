@@ -338,16 +338,6 @@ export const CampIcon = {
       <path d="M16 12l2-2a3 3 0 0 0-4.2-4.2l-2 2" />
     </>
   ),
-  // A fork + spoon — the meal axis glyph (a meal-tagged event's card, the
-  // "Mark as meal…" context-menu item, and QuickAdd's Meal row all shared this
-  // exact path data as two independently hand-inlined copies before meals-10
-  // centralized it here).
-  Meal: svg(
-    <>
-      <path d="M7 3v7M5 3v4a2 2 0 0 0 2 2M9 3v4a2 2 0 0 1-2 2M7 11v10" />
-      <path d="M15 3c-1.5 0-2.5 2-2.5 5s1 4 2.5 4 2.5-1 2.5-4-1-5-2.5-5zM15 12v9" />
-    </>
-  ),
 } as const;
 
 // The brand mark: the bookshelf logo, inlined so each book is a CSS-targetable
