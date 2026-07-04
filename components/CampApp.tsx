@@ -53,6 +53,7 @@ import {
   GuidesSection,
   ListManagerModal,
 } from "./ListManagerModal";
+import { CampEditorPopup } from "./CampEditorPopup";
 import { Modal } from "./Modal";
 import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
 import { Select } from "./floating/Select";
@@ -195,28 +196,45 @@ function StaffPromptModal({
   );
 }
 
-// The desktop sidebar's ONE entry point into camps: a collapsed-by-default
-// section under the calendar rail (mirrors the calendar's own View/Weather
-// disclosures). Picking a camp switches it inline. The deep editor (per-camp
-// hours, guidance bands, rename, delete) is too rich for a 260px rail, so ONE
-// quiet "Manage camps…" footer row hands off to the existing ListManagerModal —
-// there's no per-row Edit pencil anymore. camps-5/7: "New camp" was removed —
-// it opened the exact same modal as "Manage camps…" with no lighter/faster path
-// of its own, so keeping both only implied two actions where there was one; a
-// user who wants a new camp opens the manager, whose create field autofocuses.
+// The desktop sidebar's Camps section — the selector AND the editor entry.
+// Picking a camp switches it inline; a per-row Edit pencil (revealed on hover)
+// opens THAT camp's own popup (CampEditorPopup) for its hours/rename/delete;
+// "Add camp" creates one inline and opens its popup. Global day-structure
+// guidance bands — not per-camp — get their own quiet footer entry. This
+// reverses camps-5/7 ("no per-row pencil, one Manage-camps modal"): the deep
+// editor that was "too rich for a 260px rail" now lives in a focused per-camp
+// popup, so the rail no longer hands off to the all-camps ListManagerModal
+// (that modal stays only for the mobile/tablet settings sheet).
 function CampsRail({
   camps,
   activeCampId,
   onSwitch,
-  onManage,
+  onEditCamp,
+  onAddCamp,
+  onOpenGuides,
 }: {
   camps: Camp[];
   activeCampId: string | null;
   onSwitch: (id: string) => void;
-  /** Opens the camp manager (rename / delete / per-camp hours). */
-  onManage: () => void;
+  /** Opens the per-camp editor popup for this camp. */
+  onEditCamp: (id: string) => void;
+  /** Creates a camp with this name (the host opens its popup on success). */
+  onAddCamp: (name: string) => void;
+  /** Opens the global day-structure guidance-bands editor. */
+  onOpenGuides: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draftName, setDraftName] = useState("");
+
+  const commitAdd = () => {
+    const name = draftName.trim();
+    if (!name) return;
+    onAddCamp(name);
+    setDraftName("");
+    setAdding(false);
+  };
+
   return (
     <div className={"sidesection sidesection--fixed camprail" + (open ? " is-open" : "")}>
       <button
@@ -255,6 +273,16 @@ function CampsRail({
                       />
                       <span className="camprail__name">{camp.name}</span>
                     </button>
+                    {/* Revealed on row hover (see .camprail__edit) — opens this
+                        camp's own editor popup. */}
+                    <button
+                      type="button"
+                      className="icon-btn camprail__edit"
+                      aria-label={"Edit " + camp.name}
+                      onClick={() => onEditCamp(camp.id)}
+                    >
+                      <CampIcon.Pencil />
+                    </button>
                   </li>
                 );
               })}
@@ -262,11 +290,45 @@ function CampsRail({
           ) : (
             <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
           )}
-          {/* The ONE manage entry — a quiet footer row (typepick__manage voice)
-              that opens the full camp editor. Replaces the per-row Edit pencils
-              and the old separate "New camp" shortcut. */}
-          <button type="button" className="camprail__manage" onClick={onManage}>
-            Manage camps…
+
+          {adding ? (
+            <form
+              className="camprail__addform"
+              onSubmit={(e) => {
+                e.preventDefault();
+                commitAdd();
+              }}
+            >
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+              <input
+                className="input camprail__addinput"
+                value={draftName}
+                autoFocus
+                placeholder="e.g. Summer Day Camp"
+                aria-label="New camp name"
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setAdding(false);
+                    setDraftName("");
+                  }
+                }}
+              />
+              <button type="submit" className="icon-btn" aria-label="Create camp" disabled={!draftName.trim()}>
+                <CampIcon.Check />
+              </button>
+            </form>
+          ) : (
+            <button type="button" className="camprail__new" onClick={() => setAdding(true)}>
+              <CampIcon.Plus />
+              Add camp
+            </button>
+          )}
+
+          {/* Global day-structure guidance bands — not per-camp, so they get
+              their own quiet entry rather than living in any camp's popup. */}
+          <button type="button" className="camprail__manage" onClick={onOpenGuides}>
+            Day-structure guides…
           </button>
         </div>
       )}
@@ -626,6 +688,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // a permanent header pill. Opening is ungated (switching is a local view
   // pref); create/rename/delete stay staff-gated below.
   const [campsManagerOpen, setCampsManagerOpen] = useState(false);
+  // Desktop camp management: which camp's editor popup is open (null = none) and
+  // the global day-structure guidance-bands modal. The camps ListManagerModal
+  // (campsManagerOpen) now serves ONLY the mobile/tablet settings sheet
+  // (onOpenCamps); on desktop the rail edits each camp in CampEditorPopup and
+  // guidance bands in their own small modal.
+  const [editingCampId, setEditingCampId] = useState<string | null>(null);
+  const [guidesModalOpen, setGuidesModalOpen] = useState(false);
 
   // The Kit availability editor floats over the app as a modal (see KitModal),
   // reached from the filter rail's Kit group ("Edit stock…", see Filters) —
@@ -1015,6 +1084,11 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // back target but no longer duplicates the entry point.
   const navTabs = useMemo(() => (tab === "admin" ? [...TABS, ADMIN_TAB] : TABS), [tab]);
 
+  // The camp whose editor popup is open (desktop), resolved from editingCampId.
+  // Falls back to null when the id no longer resolves (e.g. just deleted), which
+  // unmounts the popup.
+  const editingCamp = editingCampId != null ? campKit.camps.find((c) => c.id === editingCampId) ?? null : null;
+
   return (
     <AgeUnitProvider value={ageUnit}>
     <div className="stage">
@@ -1106,7 +1180,13 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                 camps={campKit.camps}
                 activeCampId={campKit.activeCampId}
                 onSwitch={campKit.switchCamp}
-                onManage={() => setCampsManagerOpen(true)}
+                onEditCamp={(id) => setEditingCampId(id)}
+                onAddCamp={async (name) => {
+                  if (!requireStaff("manage camps")) return;
+                  const created = await campKit.createCamp(name);
+                  if (created) setEditingCampId(created.id);
+                }}
+                onOpenGuides={() => setGuidesModalOpen(true)}
               />
             )}
             {tab === "print" && isDesktop && <div className="sidenav__printrail" ref={printRailRef} />}
@@ -1458,6 +1538,72 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
               </div>
             }
             onClose={() => setCampsManagerOpen(false)}
+          />
+        )}
+        {/* Desktop per-camp editor popup — opened from the Camps rail's Edit
+            pencil or right after creating a camp. Mobile/tablet still edits camps
+            through the ListManagerModal above (its settings sheet). */}
+        {editingCamp && (
+          <CampEditorPopup
+            camp={editingCamp}
+            tint={campTint(editingCamp.id, campKit.camps)}
+            hourOptions={campHourOptions}
+            overrideHourOptions={overrideHourOptions}
+            onRename={(name) => {
+              if (requireStaff("manage camps")) campKit.renameCamp(editingCamp.id, name);
+            }}
+            onSetOpen={(v) => {
+              if (requireStaff("manage camps")) campKit.adjustCampHours(editingCamp.id, "open", v);
+            }}
+            onSetClose={(v) => {
+              if (requireStaff("manage camps")) campKit.adjustCampHours(editingCamp.id, "close", v);
+            }}
+            onSetWeekday={(dow, val) => setCampWeekdayHours(editingCamp.id, dow, val)}
+            onSetDate={(date, val) => setCampDateHours(editingCamp.id, date, val)}
+            onSetSnap={(s) => setCampSnap(editingCamp.id, s)}
+            onDelete={async () => {
+              if (!requireStaff("manage camps")) return;
+              const ok = await requestConfirm({
+                title: "Delete the “" + editingCamp.name + "” camp?",
+                body: "Its events stay on the calendar but are no longer grouped.",
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (ok) {
+                campKit.deleteCamp(editingCamp.id, { announce: true });
+                setEditingCampId(null);
+              }
+            }}
+            onClose={() => setEditingCampId(null)}
+          />
+        )}
+        {/* Global day-structure guidance bands — their own small modal on desktop
+            (reached from the Camps rail); the mobile camps manager keeps them in
+            its footer. Guidance bands aren't per-camp, so they don't belong in a
+            single camp's popup. */}
+        {guidesModalOpen && (
+          <ListManagerModal
+            title="Day structure"
+            intro="Guidance bands are soft day-structure frames shared across every camp — gentle time markers on the calendar, not hard rules."
+            hideCreate
+            items={[]}
+            onCreate={() => {}}
+            onRename={() => {}}
+            onDelete={() => {}}
+            footer={
+              <div className="manager__sections">
+                <GuidesSection
+                  label="Guidance bands"
+                  guides={cloud.docs.guides}
+                  hourOptions={overrideHourOptions}
+                  canEdit={isSignedIn}
+                  onAdd={addGuide}
+                  onUpdate={updateGuide}
+                  onDelete={deleteGuide}
+                />
+              </div>
+            }
+            onClose={() => setGuidesModalOpen(false)}
           />
         )}
         {locationsManagerOpen && (
