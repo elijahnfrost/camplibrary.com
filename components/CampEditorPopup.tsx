@@ -76,6 +76,9 @@ export function CampEditorPopup({
   onClose: () => void;
 }) {
   const [newDate, setNewDate] = useState<DateKey>(todayKey());
+  // Raw name text while editing (see the title input) — seeded from camp.name;
+  // the popup remounts per camp (keyed by editing id), so this re-seeds cleanly.
+  const [nameDraft, setNameDraft] = useState(camp.name);
 
   const overrideCount = Object.keys(camp.weekdayHours ?? {}).length;
   const weekSummary = overrideCount
@@ -103,13 +106,23 @@ export function CampEditorPopup({
             style={{ "--camp-tint": tint } as CSSProperties}
             aria-hidden="true"
           />
+          {/* Bound to a LOCAL draft, not camp.name: renameCamp trims on every
+              keystroke, so binding straight to the (trimmed) stored value ate any
+              trailing space the instant you typed it — you couldn't type "Camp "
+              before the next word. The draft holds the raw text as you type; the
+              store still gets the live (trimmed) value, and blur resyncs the field
+              to the canonical trimmed name. */}
           <input
             className="campedit__titleinput"
-            value={camp.name}
+            value={nameDraft}
             aria-label="Camp name"
             maxLength={MAX_CAMP_NAME}
             spellCheck={false}
-            onChange={(e) => onRename(e.target.value)}
+            onChange={(e) => {
+              setNameDraft(e.target.value);
+              onRename(e.target.value);
+            }}
+            onBlur={() => setNameDraft(camp.name)}
           />
           <CampIcon.Pencil className="campedit__titlepen" aria-hidden="true" />
         </div>
