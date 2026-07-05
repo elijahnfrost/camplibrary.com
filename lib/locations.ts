@@ -18,7 +18,7 @@ import { EVENT_LOCATION_OPTIONS, EVENT_LOCATION_MAX_LENGTH } from "./calendar/ty
 // this; once a user edits it, the stored list is authoritative (even when empty).
 export const DEFAULT_LOCATIONS: readonly string[] = [...EVENT_LOCATION_OPTIONS];
 
-export const MAX_LOCATION_LABEL = EVENT_LOCATION_MAX_LENGTH;
+const MAX_LOCATION_LABEL = EVENT_LOCATION_MAX_LENGTH;
 
 // Cap the vocabulary so a malformed payload can't carry an unbounded list. The
 // picker only ever offers a handful; this is purely a safety bound.

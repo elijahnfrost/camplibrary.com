@@ -42,7 +42,7 @@ export const AGE_GROUPS: AgeGroup[] = [
   { id: "g1012", label: "Grades 10–12", short: "Gr 10–12", lo: 10, hi: 12, min: 15, max: 18 },
 ];
 
-export function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {
+function ageGroups(a: Pick<Activity, "ages">): AgeGroup[] {
   return AGE_GROUPS.filter((g) => (a.ages || []).indexOf(g.id) >= 0);
 }
 
@@ -63,7 +63,7 @@ function ageSpanGrades(a: Pick<Activity, "ages">): string {
   return "Grades " + lo + "–" + hi;
 }
 
-export function ageSpanAges(a: Pick<Activity, "ages">): string {
+function ageSpanAges(a: Pick<Activity, "ages">): string {
   const gs = ageGroups(a);
   if (!gs.length) return "9–12 yrs";
   const lo = Math.min(...gs.map((g) => g.min));
@@ -187,7 +187,7 @@ export const CUSTOM_NEUTRAL = "#9c9486";
 // Warm and clearly "a marker", but softer than the Craft clay so a thin
 // reminder line reads as a quiet nudge that belongs, not an alarm. A saved
 // reminder can override it (Reminder.color); otherwise every reminder uses this.
-export const REMINDER_TINT = "#c2715a";
+const REMINDER_TINT = "#c2715a";
 
 // Resolve a reminder's marker color: its own override, else the default tint.
 export function reminderTint(color?: string): string {
@@ -232,7 +232,7 @@ export function locationColor(
 // "by theme" without touching any event's stored color.
 export type ColorMode = "custom" | "type" | "rating" | "location" | "theme";
 
-export const COLOR_MODES: readonly ColorMode[] = ["custom", "type", "rating", "location", "theme"];
+const COLOR_MODES: readonly ColorMode[] = ["custom", "type", "rating", "location", "theme"];
 
 export function isColorMode(value: unknown): value is ColorMode {
   return typeof value === "string" && (COLOR_MODES as readonly string[]).includes(value);

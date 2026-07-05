@@ -8,7 +8,7 @@
 // Only http(s) URLs are honored; provider embed srcs are reconstructed from an
 // id that matches a strict charset; everything else degrades to a plain link.
 
-export type EmbedKind = "youtube" | "vimeo" | "link" | "none";
+type EmbedKind = "youtube" | "vimeo" | "link" | "none";
 
 export interface ParsedEmbed {
   kind: EmbedKind;

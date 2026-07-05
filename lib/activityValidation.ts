@@ -119,7 +119,7 @@ function validAges(value: unknown): AgeGroupId[] {
   ];
 }
 
-export function deriveAgesFromRange(ageMin: number, ageMax: number): AgeGroupId[] {
+function deriveAgesFromRange(ageMin: number, ageMax: number): AgeGroupId[] {
   const lo = Math.min(ageMin, ageMax);
   const hi = Math.max(ageMin, ageMax);
   // Bands now touch at their boundaries (…9, 12, 15…); a shared boundary belongs

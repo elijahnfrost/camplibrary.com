@@ -22,18 +22,18 @@ import {
  * an edited one are pixel-identical.
  * ------------------------------------------------------------------------- */
 
-export function markerId(base: string, key: string) {
+function markerId(base: string, key: string) {
   return base + "-" + key;
 }
 
-export function arrowKind(kind: PlaybookArrowKind | undefined): PlaybookArrowKind {
+function arrowKind(kind: PlaybookArrowKind | undefined): PlaybookArrowKind {
   return kind || "neutral";
 }
 
 // An arrow's visual identity: a chosen palette color wins, otherwise it falls
 // back to the legacy team tint (blue/red/neutral). The returned key drives both
 // the stroke class and which arrowhead marker the line points at.
-export function arrowVisual(arrow: PlaybookArrow): string {
+function arrowVisual(arrow: PlaybookArrow): string {
   return arrow.color ? "c-" + arrow.color : arrowKind(arrow.team);
 }
 
@@ -100,7 +100,7 @@ export function FieldSurface({
 }
 
 // A zone's outline color: a chosen palette color wins, else the kind preset.
-export function zoneClass(zone: PlaybookZone): string {
+function zoneClass(zone: PlaybookZone): string {
   const base = "playbook-field__zone playbook-field__zone--" + zone.kind;
   return zone.color ? base + " playbook-field__zone--c-" + zone.color : base;
 }
@@ -195,7 +195,7 @@ export function MarkerShape({ marker }: { marker: PlaybookMarker }) {
   );
 }
 
-export function FlagShape({ flag }: { flag: PlaybookFlag }) {
+function FlagShape({ flag }: { flag: PlaybookFlag }) {
   return (
     <g
       className={"playbook-flag playbook-flag--" + flag.team}
@@ -208,11 +208,11 @@ export function FlagShape({ flag }: { flag: PlaybookFlag }) {
   );
 }
 
-export function playerClass(point: PlaybookPlayer) {
+function playerClass(point: PlaybookPlayer) {
   return "playbook-player playbook-player--" + point.team + (point.role ? " is-" + point.role : "");
 }
 
-export function PlayerShape({ player }: { player: PlaybookPlayer }) {
+function PlayerShape({ player }: { player: PlaybookPlayer }) {
   return (
     <g className={playerClass(player)} transform={"translate(" + player.x + " " + player.y + ")"}>
       {player.team === "blue" ? (
@@ -294,11 +294,11 @@ export function FieldFrame({
 
 // Does any frame still carry the legacy two-team CTF pieces? Drives whether the
 // blue/red/flag legend is meaningful (generic marker diagrams suppress it).
-export function usesTeamPieces(playbook: ActivityPlaybookData): boolean {
+function usesTeamPieces(playbook: ActivityPlaybookData): boolean {
   return playbook.frames.some((f) => (f.players?.length || 0) > 0 || (f.flags?.length || 0) > 0);
 }
 
-export function PlaybookLegend() {
+function PlaybookLegend() {
   return (
     <div className="playbook__legend" aria-label="Diagram legend">
       <span>

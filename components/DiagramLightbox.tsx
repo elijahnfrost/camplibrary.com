@@ -11,7 +11,7 @@ import { CampIcon } from "./icons";
 import { FieldFrame } from "./ActivityPlaybook";
 import { useDialogFocus } from "./useDialogFocus";
 
-export function FrameStepper({
+function FrameStepper({
   playbook,
   frameIndex,
   onFrameIndex,

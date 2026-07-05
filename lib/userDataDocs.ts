@@ -123,12 +123,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export const stringArrayDoc: StorageValidator<string[]> = (value, fallback) =>
+const stringArrayDoc: StorageValidator<string[]> = (value, fallback) =>
   Array.isArray(value)
     ? [...new Set(value.filter((item): item is string => typeof item === "string" && Boolean(item)))]
     : fallback;
 
-export const ratingsDoc: StorageValidator<Record<string, number>> = (value, fallback) => {
+const ratingsDoc: StorageValidator<Record<string, number>> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Record<string, number> = {};
   for (const [key, raw] of Object.entries(value)) {
@@ -139,12 +139,12 @@ export const ratingsDoc: StorageValidator<Record<string, number>> = (value, fall
   return out;
 };
 
-export const activitiesDoc: StorageValidator<Activity[]> = (value, fallback) =>
+const activitiesDoc: StorageValidator<Activity[]> = (value, fallback) =>
   normalizeActivities(value, fallback);
 
 // Per-activity playbook overrides — lets any diagram (including built-in ones)
 // be edited and persisted without mutating the seed data.
-export const playbookOverridesDoc: StorageValidator<Record<string, ActivityPlaybookData>> = (
+const playbookOverridesDoc: StorageValidator<Record<string, ActivityPlaybookData>> = (
   value,
   fallback
 ) => {
@@ -160,7 +160,7 @@ export const playbookOverridesDoc: StorageValidator<Record<string, ActivityPlayb
 // Per-activity Run List overrides — hand-edited instruction documents that
 // supersede the doc derived from the activity's flat steps/notes/safety. Same
 // pattern as playbook overrides; built-in and custom books both persist here.
-export const runListOverridesDoc: StorageValidator<Record<string, RunDoc>> = (value, fallback) => {
+const runListOverridesDoc: StorageValidator<Record<string, RunDoc>> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Record<string, RunDoc> = {};
   for (const [key, raw] of Object.entries(value)) {
@@ -170,30 +170,30 @@ export const runListOverridesDoc: StorageValidator<Record<string, RunDoc>> = (va
   return out;
 };
 
-export const viewDoc: StorageValidator<LibraryView> = (value, fallback) =>
+const viewDoc: StorageValidator<LibraryView> = (value, fallback) =>
   value === "shelf" || value === "deck" || value === "catalog" ? value : fallback;
 
 // The user-definable theme vocabulary, and the activityId -> themeId map that
 // assigns one to each activity. Both validators run client + server.
-export const themesDoc: StorageValidator<Theme[]> = (value, fallback) =>
+const themesDoc: StorageValidator<Theme[]> = (value, fallback) =>
   normalizeThemes(value, fallback);
 
-export const themeAssignmentsDoc: StorageValidator<Record<string, string>> = (value, fallback) =>
+const themeAssignmentsDoc: StorageValidator<Record<string, string>> = (value, fallback) =>
   normalizeThemeAssignments(value, fallback);
 
 // The user's camps (separate scheduling containers; the catalog stays shared).
-export const campsDoc: StorageValidator<Camp[]> = (value, fallback) => normalizeCamps(value, fallback);
+const campsDoc: StorageValidator<Camp[]> = (value, fallback) => normalizeCamps(value, fallback);
 
 // The user-editable location vocabulary (places a block can happen). Events
 // store the label directly, so this is a plain ordered list of unique strings.
-export const locationsDoc: StorageValidator<string[]> = (value, fallback) =>
+const locationsDoc: StorageValidator<string[]> = (value, fallback) =>
   normalizeLocationVocab(value, fallback);
 
 // Per-location color overrides: place LABEL → validated hex. Mirrors the ratings
 // map (a sparse override layer over a fixed default), so it rides existing
 // zero-DDL round-trips. Non-hex values and non-string keys are dropped, so the
 // renderers and color resolvers only ever see clean hex strings.
-export const locationColorsDoc: StorageValidator<Record<string, string>> = (value, fallback) => {
+const locationColorsDoc: StorageValidator<Record<string, string>> = (value, fallback) => {
   if (!isRecord(value)) return fallback;
   const out: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value)) {
@@ -206,21 +206,21 @@ export const locationColorsDoc: StorageValidator<Record<string, string>> = (valu
 // The materials catalog (names + substitution + flags for the kit vocabulary).
 // The pure validator lives in lib/materialCatalog.ts (isomorphic); it ignores
 // the fallback because normalizeMaterialCatalog always yields a clean array.
-export const materialCatalogDoc: StorageValidator<Material[]> = (value) =>
+const materialCatalogDoc: StorageValidator<Material[]> = (value) =>
   normalizeMaterialCatalog(value);
 
 // The 3-state kit stock map (material id → have/low/out). The pure validator
 // lives in lib/kitStock.ts (isomorphic); it ignores the fallback because
 // normalizeKitStock always yields a clean {} on malformed input.
-export const kitStockDoc: StorageValidator<Record<string, StockState>> = (value) =>
+const kitStockDoc: StorageValidator<Record<string, StockState>> = (value) =>
   normalizeKitStock(value);
 
 // The day-structure guide bands. The pure validator lives in
 // lib/calendar/guides.ts (isomorphic); it ignores the fallback because
 // normalizeGuides always yields a clean array on malformed input.
-export const guidesDoc: StorageValidator<GuideBand[]> = (value) => normalizeGuides(value);
+const guidesDoc: StorageValidator<GuideBand[]> = (value) => normalizeGuides(value);
 
-export const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
+const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
   ratings: ratingsDoc,

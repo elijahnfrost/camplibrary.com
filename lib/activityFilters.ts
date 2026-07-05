@@ -111,7 +111,7 @@ export function searchTokens(query: string): string[] {
 // remember activities by how they play ("the one with the sponge line") and by
 // local/alternate names ("Octopus", "Goggaball") that never appear in the
 // title. Hidden implementation fields like `safety` stay out.
-export function activitySearchHaystack(a: Activity): string {
+function activitySearchHaystack(a: Activity): string {
   return normalizeSearchText(
     [
       a.title,

@@ -624,7 +624,7 @@ export type DragItem =
   | { kind: "top"; id: string }
   | { kind: "child"; parentId: string; id: string };
 
-export type DropPosition = "before" | "after";
+type DropPosition = "before" | "after";
 
 export type DropTarget = {
   item: DragItem;
@@ -670,13 +670,13 @@ export function topFromChild(child: RunChild): RunBlock | null {
   return null;
 }
 
-export function isChildCapable(item: DragItem, blocks: RunBlock[]): boolean {
+function isChildCapable(item: DragItem, blocks: RunBlock[]): boolean {
   if (item.kind === "child") return true;
   const block = blocks.find((b) => b.id === item.id);
   return Boolean(block && childFromTop(block));
 }
 
-export function isTopCapable(item: DragItem, blocks: RunBlock[]): boolean {
+function isTopCapable(item: DragItem, blocks: RunBlock[]): boolean {
   if (item.kind === "top") return true;
   const parent = blocks.find((b) => b.id === item.parentId);
   const child = parent?.children?.find((k) => k.id === item.id);

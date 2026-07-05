@@ -10,7 +10,7 @@ import { DEFAULT_DURATION_MIN } from "./time";
 
 // The widest gap between two events that still reads as "no room for a block".
 // One default block (30 min): a gap that could hold a real activity isn't tight.
-export const REMINDER_GAP_MAX_MIN = DEFAULT_DURATION_MIN;
+const REMINDER_GAP_MAX_MIN = DEFAULT_DURATION_MIN;
 
 // Does a tap at `atMin` on `dateKey` land in a TIGHT gap squeezed between two
 // timed events — one ending at/before it, one starting at/after it, with only a

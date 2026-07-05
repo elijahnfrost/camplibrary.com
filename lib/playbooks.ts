@@ -5,10 +5,10 @@
 // zones, the flags, the players, and the movement arrows — lives in this data so
 // the same renderer can both display a diagram and edit it piece by piece.
 
-export type PlaybookTeamId = "blue" | "red";
+type PlaybookTeamId = "blue" | "red";
 export type PlaybookArrowKind = PlaybookTeamId | "neutral";
-export type PlaybookPoint = [number, number];
-export type PlaybookMarkerKind = "runner" | "flag";
+type PlaybookPoint = [number, number];
+type PlaybookMarkerKind = "runner" | "flag";
 export type PlaybookZoneKind = "safe" | "jail" | "area";
 
 // The generic, event-agnostic palette. A diagram piece picks a color by name so
@@ -22,7 +22,7 @@ export const PLAYBOOK_COLORS: PlaybookColorId[] = ["teal", "clay", "amber", "sag
 // so a marker doubles as a free-floating text label. `flag`/`pin` are camp-y
 // map glyphs (a planted flag, a dropped map pin) for bases and stations.
 export type PlaybookMarkerShape = "circle" | "square" | "triangle" | "diamond" | "flag" | "pin" | "text";
-export const PLAYBOOK_SHAPES: PlaybookMarkerShape[] = [
+const PLAYBOOK_SHAPES: PlaybookMarkerShape[] = [
   "circle",
   "square",
   "triangle",
@@ -100,7 +100,7 @@ export interface PlaybookFrame {
   markers?: PlaybookMarker[];
 }
 
-export interface PlaybookSurface {
+interface PlaybookSurface {
   // Split the field down the middle with two tinted halves (team territories).
   split?: boolean;
   // Lay faint gridlines over the surface — handy for courts, station maps, and
@@ -156,7 +156,7 @@ export function newArrow(team: PlaybookArrowKind = "neutral"): PlaybookArrow {
 
 // Map a legacy CTF team to its palette color so a migrated game keeps the exact
 // two-tone look (blue → teal token #4d7a86, red → clay).
-export function teamColor(team: PlaybookTeamId): PlaybookColorId {
+function teamColor(team: PlaybookTeamId): PlaybookColorId {
   return team === "red" ? "clay" : "teal";
 }
 

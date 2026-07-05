@@ -42,7 +42,7 @@ const MAX_INVITE_EXPIRY_MS = Date.UTC(2100, 0, 1);
 
 export const INVITE_CODE_INPUT_MAX_LENGTH = 128;
 export const INVITE_EMAIL_MAX_LENGTH = 320;
-export const INVITE_LABEL_MAX_LENGTH = 120;
+const INVITE_LABEL_MAX_LENGTH = 120;
 
 export class InviteCodeValidationError extends Error {
   constructor(message: string) {
@@ -51,7 +51,7 @@ export class InviteCodeValidationError extends Error {
   }
 }
 
-export function normalizeInviteCode(code: string): string {
+function normalizeInviteCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
@@ -136,7 +136,7 @@ export function normalizeInviteMaxUses(value: unknown): number {
   return maxUses;
 }
 
-export const ensureInviteCodeSchema = cacheUntilFailure(async () => {
+const ensureInviteCodeSchema = cacheUntilFailure(async () => {
   const sql = getSql();
   await sql`CREATE TABLE IF NOT EXISTS invite_codes (
         id uuid PRIMARY KEY,

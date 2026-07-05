@@ -1,6 +1,6 @@
-export type AuthRole = "editor" | "admin";
+type AuthRole = "editor" | "admin";
 
-export type AuthUser = {
+type AuthUser = {
   id: string;
   name: string;
   email: string;
@@ -103,7 +103,7 @@ function decodeClerkPayload(value: string): string {
   }
 }
 
-export function isUsableClerkKey(value: string | null | undefined): value is string {
+function isUsableClerkKey(value: string | null | undefined): value is string {
   if (value == null) return false;
   const trimmed = value.trim();
   if (PLACEHOLDER_RE.test(trimmed)) return false;
@@ -133,7 +133,7 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return email?.trim().toLowerCase() === ADMIN_EMAIL;
 }
 
-export function canEditLibrary(session: AuthSession): boolean {
+function canEditLibrary(session: AuthSession): boolean {
   return session.status === "authenticated";
 }
 

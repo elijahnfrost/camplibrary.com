@@ -19,7 +19,7 @@ import { useLayoutEffect, useState } from "react";
 // true at >=1024, matching the @media (min-width:1024px) shell block in
 // globals.css/calendar.css. Keep these constants and that breakpoint in lockstep.
 
-export const TABLET_MIN = 768;
+const TABLET_MIN = 768;
 export const DESKTOP_MIN = 1024;
 
 export type DeviceShape = {

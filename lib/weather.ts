@@ -21,7 +21,7 @@ const FORECAST_BASE = "https://api.open-meteo.com/v1/forecast";
 const GEOCODE_BASE = "https://geocoding-api.open-meteo.com/v1/search";
 
 // Open-Meteo's forecast horizon. Days beyond this simply have no chip.
-export const FORECAST_DAYS = 16;
+const FORECAST_DAYS = 16;
 // How far back the "History" toggle reaches (Open-Meteo's forecast endpoint serves
 // up to 92 past days from reanalysis/measured data — enough to look back over the
 // season and see what you did in similar weather).
@@ -48,17 +48,17 @@ export const WEATHER_RANGE_OPTIONS: { value: WeatherRange; label: string }[] = [
   { value: "14d", label: "2 weeks" },
   { value: "16d", label: "Max (16d)" },
 ];
-export function isWeatherRange(value: unknown): value is WeatherRange {
+function isWeatherRange(value: unknown): value is WeatherRange {
   return typeof value === "string" && value in WEATHER_RANGE_DAYS;
 }
 
 // The 3-way calendar view setting: weather off, a per-day summary, or per-hour.
 export type WeatherMode = "off" | "day" | "hour";
 
-export function isWeatherMode(value: unknown): value is WeatherMode {
+function isWeatherMode(value: unknown): value is WeatherMode {
   return value === "off" || value === "day" || value === "hour";
 }
-export function isTempUnit(value: unknown): value is TempUnit {
+function isTempUnit(value: unknown): value is TempUnit {
   return value === "f" || value === "c";
 }
 
@@ -137,7 +137,7 @@ export interface WeatherData {
 }
 
 // WMO weather-code → glyph family. https://open-meteo.com/en/docs (weather_code).
-export function wmoToCondition(code: number): WeatherCondition {
+function wmoToCondition(code: number): WeatherCondition {
   if (code <= 1) return "clear"; // 0 clear, 1 mainly clear
   if (code === 2) return "partly"; // partly cloudy
   if (code === 3) return "cloudy"; // overcast
@@ -232,7 +232,7 @@ export function formatPrecip(value: number, units: WeatherUnits): string {
 // are the standard World Health Organization categories, so a staffer reads the
 // sun-protection risk (a high-UV afternoon may want hats/shade for outdoor play)
 // without knowing what the raw number means.
-export function uvCategory(value: number): string {
+function uvCategory(value: number): string {
   const uv = Math.round(value);
   if (uv <= 2) return "Low";
   if (uv <= 5) return "Moderate";

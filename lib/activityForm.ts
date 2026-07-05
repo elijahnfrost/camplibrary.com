@@ -24,7 +24,7 @@ import {
 } from "./runList";
 import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
 
-export type EnergyWord = "Calm" | "Lively" | "Rowdy";
+type EnergyWord = "Calm" | "Lively" | "Rowdy";
 
 // One editable kit row in the form. `id` is the materialTagId join key; `label`
 // is the display/typed text (the mirror the empty catalog reads back on reload);
@@ -43,7 +43,7 @@ export interface MaterialFormRow {
 // change" and carry the ORIGINAL materials/materialTags/materialRefs through
 // byte-for-byte, so opening + saving an untouched activity is a no-op. Absent on
 // create (a blank form has no origin).
-export interface MaterialOrigin {
+interface MaterialOrigin {
   rows: MaterialFormRow[];
   materials: string[];
   materialTags?: string[];
@@ -79,8 +79,8 @@ export type ExtractedRunText = {
   playbook: Activity["playbook"];
 };
 
-export const ENERGY_MAP: Record<EnergyWord, number> = { Calm: 1, Lively: 2, Rowdy: 3 };
-export const ENERGY_WORD: Record<number, EnergyWord> = { 1: "Calm", 2: "Lively", 3: "Rowdy" };
+const ENERGY_MAP: Record<EnergyWord, number> = { Calm: 1, Lively: 2, Rowdy: 3 };
+const ENERGY_WORD: Record<number, EnergyWord> = { 1: "Calm", 2: "Lively", 3: "Rowdy" };
 const DEFAULT_DURATION = 20;
 
 export const BLANK_FORM: FormState = {
@@ -125,7 +125,7 @@ function pairedTagLabels(a: Activity): string[] | null {
 // accessor) for ids + notes, then labels each row: catalog name if the id is a
 // real catalog entry, else the index-aligned materialTags mirror (the typed
 // label we wrote at save), else resolveRefs' humanized fallback.
-export function formRowsFromActivity(a: Activity, catalog?: Material[]): MaterialFormRow[] {
+function formRowsFromActivity(a: Activity, catalog?: Material[]): MaterialFormRow[] {
   const paired = pairedTagLabels(a);
   return resolveRefs(a, catalog).map((ref, index): MaterialFormRow => {
     const catalogHit = catalog?.some((m) => m.id === ref.id) ?? false;
@@ -186,7 +186,7 @@ function rowsEqual(a: MaterialFormRow[], b: MaterialFormRow[]): boolean {
 // is canonical (id + note); materialTags is the PURE labels (the reload label
 // store); materials is the human line ("<label>" or "<label> — <note>") legacy
 // consumers/exports already render. All three share the row order.
-export function mirrorsFromRows(rows: MaterialFormRow[]): {
+function mirrorsFromRows(rows: MaterialFormRow[]): {
   materials: string[];
   materialTags: string[];
   materialRefs: MaterialRef[];
@@ -228,18 +228,18 @@ export function formFromActivity(a: Activity, themeId: string, catalog?: Materia
   };
 }
 
-export function parsePositiveInt(value: string): number | null {
+function parsePositiveInt(value: string): number | null {
   const trimmed = value.trim();
   if (!/^\d+$/.test(trimmed)) return null;
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-export function parseOptionalPositiveInt(value: string): number | null {
+function parseOptionalPositiveInt(value: string): number | null {
   return value.trim() ? parsePositiveInt(value) : null;
 }
 
-export function lines(value: string): string[] {
+function lines(value: string): string[] {
   return value.split(",").map((x) => x.trim()).filter(Boolean);
 }
 
@@ -349,7 +349,7 @@ export function quickActivity(title: string, id: string, durationMin: number): A
 // recognized by the deterministic id suffix every scaffold producer stamps
 // (detailsHeadingBlock/playHeadingBlock) — a heading the USER made and merely
 // named "Details" carries a runId() id, so it survives intact.
-export function isScaffoldBlock(block: RunBlock): boolean {
+function isScaffoldBlock(block: RunBlock): boolean {
   if (block.type === "details" || block.type === "materials") return true;
   return (
     block.type === "heading" &&
@@ -357,7 +357,7 @@ export function isScaffoldBlock(block: RunBlock): boolean {
   );
 }
 
-export function stripScaffold(doc: RunDoc): RunDoc {
+function stripScaffold(doc: RunDoc): RunDoc {
   return { blocks: doc.blocks.filter((block) => !isScaffoldBlock(block)) };
 }
 
@@ -366,7 +366,7 @@ function childText(child: RunChild): string {
   return child.text || "";
 }
 
-export function prepareRunDoc(doc: RunDoc, activityId: string, title: string): RunDoc {
+function prepareRunDoc(doc: RunDoc, activityId: string, title: string): RunDoc {
   return {
     blocks: doc.blocks.map((block) => ({
       ...block,
@@ -381,7 +381,7 @@ export function prepareRunDoc(doc: RunDoc, activityId: string, title: string): R
   };
 }
 
-export function extractRunText(doc: RunDoc): ExtractedRunText {
+function extractRunText(doc: RunDoc): ExtractedRunText {
   const steps: string[] = [];
   const notes: string[] = [];
   const safety: string[] = [];

@@ -19,7 +19,7 @@ function isDateKey(value: unknown): value is DateKey {
   return typeof value === "string" && DATE_KEY_PATTERN.test(value);
 }
 
-export type RecurrenceFreq = "daily" | "weekly" | "monthly" | "yearly";
+type RecurrenceFreq = "daily" | "weekly" | "monthly" | "yearly";
 
 // Monthly/yearly "nth weekday" anchor — e.g. the 3rd Tuesday, or the last
 // Friday. `week` is 1..4 (first..fourth) or -1 (last); `weekday` is 0 (Sun)..6.

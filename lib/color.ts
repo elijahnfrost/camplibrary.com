@@ -6,7 +6,7 @@
 
 const HEX_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-export function isHexColor(value: unknown): value is string {
+function isHexColor(value: unknown): value is string {
   return typeof value === "string" && HEX_PATTERN.test(value);
 }
 

@@ -33,8 +33,8 @@ export type CalendarFeedRecordWithToken = CalendarFeedRecord & { token: string |
 
 const TOKEN_BYTES = 32; // 256 bits of entropy → base64url is 43 chars.
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
-export const FEED_LABEL_MAX_LENGTH = 120;
-export const FEED_CAMP_ID_MAX_LENGTH = 120;
+const FEED_LABEL_MAX_LENGTH = 120;
+const FEED_CAMP_ID_MAX_LENGTH = 120;
 
 export function generateFeedToken(): string {
   return randomBytes(TOKEN_BYTES).toString("base64url");
@@ -43,7 +43,7 @@ export function generateFeedToken(): string {
 // Keyed hash of the raw token, domain-separated from invite-code digests so a
 // feed token can never collide with (or be confused for) an invite code even
 // though both are keyed with the same secret.
-export function feedTokenDigest(rawToken: string): string {
+function feedTokenDigest(rawToken: string): string {
   return createHmac("sha256", getRequiredServerEnv("INVITE_CODE_SECRET"))
     .update("calfeed:" + rawToken)
     .digest("hex");
@@ -117,7 +117,7 @@ function mapRecord(row: Record<string, unknown>): CalendarFeedRecord {
   };
 }
 
-export async function createCalendarFeedToken({
+async function createCalendarFeedToken({
   clerkUserId,
   campId,
   label,

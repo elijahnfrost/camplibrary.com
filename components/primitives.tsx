@@ -449,7 +449,7 @@ export function RatingDots({
 }
 
 // A bookmark drawn tall, so it reads as a ribbon hanging down from a top edge.
-export function RibbonMark() {
+function RibbonMark() {
   return (
     <svg className="ribbon-svg" viewBox="0 0 24 40" aria-hidden="true">
       <path d="M3 1H21V35L12 27L3 35Z" />

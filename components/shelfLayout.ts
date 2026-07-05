@@ -69,7 +69,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 // 1. GEOMETRY — one intrinsic size per book, the single source of truth.
 // =============================================================================
 
-export interface BookSize {
+interface BookSize {
   thickness: number; // the spine (how wide the book reads when STANDING)
   height: number; // how tall the book is (its long dimension)
 }
@@ -94,7 +94,7 @@ export function titleFontPx(a: Activity): number {
   return len > 26 ? sc(11) : len > 20 ? sc(12) : sc(13);
 }
 
-export function sizeOf(a: Activity): BookSize {
+function sizeOf(a: Activity): BookSize {
   const thickness = MIN_THICK + Math.round(Math.pow(roll(a, "thick"), THICK_BIAS) * (MAX_THICK - MIN_THICK));
   const len = (a.title || "").trim().length;
   const font = titleFontPx(a);
@@ -109,7 +109,7 @@ export function sizeOf(a: Activity): BookSize {
 // =============================================================================
 
 // A book resting against a pile, on one side of it.
-export type StackLean = { book: Activity; side: "left" | "right" };
+type StackLean = { book: Activity; side: "left" | "right" };
 export type Slot =
   | { kind: "stand"; book: Activity }
   | { kind: "lean"; book: Activity; dir: "left" | "right" } // a lone leaner on a neighbour
@@ -256,7 +256,7 @@ export function planShelf(books: Activity[]): Slot[] {
 // A book lying flat in a stack is the SAME book rotated 90°: what was its
 // height is now its horizontal LENGTH, what was its thickness is now its
 // vertical thickness. Same numbers, just swapped axes.
-export interface LaidBook {
+interface LaidBook {
   book: Activity;
   x: number; // left edge
   y: number; // how far its underside sits above the shelf line
@@ -506,7 +506,7 @@ function placeSlot(s: Slot, startCursor: number, placed: Placed[]): { cursor: nu
 
 // Walk the slots in ONE row from x = 0, painting each book. The width/height are
 // the row's own extent (the rail is sized to its tallest book + headroom).
-export function layoutShelf(slots: Slot[]): ShelfLayout {
+function layoutShelf(slots: Slot[]): ShelfLayout {
   const placed: Placed[] = [];
   let cursor = 0; // x where the next slot's left edge goes
   let maxTop = 0;

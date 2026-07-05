@@ -1,6 +1,6 @@
 import type { PlaybookFrame } from "./playbooks";
 
-export type PlaybookSelectionType = "player" | "flag" | "zone" | "arrow" | "marker";
+type PlaybookSelectionType = "player" | "flag" | "zone" | "arrow" | "marker";
 
 export interface PlaybookSelection {
   type: PlaybookSelectionType;

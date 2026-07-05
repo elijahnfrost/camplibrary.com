@@ -9,7 +9,6 @@ import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { FloatingLayer } from "./floating/FloatingLayer";
 import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
-export type { AgeFilter, CatFilter, KitLens, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
 export type MinutesRange = [number, number];

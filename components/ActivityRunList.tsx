@@ -2766,5 +2766,3 @@ export function ActivityRunList({
     </div>
   );
 }
-
-export { cloneRunDoc };

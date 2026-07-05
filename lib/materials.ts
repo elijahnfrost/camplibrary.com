@@ -183,7 +183,7 @@ export function usesAnyMaterialTag(activity: Activity, selectedMaterialTagIds: s
 // are ALWAYS "ready" (nothing to gather). `lowCount` counts needs covered by a
 // "low" item — a decoration (amber accent) that never demotes the state.
 // ---------------------------------------------------------------------------
-export type CoverageState = "unset" | "ready" | "almost" | "cant";
+type CoverageState = "unset" | "ready" | "almost" | "cant";
 
 export interface Coverage {
   state: CoverageState;
