@@ -1,0 +1,1011 @@
+/* ============================================================
+ * SIDEBAR — the promoted "Quiet Rail" sidebar + popup design.
+ *
+ * The rail zones (calendar / library / print), their disclosures, the camp
+ * editor + event-window popups, and the dark-green-only selection grammar.
+ * Controls themselves KEEP the app's original chrome (white --card fill +
+ * 1.5px --line border, defined in globals.css / calendar.css); this file only
+ * lays out the structure, retires the sage tints for the one dark green, and
+ * carries a few shape/height fixes on top of that base chrome. The darker green
+ * is the app's general --accent now (remapped at :root in globals.css).
+ *
+ * Grammar: bordered = pressable; clickable rows = whole-row target + a
+ * var(--chrome-well) hover fill; ONE dashed rule (1px dashed var(--line-soft))
+ * as a section separator only; disclosures are flat left-chevron rows whose
+ * right-side summary keeps the closed state legible; destructive = danger ink.
+ * ============================================================ */
+
+
+/* ---- rail order: mini-month → CAMPS → DISPLAY → WEATHER --------------------
+   The host renders the Camps seam as a SIBLING after the calrail portal div,
+   so the portal goes display:contents and the four zones order themselves as
+   flex items of .sidenav__scroll (already a flex column). The Today card is
+   cut — the grid's now-line answers "what's now", so no zone replaces it. */
+.sidenav__calrail {
+  display: contents;
+}
+.lc-mini {
+  order: 1;
+  flex: none;
+}
+.lc-camps {
+  order: 2;
+}
+.lc-zone--display {
+  order: 3;
+}
+.lc-zone--weather {
+  order: 4;
+}
+
+/* ---- shared small-caps section label -------------------------------------- */
+.lc-label {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ---- the ONE flat disclosure (rail zones · popup groups · More options) ---- */
+.lc-disc__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--s-1) 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  border-radius: var(--r-sm);
+}
+.lc-disc__head:hover .lc-label,
+.lc-disc__head:hover .lc-disc__chev {
+  color: var(--ink);
+}
+.lc-disc__chev {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-soft);
+  /* The flip is INSTANT (an eased rotate reads as lag — see .camprail__chev);
+     only the hover colour eases. */
+  transition: color var(--t-fast) var(--ease);
+}
+.lc-disc.is-open > .lc-disc__head .lc-disc__chev {
+  transform: rotate(90deg);
+  /* Neutralize the global closed-state chevron hover nudge once open. */
+  animation: none;
+}
+.lc-disc__sum {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+.lc-disc__body {
+  padding-top: var(--s-3);
+}
+
+/* ---- rail zones (CAMPS · DISPLAY · WEATHER — one disclosure grammar) -------
+   Dashed hairlines separate the rail's sections — the one dashed style. */
+.lc-zone {
+  flex: none;
+  margin-top: var(--s-6);
+  border-top: 1px dashed var(--line-soft);
+  padding-top: var(--s-3);
+}
+
+/* ---- no icon theatrics on controls ------------------------------------------
+   The global cicon hover system (plus-spin, chevron nudges, tool wiggles) is a
+   brand/nav moment; on C's CONTROLS an icon never moves — hover answers with
+   color/fill only. Nav tabs + logo keep their play; everything in the rail
+   zones, the popups, the floating layers, and the calendar header goes still. */
+.sidenav__scroll :where(button, a, summary, label, [role="button"]):hover .cicon,
+.sidenav__foot :where(button, a, summary, label, [role="button"]):hover .cicon,
+.calshell__header :where(button, a, summary, label, [role="button"]):hover .cicon,
+.calshell__fab:hover .cicon,
+[class*="overlay"] :where(button, a, summary, label, [role="button"]):hover .cicon,
+.floating-root :where(button, a, summary, label, [role="button"]):hover .cicon {
+  animation: none;
+}
+/* The zone ledgers drop their per-row dashed rules — inside a disclosure the
+   rows read as one calm group; dashed stays a SECTION separator only. */
+.lc-disc__body .ledger__row {
+  border-bottom: 0;
+  min-height: var(--control-sm);
+}
+
+/* ---- CAMPS — a disclosure zone like DISPLAY/WEATHER (closed row echoes the
+   active camp's name), radio list inside. */
+.lc-camps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lc-camps__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-inline: var(--s-2);
+  border-radius: var(--r-sm);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.lc-camps__row:hover,
+.lc-camps__row:focus-within {
+  background: var(--chrome-well);
+}
+.lc-camps__pick {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  min-height: var(--control-md);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: var(--ink-soft);
+  transition: color var(--t-fast) var(--ease);
+}
+.lc-camps__pick:hover {
+  color: var(--ink);
+}
+.lc-camps__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  border: 1.5px solid color-mix(in srgb, var(--camp-tint, var(--line)) 55%, transparent);
+  background: var(--camp-tint, transparent);
+}
+/* Active = ringed dot + accent-weight name (never a hover-only signal). */
+.lc-camps__row.is-active .lc-camps__dot {
+  outline: 1.5px solid var(--accent-ink);
+  outline-offset: var(--s-1);
+}
+.lc-camps__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+}
+.lc-camps__row.is-active .lc-camps__name {
+  color: var(--ink);
+  font-weight: 700;
+}
+/* The Edit affordance: a bordered chip (bordered = pressable). ALWAYS visible
+   on the active row; inactive rows reveal it on hover/focus-within. */
+.lc-camps__edit {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-pill);
+  background: var(--content);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition:
+    opacity var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.lc-camps__row.is-active .lc-camps__edit,
+.lc-camps__row:hover .lc-camps__edit,
+.lc-camps__row:focus-within .lc-camps__edit,
+.lc-camps__edit:focus-visible {
+  opacity: 1;
+}
+.lc-camps__edit:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.lc-camps__edit svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lc-camps__empty {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+/* "+ Add camp" — a quiet whole-row target (clickable row grammar, no border). */
+.lc-camps__new {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--control-sm);
+  margin-top: var(--s-2);
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  text-align: left;
+  color: var(--ink-faint);
+  transition:
+    background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.lc-camps__new:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.lc-camps__new svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lc-camps__addform {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.lc-camps__addinput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---- FocusSheet — the shared popup shell ----------------------------------- */
+.lc-sheet__bar {
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6) var(--s-6) var(--s-2);
+}
+.lc-sheet--camp .lc-sheet__bar {
+  padding-inline: var(--s-7);
+}
+.lc-sheet__titlewrap {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.lc-sheet__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-round);
+  background: var(--camp-tint, var(--accent));
+}
+.lc-sheet__body {
+  display: flex;
+  flex-direction: column;
+}
+/* Footer: destructive/quiet left · green primary right (the reference popup's
+   anatomy). margin-top:auto pins it to the sheet bottom when content is short. */
+.lc-sheet__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  border-top: 1px dashed var(--line-soft);
+  padding: var(--s-4) var(--s-6) var(--s-6);
+}
+.lc-sheet--camp .lc-sheet__foot {
+  padding-inline: var(--s-7);
+}
+.lc-sheet__footstart,
+.lc-sheet__footend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+/* Destructive — danger ink, icon + label, quiet danger wash on hover. */
+.lc-del {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--danger-ink);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.lc-del:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.lc-del svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lc-focusguard {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  outline: none;
+}
+
+/* ---- camp editor ------------------------------------------------------------ */
+/* The title is VISIBLY editable: a solid underline at rest (not a hover ghost). */
+.lc-titleinput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1.5px solid var(--line);
+  background: transparent;
+  padding: 0 0 var(--s-1);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
+}
+.lc-titleinput:hover {
+  border-bottom-color: var(--ink-soft);
+}
+.lc-titleinput:focus-visible {
+  outline: none;
+  border-bottom-color: var(--accent-ink);
+  background: var(--chrome-well);
+}
+.lc-camp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-7) var(--s-5);
+}
+.lc-intro {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.lc-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.lc-group__labels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.lc-hint {
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+/* The section separator inside popups — same single dashed style. */
+.lc-rule {
+  border-top: 1px dashed var(--line-soft);
+  padding-top: var(--s-3);
+}
+
+/* Weekly hours — day rows are STATIC text + one MiniSeg (no row hover: the row
+   itself isn't pressable; only the bordered seg is). */
+.lc-week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.lc-day {
+  padding: var(--s-1) var(--s-2);
+}
+.lc-day__line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--control-sm);
+}
+.lc-day__name {
+  flex: none;
+  width: 3.4ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+.lc-day.is-default .lc-day__name {
+  color: var(--ink-faint);
+}
+.lc-day__eff {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.lc-day.is-closed .lc-day__eff {
+  color: var(--danger-ink);
+}
+.lc-day__seg {
+  flex: none;
+}
+.lc-day__pills {
+  padding: var(--s-1) 0 var(--s-2) calc(3.4ch + var(--s-3));
+}
+
+/* Holidays & special days */
+.lc-exclist {
+  list-style: none;
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.lc-exc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  padding: var(--s-1) 0;
+}
+.lc-exc__date {
+  flex: none;
+  min-width: 8ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink);
+}
+.lc-exc__seg {
+  flex: none;
+  margin-left: auto;
+}
+.lc-exc__del:hover {
+  color: var(--danger-ink);
+}
+.lc-exc__pills {
+  flex: 0 0 100%;
+  padding: var(--s-1) 0 var(--s-2) calc(8ch + var(--s-2));
+}
+.lc-excadd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.lc-excadd__btns {
+  display: inline-flex;
+  gap: var(--s-2);
+}
+
+/* Snap grid */
+.lc-snap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+/* ---- QuickAdd — two-beat event window --------------------------------------- */
+/* Header eyebrow (pick-a-time posture) rides the shared small-caps label. */
+.lc-sheet__eyebrow {
+  display: inline-block;
+}
+/* The schedule zone replaces .quickadd__schedule: same gutter var, but the
+   separator above it is the one dashed style, not a solid rule. */
+.lc-qa__schedule {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--qa-gx) var(--s-5);
+  border-top: 1px dashed var(--line-soft);
+}
+/* THE WHEN-LINE — one compact pill sentence: date pill · start – end pills ·
+   faint length · All-day switch. Pills hug content (the bordered .cselect /
+   .cdate trigger IS the pressable object). */
+.lc-when {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.lc-when > .cselect,
+.lc-when > .cdate {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+.lc-when__allday {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.lc-when__alldaylbl {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
+}
+/* More-options body: property rows align to the disclosure's own edge. */
+.lc-qa__props > .prop-row {
+  padding-left: 0;
+  padding-right: 0;
+}
+/* The Save-to-library row lives INSIDE the disclosure now — and sheds the
+   baseline's bordered card entirely: among the unboxed property rows a lone
+   box read as a second grammar. It becomes a peer row instead — same
+   20px-icon / text / control grid as .prop-row, whole row still the switch's
+   click target, clickable-row hover fill. */
+.lc-qa .quickadd__mode {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: var(--s-4);
+  margin: var(--s-1) 0;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.lc-qa .quickadd__mode:hover {
+  background: var(--chrome-well);
+}
+/* Immediate edit actions — one honest layer down, never a second popup. */
+.lc-qa__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.lc-qa__actionslbl {
+  display: block;
+}
+.lc-qa__actionrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.lc-qa__actions .quickadd__tolib-warn {
+  margin: 0;
+}
+/* Slot posture's one-row disclosure (Save to library) sits in the sheet's own
+   gutter — the disclosure grammar, holding just that choice. */
+.lc-qa__slotmore {
+  margin: var(--s-4) var(--qa-gx) var(--s-5);
+}
+
+/* ============================================================
+ * CONTROL SHAPE / SELECTION FIXES on the base (white + 1.5px --line) chrome.
+ * These are geometry + selection-color only — the controls keep their original
+ * bordered-white look; we do NOT thin them to hairline.
+ * ============================================================ */
+
+/* "Days" stepper sat locked to a tall 34px control-sm, towering over the ~22px
+   segments sharing its ledger row. Size it to the segment so the row reads level
+   (keeps the base card + 1.5px --line pill chrome). */
+.daysstepper {
+  height: auto;
+  align-self: center;
+  padding: var(--s-1);
+}
+.daysstepper__btn {
+  width: 18px;
+  height: 18px;
+}
+
+/* Subscribe (.ics feed) was the ONE round control in a rail of pills. Reshape it
+   to a compact pill (keeping the base card + 1.5px --line chrome), just holding
+   its chevron, so its row sits level with the dropdowns above it. */
+.subfeed__trigger {
+  width: auto;
+  height: auto;
+  min-height: 22px;
+  padding: var(--s-1) var(--s-4);
+  border-radius: var(--r-pill);
+}
+.subfeed__trigger svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* The weather "Units" row is the one ledger label with no leading axis icon
+   (there's no temperature glyph and Sun is already Forecast's), so its text sat
+   flush-left. Indent the icon-less label by the icon column so the zone lines up. */
+.lc-wx .ledger__label:not(:has(.ledger__ic)) {
+  padding-left: calc(14px + var(--s-3));
+}
+
+/* Guidance-band day toggles: chosen = SOLID dark green (a strong selection, like
+   the seg thumbs), not the base's soft --accent tint. */
+.manager__daytog.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* Property-row dropdowns (the event window's More options: Color, Location,
+   Repeat) read as honest white + border pills like every other dropdown — NOT
+   the base's borderless "inline value" text, which reads as static (the "is this
+   editable?" ambiguity). Their open state is the dark green, never the base
+   sage (--accent-tint). */
+.prop-row__val .cselect__trigger {
+  border-color: var(--line);
+  background: var(--card);
+}
+.prop-row__val .cselect__trigger:hover {
+  border-color: var(--ink-soft);
+  background: var(--chrome-well);
+}
+.prop-row__val .cselect__trigger.is-open {
+  border-color: var(--accent);
+  background: var(--chrome-well);
+}
+.prop-row__val .cselect__trigger svg {
+  opacity: 1;
+}
+
+/* ============================================================
+ * SEPARATOR + SELECTION CLEANUP — three families: (1) dashed/dotted DECORATION
+ * kept outside the one section-separator role; (2) solid/heavy green selection
+ * treatments; (3) leftover hover/active artifacts. The calendar GRID's
+ * functional textures (15-min dotted lanes, drag snap boxes, prep-time stripes)
+ * are deliberately untouched — those are drawing vocabulary, not control chrome.
+ * ============================================================ */
+
+/* (1a) The header's "custom range" lens chip wore a dashed pill. */
+.calhead__lens {
+  border: 1px solid var(--line-soft);
+}
+/* (1b) QuickAdd's create row drew a 3px dashed green spine ("a block that
+   doesn't exist yet") — cute, but it's exactly the dashes-as-decoration this
+   kit retires. A quiet row + the leading plus already say "new". */
+.quickadd__custom-row {
+  border-left: 0;
+  padding-left: var(--s-4);
+}
+/* (1c) Separators above the sidebar foot / inside the manager modal / the Kit
+   list divider — real separators, but heavier than the ONE dashed style. */
+.sidenav__foot {
+  border-top: 1px dashed var(--line-soft);
+}
+.manager__sections {
+  border-top: 1px dashed var(--line-soft);
+}
+.matkit__div {
+  border-top: 1px dashed var(--line-soft);
+}
+/* (1d) Run-sheet inline editables signalled "editable" with dashed underlines
+   and dashed add-frames; affordance stays, dashes become solid hairlines. */
+.rlmat__note,
+.rlv-title--edit,
+.rlv-blurb--edit,
+.rlv-aka--edit {
+  border-bottom-style: solid;
+}
+.rlv-backups__add {
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--line-soft);
+}
+.rlv-backups__add:hover {
+  border-color: var(--line);
+}
+
+/* (3a) Run-sheet editable cells: hover painted a GREEN wash and focus drew an
+   inset bottom line — the "old hover state" underline family. K1: hover =
+   neutral well; editing = solid paper + a full hairline accent boundary
+   (inset shadow, so nothing shifts). */
+.rl-ed[contenteditable="true"]:hover {
+  background: var(--chrome-well);
+}
+.rl-ed[contenteditable="true"]:focus {
+  background: var(--content);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* (3b) The library rail's Type/Theme picker rows (CategoryPicker → .matkit__
+   row recipe, shared with the Kit modal's material list): hover darkened a
+   leftover bottom divider into a stray dark line, and the chosen row wore the
+   OLD solid treatment — a filled green circle with a white check plus an
+   accent-mixed border. K1: hover = neutral well (no underline); chosen row =
+   tint fill + hairline sage border, and the circle stays a RING (accent-ink)
+   holding an accent-ink check — solid fills belong to primary/switch only. */
+.sidefilters .material-filter__item:hover {
+  border-bottom-color: transparent;
+  background: var(--chrome-well);
+}
+.matkit__item {
+  border-color: var(--line-soft);
+}
+.matkit__check {
+  border-width: 1px;
+  border-color: var(--line);
+}
+.matkit__item.is-have {
+  background: var(--card);
+  border-color: var(--accent);
+}
+.sidefilters .material-filter__item.is-have {
+  border-color: var(--accent);
+}
+.matkit__item.is-have .matkit__check {
+  background: transparent;
+  border-color: var(--accent-ink);
+}
+.matkit__item.is-have .matkit__check svg {
+  color: var(--accent-ink);
+  stroke: var(--accent-ink);
+}
+
+/* (2) The camps/locations/themes manager modal (mobile's way in — desktop
+   reaches it for locations/themes too): the selected row wore the heavy
+   accent border. K1 selection = tint fill + hairline sage border + ink. */
+.manager__row {
+  border: 1px solid var(--line-soft);
+}
+.manager__row.is-active {
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+/* ============================================================
+ * DARK GREEN ONLY — the sage tint (--accent-tint / --accent-light) leaves
+ * every control surface: Elijah wants ONE green, the dark one. Strong
+ * selection (seg thumb, chosen date, day toggles) = solid dark + light text;
+ * soft states (open triggers, chosen menu rows) = neutral well, with the
+ * dark green carried by border/ink/check instead of a pale fill.
+ * ============================================================ */
+/* Open pickers: the well + a dark border is the connector, not a sage fill.
+   The dark border matches the Select's open state (.cselect__trigger.is-open),
+   so every dropdown — pill or swatch-menu — signals "open" the same way. */
+.typepick.is-open .typepick__trigger {
+  background: var(--chrome-well);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.cal-wx-loc__trigger.is-open {
+  background: var(--chrome-well);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+/* Chosen menu rows: neutral well; the check + ink already say "current". */
+.typepick__option.is-on,
+.cselect__option.is-on,
+.cal-wx-loc__result.is-current {
+  background: var(--chrome-well);
+}
+/* Date popover's chosen day: strong selection → the one solid. */
+.cdate__day.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+/* Run-sheet icon picker + viewer event chip + profile role tag. */
+.rl-iconpick.is-on {
+  background: var(--chrome-well);
+}
+.rlv-eventchip {
+  background: var(--content);
+}
+.profilemenu__tag {
+  background: var(--content);
+}
+/* Drag-drop insertion line: dark core, translucent DARK halo (was sage). */
+.rl-block.is-over-before > .rl-block__main::before,
+.rl-block.is-over-after > .rl-block__main::before {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+/* QuickAdd's create-suggestion row hovered sage; Now badge (A/B rails) too. */
+.quickadd__custom-row:hover {
+  background: var(--chrome-well);
+}
+.caltoday__badge--now {
+  background: var(--chrome-well);
+}
+
+/* ============================================================
+ * LIBRARY + PRINT RAILS — the full refactor.
+ *
+ * These two rails are the production `Filters` (library) and `PrintControls`
+ * (print) components — styled here purely by CSS over their real markup, so they
+ * read EXACTLY like the calendar rail: the same left-chevron zone disclosures,
+ * the same one-dashed-rule rhythm, the same level property rows.
+ *
+ * Both rails already share one vocabulary in markup: every fold is a
+ * `.prail__group.prail__group--collapsible` (<details>) with a
+ * `.prail__grouphead` summary, and every row is a `.ledger__row`. So one set of
+ * rules retextures both.
+ * ============================================================ */
+
+/* ---- (1) zone disclosure heads — match .lc-disc__head exactly --------------
+   The head was [label ····· chevron▾] (chevron RIGHT, down-glyph). The calendar
+   rail is [▸ LABEL] (chevron LEFT, flips to ▾ open). Reorder + reflow + rotate
+   to land on the calendar's grammar, and drop the leading axis icon the print
+   heads carried (the calendar zone heads have none — that's what makes the two
+   rails read as one). */
+.prail__grouphead {
+  justify-content: flex-start;
+  gap: var(--s-2);
+  min-height: var(--control-sm);
+  margin-bottom: 0; /* the panel below carries the open-state gap (see §3) */
+}
+.prail__grouptitle {
+  gap: var(--s-2);
+  letter-spacing: 0.14em; /* = .lc-label */
+  color: var(--ink-soft);
+}
+.prail__groupsum:hover .prail__grouptitle {
+  color: var(--ink);
+}
+/* No leading axis glyph on a zone head — the calendar heads carry none. (The
+   Content group's excluded-count badge is NOT a .ledger__ic, so it survives.) */
+.prail__grouphead .prail__grouptitle > .ledger__ic {
+  display: none;
+}
+/* The chevron: move to the LEFT, size + weight like .lc-disc__chev, and rotate
+   the down-glyph so closed points ▸ and open points ▾ (the calendar flip). */
+.prail__morestate {
+  order: -1;
+  color: var(--ink-soft);
+}
+.prail__groupsum:hover .prail__morestate {
+  color: var(--ink);
+}
+.prail__morestate svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.7;
+}
+.prail__group--collapsible:not([open]) > .prail__groupsum .prail__morestate svg {
+  transform: rotate(-90deg);
+}
+.prail__group--collapsible[open] > .prail__groupsum .prail__morestate svg {
+  transform: rotate(0deg);
+}
+
+/* ---- (2) The Type filter's summary is a PROPERTY row, not a section head:
+   [Tag · Type ····· ALL ▾], matching its Theme/Ages siblings (value + expander
+   on the right) and the calendar rail's "Color by" row. So its chevron stays a
+   right-side down/up expander — left alone here; §3 just strips its underline. */
+
+/* ---- (3) property rows read as one calm group — NO dashed line between them.
+   The base .ledger__row carries a 1.5px dashed underline (a control-list
+   separator); inside a zone that reads as stray rules between every property
+   (the "dotted lines between properties" report). The calendar rail already
+   strips it inside .lc-disc__body; do the same in both these rails. One dashed
+   rule per SECTION only (see §4). */
+.prail .ledger__row,
+.sidefilters .ledger__row {
+  border-bottom: 0;
+  min-height: var(--control-sm);
+}
+/* When open, the panel supplies the gap under the head (mirrors .lc-disc__body). */
+.prail__grouppanel {
+  padding-top: var(--s-3);
+}
+
+/* ---- (4) ONE dashed rule between rail SECTIONS — the calendar rail's rhythm
+   (16px space · 1px dashed hairline · 6px padding), applied to every fold in
+   both rails. */
+.prail__group {
+  margin-top: var(--s-6);
+  border-top: 1px dashed var(--line-soft);
+  padding-top: var(--s-3);
+}
+/* The library rail's first fold sits at the very top (like the calendar's
+   leading mini-month) — no rule above it. The print rail keeps its first rule,
+   which divides the range widget from the first fold. */
+.sidefilters .filtergroups > .prail__group:first-child {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+/* The library rail's "Clear all" affordance sits above the folds — keep a hair
+   of breathing room, no rule. */
+.sidefilters__clear {
+  margin-bottom: var(--s-3);
+}
+
+/* ---- (5) the Type checklist (Games / Crafts / …) — calm the boxes.
+   With every category checked by default ("All"), the is-have accent border lit
+   all six rows as heavy dark-green outlines. Selection here is soft: a hairline
+   box + neutral well, the dark check inside the ring already saying "on" (solid
+   dark green stays reserved for the primary action + switch on-track). */
+.sidefilters .material-filter__item {
+  border-color: var(--line-soft);
+}
+.sidefilters .material-filter__item.is-have {
+  border-color: var(--line);
+  background: var(--chrome-well);
+}
+.sidefilters .material-filter__item:hover {
+  border-color: var(--line);
+  background: var(--chrome-well);
+}
+/* The "All / None" quick actions read as the same quiet muted links as the
+   rest of the rail, not the old bright --accent. */
+.material-filter__clear:not(:disabled) {
+  color: var(--ink-soft);
+}
+.material-filter__clear:not(:disabled):hover {
+  color: var(--ink);
+}
+
+/* ---- (6) print — the range widget's segmented control + quick-range thumb
+   thin to the K1 hairline like every other segment (the thumb is already the
+   dark green via the --accent remap). */
+.prail__quickrange {
+  border-width: 1px;
+  border-color: var(--line-soft);
+}
+
+/* ---- reduced motion --------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .lc-disc__chev,
+  .lc-camps__row,
+  .lc-camps__pick,
+  .lc-camps__edit,
+  .lc-camps__new,
+  .lc-del,
+  .lc-titleinput,
+  .lc-qa .quickadd__mode {
+    transition: none;
+  }
+}

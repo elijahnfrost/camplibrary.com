@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
 import type { Theme } from "@/lib/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
+import { FloatingLayer } from "./floating/FloatingLayer";
 import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
 export type { AgeFilter, CatFilter, KitLens, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
 
@@ -204,12 +205,13 @@ interface FiltersProps {
   onSetupKit?: () => void;
 }
 
-// The Type filter — a multi-select checklist of categories (the same collapsible
-// `<details>` + ledger-summary shape as the kit picker, so the rail reads as one
-// family). Every category checked = "All" (the default); a subset shows only
-// those shelves; none = show nothing. "All"/"None" flip the whole set at once.
-// Selections are normalized back to shelf order so the active-chip + state read
-// consistently however they were toggled.
+// The Type filter — a multi-select checklist of categories that opens as a
+// FLOATING dropdown off its ledger-row trigger (the same `.typepick` shell the
+// Theme/Ages pickers use), so it reads as one family with them and never pushes
+// the rail open in place. Every category checked = "All" (the default); a subset
+// shows only those shelves; none = show nothing. "All"/"None" flip the whole set
+// at once. Selections are normalized back to shelf order so the active-chip +
+// state read consistently however they were toggled.
 function CategoryPicker({
   value,
   onChange,
@@ -217,7 +219,8 @@ function CategoryPicker({
   value: CategoryId[];
   onChange: (value: CategoryId[]) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selected = new Set(value);
   const allOn = value.length === CATEGORIES.length;
   const noneOn = value.length === 0;
@@ -228,24 +231,31 @@ function CategoryPicker({
     onChange(ALL_CATEGORY_IDS.filter((cid) => next.includes(cid)));
   };
   return (
-    <details
-      className="material-filter cat-filter"
-      open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-    >
-      <summary
-        className={"material-filter__summary ledger__row" + (allOn ? "" : " is-set")}
-        aria-label={"Type, " + value.length + " of " + CATEGORIES.length + " categories shown"}
-      >
+    <div className={"typepick cat-filter" + (open ? " is-open" : "") + (allOn ? "" : " is-set")}>
+      <div className="ledger__row">
         <span className="ledger__label"><CampIcon.Tag className="ledger__ic" />Type</span>
-        <span className="material-filter__state">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="typepick__trigger"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={"Type, " + value.length + " of " + CATEGORIES.length + " categories shown"}
+          onClick={() => setOpen((o) => !o)}
+        >
           {stateLabel}
           <CampIcon.ChevronDown />
-        </span>
-      </summary>
-      <div className="material-filter__panel">
-        <div className="matkit material-filter__kit">
-          <div className="matkit__bar material-filter__kitbar">
+        </button>
+      </div>
+      {open && triggerRef.current && (
+        <FloatingLayer
+          anchor={{ kind: "rect", rect: triggerRef.current.getBoundingClientRect() }}
+          onClose={() => setOpen(false)}
+          className="typepick__menu cat-filter__menu"
+          role="menu"
+          ariaLabel="Filter by type"
+        >
+          <div className="cat-filter__bar">
             <span className="matkit__status">{stateLabel}</span>
             <span className="cat-filter__acts">
               <button
@@ -266,34 +276,31 @@ function CategoryPicker({
               </button>
             </span>
           </div>
-          <div className="matkit__list material-filter__list" role="group" aria-label="Categories">
-            {CATEGORIES.map((category) => {
-              const has = selected.has(category.id);
-              return (
-                <button
-                  type="button"
-                  key={category.id}
-                  className={"matkit__item material-filter__item" + (has ? " is-have" : "")}
-                  onClick={() => toggle(category.id)}
-                  aria-pressed={has}
-                  aria-label={(has ? "Showing" : "Hidden") + ": " + category.label}
-                >
-                  <span className="matkit__check" aria-hidden="true">
-                    {has && <CampIcon.Check />}
-                  </span>
-                  <span
-                    className="cat-filter__swatch"
-                    style={{ background: categoryTint(category.id) }}
-                    aria-hidden="true"
-                  />
-                  <span className="matkit__name">{category.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </details>
+          {CATEGORIES.map((category) => {
+            const has = selected.has(category.id);
+            return (
+              <button
+                type="button"
+                key={category.id}
+                role="menuitemcheckbox"
+                aria-checked={has}
+                className={"typepick__option cat-filter__pick" + (has ? " is-on" : "")}
+                onClick={() => toggle(category.id)}
+                aria-label={(has ? "Showing" : "Hidden") + ": " + category.label}
+              >
+                <span
+                  className="cat-filter__swatch"
+                  style={{ background: categoryTint(category.id) }}
+                  aria-hidden="true"
+                />
+                <span className="cat-filter__picklabel">{category.label}</span>
+                {has && <CampIcon.Check className="cat-filter__pickcheck" />}
+              </button>
+            );
+          })}
+        </FloatingLayer>
+      )}
+    </div>
   );
 }
 

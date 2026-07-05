@@ -12,6 +12,7 @@ const CSS_FILES = [
   "app/globals.css",
   "app/calendar.css",
   "app/run/[token]/[activityId]/runsheet.css",
+  "app/sidebar.css",
 ];
 const BASELINE_FILE = "scripts/design-token-baseline.json";
 const baselinePath = path.join(ROOT, BASELINE_FILE);

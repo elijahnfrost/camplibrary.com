@@ -114,7 +114,6 @@ import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
 import { hasOpenDialog } from "../useDialogFocus";
 import { CalendarHeader } from "./CalendarHeader";
-import { CalendarTodayCard } from "./CalendarTodayCard";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
 import { StopPopover } from "./StopPopover";
@@ -137,8 +136,8 @@ import {
   type WeatherMode,
   type WeatherRange,
 } from "@/lib/weather";
-import { MiniMonth } from "./MiniMonth";
 import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
+import { CalendarRail } from "./CalendarRail";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
 import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
 
@@ -534,20 +533,6 @@ export function CalendarShell({
     "calendarRainDismissed",
     [],
     parseDismissedRainDays
-  );
-  // The desktop rail folds its settings under toggles so the resting sidebar stays
-  // clean (mini-month + the section headers). "View" and "Weather" are SEPARATE
-  // sibling toggles — not nested — each collapsed by default and persisted.
-  // Mobile keeps its own settings sheet, so these only govern the desk rail.
-  const [viewRailOpen, setViewRailOpen] = useLocalStorage<boolean>(
-    "calendarViewRailOpen",
-    false,
-    boolStorage
-  );
-  const [weatherRailOpen, setWeatherRailOpen] = useLocalStorage<boolean>(
-    "calendarWeatherRailOpen",
-    false,
-    boolStorage
   );
   const weatherEnabled = weatherMode !== "off";
   const { data: weatherData, status: weatherStatus } = useWeatherForecast(
@@ -4868,85 +4853,48 @@ export function CalendarShell({
             activity), so the rail no longer needs a drag source. */}
         {railSlot &&
           createPortal(
-            <>
-              {/* The operator's Now/Next glance, moved off the retired Home tab
-                  to the top of the calendar rail (the week's shape is the
-                  mini-month's job, so this stays a compact today-only card). */}
-              <CalendarTodayCard events={events} byId={byId} onOpenActivity={onOpenActivity} />
-              <MiniMonth
-                anchorDate={miniAnchor}
-                viewStart={visibleRange?.start ?? null}
-                viewEnd={visibleRange?.end ?? null}
-                today={todayKey()}
-                todayInView={todayInView}
-                eventDays={eventDays}
-                firstDay={weekStart}
-                onPick={gotoMiniDate}
-                onToday={goToday}
-              />
-              {/* The view + weather settings sit under the mini-month as TWO
-                  separate sibling toggles (not nested), each collapsed by default
-                  so the resting rail stays clean. Fixed height; nothing scrolls. */}
-              <div className={"sidesection sidesection--fixed cal-view" + (viewRailOpen ? " is-open" : "")}>
-                <button
-                  type="button"
-                  className="sidesection__head cal-view__head"
-                  onClick={() => setViewRailOpen((o) => !o)}
-                  aria-expanded={viewRailOpen}
-                >
-                  <span className="sidesection__title">View</span>
-                  <CampIcon.ChevronRight className="cal-view__chev" />
-                </button>
-                {viewRailOpen && (
-                  <div className="sidesection__body cal-view__body">
-                    <CalendarViewSettings
-                      view={activeView}
-                      colorMode={colorMode}
-                      onColorMode={setColorMode}
-                      shadeWeekendsOn={shadeWeekends}
-                      onToggleShadeWeekends={() => setShadeWeekends((on) => !on)}
-                      weekStart={weekStart}
-                      onWeekStart={setWeekStart}
-                      onChangeView={changeView}
-                      onOpenCamps={onOpenCamps}
-                      subscribeControl={subscribeControl}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className={"sidesection sidesection--fixed cal-view" + (weatherRailOpen ? " is-open" : "")}>
-                <button
-                  type="button"
-                  className="sidesection__head cal-view__head"
-                  onClick={() => setWeatherRailOpen((o) => !o)}
-                  aria-expanded={weatherRailOpen}
-                >
-                  <span className="sidesection__title">Weather</span>
-                  <CampIcon.ChevronRight className="cal-view__chev" />
-                </button>
-                {weatherRailOpen && (
-                  <div className="sidesection__body cal-view__body">
-                    <WeatherSettings
-                      weatherMode={weatherMode}
-                      onWeatherMode={setWeatherMode}
-                      weatherUnit={weatherUnit}
-                      onWeatherUnit={setWeatherUnit}
-                      weatherLocation={weatherLocation}
-                      onWeatherLocation={setWeatherLocation}
-                      weatherRange={weatherRange}
-                      onWeatherRange={setWeatherRange}
-                      weatherHistory={weatherHistory}
-                      onWeatherHistory={setWeatherHistory}
-                      rainThreshold={rainThreshold}
-                      onRainThreshold={(v) => setRainThreshold(parseRainThreshold(v, rainThreshold))}
-                      rainThresholdOptions={RAIN_THRESHOLD_OPTIONS}
-                      weatherStatus={weatherStatus}
-                      weatherCoverage={weatherCoverage}
-                    />
-                  </div>
-                )}
-              </div>
-            </>,
+            <CalendarRail
+              month={{
+                anchorDate: miniAnchor,
+                viewStart: visibleRange?.start ?? null,
+                viewEnd: visibleRange?.end ?? null,
+                today: todayKey(),
+                todayInView,
+                eventDays,
+                firstDay: weekStart,
+                onPick: gotoMiniDate,
+                onToday: goToday,
+              }}
+              view={{
+                view: activeView,
+                colorMode,
+                onColorMode: setColorMode,
+                shadeWeekendsOn: shadeWeekends,
+                onToggleShadeWeekends: () => setShadeWeekends((on) => !on),
+                weekStart,
+                onWeekStart: setWeekStart,
+                onChangeView: changeView,
+                onOpenCamps,
+                subscribeControl,
+              }}
+              weather={{
+                weatherMode,
+                onWeatherMode: setWeatherMode,
+                weatherUnit,
+                onWeatherUnit: setWeatherUnit,
+                weatherLocation,
+                onWeatherLocation: setWeatherLocation,
+                weatherRange,
+                onWeatherRange: setWeatherRange,
+                weatherHistory,
+                onWeatherHistory: setWeatherHistory,
+                rainThreshold,
+                onRainThreshold: (v) => setRainThreshold(parseRainThreshold(v, rainThreshold)),
+                rainThresholdOptions: RAIN_THRESHOLD_OPTIONS,
+                weatherStatus,
+                weatherCoverage,
+              }}
+            />,
             railSlot
           )}
       </div>
