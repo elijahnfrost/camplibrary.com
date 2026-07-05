@@ -104,6 +104,7 @@ export interface HourWeather {
   precip: number; // inch or mm, per unit
   precipProb: number; // %
   wind: number; // mph or km/h, per unit
+  uvIndex: number; // 0–11+, dimensionless (0 overnight)
 }
 
 export interface DayWeather {
@@ -113,6 +114,7 @@ export interface DayWeather {
   tempMin: number;
   precipProbMax: number; // %
   precipSum: number; // inch or mm
+  uvIndexMax: number; // that day's peak UV index (0–11+)
 }
 
 export interface WeatherUnits {
@@ -226,6 +228,22 @@ export function formatPrecip(value: number, units: WeatherUnits): string {
   const rounded = isInch ? value.toFixed(2) : value.toFixed(1);
   return isInch ? rounded + '"' : rounded + " mm";
 }
+// UV index → WHO exposure band. The index is a dimensionless 0–11+ scale; these
+// are the standard World Health Organization categories, so a staffer reads the
+// sun-protection risk (a high-UV afternoon may want hats/shade for outdoor play)
+// without knowing what the raw number means.
+export function uvCategory(value: number): string {
+  const uv = Math.round(value);
+  if (uv <= 2) return "Low";
+  if (uv <= 5) return "Moderate";
+  if (uv <= 7) return "High";
+  if (uv <= 10) return "Very high";
+  return "Extreme";
+}
+// The UV index as shown in the detail card: rounded value plus its band ("7 · High").
+export function formatUv(value: number): string {
+  return `${Math.round(value)} · ${uvCategory(value)}`;
+}
 // The span of dates the loaded forecast actually covers (earliest → latest day
 // with data), so the UI can show how far the weather reaches. Null when empty.
 export function forecastCoverage(data: WeatherData): { start: string; end: string } | null {
@@ -285,8 +303,8 @@ export async function fetchForecast(
     latitude: String(location.latitude),
     longitude: String(location.longitude),
     hourly:
-      "temperature_2m,weather_code,precipitation,precipitation_probability,apparent_temperature,wind_speed_10m,is_day",
-    daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum",
+      "temperature_2m,weather_code,precipitation,precipitation_probability,apparent_temperature,wind_speed_10m,is_day,uv_index",
+    daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max",
     timezone: timezone || viewerTimeZone(),
     forecast_days: String(Math.max(1, Math.min(FORECAST_DAYS, forecastDays))),
     past_days: String(Math.max(0, Math.min(HISTORY_PAST_DAYS, pastDays))),
@@ -319,6 +337,7 @@ export async function fetchForecast(
       precip: num(h.precipitation?.[i]),
       precipProb: num(h.precipitation_probability?.[i]),
       wind: num(h.wind_speed_10m?.[i]),
+      uvIndex: num(h.uv_index?.[i]),
     });
   }
 
@@ -334,6 +353,7 @@ export async function fetchForecast(
       tempMin: num(d.temperature_2m_min?.[i]),
       precipProbMax: num(d.precipitation_probability_max?.[i]),
       precipSum: num(d.precipitation_sum?.[i]),
+      uvIndexMax: num(d.uv_index_max?.[i]),
     });
   }
 
