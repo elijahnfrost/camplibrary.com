@@ -17,8 +17,8 @@ import {
   withCampOpen,
   type Camp,
 } from "./camps";
-import { normalizeCalendarEvent } from "./calendar/types";
-import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN } from "./calendar/time";
+import { normalizeCalendarEvent } from "../calendar/types";
+import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN } from "../calendar/time";
 
 const camp = (over: Partial<Camp> = {}): Camp => ({
   id: "c1",

@@ -9,7 +9,7 @@
 // campId rides in the event payload and the camps list is a synced user-doc.
 
 import { useCallback, useEffect, useMemo } from "react";
-import type { CloudUserData } from "@/lib/cloudStore";
+import type { CloudUserData } from "@/lib/cloud/cloudStore";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import {
   createCampId,
@@ -19,8 +19,8 @@ import {
   withCampClose,
   withCampOpen,
   type Camp,
-} from "@/lib/camps";
-import { useLocalStorage } from "@/lib/store";
+} from "@/lib/content/camps";
+import { useLocalStorage } from "@/lib/cloud/store";
 import { requestConfirm } from "./ConfirmDialog";
 
 const activeCampStorage = (value: unknown, fallback: string | null): string | null =>

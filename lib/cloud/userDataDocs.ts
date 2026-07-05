@@ -8,18 +8,18 @@
 // shapes the client renderers accept. No "use client" directive — this module
 // must stay isomorphic.
 
-import type { Activity, LibraryView } from "./types";
-import { normalizeActivities } from "./activityValidation";
-import { normalizePlaybook, type ActivityPlaybookData } from "./playbooks";
-import { normalizeRunDoc, type RunDoc } from "./runList";
+import type { Activity, LibraryView } from "../types";
+import { normalizeActivities } from "../activity/activityValidation";
+import { normalizePlaybook, type ActivityPlaybookData } from "../activity/playbooks";
+import { normalizeRunDoc, type RunDoc } from "../activity/runList";
 import type { StorageValidator } from "./store";
-import { normalizeThemeAssignments, normalizeThemes, type Theme } from "./themes";
-import { normalizeCamps, type Camp } from "./camps";
-import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "./locations";
-import { normalizeHexColor } from "./color";
-import { normalizeMaterialCatalog, type Material } from "./materialCatalog";
-import { normalizeKitStock, type StockState } from "./kitStock";
-import { normalizeGuides, type GuideBand } from "./calendar/guides";
+import { normalizeThemeAssignments, normalizeThemes, type Theme } from "../content/themes";
+import { normalizeCamps, type Camp } from "../content/camps";
+import { DEFAULT_LOCATIONS, normalizeLocationVocab } from "../content/locations";
+import { normalizeHexColor } from "../content/color";
+import { normalizeMaterialCatalog, type Material } from "../materials/materialCatalog";
+import { normalizeKitStock, type StockState } from "../materials/kitStock";
+import { normalizeGuides, type GuideBand } from "../calendar/guides";
 
 export const USER_DOC_KEYS = [
   "favs",

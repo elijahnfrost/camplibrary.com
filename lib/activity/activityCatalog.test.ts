@@ -5,7 +5,7 @@ import {
   seedActivityIds,
   upsertActivityRecord,
 } from "./activityCatalog";
-import type { Activity } from "./types";
+import type { Activity } from "../types";
 
 function activity(id: string, title = id): Activity {
   return {

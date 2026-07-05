@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildRunDoc } from "@/lib/runList";
-import type { RunDoc } from "@/lib/runList";
+import { buildRunDoc } from "@/lib/activity/runList";
+import type { RunDoc } from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
 import { hasSummaryContent, summarizeRunDoc } from "./runSummary";
 

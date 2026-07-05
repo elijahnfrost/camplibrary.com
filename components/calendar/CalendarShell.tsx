@@ -18,7 +18,7 @@ import type {
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph } from "@/lib/calendar/adapter";
-import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/alternates";
+import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/activity/alternates";
 import { rainPlanForDay, type RainPlan } from "@/lib/calendar/rainPlan";
 import {
   addDays,
@@ -55,12 +55,12 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
-import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
+import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/content/camps";
 import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import { coverage } from "@/lib/materials";
-import type { StockState } from "@/lib/kitStock";
+import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
+import { coverage } from "@/lib/materials/materials";
+import type { StockState } from "@/lib/materials/kitStock";
 import {
   conflictsForEvent,
   dayKit,
@@ -68,7 +68,7 @@ import {
   type DayKitItem,
   type KitConflict,
 } from "@/lib/calendar/kitConflicts";
-import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
+import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/content/data";
 import {
   isDateKey,
   normalizeCalendarEvent,
@@ -104,7 +104,7 @@ import {
   type SeriesTemplate,
 } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
-import { useLocalStorage } from "@/lib/store";
+import { useLocalStorage } from "@/lib/cloud/store";
 import { CampIcon } from "../icons";
 import { Modal } from "../Modal";
 import { ContextMenu } from "../floating/ContextMenu";

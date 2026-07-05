@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import type { Camp } from "@/lib/camps";
+import type { Camp } from "@/lib/content/camps";
 import { addDays, todayKey } from "@/lib/calendar/dates";
 import { resolveCalendarFeedToken } from "@/lib/server/calendarFeeds";
 import { getBackendEnvStatus, getPublicEnv } from "@/lib/server/env";

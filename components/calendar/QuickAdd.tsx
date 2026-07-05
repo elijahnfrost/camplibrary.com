@@ -26,8 +26,8 @@ import {
   type DayWindow,
 } from "@/lib/calendar/time";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
-import { matchesActivitySearch } from "@/lib/activityFilters";
-import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
+import { matchesActivitySearch } from "@/lib/activity/activityFilters";
+import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/content/data";
 import {
   formatLocations,
   type AlternateRef,
@@ -36,9 +36,9 @@ import {
 } from "@/lib/calendar/types";
 import { summarizeRecurrence, type RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
-import { coverage } from "@/lib/materials";
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import { coverage } from "@/lib/materials/materials";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
 import { CampIcon } from "@/components/icons";
 import { PropRow } from "@/components/PropRow";

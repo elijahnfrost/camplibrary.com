@@ -29,7 +29,7 @@ import {
   describePlaybookSelection,
   nudgePlaybookSelection,
   type PlaybookSelection,
-} from "@/lib/playbookEditorKeyboard";
+} from "@/lib/activity/playbookEditorKeyboard";
 import {
   PLAYBOOK_COLORS,
   migrateFrameToMarkers,
@@ -44,7 +44,7 @@ import {
   type PlaybookFrame,
   type PlaybookMarker,
   type PlaybookMarkerShape,
-} from "@/lib/playbooks";
+} from "@/lib/activity/playbooks";
 
 type Selection = PlaybookSelection;
 

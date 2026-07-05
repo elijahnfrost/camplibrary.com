@@ -2,7 +2,7 @@
 
 import { useRef, useState, type RefObject } from "react";
 import type { AuthSession } from "@/lib/auth";
-import type { SyncStatus } from "@/lib/cloudStore";
+import type { SyncStatus } from "@/lib/cloud/cloudStore";
 import { CampIcon } from "./icons";
 import { FloatingLayer } from "./floating/FloatingLayer";
 

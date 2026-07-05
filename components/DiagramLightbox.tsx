@@ -6,7 +6,7 @@
 
 import { useId, useState } from "react";
 import { createPortal } from "react-dom";
-import type { ActivityPlaybookData } from "@/lib/playbooks";
+import type { ActivityPlaybookData } from "@/lib/activity/playbooks";
 import { CampIcon } from "./icons";
 import { FieldFrame } from "./ActivityPlaybook";
 import { useDialogFocus } from "./useDialogFocus";

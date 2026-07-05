@@ -5,11 +5,11 @@
 // helpers (parsers/derivation), and the save-path scaffold logic from here so
 // there is one source of truth for how a scalar property becomes Activity data.
 
-import type { Activity, AgeGroupId, CategoryId, MaterialRef, Place, Prep } from "./types";
-import { AGE_GROUPS } from "./data";
-import { normalizeHexColor } from "./color";
-import { materialNeedsForActivity, materialTagId, resolveRefs } from "./materials";
-import { type Material } from "./materialCatalog";
+import type { Activity, AgeGroupId, CategoryId, MaterialRef, Place, Prep } from "../types";
+import { AGE_GROUPS } from "../content/data";
+import { normalizeHexColor } from "../content/color";
+import { materialNeedsForActivity, materialTagId, resolveRefs } from "../materials/materials";
+import { type Material } from "../materials/materialCatalog";
 import {
   buildRunDoc,
   cloneRunDoc,
@@ -22,7 +22,7 @@ import {
   type RunChild,
   type RunDoc,
 } from "./runList";
-import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
+import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "../calendar/time";
 
 type EnergyWord = "Calm" | "Lively" | "Rowdy";
 

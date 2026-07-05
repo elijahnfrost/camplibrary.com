@@ -5,9 +5,9 @@ import {
   planPromote,
   resolveAlternates,
 } from "./alternates";
-import { ALTERNATES_MAX } from "./calendar/types";
-import type { CalendarEvent } from "./calendar/types";
-import type { Activity } from "./types";
+import { ALTERNATES_MAX } from "../calendar/types";
+import type { CalendarEvent } from "../calendar/types";
+import type { Activity } from "../types";
 
 const activity = (over: Partial<Activity> = {}): Activity =>
   ({

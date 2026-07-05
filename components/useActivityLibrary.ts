@@ -5,27 +5,27 @@
 // gated by requireStaff. The shell keeps navigation, auth, and overlays.
 
 import { useCallback, useMemo } from "react";
-import type { CloudUserData } from "@/lib/cloudStore";
+import type { CloudUserData } from "@/lib/cloud/cloudStore";
 import {
   mergeActivityCatalog,
   removeActivityRecord,
   seedActivityIds,
   upsertActivityRecord,
-} from "@/lib/activityCatalog";
-import { ACTIVITIES } from "@/lib/data";
-import { materialOptionsForActivities, resolveRefs } from "@/lib/materials";
-import { materialFromName, mintCatalogEntries } from "@/lib/materialCatalog";
-import { effectiveKitStock, foldStockWrite, type StockState } from "@/lib/kitStock";
-import { type ActivityPlaybookData } from "@/lib/playbooks";
-import { rekeyRunDoc, type RunDoc } from "@/lib/runList";
+} from "@/lib/activity/activityCatalog";
+import { ACTIVITIES } from "@/lib/content/data";
+import { materialOptionsForActivities, resolveRefs } from "@/lib/materials/materials";
+import { materialFromName, mintCatalogEntries } from "@/lib/materials/materialCatalog";
+import { effectiveKitStock, foldStockWrite, type StockState } from "@/lib/materials/kitStock";
+import { type ActivityPlaybookData } from "@/lib/activity/playbooks";
+import { rekeyRunDoc, type RunDoc } from "@/lib/activity/runList";
 import {
   resolvePlaybook as resolvePlaybookFor,
   resolveRunDoc as resolveRunDocFor,
-} from "@/lib/runListResolve";
-import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
-import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/locations";
+} from "@/lib/activity/runListResolve";
+import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/content/themes";
+import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/content/locations";
 import { requestConfirm } from "./ConfirmDialog";
-import { normalizeHexColor } from "@/lib/color";
+import { normalizeHexColor } from "@/lib/content/color";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";
 

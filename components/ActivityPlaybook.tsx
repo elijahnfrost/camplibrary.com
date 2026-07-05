@@ -12,7 +12,7 @@ import {
   type PlaybookMarker,
   type PlaybookPlayer,
   type PlaybookZone,
-} from "@/lib/playbooks";
+} from "@/lib/activity/playbooks";
 
 /* ----------------------------------------------------------------------------
  * Shared, position-aware SVG primitives.

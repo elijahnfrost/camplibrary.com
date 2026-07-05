@@ -13,10 +13,10 @@
 // reaches print and the public link instead of being silently regenerated away.
 
 import type { CSSProperties, ElementType, FC, ReactNode } from "react";
-import { ageSpan, code, durLabel, ENERGY, groupLabel } from "@/lib/data";
-import { coverage, materialNeedsForActivity } from "@/lib/materials";
-import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import { ageSpan, code, durLabel, ENERGY, groupLabel } from "@/lib/content/data";
+import { coverage, materialNeedsForActivity } from "@/lib/materials/materials";
+import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import {
   defaultRunIcon,
   detailTagsForActivity,
@@ -27,7 +27,7 @@ import {
   type RunDetailTag,
   type RunDoc,
   type RunIcon,
-} from "@/lib/runList";
+} from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActivityPlaybook } from "./ActivityPlaybook";

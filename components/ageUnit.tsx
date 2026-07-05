@@ -7,7 +7,7 @@
 // CampApp, where the preference is persisted; everyone else just reads it.
 
 import { createContext, useContext } from "react";
-import type { AgeUnit } from "@/lib/data";
+import type { AgeUnit } from "@/lib/content/data";
 
 const AgeUnitContext = createContext<AgeUnit>("grades");
 

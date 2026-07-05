@@ -6,7 +6,7 @@
 
 import { PLAYBOOKS_BY_ACTIVITY_ID, type ActivityPlaybookData } from "./playbooks";
 import { buildRunDoc, ensureSectionHeadings, promoteMaterialsBlocks, type RunDoc } from "./runList";
-import type { Activity } from "./types";
+import type { Activity } from "../types";
 
 // A custom book carries its own diagram; built-in books fall back to an
 // editable override, then the seed registry.

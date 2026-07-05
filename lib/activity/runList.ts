@@ -10,15 +10,15 @@
 // hand-edited document is persisted as a per-activity override — the same
 // pattern used for editable field diagrams (see lib/playbooks + playbookOverrides).
 
-import type { Activity } from "./types";
-import { ageSpan, ENERGY, groupLabel } from "./data";
+import type { Activity } from "../types";
+import { ageSpan, ENERGY, groupLabel } from "../content/data";
 import {
   blankPlaybook,
   clonePlaybook,
   normalizePlaybook,
   type ActivityPlaybookData,
 } from "./playbooks";
-import { materialNeedsForActivity } from "./materials";
+import { materialNeedsForActivity } from "../materials/materials";
 
 // Details attach UNDER a step (intertwined with the flow), the way the original
 // Field Book modeled it: a step owns a stack of notes, a diagram, a variation,

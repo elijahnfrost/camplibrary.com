@@ -10,10 +10,10 @@ import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
 import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
-import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
-import { catalogNameFor } from "@/lib/materialCatalog";
-import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activity/activityFilters";
+import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/content/data";
+import { catalogNameFor } from "@/lib/materials/materialCatalog";
+import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/cloud/store";
 import { AgeUnitProvider } from "./ageUnit";
 import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
@@ -27,15 +27,15 @@ import {
   type Camp,
   type CampSnapMin,
   type Weekday,
-} from "@/lib/camps";
+} from "@/lib/content/camps";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { applyCustomStamp } from "@/lib/calendar/recurrence";
 import { healEvent } from "@/lib/calendar/adapter";
-import { useCloudUserData } from "@/lib/cloudStore";
-import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
-import type { RunDoc } from "@/lib/runList";
-import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activityForm";
+import { useCloudUserData } from "@/lib/cloud/cloudStore";
+import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/cloud/storageScope";
+import type { RunDoc } from "@/lib/activity/runList";
+import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activity/activityForm";
 import { BrandMark, CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";

@@ -1,4 +1,4 @@
-import type { Activity, MaterialRef } from "./types";
+import type { Activity, MaterialRef } from "../types";
 import { catalogNameFor, type Material } from "./materialCatalog";
 import { isStocked, type StockState } from "./kitStock";
 

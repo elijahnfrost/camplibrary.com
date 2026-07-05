@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { Theme } from "@/lib/themes";
+import type { Theme } from "@/lib/content/themes";
 import { CampIcon } from "./icons";
 import { FloatingLayer } from "./floating/FloatingLayer";
 

@@ -12,7 +12,7 @@
 
 import { useRef, useState } from "react";
 import { HexColorInput, HexColorPicker } from "react-colorful";
-import { normalizeHexColor } from "@/lib/color";
+import { normalizeHexColor } from "@/lib/content/color";
 import { FloatingLayer } from "./FloatingLayer";
 
 // The quick-pick palette — authored on the warm/earthy ladder (the five category

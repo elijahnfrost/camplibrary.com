@@ -20,8 +20,8 @@ import {
   type AlternateReason,
   type AlternateRef,
   type CalendarEvent,
-} from "./calendar/types";
-import type { Activity } from "./types";
+} from "../calendar/types";
+import type { Activity } from "../types";
 
 // The reason whitelist — mirrors lib/calendar/types' private set. Kept here
 // (not imported) so this module owns its own validation without reaching into

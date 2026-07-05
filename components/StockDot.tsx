@@ -16,7 +16,7 @@
 // above it. Outside pointerdown folds the bloom without claiming the event.
 
 import { useEffect, useRef, useState } from "react";
-import type { StockState } from "@/lib/kitStock";
+import type { StockState } from "@/lib/materials/kitStock";
 import { CampIcon } from "./icons";
 
 const OPTIONS: { id: StockState; word: string; Icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [

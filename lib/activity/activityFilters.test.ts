@@ -8,8 +8,8 @@ import {
   sortActivities,
   type ActivityFilterState,
 } from "./activityFilters";
-import { ALL_CATEGORY_IDS } from "./data";
-import type { Activity } from "./types";
+import { ALL_CATEGORY_IDS } from "../content/data";
+import type { Activity } from "../types";
 
 function activity(overrides: Partial<Activity> = {}): Activity {
   return {

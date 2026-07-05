@@ -16,9 +16,9 @@
 
 import type { Activity } from "../types";
 import type { CalendarEvent } from "./types";
-import { type Material } from "../materialCatalog";
-import { isStocked, type StockState } from "../kitStock";
-import { resolveRefs } from "../materials";
+import { type Material } from "../materials/materialCatalog";
+import { isStocked, type StockState } from "../materials/kitStock";
+import { resolveRefs } from "../materials/materials";
 
 // The coverage status of ONE needed material on the day, reusing the run sheet's
 // per-need language: on hand ("have"), thin ("low"), depleted ("out"), covered by

@@ -11,7 +11,7 @@
 // degrades to a queue, not an error. Last write wins everywhere.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { normalizeCalendarEvent, normalizeCalendarEventList, type CalendarEvent } from "./calendar/types";
+import { normalizeCalendarEvent, normalizeCalendarEventList, type CalendarEvent } from "../calendar/types";
 import { MIGRATION_MARKER_KEY, collectLocalDocsForImport } from "./cloudMigration";
 import { coalesce, nextRetryDelayMs, parseOutbox, serializeOutbox, type OutboxOp } from "./cloudOutbox";
 import { scopedStorageKey } from "./storageScope";

@@ -1,8 +1,8 @@
-import { normalizeHexColor } from "./color";
-import { AGE_GROUPS, CATEGORIES } from "./data";
+import { normalizeHexColor } from "../content/color";
+import { AGE_GROUPS, CATEGORIES } from "../content/data";
 import { normalizeActivityAlternates } from "./alternates";
 import { normalizePlaybook } from "./playbooks";
-import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "./calendar/time";
+import { MAX_ACTIVITY_DURATION_MIN as TOTAL_MIN } from "../calendar/time";
 import type {
   Activity,
   ActivityLink,
@@ -12,7 +12,7 @@ import type {
   MaterialRef,
   Place,
   Prep,
-} from "./types";
+} from "../types";
 
 const AGE_GROUP_IDS = new Set<string>(AGE_GROUPS.map((group) => group.id));
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((category) => category.id));

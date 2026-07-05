@@ -12,7 +12,7 @@
 // This module is isomorphic — its validator runs on the client (hydrate) AND on
 // the server (validating API payloads) — so it carries no "use client".
 
-import { EVENT_LOCATION_OPTIONS, EVENT_LOCATION_MAX_LENGTH } from "./calendar/types";
+import { EVENT_LOCATION_OPTIONS, EVENT_LOCATION_MAX_LENGTH } from "../calendar/types";
 
 // What a fresh camp's location list starts with. The vocabulary doc defaults to
 // this; once a user edits it, the stored list is authoritative (even when empty).

@@ -23,8 +23,8 @@
 
 import { useState } from "react";
 import type { Activity } from "@/lib/types";
-import type { Material } from "@/lib/materialCatalog";
-import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/kitStock";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/materials/kitStock";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { MaterialsTab } from "./MaterialsTab";

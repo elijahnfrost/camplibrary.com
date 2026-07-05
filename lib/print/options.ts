@@ -8,7 +8,7 @@
 // would be more confusing than helpful), so only the FORMAT half persists.
 
 import type { DateKey } from "@/lib/calendar/types";
-import type { StorageValidator } from "@/lib/store";
+import type { StorageValidator } from "@/lib/cloud/store";
 
 // How color is emitted. "color" uses the earthy category/theme tints (with
 // print-color-adjust: exact so the ink actually lands); "mono" is the classic

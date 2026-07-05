@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { materialOptionsForActivities } from "./materials";
+import { materialOptionsForActivities } from "../materials/materials";
 import { normalizeActivities, normalizeActivity } from "./activityValidation";
 
 const legacyActivity = {

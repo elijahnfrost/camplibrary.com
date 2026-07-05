@@ -14,7 +14,7 @@ import { CampIcon } from "./icons";
 import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
 import { MiniSeg } from "./primitives";
-import { MAX_CAMP_NAME, type Camp, type CampSnapMin, type Weekday } from "@/lib/camps";
+import { MAX_CAMP_NAME, type Camp, type CampSnapMin, type Weekday } from "@/lib/content/camps";
 import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
 import { formatClock } from "@/lib/calendar/time";
 import { fromDateKey, todayKey } from "@/lib/calendar/dates";

@@ -8,10 +8,10 @@
 // public /run page are ONE document system — same typography, spacing, and item
 // styling. The old bespoke `@media print` `.print-*` grey CSS is gone.
 
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import type { Activity } from "@/lib/types";
-import type { RunDoc } from "@/lib/runList";
+import type { RunDoc } from "@/lib/activity/runList";
 import { RunSheetBody } from "./RunSheetBody";
 
 export function ActivityBookPrint({

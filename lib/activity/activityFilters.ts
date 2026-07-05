@@ -1,7 +1,7 @@
-import type { Activity, AgeGroupId, CategoryId } from "./types";
-import { coverage, usesAnyMaterialTag } from "./materials";
-import type { Material } from "./materialCatalog";
-import type { StockState } from "./kitStock";
+import type { Activity, AgeGroupId, CategoryId } from "../types";
+import { coverage, usesAnyMaterialTag } from "../materials/materials";
+import type { Material } from "../materials/materialCatalog";
+import type { StockState } from "../materials/kitStock";
 
 // The set of categories the library shows. A multi-select: every id = show all
 // (the default), a subset = show only those, [] = show none. Replaces the old

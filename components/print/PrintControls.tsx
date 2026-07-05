@@ -19,7 +19,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNod
 import { addDays, fromDateKey, startOfWeek, todayKey, toDateKey } from "@/lib/calendar/dates";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { formatRangeLabel } from "@/lib/calendar/time";
-import type { Camp } from "@/lib/camps";
+import type { Camp } from "@/lib/content/camps";
 import type { Activity } from "@/lib/types";
 import type {
   DocDensity,
@@ -29,7 +29,7 @@ import type {
   PrintOptions,
   ScheduleDetail,
 } from "@/lib/print/options";
-import { normalizeSearchText, searchTokens } from "@/lib/activityFilters";
+import { normalizeSearchText, searchTokens } from "@/lib/activity/activityFilters";
 import { MAX_PRINT_DAYS, type ScheduleDay } from "@/lib/print/schedule";
 import { CampIcon } from "../icons";
 import { MenuPicker, MiniSeg, ToggleSwitch } from "../primitives";

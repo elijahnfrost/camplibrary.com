@@ -28,10 +28,10 @@ import {
   type ReactNode,
 } from "react";
 import type { Activity, AgeGroupId } from "@/lib/types";
-import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/data";
-import { coverage, resolveRefs, type ResolvedRef } from "@/lib/materials";
-import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import { AGE_GROUPS, bandShort, CATEGORIES, categoryTint, type AgeUnit } from "@/lib/content/data";
+import { coverage, resolveRefs, type ResolvedRef } from "@/lib/materials/materials";
+import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import {
   MAX_ACTIVITY_DURATION_MIN,
   mintMaterialRow,
@@ -39,7 +39,7 @@ import {
   validateForm,
   type FormState,
   type MaterialFormRow,
-} from "@/lib/activityForm";
+} from "@/lib/activity/activityForm";
 import { CampIcon } from "./icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { StockDot } from "./StockDot";
@@ -82,9 +82,9 @@ import {
   type RunDetailTag,
   type RunDoc,
   type RunIcon,
-} from "@/lib/runList";
-import type { ActivityPlaybookData } from "@/lib/playbooks";
-import { parseEmbed, type ParsedEmbed } from "@/lib/embed";
+} from "@/lib/activity/runList";
+import type { ActivityPlaybookData } from "@/lib/activity/playbooks";
+import { parseEmbed, type ParsedEmbed } from "@/lib/activity/embed";
 import { DiagramLightbox } from "./DiagramLightbox";
 import { DiagramEditModal } from "./DiagramEditModal";
 

@@ -14,10 +14,10 @@
 // validator runs on the client AND on untrusted server payloads, so no
 // "use client" directive.
 
-import { fromDateKey } from "./calendar/dates";
-import { normalizeGuides, type GuideBand } from "./calendar/guides";
-import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN, snapMinutes, type DayWindow } from "./calendar/time";
-import { isDateKey, type DateKey } from "./calendar/types";
+import { fromDateKey } from "../calendar/dates";
+import { normalizeGuides, type GuideBand } from "../calendar/guides";
+import { DAY_END_MIN, DAY_START_MIN, SNAP_MIN, snapMinutes, type DayWindow } from "../calendar/time";
+import { isDateKey, type DateKey } from "../calendar/types";
 import { nextPaletteTint } from "./themes";
 
 // A weekday index (0 = Sunday … 6 = Saturday), matching Date.getDay().

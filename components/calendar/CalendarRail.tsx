@@ -21,7 +21,7 @@ import { MiniSeg, ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
 import { CampIcon } from "../icons";
 import { WEATHER_RANGE_OPTIONS, type TempUnit, type WeatherMode } from "@/lib/weather";
-import type { ColorMode } from "@/lib/data";
+import type { ColorMode } from "@/lib/content/data";
 import { Disclosure } from "../Disclosure";
 
 export type CalRailProps = {

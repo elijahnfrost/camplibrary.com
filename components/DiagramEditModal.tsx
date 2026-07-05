@@ -7,7 +7,7 @@
 // outside-click close only this layer and the run sheet underneath stays put.
 
 import { createPortal } from "react-dom";
-import type { ActivityPlaybookData } from "@/lib/playbooks";
+import type { ActivityPlaybookData } from "@/lib/activity/playbooks";
 import { CampIcon } from "./icons";
 import { PlaybookEditor } from "./PlaybookEditor";
 import { useDialogFocus } from "./useDialogFocus";

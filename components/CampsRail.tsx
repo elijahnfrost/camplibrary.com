@@ -12,7 +12,7 @@
 // name input.
 
 import { useState, type CSSProperties } from "react";
-import { campTint, type Camp } from "@/lib/camps";
+import { campTint, type Camp } from "@/lib/content/camps";
 import { CampIcon } from "./icons";
 import { Disclosure } from "./Disclosure";
 

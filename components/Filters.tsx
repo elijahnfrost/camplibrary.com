@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
-import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
-import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/data";
+import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activity/activityFilters";
+import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/content/data";
 import type { CategoryId } from "@/lib/types";
-import type { Theme } from "@/lib/themes";
+import type { Theme } from "@/lib/content/themes";
 import { CampIcon } from "./icons";
 import { Modal } from "./Modal";
 import { FloatingLayer } from "./floating/FloatingLayer";

@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { addDays, fromDateKey, todayKey } from "@/lib/calendar/dates";
 import type { Activity } from "@/lib/types";
-import { useLocalStorage } from "@/lib/store";
+import { useLocalStorage } from "@/lib/cloud/store";
 import { DEFAULT_PRINT_FORMAT, printFormatStorage, type PrintFormat, type PrintOptions } from "@/lib/print/options";
 import { buildScheduleDays, selectEvents } from "@/lib/print/schedule";
 import { exportFilename } from "@/lib/print/filename";

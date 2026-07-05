@@ -5,7 +5,7 @@ import {
   isUserDocKey,
   normalizeDoc,
   type UserDocKey,
-} from "@/lib/userDataDocs";
+} from "@/lib/cloud/userDataDocs";
 
 // Per-user cloud persistence: a (user, key) → jsonb document store mirroring
 // the localStorage keys, plus calendar_events as a real table because events

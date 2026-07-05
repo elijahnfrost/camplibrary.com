@@ -5,7 +5,7 @@
 // docs fake runs the prod normalizeDoc, so it proves a per-item color actually
 // survives the validate→persist→reload round-trip. No DATABASE_URL, no live data.
 import { describe, expect, test, vi } from "vitest";
-import { normalizeDoc } from "@/lib/userDataDocs";
+import { normalizeDoc } from "@/lib/cloud/userDataDocs";
 
 vi.mock("./config", () => ({ loadEnv: () => {}, getAdminUserId: () => "user_edit" }));
 

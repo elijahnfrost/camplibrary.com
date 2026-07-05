@@ -11,7 +11,7 @@ import { type CSSProperties } from "react";
 import { fromDateKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import type { Theme } from "@/lib/themes";
+import type { Theme } from "@/lib/content/themes";
 import {
   timelineHours,
   timelineGridHeightIn,

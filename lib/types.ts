@@ -1,6 +1,6 @@
 // Camp Library — shared domain types.
 
-import type { ActivityPlaybookData } from "@/lib/playbooks";
+import type { ActivityPlaybookData } from "@/lib/activity/playbooks";
 
 export type CategoryId = "Game" | "Craft" | "Song" | "Water" | "Quiet" | "Routine";
 export type Place = "Inside" | "Outside" | "Both";

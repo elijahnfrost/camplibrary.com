@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { AGE_GROUPS, bandLong, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/data";
-import type { Theme } from "@/lib/themes";
+import { AGE_GROUPS, bandLong, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/content/data";
+import type { Theme } from "@/lib/content/themes";
 import { CampIcon } from "./icons";
 import { FloatingLayer } from "./floating/FloatingLayer";
 

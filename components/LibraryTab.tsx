@@ -9,9 +9,9 @@
 // filter rail renders inside the sidenav.
 
 import type { MouseEvent, ReactNode } from "react";
-import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activityFilters";
-import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/data";
-import type { Theme } from "@/lib/themes";
+import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilter } from "@/lib/activity/activityFilters";
+import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/content/data";
+import type { Theme } from "@/lib/content/themes";
 import type { Activity, LibraryView } from "@/lib/types";
 import { CampIcon } from "./icons";
 import { ActiveFilters, Filters, type MinutesBounds, type MinutesRange } from "./Filters";

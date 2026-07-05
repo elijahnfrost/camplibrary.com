@@ -4,9 +4,9 @@
 // same body the Print tab uses, so the printed and published sheets stay identical.
 // Server-renderable: no editor, no state, no "use client".
 
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
-import type { RunDoc } from "@/lib/runList";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
+import type { RunDoc } from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
 import { RunSheetBody } from "./RunSheetBody";
 

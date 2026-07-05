@@ -5,7 +5,7 @@ import { CampIcon } from "../icons";
 import { MiniSeg, ToggleSwitch } from "../primitives";
 import { Select } from "../floating/Select";
 import { isNDaysView, type ViewKey, type WeekStart } from "@/lib/calendar/views";
-import type { ColorMode } from "@/lib/data";
+import type { ColorMode } from "@/lib/content/data";
 import { DaysStepper } from "./DaysStepper";
 import { useDeviceShape } from "../useDeviceShape";
 

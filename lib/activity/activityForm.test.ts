@@ -5,7 +5,7 @@ import {
   quickActivity,
   newActivityId,
 } from "./activityForm";
-import type { Activity } from "./types";
+import type { Activity } from "../types";
 
 function activity(overrides: Partial<Activity> = {}): Activity {
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Activity } from "./types";
+import type { Activity } from "../types";
 import {
   coverage,
   materialNeedsForActivity,

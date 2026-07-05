@@ -28,10 +28,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Activity } from "@/lib/types";
-import { coverage, materialOptionsForActivities } from "@/lib/materials";
-import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/kitStock";
-import { normalizeSearchText } from "@/lib/activityFilters";
+import { coverage, materialOptionsForActivities } from "@/lib/materials/materials";
+import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
+import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/materials/kitStock";
+import { normalizeSearchText } from "@/lib/activity/activityFilters";
 import { CampIcon } from "./icons";
 import { requestConfirm } from "./ConfirmDialog";
 import { ContextMenu } from "./floating/ContextMenu";

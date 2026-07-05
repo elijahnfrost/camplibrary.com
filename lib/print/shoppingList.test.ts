@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import type { Material } from "@/lib/materialCatalog";
+import type { Material } from "@/lib/materials/materialCatalog";
 import type { Activity } from "@/lib/types";
 import type { ScheduleDay } from "./schedule";
 import { buildShoppingList } from "./shoppingList";

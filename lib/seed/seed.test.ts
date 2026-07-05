@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SEED_ACTIVITIES } from "./index";
-import { durLabel } from "../data";
+import { durLabel } from "../content/data";
 
 // Guard: the built-in catalog must never ship a "search the game" URL. A generic
 // activity should carry a specific, verified link (a real video or how-to page)

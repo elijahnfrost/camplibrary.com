@@ -1,14 +1,14 @@
 "use client";
 
 import type { Activity } from "@/lib/types";
-import type { Theme } from "@/lib/themes";
+import type { Theme } from "@/lib/content/themes";
 import {
   ageLabel,
   durLabel,
   ENERGY,
   monogram,
   ratingColor,
-} from "@/lib/data";
+} from "@/lib/content/data";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ActivityCell } from "./ActivityCell";
 import { CampIcon } from "./icons";

@@ -8,7 +8,7 @@ import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
 import { ColorSwatchField } from "./floating/ColorField";
 import { MiniSeg } from "./primitives";
-import { type Camp, type CampSnapMin, type Weekday } from "@/lib/camps";
+import { type Camp, type CampSnapMin, type Weekday } from "@/lib/content/camps";
 import { todayKey } from "@/lib/calendar/dates";
 import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
 import type { DateKey } from "@/lib/calendar/types";

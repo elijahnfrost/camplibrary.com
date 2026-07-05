@@ -26,13 +26,13 @@
 
 import { useMemo, useRef, useState, type TouchEvent } from "react";
 import type { Activity } from "@/lib/types";
-import type { AgeUnit } from "@/lib/data";
-import type { Theme } from "@/lib/themes";
-import type { RunDoc } from "@/lib/runList";
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import type { AgeUnit } from "@/lib/content/data";
+import type { Theme } from "@/lib/content/themes";
+import type { RunDoc } from "@/lib/activity/runList";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import type { AlternateRef, CalendarEvent } from "@/lib/calendar/types";
-import { normalizeActivityAlternates } from "@/lib/alternates";
+import { normalizeActivityAlternates } from "@/lib/activity/alternates";
 import { ALTERNATES_MAX, ALTERNATE_TITLE_MAX_LENGTH } from "@/lib/calendar/types";
 import {
   BLANK_FORM,
@@ -44,8 +44,8 @@ import {
   playDocForActivity,
   validateForm,
   type FormState,
-} from "@/lib/activityForm";
-import { categoryTint } from "@/lib/data";
+} from "@/lib/activity/activityForm";
+import { categoryTint } from "@/lib/content/data";
 import { CampIcon } from "./icons";
 import { requestConfirm } from "./ConfirmDialog";
 import { SaveButton, ThemeBadge } from "./primitives";
