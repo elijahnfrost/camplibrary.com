@@ -13,6 +13,7 @@
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "lint:design-tokens": "node scripts/check-design-tokens.mjs",
+    "lint:css-hygiene": "node scripts/check-css-hygiene.mjs",
     "report:deadcode": "knip",
     "report:deps": "depcheck",
     "report:exports": "ts-prune",

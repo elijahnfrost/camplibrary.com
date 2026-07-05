@@ -177,16 +177,46 @@ gate after each batch.
 
 ---
 
-## Phase 2 inputs (CSS consolidation — captured now, acted on later)
+## Phase 2 — CSS consolidation (split + guardrail done; deep fold DEFERRED)
 
-- **78 class selectors are defined in more than one stylesheet** across
-  `globals.css` / `calendar.css` / `sidebar.css` — the override-stacking /
-  duplicate-definition smell. Examples: `.is-on` (3 files), `.ledger__label`
-  (3), `.prop-row` (3), `.is-open` (3), `.cselect`, `.typepick*`, `.manager__*`,
-  `.matkit__*`, `.material-filter__*`, `.sidesection__title`. These are the
-  "one source of truth per concern" violations to fold into base rules.
-- Regenerate the current cross-file duplicate list with the snippet in the
-  Phase 0 log (extend `report:css` with a `--dupes` mode when Phase 2 starts).
+**Done:**
+
+- **Split the `globals.css` monolith** (10,798 lines) into 10 per-domain
+  stylesheets by a pure line-based slice at the file's own section boundaries:
+  `tokens · base · shell · components · responsive · animations · run-sheet ·
+  motion · floating · print`, imported in that order in `app/layout.tsx`
+  (then `calendar`, then `sidebar`). Byte-identical concat + every chunk parses
+  = provably zero cascade change; the split script asserted both before writing.
+- **Token gate extended** to all 10 files (+ calendar/sidebar/runsheet); baseline
+  regenerated (349).
+- **CSS-hygiene gate added** (`lint:css-hygiene`, `scripts/check-css-hygiene.mjs`)
+  — a ratchet that fails on any NEW `!important` or NEW top-level duplicate
+  selector, grandfathering the current 42 `!important` + 93 duplicate selectors.
+  Wired into CI in Phase 7.
+
+**CSS layering convention (for CONVENTIONS.md in Phase 6):**
+
+- **Import order = cascade order** (`app/layout.tsx`). Layers, earliest→latest:
+  tokens → base → shell → components → responsive → animations → run-sheet →
+  motion → floating → print → calendar → sidebar.
+- **Add a new rule to the file that owns its surface; never stack an override in
+  a later file to counteract an earlier one.** If a base rule is wrong, change
+  the base rule. `sidebar.css` loads last by design (its dark-green selection +
+  popup layout intentionally win) — that is the one sanctioned late layer.
+- **Every new color/space/radius/shadow/size is a token** (`--card`, `--line`,
+  `--accent`, `--s-*`, `--r-*`, `--fs-*`, `--e*`). The token gate enforces it.
+- Control chrome (white `--card` fill, 1.5px `--line` border, dark-green
+  `--accent` selection, no sage) was consolidated in #106 — reuse those classes,
+  don't restate the chrome per component.
+
+**DEFERRED with reason — folding the 93 override-stacks + removing the 42
+`!important`.** These change specificity/cascade *semantics*, and the only pixel
+oracle is CI (no local visual on this Mac). On a 10k-line interleaved stylesheet
+that is exactly the "redesign disguised as cleanup" the brief warns against, and
+the control-chrome consolidation that motivated it already shipped in #106. The
+hygiene gate now prevents the mess from growing; folding the existing stacks is a
+safer follow-up done rule-by-rule with CI proving each one invisible. Left intact
+per the stop-when-risk-grows rule.
 
 ---
 
