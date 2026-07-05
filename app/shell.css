@@ -1,0 +1,706 @@
+/* ============================================================
+ * Page stage + app shell
+ * ============================================================ */
+
+/* Phone: the app is the whole screen. */
+.stage {
+  --stage-pad: 0px;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 15px;
+}
+.app__main {
+  position: relative; /* positioning context for the .app__veil loading cover */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.app__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.app__scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Side navigation is desktop-only. */
+.sidenav {
+  display: none;
+}
+.sidenav__brand {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.icon-btn:hover {
+  color: var(--ink);
+}
+.icon-btn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+  border-radius: var(--r-md);
+}
+.icon-btn svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-btn.is-on {
+  color: var(--accent);
+}
+.icon-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+/* ---------- view switcher ---------- */
+.viewswitch {
+  display: flex;
+  gap: var(--s-1);
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s-1);
+  margin: 0 18px;
+  background: var(--card);
+}
+.viewswitch button {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--r-sm);
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.viewswitch button:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.viewswitch button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.viewswitch button:focus-visible {
+  outline-offset: -2px;
+}
+.viewswitch button svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.viewswitch.seg-slide {
+  --seg-pad: var(--s-1);
+  --seg-gap: var(--s-1);
+  --seg-radius: var(--r-sm);
+}
+/* .is-active (the calendar's ViewSwitch, a plain toggle-group) and .is-on (the
+   Library toolbar's two switches, built on the shared MiniSeg radiogroup) are
+   the same visual state on this shell — one bespoke class per control family,
+   painted identically so Day/Week/Month and Shelf/Deck/Catalog read as one
+   control vocabulary despite the ARIA-pattern difference between them. */
+.viewswitch button.is-active,
+.viewswitch button.is-on {
+  /* Green is painted by the sliding thumb; the active label just goes light. */
+  background: transparent;
+  color: var(--on-accent);
+}
+.viewswitch button.is-active:hover,
+.viewswitch button.is-on:hover {
+  background: transparent;
+  color: var(--on-accent);
+}
+.viewswitch button.is-active:active,
+.viewswitch button.is-on:active {
+  background: transparent;
+}
+.viewswitch button.is-active:focus-visible,
+.viewswitch button.is-on:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -3px;
+}
+
+/* ---------- canonical search field ----------
+   ONE recipe for every text-search input in the app (the library toolbar, the
+   library filter's material search, the Materials list, the calendar QuickAdd).
+   A pill row: a leading 17px search icon, a transparent input at >=16px (which
+   keeps iOS Safari from auto-zooming on focus), and an optional round clear
+   button. Modifiers cover the two exceptions:
+     .searchfield--content — a --content surface + fixed --control-md height (the
+        QuickAdd sheet sits on --content, not the app --card).
+     .searchfield--name — the QuickAdd name-mode field with no leading icon (it's
+        NAMING an event, not searching), so the input flushes left. */
+.searchfield {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: 0 var(--s-4);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.searchfield:focus-within {
+  border-color: var(--accent);
+}
+.searchfield > svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.searchfield__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  /* 16px keeps iOS Safari from auto-zooming the page when this field is focused. */
+  font: 16px/1.2 var(--text);
+}
+.searchfield__input::placeholder {
+  color: var(--ink-faint);
+}
+.searchfield__clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.searchfield__clear:hover {
+  background: var(--paper-2);
+}
+.searchfield__clear svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+/* QuickAdd sits on the --content sheet surface and wants a fixed control height. */
+.searchfield--content {
+  min-height: 0;
+  height: var(--control-md);
+  background: var(--content);
+}
+/* QuickAdd name-mode drops the leading search icon (it's NAMING an event, not
+   searching). No style change is needed — the input keeps the same left inset
+   from the field's own padding, so the text lines up in both modes; the class
+   stays as a semantic hook. */
+
+/* ---------- filters: mobile trigger + shared primitives ----------
+   Mobile gets ONE "Filters" entry (opening a sheet) plus an always-visible
+   removable active-filter row, so applied filters are never hidden and the
+   "pick one per dimension" model reads clearly. The dimension group + active
+   summary are shared verbatim with the desktop rail. */
+.filtertrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--s-5) var(--page-x) var(--s-2);
+  min-width: 0;
+}
+.filtertrigger__btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  background: var(--content);
+  border-radius: var(--r-pill);
+  padding: var(--s-3) var(--s-5);
+  min-height: var(--control-md);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.filtertrigger__btn svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.filtertrigger__btn:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.filtertrigger__btn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.filtertrigger__btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+/* ---------- shared count pill ----------
+   ONE on-token count-badge recipe so every rail's tally reads like the controls
+   beside it (MiniSeg/ToggleSwitch/TypePicker — all --r-pill). The base sets the
+   shared geometry/type; the two existing count selectors extend it rather than
+   re-spelling their own off-token literals:
+     · .filtertrigger__count — solid accent skin (an "on" filter trigger);
+     · .material-filter__count — quiet token-surface skin (per-item kit tally).
+   The base lives on .filtertrigger__count so the de-facto-correct pill is the
+   canonical one; .material-filter__count just inherits + reskins. */
+.filtertrigger__count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-meta);
+  line-height: 1;
+}
+.filtertrigger__count {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* Active-filter summary — removable chips. Wraps in the rail/sheet, scrolls
+   horizontally in the mobile trigger row. */
+.activefilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.activefilters__chip {
+  flex: none;
+}
+.filtertrigger__active {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+}
+.filtertrigger__active::-webkit-scrollbar {
+  display: none;
+}
+/* Pill-recipe survey (2026-07-03 sweep): the app has several "small labeled
+   pill" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min,
+   6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not
+   --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day
+   icon-button, no border),
+   .book-print-chip (36px-tall clickable control sized to match its header
+   siblings), .admin-status (static per-state badge, no min-height/cursor),
+   and .theme-badge (swatch + label, no border/background at all). Each was
+   checked for a safe merge into this shared .chip base and rejected: every
+   one carries a DELIBERATE size, radius, or interaction difference (touch
+   target, click vs static, or genuinely non-pill shape) that a shared class
+   would either break or require per-site overrides to preserve — i.e. fewer
+   than 3 were byte-for-byte redundant, so consolidating further risked a
+   visible regression for no real de-duplication win. Left as-is; revisit only
+   if a recipe's own job changes. */
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: var(--r-pill);
+  padding: var(--s-3) var(--s-5);
+  white-space: nowrap;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.chip svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chip:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.chip:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.chip.is-on {
+  /* Darken the (often light) category tint enough that white text clears WCAG AA
+     across every category — Song/amber otherwise sat at ~2.9:1. */
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 70%, var(--ink));
+  color: var(--on-accent);
+  border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 60%, var(--ink));
+}
+.chip.is-on:hover {
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 64%, var(--ink));
+  border-color: color-mix(in srgb, var(--chip-on, var(--accent)) 54%, var(--ink));
+}
+.chip.is-on:active {
+  background: color-mix(in srgb, var(--chip-on, var(--accent)) 56%, var(--ink));
+}
+.chip.is-on:focus-visible {
+  outline-color: var(--ink);
+}
+/* ---------- the switch ledger (desktop rails) ----------
+   Every filter dimension is ONE ledger line: small-caps label on the left, a
+   compact control on the right, dashed rules between lines. The controls are
+   a small family — TypePicker (swatch + label pill opening an inline type
+   menu), MiniSeg (segmented pill), ToggleSwitch, and the kit row's count.
+   The mobile sheet keeps full chips; these are pointer-sized. */
+.ledger {
+  display: flex;
+  flex-direction: column;
+}
+.ledger__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  min-height: 38px;
+  border-bottom: 1.5px dashed var(--line-soft);
+}
+/* Control-row labels (filters · view/weather settings) read as SENTENCE-CASE
+   property labels — the same muted "Notion line" voice as .prop-row__lbl — NOT
+   the uppercase small-caps of the primary nav tabs. That contrast is what tells
+   the sidebar's dropdown items apart from its tabs at a glance. */
+.ledger__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+/* The axis glyph on a control row (filters / settings) — same vocabulary as the
+   property rows below, so every control row names its axis at a glance. The
+   className lands directly ON the <svg> (CampIcon.X className="ledger__ic"), so
+   the size/stroke live here; a wrapped-svg form is covered too. */
+.ledger__ic {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-faint);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.ledger__ic svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+
+/* ---------- property rows: the shared "Notion lines" anatomy ----------
+   [icon] · [muted label] · [inline value/control]. The display surfaces (event
+   window, run sheet) left-align the value; control surfaces add .prop-row--end
+   to push a control to the right edge. The icon makes each axis legible at a
+   glance — the one vocabulary behind properties, filters, and settings. */
+.proplist {
+  display: flex;
+  flex-direction: column;
+}
+.prop-row {
+  display: grid;
+  grid-template-columns: 20px var(--prop-lblw, 104px) 1fr;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 34px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+}
+.prop-row--top {
+  align-items: start;
+}
+.prop-row__ic {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-faint);
+}
+.prop-row__ic svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.prop-row__lbl {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink-faint);
+  min-width: 0;
+}
+.prop-row__val {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.prop-row--end .prop-row__val {
+  justify-self: end;
+  justify-content: flex-end;
+}
+.prop-row--top .prop-row__ic,
+.prop-row--top .prop-row__lbl {
+  padding-top: var(--s-1);
+}
+/* Dropdown wrappers inside a property value hug their content (the pill
+   silhouette) and sit inline-left — the same control vocabulary as the ledger
+   rows, so the event editor's start–end times line up on one row. */
+.prop-row__val > .cselect,
+.prop-row__val > .cdate,
+.prop-row__val > .ccolor {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+/* ---- property-value controls read as light inline TEXT (the Notion feel) ----
+   Inside a property row the dropdown triggers shed the pill chrome: transparent
+   border + fill at rest, sentence-case hand text at value size, a quiet hover /
+   open wash, and a chevron that only whispers (full on hover/open). They read as
+   the VALUE, not a button — the lift appears only when you reach for them. The
+   border stays in the box (transparent) so nothing shifts on hover. */
+.prop-row__val .cselect__trigger {
+  border-color: transparent;
+  background: transparent;
+  text-transform: none;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  padding: var(--s-1) var(--s-3);
+  gap: var(--s-2);
+}
+.prop-row__val .cselect__trigger:hover {
+  background: var(--paper-2);
+  border-color: transparent;
+}
+.prop-row__val .cselect__trigger.is-open {
+  background: var(--accent-tint);
+  border-color: transparent;
+}
+.prop-row__val .cselect__trigger .cselect__value.is-empty {
+  color: var(--ink-faint);
+}
+.prop-row__val .cselect__trigger svg {
+  opacity: 0.4;
+}
+.prop-row__val .cselect__trigger:hover svg,
+.prop-row__val .cselect__trigger.is-open svg {
+  opacity: 0.85;
+}
+/* The type picker: a pill trigger carrying the current category's color
+   swatch; the menu floats over the rows below (see .typepick__menu). */
+.typepick {
+  position: relative;
+  width: 100%;
+}
+/* While the menu is open, drop the dashed rule under the Type row — otherwise
+   it peeks out from beneath the open trigger/menu and reads as a stray line. */
+.typepick.is-open > .ledger__row {
+  border-bottom-color: transparent;
+}
+.typepick__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  padding: var(--s-1) var(--s-5);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.typepick__trigger:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+/* Open state (Option B, no beak): the trigger stays lit via its sage fill +
+   ink — same signal as a selected menu row — so the eye links it to the
+   floating menu without a ring or a border-color shift (the border stays put,
+   matching every other control in the app). The fill IS the connector. */
+.typepick.is-open .typepick__trigger {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.typepick.is-open .typepick__trigger svg {
+  color: var(--accent-ink);
+}
+.typepick.is-open .typepick__swatch {
+  border-color: var(--accent-ink);
+}
+.typepick__swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-xs);
+  background: var(--chrome-well);
+  border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.typepick__trigger svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+  transition: transform var(--t-fast) var(--ease);
+}
+.typepick.is-open .typepick__trigger svg {
+  transform: rotate(180deg);
+}
+/* The card/border look shared by every swatch-menu consumer (SwatchPicker's
+   TypePicker/AgePicker/ThemePicker/MenuPicker, LedgerMenu/AgeGroupsMenu/
+   GroupSizeMenu, ThemeField, and Select's .cselect__menu). All are hosted in
+   the portaled FloatingLayer, which drives position/width via inline style —
+   this class only supplies the surface, sizing, and touch-docking behavior.
+   Match the sibling floating menus (.cmenu/.cdate__pop) which already pop in. */
+.typepick__menu {
+  position: fixed;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.typepick__option {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: left;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.typepick__option:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.typepick__option.is-on {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+/* Footer action in a swatch menu (e.g. "Manage themes…"). */
+.typepick__div {
+  display: block;
+  height: 1px;
+  margin: var(--s-2) 0;
+  background: var(--line);
+}
+.typepick__manage {
+  color: var(--ink-soft);
+}
+.typepick__swatch--manage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--chrome-well);
+}
+.typepick__swatch--manage svg {
+  width: 8px;
+  height: 8px;
+  color: var(--ink-soft);
+}

@@ -1,0 +1,583 @@
+/* ============================================================
+ * TABLET TIER (iPad portrait): 768–1023px
+ * The purpose-built touch shell (bottom tab bar, FAB, full-screen sheets,
+ * docked menus) stays exactly as on phone — only the content GRIDS open up so a
+ * wide viewport reads as a real tablet layout instead of a stretched 2-up phone.
+ * The desk sidebar deliberately does NOT appear here (see DESKTOP_MIN in
+ * components/useDeviceShape.ts). T7 owns the centered content column across tiers.
+ * ============================================================ */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Library deck: phone is a fixed 2-up, which stretches each cover on an iPad.
+     Pack adaptive columns instead (≈3 at 768 → ≈4 near 1024). */
+  .deck {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--s-5);
+    padding: var(--s-5) var(--s-6) var(--s-3);
+  }
+}
+
+/* ============================================================
+ * DESKTOP APP (>= 1024px)
+ * A full-window application, not a scaled phone. The app fills the
+ * browser window; primary nav + filters live in a full-height left
+ * sidebar; search sits in a header toolbar; and detail / picker slide
+ * in as a right-hand inspector panel (master–detail).
+ * ============================================================ */
+/* The shell switch (touch shell -> sidebar "desk"). Landed at --bp-desktop
+   (1024px): the desk sidebar is ~292px, which on an iPad-portrait viewport
+   (768–1023px) would eat ~40% of the width — a "shrunk desktop". So phone AND
+   tablet keep the purpose-built touch shell (tab bar, FAB, sheets); only true
+   desktop / iPad-landscape (>=1024) gets the sidebar + stage. The 768–1023 tier
+   gets roomy grids in its own block below. Keep this in lockstep with DESKTOP_MIN
+   in components/useDeviceShape.ts (it gates the sidebar rail portals). */
+@media (min-width: 1024px) {
+  body {
+    background: var(--stage-bg);
+  }
+
+  /* The app owns the window. On ultrawide it caps and centers on the
+     textured stage so the grid never sprawls absurdly. */
+  .stage {
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    background-color: var(--stage-bg);
+    background-image: repeating-linear-gradient(
+        0deg,
+        transparent 0 37px,
+        rgba(44, 40, 36, 0.05) 37px 38px
+      ),
+      repeating-linear-gradient(90deg, transparent 0 37px, rgba(44, 40, 36, 0.03) 37px 38px);
+  }
+  .app {
+    flex-direction: row;
+    width: 100%;
+    max-width: 1680px;
+    height: 100dvh;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* ---- full-height sidebar: a FIXED FRAME ----
+     Brand + nav are pinned at the top, the foot is pinned at the bottom, and
+     ONLY the rail zone between them scrolls (see .sidenav__scroll — the ONE
+     scroll container for every tab-scoped section). The sidebar itself never
+     scrolls as a whole, so the foot can never be overrun by a long list. */
+  .sidenav {
+    flex: none;
+    width: clamp(272px, 22vw, 312px);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--chrome);
+    border-right: 2px solid var(--ink);
+    padding: 26px 18px 16px;
+    overflow: hidden;
+  }
+  .sidenav__brand {
+    flex: none;
+    margin-bottom: 22px;
+  }
+  .sidenav__kicker {
+    display: block;
+    font-family: var(--hand-sc);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .sidenav__title {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--script);
+    font-weight: 700;
+    font-size: 28px;
+    line-height: 0.95;
+    color: var(--ink);
+  }
+  .sidenav__title em {
+    font-style: normal;
+    color: var(--accent);
+  }
+  .sidenav__nav {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sidenav__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1.5px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    padding: 10px 12px;
+    font-family: var(--hand-sc);
+    font-size: 12.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease);
+  }
+  .sidenav__item svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+  }
+  .sidenav__item:hover {
+    background: var(--chrome-well);
+    color: var(--ink);
+  }
+  .sidenav__item:active {
+    background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+  }
+  .sidenav__item.is-active {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent-ink);
+  }
+  .sidenav__item.is-active:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .sidenav__item.is-active:active {
+    background: var(--accent-ink);
+  }
+  .sidenav__item.is-active:focus-visible {
+    outline-color: var(--ink);
+  }
+  /* ---- the rail zone (the lower zone, ONE scroll container, both tabs) ----
+     Everything tab-scoped — the Library filter rail, the Calendar rail portal
+     + Camps section, or the Print rail portal — renders inside this ONE
+     wrapper so sections stack in normal flow and can never overlap: it is the
+     sidebar's only flex:1 child below the nav, and it is the only element that
+     scrolls. Its own children (a .sidesection, or the calrail/printrail portal
+     divs) stay flex:none and size to their real content; height only ever
+     comes from this outer box, never from a stale/derived height on an inner
+     wrapper. */
+  .sidenav__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+    margin-inline: -18px;
+    padding-inline: 18px;
+    /* The rail's top rhythm (was each child's own margin-top: 26px) now lives
+       once on the shared scroll container, so every variant — Filters rail,
+       calendar rail, print rail — gets identical spacing from the nav above
+       without re-declaring it. margin (not padding) so it matches the
+       pre-existing .sidesection margin-top:26px it replaces. */
+    margin-top: 26px;
+  }
+  .sidenav__scroll::-webkit-scrollbar {
+    display: none;
+  }
+  /* The sidebar's ONE fixed foot (sync pill + profile row). Never part of the
+     scroll zone, never overlapped by it — a real divider using the app's
+     existing dashed section-break vocabulary (matches .camprail__manage's
+     border-top above). */
+  .sidenav__foot {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1.5px dashed var(--line);
+  }
+  /* ---- shared sidebar section (content shape within the rail zone) ----
+     One skeleton so the Library filter rail and the Calendar activity rail
+     read as one sidebar: same header treatment, same rhythm. Sits INSIDE
+     .sidenav__scroll now, so it no longer needs to be the scroll zone itself —
+     it sizes to its content and the outer wrapper scrolls when it's tall. Top
+     rhythm comes from .sidenav__scroll's own padding-top, not a per-section
+     margin, so stacked sections (e.g. the calendar rail's Camps section below
+     the calrail portal) still need their OWN gap — see .camprail's margin-top
+     below. */
+  .sidesection {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+  }
+  /* The section body sizes to its own content — the ONE scroll zone is the
+     shared .sidenav__scroll ancestor now, so nesting a second overflow-y:auto
+     here would just stack a redundant inner scrollbar. Kept flush with the
+     rail edge (no inline margin/padding of its own to undo) since the scroll
+     container above already carries that gutter. */
+  .sidesection__body {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+  }
+  /* .sidesection--fixed sections (View/Weather/Subscribe/Camps) are the ones
+     stacked as REPEATED siblings within a single rail (the calendar rail nests
+     several under one .sidenav__calrail; Camps sits after it) — each needs its
+     own top gap since they're not the rail's sole/first section the way the
+     Filters rail is. The plain (non-fixed) .sidesection doesn't set this: it's
+     always the lone section in its rail, so .sidenav__scroll's padding-top
+     alone gives it correct spacing from the nav above. */
+
+  /* ---- camps rail (Calendar tab, desktop) ----
+     The sidebar's ONE entry point into camps: a fixed-height .sidesection,
+     collapsed by default, sitting under the calendar rail. Its head reuses the
+     shared .sidesection__head/__title treatment; the chevron is its own
+     right-collapsed/down-open glyph (the same affordance as the camp manager's
+     .manager__sect-chev) — a disclosure that expands DOWNWARD should always
+     point down once open, so this is the affordance every rail disclosure
+     should read. */
+  /* camps-6: filled with the camp's derived identity tint (--camp-tint, set
+     inline per row) — the same "a colored dot IS the identity" convention
+     Themes/Locations rows use, rather than a blank outline. The active state
+     adds a ring around it instead of replacing the fill, so the tint stays
+     visible whether or not the row is the active camp. */
+  /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered
+     (fade + grow + slight slide), then does the app's own tool-icon wiggle when
+     the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same
+     animation vocabulary as the rest of the app; reduced-motion strips the
+     transforms + wiggle (fade only). */
+  /* Inline "Add camp" — the create field replaces the add button in place. */
+  /* The quiet footer entry — day-structure guidance bands (global, not
+     per-camp), set apart by a dashed rule above it. */
+
+  /* ---- filter rail body (Library tab) ----
+     Selected chips show state in place (no separate active-chips row up top);
+     the head's "Clear all" is the only summary control. */
+  .sidefilters {
+    gap: 16px;
+  }
+  .sidefilters .chip {
+    font-size: 10.5px;
+    padding: 4px 10px;
+  }
+  /* In the desktop rail the kit items are borderless (just bottom hairlines), so
+     the count drops its fill AND its --line edge to read as a quiet inline tally
+     rather than a bordered chip floating on chrome. */
+
+  /* ---- main column ---- */
+  .app__main {
+    min-width: 0;
+    background: var(--paper);
+  }
+  .tabbar {
+    display: none;
+  }
+  /* The mobile Filters trigger is replaced by the sidebar rail on desktop. */
+  .filtertrigger {
+    display: none;
+  }
+  /* header toolbar: view switch + persistent search — sits flush over the
+     page like the calendar header (no divider line). Capped + centered to the
+     same --lib-col-max column as the browse views below (32px inner gutter), so
+     on ultra-wide the view switch / search track the cards instead of drifting
+     to the window edge. */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 32px 14px;
+    width: 100%;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+  }
+  .viewswitch {
+    flex: none;
+    width: auto;
+    min-width: 300px;
+    max-width: 360px;
+    margin: 0;
+  }
+  /* Desk toolbar: the canonical .searchfield handles the pill; this sizes it
+     in the flex row (grow, capped, pushed to the right of the view switch) and
+     pins it to the row's shared control height — the base recipe's --tap
+     min-height (44px, the touch floor) runs 4px taller than the view switch /
+     Kit / Add at --control-md, which reads as a mismatched row once they sit
+     side by side (same fix .searchfield--content applies inside QuickAdd). */
+  .toolbar__search {
+    flex: 1;
+    max-width: 380px;
+    margin-left: auto;
+    min-height: 0;
+    height: var(--control-md);
+  }
+
+  /* ---- content: capped, centered column with consistent room ----
+     On the desk tier the browse views cap at --lib-col-max and center
+     (margin-inline:auto) so items read centered with even gutters instead of
+     hugging the window edges. The 32px is now the column's INNER gutter. */
+  .deck {
+    /* Fixed-width tracks (not 1fr) + justify-content:center keep cards a STABLE
+       width and center the grid inside the capped column, so a re-sort never
+       restretches cards. Composes with the F0 tablet block (768–1023, fluid
+       auto-fill) and the >=1200 widen below. */
+    grid-template-columns: repeat(auto-fill, 210px);
+    justify-content: center;
+    gap: 16px;
+    padding: 20px 32px 14px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+  }
+                  .deck-card__title {
+    font-size: 22px;
+  }
+  .shelfwrap {
+    padding-top: 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+  }
+  .shelf-rows {
+    margin: 10px 32px 16px;
+  }
+  .catalog {
+    padding: 14px 32px 10px;
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+  }
+
+  .empty {
+    padding: 90px 32px;
+  }
+}
+
+/* Wider desks: a little more air inside the capped column. Cards keep a stable
+   fixed width (the centered grid just fits more of them as room allows). */
+@media (min-width: 1200px) {
+  .toolbar,
+  .catalog,
+  .deck {
+    padding-inline: 40px;
+  }
+  .shelf-rows {
+    margin-inline: 40px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .overlay--viewer {
+    top: max(12px, env(safe-area-inset-top));
+    overflow: visible;
+    background: transparent;
+  }
+}
+
+@media (min-width: 1024px) {
+
+  .modal-root {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    overflow: hidden;
+    contain: layout paint;
+  }
+  .modal-root:has(.overlay--viewer),
+  .modal-root:has(.overlay--card) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(14px, 2.2vw, 28px);
+  }
+  /* Editors are compact centered cards from tablet up — never side docks. */
+  .overlay--card {
+    position: relative;
+    inset: auto;
+    width: min(480px, 92vw);
+    height: auto;
+    max-height: min(640px, 88vh);
+    border: 2px solid var(--ink);
+    border-top: 2px solid var(--ink);
+    border-radius: var(--r-xl);
+    box-shadow: var(--e4);
+    animation: cl-pop 220ms var(--ease-overlay) both;
+  }
+  /* The event window carries more than a five-field editor — a searchable
+     picker AND a schedule ledger AND a note — so it gets a touch more room than
+     the generic card, letting the activity list breathe instead of clipping at
+     ~3 rows. */
+  .overlay--quickadd.overlay--card {
+    width: min(540px, 92vw);
+    max-height: min(800px, 92vh);
+  }
+  /* The Kit modal carries a full material row list (name + seg + used + more
+     per row) below its own controls row — wider AND taller than the generic
+     card so the list reads as a real working surface, not a cramped popover. */
+  .overlay--kit.overlay--card {
+    width: min(640px, 92vw);
+    max-height: min(760px, 90vh);
+  }
+  .overlay--card .overlay__handle,
+  .overlay--viewer .overlay__handle {
+    display: none;
+  }
+  /* A large single page floating on the desk — fills an iPad, capped on desktop. */
+  .overlay--viewer {
+    position: relative;
+    inset: auto;
+    width: min(1100px, calc(100vw - 28px));
+    height: min(980px, calc(100vh - 28px));
+    max-height: calc(100vh - 28px);
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    animation: cl-pop 220ms var(--ease-overlay) both;
+  }
+  .overlay--viewer .rlv-body {
+    background: color-mix(in srgb, var(--card) 72%, var(--paper));
+    border: 2px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: var(--e4);
+    overflow: hidden auto;
+  }
+  .rlv {
+    --rl-bg: color-mix(in srgb, var(--card) 72%, var(--paper));
+    max-width: 940px;
+    padding: 26px 40px 76px;
+  }
+}
+
+/* ============================================================
+ * Sidenav brand and print/export refinements
+ * ============================================================ */
+.print-root {
+  display: none;
+}
+.sidenav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* The brand mark IS the Home button (no Home row in the rail), so it reads as
+     a real, pressable target. Its hover matches the other nav rows exactly: just
+     the darker gray well — no lift, no dashed frame (a transparent border is kept
+     only to reserve layout, never colored). The wordmark still recolors and the
+     shelf's gold book straightens, the way the other rows animate their icon.
+     Horizontal margins are 0 so the box sits on the SAME left/right grid as the
+     nav rows and the filter ledger below (all 18→252); only the top margin stays
+     negative to tuck the mark up toward the rail's top edge. */
+  padding: var(--s-4) var(--s-5);
+  margin: calc(-1 * var(--s-4)) 0 var(--s-5);
+  border: 1.5px solid transparent;
+  border-radius: var(--r-lg);
+  transition: background-color var(--t-fast) var(--ease);
+}
+.sidenav__brand:hover {
+  background: var(--chrome-well);
+}
+.sidenav__brand:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.sidenav__brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Hover recolors the WHOLE wordmark (kicker + both words) as one move, not just
+   the "Library" emphasis — that single-word flicker was the subpar tell. */
+.sidenav__brand:hover .sidenav__kicker {
+  color: var(--accent-ink);
+}
+.sidenav__brand:hover .sidenav__title,
+.sidenav__brand:hover .sidenav__title em,
+.sidenav__brand.is-active .sidenav__title {
+  color: var(--accent);
+}
+.sidenav__logo {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  object-fit: contain;
+  overflow: visible; /* let books overshoot their box mid-animation */
+}
+/* Each book pivots on its own bottom edge (fill-box → origin is the rect's own
+   bounds, not the SVG canvas) so a tilt reads as the book hinging on the shelf,
+   the way a real book leans and falls upright. */
+.bookmark__book {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform var(--t-med) var(--ease);
+}
+/* Resting lean of the gold book lives here (not as an SVG attribute) so the
+   book-knock hover animation starts from exactly this angle, hinged at the foot. */
+.bookmark__book--4 {
+  transform: rotate(-3deg);
+}
+/* On hover the three upright books hop in a left→right ripple — each lifts off
+   the shelf, drops, and squashes into place. --i (set per book in BrandMark)
+   staggers the hop left→right. Each book pivots on its own foot (base rule:
+   fill-box + 50% 100%). */
+.sidenav__brand:hover .bookmark__book--1,
+.sidenav__brand:hover .bookmark__book--2,
+.sidenav__brand:hover .bookmark__book--3 {
+  animation: book-settle 0.52s var(--ease) calc(var(--i) * 65ms) both;
+}
+/* The leaning gold book doesn't straighten "into place"; the green book to its
+   left hops and nudges it — so the gold book teeters: a small rock up toward
+   vertical, then it settles back into its lean. Lands just after the green
+   book's hop, on a gentle amplitude (a teeter, not a flip). */
+.sidenav__brand:hover .bookmark__book--4 {
+  animation: book-knock 0.62s var(--ease) 0.22s both;
+}
+@keyframes book-settle {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+  30% {
+    transform: translateY(-13%) scaleY(1.03);
+  }
+  55% {
+    transform: translateY(0) scaleY(1);
+  }
+  72% {
+    transform: translateY(0) scaleY(0.93);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+/* The gold book leans (-3°) at rest. On hover the book to its left nudges it: it
+   teeters up to roughly vertical, then rocks back with a small overshoot and
+   settles into the same resting lean — a gentle teeter, not a flip. */
+@keyframes book-knock {
+  0% {
+    transform: rotate(-3deg);
+  }
+  30% {
+    transform: rotate(0.5deg);
+  }
+  62% {
+    transform: rotate(-4.5deg);
+  }
+  84% {
+    transform: rotate(-2.4deg);
+  }
+  100% {
+    transform: rotate(-3deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bookmark__book {
+    transition: none !important;
+  }
+  .sidenav__brand:hover .bookmark__book--1,
+  .sidenav__brand:hover .bookmark__book--2,
+  .sidenav__brand:hover .bookmark__book--3 {
+    animation: none !important;
+  }
+  .sidenav__brand:hover .bookmark__book--4 {
+    animation: none !important;
+    transform: rotate(-3deg) !important;
+  }
+}

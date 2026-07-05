@@ -1,7 +1,16 @@
 {
   "schema": "camplibrary-design-token-baseline-v1",
   "generatedFrom": [
-    "app/globals.css",
+    "app/tokens.css",
+    "app/base.css",
+    "app/shell.css",
+    "app/components.css",
+    "app/responsive.css",
+    "app/animations.css",
+    "app/run-sheet.css",
+    "app/motion.css",
+    "app/floating.css",
+    "app/print.css",
     "app/calendar.css",
     "app/run/[token]/[activityId]/runsheet.css",
     "app/sidebar.css"
@@ -9,8 +18,8 @@
   "note": "Existing off-scale CSS values. The checker fails only for new IDs not listed here.",
   "violations": [
     {
-      "id": "app/globals.css|.skip-link|padding|8px 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/base.css|.skip-link|padding|8px 14px|screen",
+      "file": "app/base.css",
       "kind": "declaration",
       "selector": ".skip-link",
       "property": "padding",
@@ -18,8 +27,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.skip-link|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/base.css|.skip-link|border-radius|9px|screen",
+      "file": "app/base.css",
       "kind": "declaration",
       "selector": ".skip-link",
       "property": "border-radius",
@@ -27,8 +36,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.app|font-size|15px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.app|font-size|15px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".app",
       "property": "font-size",
@@ -36,8 +45,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.viewswitch button|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.viewswitch button|gap|6px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".viewswitch button",
       "property": "gap",
@@ -45,8 +54,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.viewswitch button|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.viewswitch button|font-size|11px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".viewswitch button",
       "property": "font-size",
@@ -54,8 +63,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.filtertrigger|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.filtertrigger|gap|8px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".filtertrigger",
       "property": "gap",
@@ -63,8 +72,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.filtertrigger__btn|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.filtertrigger__btn|gap|6px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".filtertrigger__btn",
       "property": "gap",
@@ -72,8 +81,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.filtertrigger__btn|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.filtertrigger__btn|font-size|11px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".filtertrigger__btn",
       "property": "font-size",
@@ -81,8 +90,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.activefilters|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|.activefilters|gap|6px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": ".activefilters",
       "property": "gap",
@@ -90,8 +99,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/shell.css|pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip|font-size|11px|screen",
+      "file": "app/shell.css",
       "kind": "declaration",
       "selector": "pill\" recipes beyond this one — .rl-pill (run-sheet detail tag, 24px min, 6px radius, left color-bar), .matkit__pill (kit-coverage badge, --r-sm not --r-pill — a rounded-rect, not a true pill), .cal-kit-chip (calendar day icon-button, no border), .book-print-chip (36px-tall clickable control sized to match its header siblings), .admin-status (static per-state badge, no min-height/cursor), and .theme-badge (swatch + label, no border/background at all). Each was checked for a safe merge into this shared .chip base and rejected: every one carries a DELIBERATE size, radius, or interaction difference (touch target, click vs static, or genuinely non-pill shape) that a shared class would either break or require per-site overrides to preserve — i.e. fewer than 3 were byte-for-byte redundant, so consolidating further risked a visible regression for no real de-duplication win. Left as-is; revisit only if a recipe's own job changes. */ .chip",
       "property": "font-size",
@@ -99,8 +108,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay--manager .overlay__bar|padding|16px var(--s-7) 8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.overlay--manager .overlay__bar|padding|16px var(--s-7) 8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".overlay--manager .overlay__bar",
       "property": "padding",
@@ -108,8 +117,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg-slide::before|border-radius|var(--seg-radius)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg-slide::before|border-radius|var(--seg-radius)|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg-slide::before",
       "property": "border-radius",
@@ -117,8 +126,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.miniseg|gap|1px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.miniseg|gap|1px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".miniseg",
       "property": "gap",
@@ -126,8 +135,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.miniseg button|font-size|9.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.miniseg button|font-size|9.5px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".miniseg button",
       "property": "font-size",
@@ -135,8 +144,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.miniseg button|padding|3px var(--s-4)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.miniseg button|padding|3px var(--s-4)|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".miniseg button",
       "property": "padding",
@@ -144,8 +153,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.material-filter__clear|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.material-filter__clear|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".material-filter__clear",
       "property": "font-size",
@@ -153,8 +162,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.filtersheet|padding|4px var(--page-x) 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.filtersheet|padding|4px var(--page-x) 14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".filtersheet",
       "property": "padding",
@@ -162,8 +171,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidesection__action|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.sidesection__action|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".sidesection__action",
       "property": "font-size",
@@ -171,8 +180,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidesection__action|padding|2px 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.sidesection__action|padding|2px 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".sidesection__action",
       "property": "padding",
@@ -180,8 +189,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.shelfwrap|padding-top|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.shelfwrap|padding-top|4px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".shelfwrap",
       "property": "padding-top",
@@ -189,8 +198,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck",
       "property": "gap",
@@ -198,8 +207,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck|padding|14px 18px 6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck|padding|14px 18px 6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck",
       "property": "padding",
@@ -207,8 +216,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card|border-radius|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card",
       "property": "border-radius",
@@ -216,8 +225,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|background-image: linear-gradient(var(--ink) 1px, transparent 1px), linear-gradient(90deg, var(--ink) 1px, transparent 1px); .plate__mono|font-size|56px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|background-image: linear-gradient(var(--ink) 1px, transparent 1px), linear-gradient(90deg, var(--ink) 1px, transparent 1px); .plate__mono|font-size|56px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": "background-image: linear-gradient(var(--ink) 1px, transparent 1px), linear-gradient(90deg, var(--ink) 1px, transparent 1px); .plate__mono",
       "property": "font-size",
@@ -225,8 +234,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.plate__cat|font-size|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.plate__cat|font-size|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".plate__cat",
       "property": "font-size",
@@ -234,8 +243,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card__body|padding|9px 11px 11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card__body|padding|9px 11px 11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card__body",
       "property": "padding",
@@ -243,8 +252,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card__body|gap|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card__body|gap|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card__body",
       "property": "gap",
@@ -252,8 +261,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card__title|font-size|21px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card__title|font-size|21px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card__title",
       "property": "font-size",
@@ -261,8 +270,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card__meta|font-size|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card__meta|font-size|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card__meta",
       "property": "font-size",
@@ -270,8 +279,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.catalog|padding|8px 18px 6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.catalog|padding|8px 18px 6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".catalog",
       "property": "padding",
@@ -279,8 +288,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cat-row|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.cat-row|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".cat-row",
       "property": "gap",
@@ -288,8 +297,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cat-row|padding|13px 0 13px var(--s-5)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.cat-row|padding|13px 0 13px var(--s-5)|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".cat-row",
       "property": "padding",
@@ -297,8 +306,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cat-title|font-size|23px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.cat-title|font-size|23px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".cat-title",
       "property": "font-size",
@@ -306,8 +315,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.stamp|font-size|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.stamp|font-size|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".stamp",
       "property": "font-size",
@@ -315,8 +324,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.stamp|border-radius|3px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.stamp|border-radius|3px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".stamp",
       "property": "border-radius",
@@ -324,8 +333,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.stamp|padding|2px 7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.stamp|padding|2px 7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".stamp",
       "property": "padding",
@@ -333,8 +342,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cat-row__open|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.cat-row__open|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".cat-row__open",
       "property": "gap",
@@ -342,8 +351,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card:has(.deck-card__open:focus-visible), .cat-row:has(.cat-row__open:focus-visible)|border-radius|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.deck-card:has(.deck-card__open:focus-visible), .cat-row:has(.cat-row__open:focus-visible)|border-radius|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".deck-card:has(.deck-card__open:focus-visible), .cat-row:has(.cat-row__open:focus-visible)",
       "property": "border-radius",
@@ -351,8 +360,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.tabbar button|padding|11px 0 6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.tabbar button|padding|11px 0 6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".tabbar button",
       "property": "padding",
@@ -360,8 +369,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.tabbar button|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.tabbar button|gap|5px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".tabbar button",
       "property": "gap",
@@ -369,8 +378,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.tabbar button|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.tabbar button|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".tabbar button",
       "property": "font-size",
@@ -378,8 +387,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn",
       "property": "gap",
@@ -387,8 +396,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn|padding|0 22px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn|padding|0 22px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn",
       "property": "padding",
@@ -396,8 +405,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn|border-radius|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn|border-radius|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn",
       "property": "border-radius",
@@ -405,8 +414,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn|font-size|15px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn|font-size|15px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn",
       "property": "font-size",
@@ -414,8 +423,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn--quiet, .btn--ghost|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn--quiet, .btn--ghost|border-radius|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn--quiet, .btn--ghost",
       "property": "border-radius",
@@ -423,8 +432,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn--sm|padding|0 13px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn--sm|padding|0 13px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn--sm",
       "property": "padding",
@@ -432,8 +441,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn--sm|border-radius|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn--sm|border-radius|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn--sm",
       "property": "border-radius",
@@ -441,8 +450,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn--sm|font-size|13px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn--sm|font-size|13px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn--sm",
       "property": "font-size",
@@ -450,8 +459,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.btn--sm|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.btn--sm|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".btn--sm",
       "property": "gap",
@@ -459,8 +468,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-route|gap|22px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-route|gap|22px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-route",
       "property": "gap",
@@ -468,8 +477,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-route|padding|28px 18px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-route|padding|28px 18px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-route",
       "property": "padding",
@@ -477,8 +486,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-route__brand|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-route__brand|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-route__brand",
       "property": "gap",
@@ -486,8 +495,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-route__kicker, .auth-form__section, .auth-form__subsection, .auth-form__divider, .auth-route__status|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-route__kicker, .auth-form__section, .auth-form__subsection, .auth-form__divider, .auth-route__status|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-route__kicker, .auth-form__section, .auth-form__subsection, .auth-form__divider, .auth-route__status",
       "property": "font-size",
@@ -495,8 +504,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-route__title|font-size|44px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-route__title|font-size|44px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-route__title",
       "property": "font-size",
@@ -504,8 +513,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form|gap|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form",
       "property": "gap",
@@ -513,8 +522,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form|padding|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form|padding|18px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form",
       "property": "padding",
@@ -522,8 +531,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form__copy, .auth-form__hint|font-size|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form__copy, .auth-form__hint|font-size|14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form__copy, .auth-form__hint",
       "property": "font-size",
@@ -531,8 +540,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form__divider|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form__divider|gap|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form__divider",
       "property": "gap",
@@ -540,8 +549,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form__error|padding|10px 12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form__error|padding|10px 12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form__error",
       "property": "padding",
@@ -549,8 +558,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.auth-form__error|border-radius|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.auth-form__error|border-radius|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".auth-form__error",
       "property": "border-radius",
@@ -558,8 +567,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-page__grid|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-page__grid|gap|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-page__grid",
       "property": "gap",
@@ -567,8 +576,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-tab__head|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-tab__head|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-tab__head",
       "property": "gap",
@@ -576,8 +585,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-tab__title|font-size|28px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-tab__title|font-size|28px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-tab__title",
       "property": "font-size",
@@ -585,8 +594,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-panel|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-panel|gap|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-panel",
       "property": "gap",
@@ -594,8 +603,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-panel|padding|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-panel|padding|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-panel",
       "property": "padding",
@@ -603,8 +612,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-panel__head|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-panel__head|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-panel__head",
       "property": "gap",
@@ -612,8 +621,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-panel__kicker, .admin-code__label|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-panel__kicker, .admin-code__label|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-panel__kicker, .admin-code__label",
       "property": "font-size",
@@ -621,8 +630,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-panel__title|font-size|32px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-panel__title|font-size|32px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-panel__title",
       "property": "font-size",
@@ -630,8 +639,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-code|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-code|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-code",
       "property": "gap",
@@ -639,8 +648,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-code|padding|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-code|padding|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-code",
       "property": "padding",
@@ -648,8 +657,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-code|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-code|border-radius|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-code",
       "property": "border-radius",
@@ -657,8 +666,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-code strong|font-size|22px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-code strong|font-size|22px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-code strong",
       "property": "font-size",
@@ -666,8 +675,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table",
       "property": "gap",
@@ -675,8 +684,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row|gap|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row",
       "property": "gap",
@@ -684,8 +693,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row|padding|10px 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row|padding|10px 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row",
       "property": "padding",
@@ -693,8 +702,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row--head|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row--head|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row--head",
       "property": "font-size",
@@ -702,8 +711,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-status|padding|3px 8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-status|padding|3px 8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-status",
       "property": "padding",
@@ -711,8 +720,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-status|border-radius|999px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-status|border-radius|999px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-status",
       "property": "border-radius",
@@ -720,8 +729,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-status|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-status|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-status",
       "property": "font-size",
@@ -729,8 +738,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__status|gap|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__status|gap|4px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__status",
       "property": "gap",
@@ -738,8 +747,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__meta|font-size|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__meta|font-size|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__meta",
       "property": "font-size",
@@ -747,8 +756,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__actions|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__actions|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__actions",
       "property": "gap",
@@ -756,8 +765,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-action|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-action|gap|5px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-action",
       "property": "gap",
@@ -765,8 +774,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-action|padding|0 8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-action|padding|0 8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-action",
       "property": "padding",
@@ -774,8 +783,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-action|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-action|border-radius|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-action",
       "property": "border-radius",
@@ -783,8 +792,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-action|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-action|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-action",
       "property": "font-size",
@@ -792,8 +801,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-empty|padding|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-empty|padding|18px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-empty",
       "property": "padding",
@@ -801,8 +810,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-empty|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-empty|border-radius|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-empty",
       "property": "border-radius",
@@ -810,8 +819,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(min-width: 860px)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|@media|media|(min-width: 860px)|screen",
+      "file": "app/components.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -819,8 +828,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(max-width: 720px)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|@media|media|(max-width: 720px)|screen",
+      "file": "app/components.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -828,8 +837,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row",
       "property": "gap",
@@ -837,8 +846,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row|padding|12px 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row|padding|12px 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row",
       "property": "padding",
@@ -846,8 +855,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row > span|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row > span|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row > span",
       "property": "gap",
@@ -855,8 +864,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-table__row > span::before|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.admin-table__row > span::before|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".admin-table__row > span::before",
       "property": "font-size",
@@ -864,8 +873,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay--sheet|border-radius|24px 24px 0 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.overlay--sheet|border-radius|24px 24px 0 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".overlay--sheet",
       "property": "border-radius",
@@ -873,8 +882,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay__bar|padding|14px 12px 8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.overlay__bar|padding|14px 12px 8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".overlay__bar",
       "property": "padding",
@@ -882,8 +891,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay__bar|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.overlay__bar|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".overlay__bar",
       "property": "gap",
@@ -891,8 +900,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay__handle|border-radius|3px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.overlay__handle|border-radius|3px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".overlay__handle",
       "property": "border-radius",
@@ -900,8 +909,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.book-print-chip|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.book-print-chip|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".book-print-chip",
       "property": "gap",
@@ -909,8 +918,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.book-print-chip|padding|4px 9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.book-print-chip|padding|4px 9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".book-print-chip",
       "property": "padding",
@@ -918,8 +927,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.book-print-chip|border-radius|999px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.book-print-chip|border-radius|999px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".book-print-chip",
       "property": "border-radius",
@@ -927,8 +936,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.book-print-chip|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.book-print-chip|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".book-print-chip",
       "property": "font-size",
@@ -936,8 +945,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(hover: hover)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|@media|media|(hover: hover)|screen",
+      "file": "app/components.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -945,8 +954,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.matkit__list|gap|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.matkit__list|gap|7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".matkit__list",
       "property": "gap",
@@ -954,8 +963,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__intro|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__intro|gap|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__intro",
       "property": "gap",
@@ -963,8 +972,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__intro|padding|0 0 10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__intro|padding|0 0 10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__intro",
       "property": "padding",
@@ -972,8 +981,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__intro p|font-size|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__intro p|font-size|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__intro p",
       "property": "font-size",
@@ -981,8 +990,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend",
       "property": "gap",
@@ -990,8 +999,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend|font-size|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend|font-size|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend",
       "property": "font-size",
@@ -999,8 +1008,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend span|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend span|gap|5px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend span",
       "property": "gap",
@@ -1008,8 +1017,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend span|padding|3px 7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend span|padding|3px 7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend span",
       "property": "padding",
@@ -1017,8 +1026,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend span|border-radius|999px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend span|border-radius|999px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend span",
       "property": "border-radius",
@@ -1026,8 +1035,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__legend-square|border-radius|2px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__legend-square|border-radius|2px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__legend-square",
       "property": "border-radius",
@@ -1035,8 +1044,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__frames|gap|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__frames|gap|18px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__frames",
       "property": "gap",
@@ -1044,8 +1053,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__frames|padding|14px 0 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__frames|padding|14px 0 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__frames",
       "property": "padding",
@@ -1053,8 +1062,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook-frame__head|gap|3px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook-frame__head|gap|3px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook-frame__head",
       "property": "gap",
@@ -1062,8 +1071,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook-frame__head h4|font-size|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook-frame__head h4|font-size|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook-frame__head h4",
       "property": "font-size",
@@ -1071,8 +1080,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook-frame__head p|font-size|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook-frame__head p|font-size|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook-frame__head p",
       "property": "font-size",
@@ -1080,8 +1089,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook-field__zlabel|font-size|3px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook-field__zlabel|font-size|3px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook-field__zlabel",
       "property": "font-size",
@@ -1089,8 +1098,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(min-width: 560px)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|@media|media|(min-width: 560px)|screen",
+      "file": "app/components.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -1098,8 +1107,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__frames|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__frames|gap|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__frames",
       "property": "gap",
@@ -1107,8 +1116,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__editcue|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__editcue|gap|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__editcue",
       "property": "gap",
@@ -1116,8 +1125,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook__editcue-hint|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook__editcue-hint|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook__editcue-hint",
       "property": "font-size",
@@ -1125,8 +1134,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe|gap|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe",
       "property": "gap",
@@ -1134,8 +1143,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe|padding|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe|padding|14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe",
       "property": "padding",
@@ -1143,8 +1152,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe|border-radius|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe|border-radius|14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe",
       "property": "border-radius",
@@ -1152,8 +1161,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stages|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stages|gap|6px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stages",
       "property": "gap",
@@ -1161,8 +1170,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage|border-radius|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage",
       "property": "border-radius",
@@ -1170,8 +1179,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage|font-size|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage|font-size|14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage",
       "property": "font-size",
@@ -1179,8 +1188,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage--add|font-size|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage--add|font-size|18px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage--add",
       "property": "font-size",
@@ -1188,8 +1197,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__meta|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__meta|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__meta",
       "property": "gap",
@@ -1197,8 +1206,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__name, .pbe__caption|font-size|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__name, .pbe__caption|font-size|14px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__name, .pbe__caption",
       "property": "font-size",
@@ -1206,8 +1215,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__name, .pbe__caption|padding|8px 11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__name, .pbe__caption|padding|8px 11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__name, .pbe__caption",
       "property": "padding",
@@ -1215,8 +1224,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__tools|gap|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__tools|gap|7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__tools",
       "property": "gap",
@@ -1224,8 +1233,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__tools .btn|padding|0 11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__tools .btn|padding|0 11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__tools .btn",
       "property": "padding",
@@ -1233,8 +1242,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage-wrap|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage-wrap|border-radius|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage-wrap",
       "property": "border-radius",
@@ -1242,8 +1251,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage-wrap:focus-visible|box-shadow|0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage-wrap:focus-visible|box-shadow|0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage-wrap:focus-visible",
       "property": "box-shadow",
@@ -1251,8 +1260,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.playbook-field--edit|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.playbook-field--edit|border-radius|12px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".playbook-field--edit",
       "property": "border-radius",
@@ -1260,8 +1269,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__inspect|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__inspect|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__inspect",
       "property": "gap",
@@ -1269,8 +1278,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__inspect|padding|6px 0|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__inspect|padding|6px 0|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__inspect",
       "property": "padding",
@@ -1278,8 +1287,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__inspect-label|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__inspect-label|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__inspect-label",
       "property": "font-size",
@@ -1287,8 +1296,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__zlabel|font-size|13px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__zlabel|font-size|13px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__zlabel",
       "property": "font-size",
@@ -1296,8 +1305,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__zlabel|padding|6px 9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__zlabel|padding|6px 9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__zlabel",
       "property": "padding",
@@ -1305,8 +1314,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__hint|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__hint|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__hint",
       "property": "font-size",
@@ -1314,8 +1323,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage-actions|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage-actions|gap|8px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage-actions",
       "property": "gap",
@@ -1323,8 +1332,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.pbe__stage-actions|padding-top|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.pbe__stage-actions|padding-top|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".pbe__stage-actions",
       "property": "padding-top",
@@ -1332,44 +1341,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.empty|padding|60px 32px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".empty",
-      "property": "padding",
-      "value": "60px 32px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.empty|gap|14px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".empty",
-      "property": "gap",
-      "value": "14px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.empty__title|font-size|28px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".empty__title",
-      "property": "font-size",
-      "value": "28px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.empty__sub|font-size|14px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".empty__sub",
-      "property": "font-size",
-      "value": "14px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.field|gap|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.field|gap|7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".field",
       "property": "gap",
@@ -1377,8 +1350,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.field__label|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.field__label|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".field__label",
       "property": "font-size",
@@ -1386,8 +1359,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.input, .textarea, .select|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.input, .textarea, .select|border-radius|9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".input, .textarea, .select",
       "property": "border-radius",
@@ -1395,8 +1368,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.input, .textarea, .select|font-size|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.input, .textarea, .select|font-size|16px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".input, .textarea, .select",
       "property": "font-size",
@@ -1404,8 +1377,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.input, .textarea, .select|padding|11px 13px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.input, .textarea, .select|padding|11px 13px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".input, .textarea, .select",
       "property": "padding",
@@ -1413,8 +1386,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.password-input__control|padding-right|78px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.password-input__control|padding-right|78px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".password-input__control",
       "property": "padding-right",
@@ -1422,8 +1395,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.password-input__toggle|padding|0 10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.password-input__toggle|padding|0 10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".password-input__toggle",
       "property": "padding",
@@ -1431,8 +1404,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.password-input__toggle|border-radius|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.password-input__toggle|border-radius|7px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".password-input__toggle",
       "property": "border-radius",
@@ -1440,8 +1413,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.field__error|font-size|13px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.field__error|font-size|13px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".field__error",
       "property": "font-size",
@@ -1449,8 +1422,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg|border-radius|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg|border-radius|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg",
       "property": "border-radius",
@@ -1458,8 +1431,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg button|padding|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg button|padding|4px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg button",
       "property": "padding",
@@ -1467,8 +1440,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg button|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg button|font-size|11px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg button",
       "property": "font-size",
@@ -1476,8 +1449,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg--sm button|padding|6px 9px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg--sm button|padding|6px 9px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg--sm button",
       "property": "padding",
@@ -1485,8 +1458,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.seg--sm button|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.seg--sm button|font-size|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".seg--sm button",
       "property": "font-size",
@@ -1494,8 +1467,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.toolbar|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/components.css|.toolbar|gap|10px|screen",
+      "file": "app/components.css",
       "kind": "declaration",
       "selector": ".toolbar",
       "property": "gap",
@@ -1503,8 +1476,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav|padding|26px 18px 16px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav|padding|26px 18px 16px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav",
       "property": "padding",
@@ -1512,8 +1485,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__kicker|font-size|10.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__kicker|font-size|10.5px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__kicker",
       "property": "font-size",
@@ -1521,8 +1494,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__title|font-size|28px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__title|font-size|28px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__title",
       "property": "font-size",
@@ -1530,8 +1503,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__nav|gap|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__nav|gap|4px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__nav",
       "property": "gap",
@@ -1539,8 +1512,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__item|gap|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__item|gap|12px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__item",
       "property": "gap",
@@ -1548,8 +1521,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__item|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__item|border-radius|12px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__item",
       "property": "border-radius",
@@ -1557,8 +1530,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__item|padding|10px 12px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__item|padding|10px 12px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__item",
       "property": "padding",
@@ -1566,8 +1539,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__item|font-size|12.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__item|font-size|12.5px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__item",
       "property": "font-size",
@@ -1575,8 +1548,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|The sidebar's ONE entry point into camps: a fixed-height .sidesection, collapsed by default, sitting under the calendar rail. Its head reuses the shared .sidesection__head/__title treatment; the chevron is its own right-collapsed/down-open glyph (the same affordance as the camp manager's .manager__sect-chev) — a disclosure that expands DOWNWARD should always point down once open, so this is the affordance every rail disclosure should read. */ /* camps-6: filled with the camp's derived identity tint (--camp-tint, set inline per row) — the same \"a colored dot IS the identity\" convention Themes/Locations rows use, rather than a blank outline. The active state adds a ring around it instead of replacing the fill, so the tint stays visible whether or not the row is the active camp. */ /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered (fade + grow + slight slide), then does the app's own tool-icon wiggle when the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same animation vocabulary as the rest of the app; reduced-motion strips the transforms + wiggle (fade only). */ /* The quiet footer entry — day-structure guidance bands (global, not per-camp), set apart by a dashed rule above it. */ /* ---- filter rail body (Library tab) ---- Selected chips show state in place (no separate active-chips row up top); the head's \"Clear all\" is the only summary control. */ .sidefilters|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|The sidebar's ONE entry point into camps: a fixed-height .sidesection, collapsed by default, sitting under the calendar rail. Its head reuses the shared .sidesection__head/__title treatment; the chevron is its own right-collapsed/down-open glyph (the same affordance as the camp manager's .manager__sect-chev) — a disclosure that expands DOWNWARD should always point down once open, so this is the affordance every rail disclosure should read. */ /* camps-6: filled with the camp's derived identity tint (--camp-tint, set inline per row) — the same \"a colored dot IS the identity\" convention Themes/Locations rows use, rather than a blank outline. The active state adds a ring around it instead of replacing the fill, so the tint stays visible whether or not the row is the active camp. */ /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered (fade + grow + slight slide), then does the app's own tool-icon wiggle when the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same animation vocabulary as the rest of the app; reduced-motion strips the transforms + wiggle (fade only). */ /* The quiet footer entry — day-structure guidance bands (global, not per-camp), set apart by a dashed rule above it. */ /* ---- filter rail body (Library tab) ---- Selected chips show state in place (no separate active-chips row up top); the head's \"Clear all\" is the only summary control. */ .sidefilters|gap|16px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": "The sidebar's ONE entry point into camps: a fixed-height .sidesection, collapsed by default, sitting under the calendar rail. Its head reuses the shared .sidesection__head/__title treatment; the chevron is its own right-collapsed/down-open glyph (the same affordance as the camp manager's .manager__sect-chev) — a disclosure that expands DOWNWARD should always point down once open, so this is the affordance every rail disclosure should read. */ /* camps-6: filled with the camp's derived identity tint (--camp-tint, set inline per row) — the same \"a colored dot IS the identity\" convention Themes/Locations rows use, rather than a blank outline. The active state adds a ring around it instead of replacing the fill, so the tint stays visible whether or not the row is the active camp. */ /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered (fade + grow + slight slide), then does the app's own tool-icon wiggle when the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same animation vocabulary as the rest of the app; reduced-motion strips the transforms + wiggle (fade only). */ /* The quiet footer entry — day-structure guidance bands (global, not per-camp), set apart by a dashed rule above it. */ /* ---- filter rail body (Library tab) ---- Selected chips show state in place (no separate active-chips row up top); the head's \"Clear all\" is the only summary control. */ .sidefilters",
       "property": "gap",
@@ -1584,8 +1557,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidefilters .chip|font-size|10.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidefilters .chip|font-size|10.5px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidefilters .chip",
       "property": "font-size",
@@ -1593,8 +1566,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidefilters .chip|padding|4px 10px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidefilters .chip|padding|4px 10px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidefilters .chip",
       "property": "padding",
@@ -1602,8 +1575,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.toolbar|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.toolbar|gap|16px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".toolbar",
       "property": "gap",
@@ -1611,8 +1584,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.toolbar|padding|12px 32px 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.toolbar|padding|12px 32px 14px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".toolbar",
       "property": "padding",
@@ -1620,8 +1593,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.deck|gap|16px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".deck",
       "property": "gap",
@@ -1629,8 +1602,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck|padding|20px 32px 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.deck|padding|20px 32px 14px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".deck",
       "property": "padding",
@@ -1638,8 +1611,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.deck-card__title|font-size|22px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.deck-card__title|font-size|22px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".deck-card__title",
       "property": "font-size",
@@ -1647,8 +1620,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.shelfwrap|padding-top|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.shelfwrap|padding-top|10px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".shelfwrap",
       "property": "padding-top",
@@ -1656,8 +1629,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.catalog|padding|14px 32px 10px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.catalog|padding|14px 32px 10px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".catalog",
       "property": "padding",
@@ -1665,8 +1638,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.empty|padding|90px 32px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.empty|padding|90px 32px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".empty",
       "property": "padding",
@@ -1674,8 +1647,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(min-width: 1200px)|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|@media|media|(min-width: 1200px)|screen",
+      "file": "app/responsive.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -1683,8 +1656,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.overlay--viewer .rlv-body|border-radius|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.overlay--viewer .rlv-body|border-radius|18px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".overlay--viewer .rlv-body",
       "property": "border-radius",
@@ -1692,8 +1665,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv|padding|26px 40px 76px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.rlv|padding|26px 40px 76px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".rlv",
       "property": "padding",
@@ -1701,8 +1674,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidenav__brand|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/responsive.css|.sidenav__brand|gap|10px|screen",
+      "file": "app/responsive.css",
       "kind": "declaration",
       "selector": ".sidenav__brand",
       "property": "gap",
@@ -1710,8 +1683,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.chip|padding-top|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.chip|padding-top|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".chip",
       "property": "padding-top",
@@ -1719,8 +1692,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.chip|padding-bottom|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.chip|padding-bottom|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".chip",
       "property": "padding-bottom",
@@ -1728,8 +1701,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(max-width: 430px)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|@media|media|(max-width: 430px)|screen",
+      "file": "app/run-sheet.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -1737,8 +1710,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(max-width: 360px)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|@media|media|(max-width: 360px)|screen",
+      "file": "app/run-sheet.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -1746,8 +1719,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.tabbar button|padding-top|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.tabbar button|padding-top|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".tabbar button",
       "property": "padding-top",
@@ -1755,8 +1728,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.tabbar button|font-size|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.tabbar button|font-size|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".tabbar button",
       "property": "font-size",
@@ -1764,8 +1737,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv|padding|16px 16px 64px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rlv|padding|16px 16px 64px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rlv",
       "property": "padding",
@@ -1773,8 +1746,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv-head|padding-bottom|18px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rlv-head|padding-bottom|18px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rlv-head",
       "property": "padding-bottom",
@@ -1782,8 +1755,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv-head__row|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rlv-head__row|gap|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rlv-head__row",
       "property": "gap",
@@ -1791,8 +1764,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv-back|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rlv-back|gap|5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rlv-back",
       "property": "gap",
@@ -1800,8 +1773,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rlv-blurb|font-size|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rlv-blurb|font-size|16px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rlv-blurb",
       "property": "font-size",
@@ -1809,8 +1782,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.ratingdots|gap|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.ratingdots|gap|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".ratingdots",
       "property": "gap",
@@ -1818,8 +1791,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.ratingdots__dots|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.ratingdots__dots|gap|5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".ratingdots__dots",
       "property": "gap",
@@ -1827,8 +1800,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.ratingdots__word|font-size|20px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.ratingdots__word|font-size|20px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".ratingdots__word",
       "property": "font-size",
@@ -1836,8 +1809,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-toolbar|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-toolbar|gap|8px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-toolbar",
       "property": "gap",
@@ -1845,8 +1818,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-toolbar|padding|12px 0 6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-toolbar|padding|12px 0 6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-toolbar",
       "property": "padding",
@@ -1854,8 +1827,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-tbtn|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-tbtn|gap|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-tbtn",
       "property": "gap",
@@ -1863,8 +1836,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-tbtn|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-tbtn|border-radius|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-tbtn",
       "property": "border-radius",
@@ -1872,8 +1845,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-tbtn|padding|6px 11px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-tbtn|padding|6px 11px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-tbtn",
       "property": "padding",
@@ -1881,8 +1854,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-tbtn|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-tbtn|font-size|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-tbtn",
       "property": "font-size",
@@ -1890,8 +1863,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-list|padding|4px 0 0|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-list|padding|4px 0 0|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-list",
       "property": "padding",
@@ -1899,8 +1872,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-rail span|border-radius|2px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-rail span|border-radius|2px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-rail span",
       "property": "border-radius",
@@ -1908,8 +1881,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block|gap|16px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block",
       "property": "gap",
@@ -1917,8 +1890,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-node|font-size|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-node|font-size|16px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-node",
       "property": "font-size",
@@ -1926,8 +1899,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-row|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-row|gap|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-row",
       "property": "gap",
@@ -1935,8 +1908,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-row|padding|var(--s-2) 54px var(--s-2) var(--s-3)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-row|padding|var(--s-2) 54px var(--s-2) var(--s-3)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-row",
       "property": "padding",
@@ -1944,8 +1917,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-time|font-size|10.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-time|font-size|10.5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-time",
       "property": "font-size",
@@ -1953,8 +1926,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-text|font-size|15px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-text|font-size|15px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-text",
       "property": "font-size",
@@ -1962,8 +1935,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block.is-collapsed .rl-node--step|box-shadow|inset 0 0 0 2px var(--accent)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block.is-collapsed .rl-node--step|box-shadow|inset 0 0 0 2px var(--accent)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block.is-collapsed .rl-node--step",
       "property": "box-shadow",
@@ -1971,8 +1944,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block--detail|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block--detail|gap|16px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block--detail",
       "property": "gap",
@@ -1980,8 +1953,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block--detail + .rl-block--step, .rl-block--detail + .rl-block--materials, .rl-block--detail + .rl-block--heading|padding-top|var(--rl-subtree-exit-gap)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block--detail + .rl-block--step, .rl-block--detail + .rl-block--materials, .rl-block--detail + .rl-block--heading|padding-top|var(--rl-subtree-exit-gap)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block--detail + .rl-block--step, .rl-block--detail + .rl-block--materials, .rl-block--detail + .rl-block--heading",
       "property": "padding-top",
@@ -1989,8 +1962,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block--detail .rl-node--type|box-shadow|0 0 0 3px var(--rl-bg)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block--detail .rl-node--type|box-shadow|0 0 0 3px var(--rl-bg)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block--detail .rl-node--type",
       "property": "box-shadow",
@@ -1998,8 +1971,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-row--detail .rl-text|font-size|14px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-row--detail .rl-text|font-size|14px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-row--detail .rl-text",
       "property": "font-size",
@@ -2007,8 +1980,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailtags|gap|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailtags|gap|7px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailtags",
       "property": "gap",
@@ -2016,8 +1989,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailtag|gap|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailtag|gap|5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailtag",
       "property": "gap",
@@ -2025,8 +1998,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailtag|border-radius|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailtag|border-radius|7px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailtag",
       "property": "border-radius",
@@ -2034,8 +2007,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailtag|padding|5px 10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailtag|padding|5px 10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailtag",
       "property": "padding",
@@ -2043,8 +2016,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailtag|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailtag|font-size|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailtag",
       "property": "font-size",
@@ -2052,8 +2025,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-detailrating|padding-top|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-detailrating|padding-top|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-detailrating",
       "property": "padding-top",
@@ -2061,8 +2034,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-summary|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-summary|gap|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-summary",
       "property": "gap",
@@ -2070,8 +2043,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-summary|padding-top|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-summary|padding-top|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-summary",
       "property": "padding-top",
@@ -2079,8 +2052,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pill|font-size|8.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pill|font-size|8.5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pill",
       "property": "font-size",
@@ -2088,8 +2061,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pill|border-radius|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pill|border-radius|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pill",
       "property": "border-radius",
@@ -2097,8 +2070,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pill|padding|4px 9px 4px 7px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pill|padding|4px 9px 4px 7px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pill",
       "property": "padding",
@@ -2106,8 +2079,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pill|gap|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pill|gap|4px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pill",
       "property": "gap",
@@ -2115,8 +2088,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pill|box-shadow|inset 3px 0 0 color-mix(in srgb, currentColor 38%, transparent)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pill|box-shadow|inset 3px 0 0 color-mix(in srgb, currentColor 38%, transparent)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pill",
       "property": "box-shadow",
@@ -2124,8 +2097,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block--fnlog.is-collapsed .rl-node--fnhead|box-shadow|inset 0 0 0 2px var(--rl-fieldnote)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block--fnlog.is-collapsed .rl-node--fnhead|box-shadow|inset 0 0 0 2px var(--rl-fieldnote)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block--fnlog.is-collapsed .rl-node--fnhead",
       "property": "box-shadow",
@@ -2133,8 +2106,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-rowtools|gap|2px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-rowtools|gap|2px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-rowtools",
       "property": "gap",
@@ -2142,8 +2115,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-iconbtn|border-radius|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-iconbtn|border-radius|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-iconbtn",
       "property": "border-radius",
@@ -2151,8 +2124,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-vid|gap|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-vid|gap|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-vid",
       "property": "gap",
@@ -2160,8 +2133,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-vid__url|font-size|13px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-vid__url|font-size|13px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-vid__url",
       "property": "font-size",
@@ -2169,8 +2142,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-vid__url|border-radius|7px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-vid__url|border-radius|7px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-vid__url",
       "property": "border-radius",
@@ -2178,8 +2151,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-vid__url|padding|6px 9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-vid__url|padding|6px 9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-vid__url",
       "property": "padding",
@@ -2187,8 +2160,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-row--playbook|gap|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-row--playbook|gap|11px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-row--playbook",
       "property": "gap",
@@ -2196,8 +2169,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pb__spine|border-radius|4px 4px 3px 3px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pb__spine|border-radius|4px 4px 3px 3px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pb__spine",
       "property": "border-radius",
@@ -2205,8 +2178,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pb__spine|padding-bottom|3px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pb__spine|padding-bottom|3px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pb__spine",
       "property": "padding-bottom",
@@ -2214,8 +2187,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pb__title|font-size|19px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pb__title|font-size|19px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pb__title",
       "property": "font-size",
@@ -2223,8 +2196,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-pb__meta|font-size|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-pb__meta|font-size|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-pb__meta",
       "property": "font-size",
@@ -2232,8 +2205,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-row--heading|padding|4px 44px 4px 0|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-row--heading|padding|4px 44px 4px 0|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-row--heading",
       "property": "padding",
@@ -2241,8 +2214,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block--heading|padding-top|24px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block--heading|padding-top|24px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block--heading",
       "property": "padding-top",
@@ -2250,8 +2223,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-heading__t|font-size|23px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-heading__t|font-size|23px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-heading__t",
       "property": "font-size",
@@ -2259,8 +2232,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-palette|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-palette|gap|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-palette",
       "property": "gap",
@@ -2268,8 +2241,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-palette--flat|padding|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-palette--flat|padding|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-palette--flat",
       "property": "padding",
@@ -2277,8 +2250,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-palette--flat|border-radius|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-palette--flat|border-radius|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-palette--flat",
       "property": "border-radius",
@@ -2286,8 +2259,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-ptype|gap|6px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-ptype|gap|6px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-ptype",
       "property": "gap",
@@ -2295,8 +2268,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-ptype|border-radius|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-ptype|border-radius|8px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-ptype",
       "property": "border-radius",
@@ -2304,8 +2277,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-ptype|font-size|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-ptype|font-size|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-ptype",
       "property": "font-size",
@@ -2313,8 +2286,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-addblock|gap|8px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-addblock|gap|8px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-addblock",
       "property": "gap",
@@ -2322,8 +2295,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-addblock|border-radius|10px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-addblock|border-radius|10px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-addblock",
       "property": "border-radius",
@@ -2331,8 +2304,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-addblock|padding|10px 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-addblock|padding|10px 14px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-addblock",
       "property": "padding",
@@ -2340,8 +2313,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-addblock|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-addblock|font-size|11px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-addblock",
       "property": "font-size",
@@ -2349,8 +2322,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-ed[contenteditable=\"true\"]|border-radius|5px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-ed[contenteditable=\"true\"]|border-radius|5px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-ed[contenteditable=\"true\"]",
       "property": "border-radius",
@@ -2358,8 +2331,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-ed[contenteditable=\"true\"]:focus|box-shadow|inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 55%, transparent)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-ed[contenteditable=\"true\"]:focus|box-shadow|inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 55%, transparent)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-ed[contenteditable=\"true\"]:focus",
       "property": "box-shadow",
@@ -2367,8 +2340,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before|border-radius|2px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before|border-radius|2px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before",
       "property": "border-radius",
@@ -2376,8 +2349,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before|box-shadow|0 0 0 3px var(--accent-tint)|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before|box-shadow|0 0 0 3px var(--accent-tint)|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before",
       "property": "box-shadow",
@@ -2385,8 +2358,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-diagram--open|padding|4px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-diagram--open|padding|4px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-diagram--open",
       "property": "padding",
@@ -2394,8 +2367,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-diagram--open|border-radius|9px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-diagram--open|border-radius|9px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-diagram--open",
       "property": "border-radius",
@@ -2403,8 +2376,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|ballooning to fill the gap. `--pb-cols` (set inline from the frame count, capped at 3) fixes the column basis so the track size is identical on every row, and auto-fill drops columns as the container narrows. */ .rl-diagram .playbook--compact .playbook__frames|gap|16px 14px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|ballooning to fill the gap. `--pb-cols` (set inline from the frame count, capped at 3) fixes the column basis so the track size is identical on every row, and auto-fill drops columns as the container narrows. */ .rl-diagram .playbook--compact .playbook__frames|gap|16px 14px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": "ballooning to fill the gap. `--pb-cols` (set inline from the frame count, capped at 3) fixes the column basis so the track size is identical on every row, and auto-fill drops columns as the container narrows. */ .rl-diagram .playbook--compact .playbook__frames",
       "property": "gap",
@@ -2412,8 +2385,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-diagram .playbook--compact .playbook-frame__head h4|font-size|11px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-diagram .playbook--compact .playbook-frame__head h4|font-size|11px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-diagram .playbook--compact .playbook-frame__head h4",
       "property": "font-size",
@@ -2421,8 +2394,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-block, .rl-addwrap|gap|16px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-block, .rl-addwrap|gap|16px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-block, .rl-addwrap",
       "property": "gap",
@@ -2430,8 +2403,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.rl-node|font-size|17px|screen",
-      "file": "app/globals.css",
+      "id": "app/run-sheet.css|.rl-node|font-size|17px|screen",
+      "file": "app/run-sheet.css",
       "kind": "declaration",
       "selector": ".rl-node",
       "property": "font-size",
@@ -2439,8 +2412,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cmenu__list|gap|1px|screen",
-      "file": "app/globals.css",
+      "id": "app/floating.css|.cmenu__list|gap|1px|screen",
+      "file": "app/floating.css",
       "kind": "declaration",
       "selector": ".cmenu__list",
       "property": "gap",
@@ -2448,8 +2421,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cselect__list|gap|1px|screen",
-      "file": "app/globals.css",
+      "id": "app/floating.css|.cselect__list|gap|1px|screen",
+      "file": "app/floating.css",
       "kind": "declaration",
       "selector": ".cselect__list",
       "property": "gap",
@@ -2457,8 +2430,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cdate__weekdays, .cdate__grid|gap|2px|screen",
-      "file": "app/globals.css",
+      "id": "app/floating.css|.cdate__weekdays, .cdate__grid|gap|2px|screen",
+      "file": "app/floating.css",
       "kind": "declaration",
       "selector": ".cdate__weekdays, .cdate__grid",
       "property": "gap",
@@ -2466,8 +2439,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu, .subfeed__menu|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
-      "file": "app/globals.css",
+      "id": "app/floating.css|.cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu, .subfeed__menu|border-radius|var(--r-xl) var(--r-xl) 0 0|screen",
+      "file": "app/floating.css",
       "kind": "declaration",
       "selector": ".cmenu, .cselect__menu, .cdate__pop, .typepick__menu, .profilemenu, .subfeed__menu",
       "property": "border-radius",
@@ -2475,8 +2448,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.printhead|padding|var(--s-5) 32px|screen",
-      "file": "app/globals.css",
+      "id": "app/print.css|.printhead|padding|var(--s-5) 32px|screen",
+      "file": "app/print.css",
       "kind": "declaration",
       "selector": ".printhead",
       "property": "padding",
@@ -2484,8 +2457,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|@media|media|(max-width: 520px)|screen",
-      "file": "app/globals.css",
+      "id": "app/print.css|@media|media|(max-width: 520px)|screen",
+      "file": "app/print.css",
       "kind": "media",
       "selector": "@media",
       "property": "media",
@@ -2493,8 +2466,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.profilerow|border-radius|12px|screen",
-      "file": "app/globals.css",
+      "id": "app/print.css|.profilerow|border-radius|12px|screen",
+      "file": "app/print.css",
       "kind": "declaration",
       "selector": ".profilerow",
       "property": "border-radius",
@@ -2502,8 +2475,8 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.profilerow__name|font-size|12.5px|screen",
-      "file": "app/globals.css",
+      "id": "app/print.css|.profilerow__name|font-size|12.5px|screen",
+      "file": "app/print.css",
       "kind": "declaration",
       "selector": ".profilerow__name",
       "property": "font-size",

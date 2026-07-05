@@ -1,0 +1,79 @@
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(44, 40, 36, 0.1);
+}
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+  /* Aged-paper grain: two soft mottles + a faint diagonal fiber over the base.
+     Pure CSS, static (reduced-motion safe), no image asset. */
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--paper-2) 70%, transparent), transparent 42%),
+    radial-gradient(circle at 84% 68%, color-mix(in srgb, var(--wood-soft) 9%, transparent), transparent 46%),
+    repeating-linear-gradient(122deg, rgba(107, 74, 47, 0.025) 0 2px, transparent 2px 7px);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--hand);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, var(--paper));
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Skip link — first focusable element; revealed on focus. Sits ABOVE every
+   overlay (z-ladder top, 300) so a keyboard user tabbing to it can always
+   reach it, even while a lightbox/diagram-editor/floating menu is open. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 300;
+  padding: 8px 14px;
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  box-shadow: var(--e2);
+  font-family: var(--hand);
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: max(10px, env(safe-area-inset-top));
+}
+
+/* Humanist data + reading layer: keep handwriting for display headings,
+   kickers, labels, buttons and chips, but set the dense/information-bearing
+   text (catalog meta, schedule times, blurbs, steps, form fields) in the quiet
+   sans so it stays legible at small sizes and clears WCAG AA. */
+.deck-card__meta,
+.stamp,
+.input,
+.textarea,
+.select {
+  font-family: var(--text);
+}

@@ -8,8 +8,20 @@ const ROOT = process.cwd();
 // All CSS files the token gate covers. Originally globals.css only; extended
 // (2026-07-03 sweep, css-system-2) to calendar.css and the public run-sheet
 // share page's stylesheet so hardcoded values there stop drifting silently.
+// The former globals.css was split into per-domain stylesheets (Phase 2). The
+// gate covers every one of them plus calendar/sidebar and the public run-sheet
+// share page, so hardcoded values can't drift silently in any surface.
 const CSS_FILES = [
-  "app/globals.css",
+  "app/tokens.css",
+  "app/base.css",
+  "app/shell.css",
+  "app/components.css",
+  "app/responsive.css",
+  "app/animations.css",
+  "app/run-sheet.css",
+  "app/motion.css",
+  "app/floating.css",
+  "app/print.css",
   "app/calendar.css",
   "app/run/[token]/[activityId]/runsheet.css",
   "app/sidebar.css",

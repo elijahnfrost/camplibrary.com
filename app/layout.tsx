@@ -2,7 +2,20 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
-import "./globals.css";
+// The former globals.css monolith, split into per-domain stylesheets. Import
+// order IS the cascade order and reproduces the original file exactly (tokens →
+// base → shell → components → responsive → animations → run-sheet → motion →
+// floating → print), so this is a pure structural split with no visual change.
+import "./tokens.css";
+import "./base.css";
+import "./shell.css";
+import "./components.css";
+import "./responsive.css";
+import "./animations.css";
+import "./run-sheet.css";
+import "./motion.css";
+import "./floating.css";
+import "./print.css";
 import "./calendar.css";
 // Loaded LAST so the sidebar/popup layout + dark-green selection rules win by
 // source order over the base control chrome they intentionally override.

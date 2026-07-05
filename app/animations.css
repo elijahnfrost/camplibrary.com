@@ -1,0 +1,530 @@
+/* ============================================================================
+   Icon hover animations
+   Small, on-theme flourishes that play when an animated icon (.cicon--*) sits
+   inside an interactive ancestor that's hovered. One shared trigger list keeps
+   the icons alive everywhere they appear (nav, view switcher, toolbar, links)
+   without per-context rules. Each .cicon-* part is hinged so the motion reads
+   physically — a page turns on the spine, a calendar leaf flips on its rings.
+   Everything is suppressed under prefers-reduced-motion at the foot of this
+   section.
+   ============================================================================ */
+/* Inner parts pivot on their own geometry, not the icon canvas. */
+.cicon [class^="cicon-"],
+.cicon [class*=" cicon-"] {
+  transform-box: fill-box;
+}
+
+/* --- Library: a closed book that opens to read, and stays open --------------
+   A true two-state hover, designed around both ends. REST: the cover rect sits
+   exactly over the page rect → one clean closed book (lines hidden). HOVER: the
+   cover swings open on its spine (left-edge rotateY) and HOLDS open while hovered
+   as the page lines draw in top→down — an open book on a page. LEAVE: the cover
+   eases shut and the lines retract. The open angle is kept just past upright so
+   the swung cover lays back as a tidy paper face WITHOUT overrunning the icon box
+   (a stronger perspective magnified the free edge → the old "cut off"); a gentle
+   perspective + overflow:visible keep the whole motion clean at this scale. */
+.cicon--book {
+  perspective: 140px;
+  overflow: visible;
+}
+.cicon--book .cicon-book__cover {
+  transform-origin: 0% 50%; /* hinge at the spine (left edge) */
+  transform: rotateY(0deg);
+  fill-opacity: 0;
+  /* base = the closing stage: a clean, square settle back shut */
+  transition: transform 0.4s var(--ease), fill-opacity 0.32s var(--ease);
+}
+.cicon--book .cicon-book__cover rect {
+  fill: currentColor;
+}
+.cicon--book .cicon-book__line {
+  transform-origin: 0% 50%; /* draw from the spine side */
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform 0.28s var(--ease), opacity 0.28s var(--ease);
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--book .cicon-book__cover {
+  transform: rotateY(-105deg); /* lays open and holds; back face catches light */
+  fill-opacity: 0.2;
+  /* opening stage: a hair of back-out so the cover settles open like a real cover */
+  transition: transform 0.46s cubic-bezier(0.33, 1.12, 0.52, 1),
+    fill-opacity 0.32s var(--ease);
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--book .cicon-book__line {
+  transform: scaleX(1);
+  opacity: 1;
+  /* lines draw in top→down once the cover has begun to clear */
+  transition-delay: calc(0.12s + var(--i) * 55ms);
+}
+
+/* --- Calendar: the page turns and the month populates --------------------
+   On hover the full sheet flips down off its top hinge (the header rule) — a
+   page turning — while a fresh month's date dots pop in beneath it and the
+   binder rings hop. At rest the icon is a clean outlined calendar (leaf
+   transparent, dots hidden); the motion is the whole point ("it opens and the
+   events populate"). */
+.cicon--cal {
+  perspective: 60px;
+}
+.cicon--cal .cicon-cal__leaf {
+  transform-origin: 50% 0%; /* hinge along the header rule (top of the sheet) */
+  /* Transparent at rest so the icon is just a clean outlined calendar on ANY
+     surface; a faint paper face only shows while the page is mid-turn. */
+  fill: currentColor;
+  fill-opacity: 0;
+  stroke: none;
+}
+.cicon--cal .cicon-cal__dots {
+  fill: currentColor;
+  stroke: none;
+}
+.cicon--cal .cicon-cal__dots circle {
+  transform-origin: 50% 50%;
+  transform: scale(0);
+  opacity: 0;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__leaf {
+  animation: cicon-cal-flip 0.7s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover
+  .cicon--cal
+  .cicon-cal__dots
+  circle {
+  animation: cicon-cal-dot 0.4s var(--ease) calc(0.2s + var(--i) * 45ms) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--cal .cicon-cal__rings {
+  animation: cicon-cal-rings 0.7s var(--ease) both;
+}
+@keyframes cicon-cal-flip {
+  0% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+  15% {
+    fill-opacity: 0.16;
+  }
+  /* the page peels down and forward off the top hinge, revealing the grid */
+  55% {
+    transform: rotateX(85deg);
+    fill-opacity: 0.16;
+  }
+  70% {
+    transform: rotateX(92deg);
+    fill-opacity: 0;
+  }
+  /* a fresh page swings back and settles flat, fading out to the clean outline */
+  88% {
+    transform: rotateX(64deg);
+    fill-opacity: 0.12;
+  }
+  100% {
+    transform: rotateX(0deg);
+    fill-opacity: 0;
+  }
+}
+@keyframes cicon-cal-dot {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cicon-cal-rings {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-2px);
+  }
+}
+
+/* --- Shelf: the spines jostle and settle, left→right ---------------------- */
+.cicon--shelf .cicon-spine {
+  transform-origin: 50% 100%;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--shelf .cicon-spine {
+  animation: cicon-spine-jostle 0.5s var(--ease) calc(var(--i) * 50ms) both;
+}
+@keyframes cicon-spine-jostle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  40% {
+    transform: rotate(-5deg);
+  }
+  70% {
+    transform: rotate(2.5deg);
+  }
+}
+
+/* --- Deck: the cards deal in one after another --------------------------- */
+.cicon--deck .cicon-card {
+  transform-origin: 50% 50%;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--deck .cicon-card {
+  animation: cicon-card-deal 0.42s var(--ease) calc(var(--i) * 70ms) both;
+}
+@keyframes cicon-card-deal {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.2;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* --- List: each long rule sweeps in from its bullet, top→down ------------- */
+.cicon--list .cicon-line {
+  transform-origin: 0% 50%; /* grow from the left (the bullet side) */
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover .cicon--list .cicon-line {
+  animation: cicon-line-sweep 0.4s var(--ease) calc(var(--i) * 80ms) both;
+}
+@keyframes cicon-line-sweep {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* --- Plus: a quarter-turn grow — "add" ----------------------------------- */
+.cicon--plus {
+  transform-origin: 50% 50%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--plus {
+  animation: cicon-plus-spin 0.4s var(--ease) both;
+}
+@keyframes cicon-plus-spin {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  60% {
+    transform: rotate(90deg) scale(1.18);
+  }
+  100% {
+    transform: rotate(90deg) scale(1);
+  }
+}
+
+/* --- Search: a small searching nudge of the whole lens ------------------- */
+.cicon--search {
+  transform-origin: 40% 40%; /* roughly the lens centre */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--search {
+  animation: cicon-search-nudge 0.55s var(--ease) both;
+}
+@keyframes cicon-search-nudge {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  30% {
+    transform: rotate(-9deg) scale(1.06);
+  }
+  65% {
+    transform: rotate(6deg) scale(1.06);
+  }
+}
+
+/* --- Tool: a couple of quick tightening wiggles -------------------------- */
+.cicon--tool {
+  transform-origin: 70% 30%; /* the wrench head */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--tool {
+  animation: cicon-tool-wiggle 0.5s var(--ease) both;
+}
+@keyframes cicon-tool-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  55% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-3deg);
+  }
+}
+
+/* --- User: a friendly little head nod ------------------------------------ */
+.cicon--user .cicon-user__head {
+  transform-origin: 50% 100%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--user .cicon-user__head {
+  animation: cicon-user-nod 0.5s var(--ease) both;
+}
+@keyframes cicon-user-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(0.6px) rotate(-7deg);
+  }
+}
+
+/* --- Users (Staff): front person bobs, the one behind leans in to join ---- */
+.cicon--users .cicon-users__head {
+  transform-origin: 50% 100%;
+}
+.cicon--users .cicon-users__back {
+  transform-origin: 100% 50%; /* pivot from the right, where they stand */
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--users .cicon-users__head {
+  animation: cicon-users-bob 0.55s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--users .cicon-users__back {
+  animation: cicon-users-join 0.55s var(--ease) 60ms both;
+}
+@keyframes cicon-users-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  45% {
+    transform: translateY(-1px) rotate(-6deg);
+  }
+}
+@keyframes cicon-users-join {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  50% {
+    transform: translateX(-1.2px) rotate(5deg);
+  }
+}
+
+/* --- Bookmark: dips down as if catching a page --------------------------- */
+.cicon--bookmark {
+  transform-origin: 50% 0%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--bookmark {
+  animation: cicon-bookmark-dip 0.5s var(--ease) both;
+}
+@keyframes cicon-bookmark-dip {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  45% {
+    transform: translateY(1px) scaleY(1.08);
+  }
+}
+
+/* --- Filter: the funnel gives a settling shimmy -------------------------- */
+.cicon--filter {
+  transform-origin: 50% 30%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--filter {
+  animation: cicon-filter-settle 0.5s var(--ease) both;
+}
+@keyframes cicon-filter-settle {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  45% {
+    transform: scaleY(0.86);
+  }
+}
+
+/* --- Reset: a full refreshing turn --------------------------------------- */
+.cicon--reset {
+  transform-origin: 50% 52%;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--reset {
+  animation: cicon-reset-spin 0.6s var(--ease) both;
+}
+@keyframes cicon-reset-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Chevrons: a small directional nudge --------------------------------- */
+:where(button, a, summary, label, [role="button"]):hover .cicon--chev-right {
+  animation: cicon-chev-right 0.45s var(--ease) both;
+}
+:where(button, a, summary, label, [role="button"]):hover .cicon--chev-left {
+  animation: cicon-chev-left 0.45s var(--ease) both;
+}
+@keyframes cicon-chev-right {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+@keyframes cicon-chev-left {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-2px);
+  }
+}
+
+/* --- Print: an outlined page rests in the output tray; it ejects on hover -----
+   The printed sheet (outline only — never a filled slab) sits in the output tray
+   under the body front AT REST, so the icon reads as a complete printer with paper
+   in the tray, not a bare body. On hover the whole sheet bobs down a hair and
+   back, as if a fresh page just printed. Body / input / status dot stay put. */
+.cicon--print {
+  overflow: visible;
+}
+.cicon--print .cicon-print__page,
+.cicon--print .cicon-print__line {
+  fill: none;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):not(.is-active):hover
+  .cicon--print
+  .cicon-print__sheet {
+  animation: cicon-print-eject 0.46s var(--ease) both;
+}
+@keyframes cicon-print-eject {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(1.7px);
+  }
+}
+
+/* --- Export: the arrow drops out with a small bounce — "download" ----------- */
+.cicon--export .cicon-export__arrow {
+  transform-origin: 50% 50%;
+}
+:where(button, a, summary, label, [role="button"], .viewswitch button):hover
+  .cicon--export
+  .cicon-export__arrow {
+  animation: cicon-export-drop 0.5s var(--ease) both;
+}
+@keyframes cicon-export-drop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(2.4px);
+  }
+  70% {
+    transform: translateY(-0.6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cicon,
+  .cicon [class^="cicon-"],
+  .cicon [class*=" cicon-"] {
+    animation: none !important;
+    /* book opens via transitions now — suppress those too */
+    transition: none !important;
+  }
+  /* Book holds its rest pose even on hover (the !important beats the hover
+     rules), so nothing moves under reduced motion. */
+  .cicon--book .cicon-book__cover {
+    transform: rotateY(0deg) !important;
+    fill-opacity: 0 !important;
+  }
+  .cicon--book .cicon-book__line {
+    transform: scaleX(0) !important;
+    opacity: 0 !important;
+  }
+  /* Print: no eject bob — the outlined page just rests in the tray (the
+     !important beats the hover rule). */
+  .cicon--print .cicon-print__sheet {
+    transform: translateY(0) !important;
+  }
+  /* Calendar: no page-turn; show a normal static calendar with its dates
+     visible (the animated version hides dots until hover, which would leave a
+     reduced-motion user with a permanently bare icon). */
+  .cicon--cal .cicon-cal__leaf {
+    fill-opacity: 0 !important;
+  }
+  .cicon--cal .cicon-cal__dots circle {
+    transform: scale(1) !important;
+    opacity: 1 !important;
+  }
+}
+
+.sidenav__brand-copy {
+  min-width: 0;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0.45in;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .stage,
+  .app,
+  .app__main,
+  .app__scroll {
+    display: block;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+  }
+  .sidenav,
+  .tabbar,
+  .toolbar,
+  .filtertrigger,
+  .modal-root {
+    display: none !important;
+  }
+  .app:has(.print-root) {
+    display: block;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  .app:has(.print-root) .sidenav,
+  .app:has(.print-root) .app__main,
+  .app:has(.print-root) .tabbar,
+  .app:has(.print-root) .modal-root {
+    display: none !important;
+  }
+  .app:has(.print-root) .print-root {
+    display: block !important;
+  }
+  /* The single-activity book + the schedule run sheets now share the .print-doc /
+     pd- system (see the Print tab block below); the old bespoke `.print-*` grey
+     CSS that lived here was removed when ActivityBookPrint folded onto
+     RunSheetBody. The pd- break rules are emitted with that block. */
+}
