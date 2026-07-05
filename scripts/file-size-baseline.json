@@ -1,0 +1,27 @@
+{
+  "schema": "camplibrary-file-size-baseline-v1",
+  "limit": 500,
+  "note": "Grandfathered files over the line limit. A file may shrink below its entry but never grow past it, and NEW files must stay under the limit.",
+  "files": {
+    "components/CampApp.tsx": 1627,
+    "components/activity/ActivityRunList.tsx": 2769,
+    "components/activity/DetailSheet.tsx": 691,
+    "components/activity/PlaybookEditor.tsx": 833,
+    "components/activity/RunSheetBody.tsx": 535,
+    "components/calendar/CalendarShell.tsx": 6345,
+    "components/calendar/QuickAdd.tsx": 912,
+    "components/hooks/useActivityLibrary.ts": 597,
+    "components/library/Filters.tsx": 714,
+    "components/library/shelfLayout.ts": 686,
+    "components/print/PrintControls.tsx": 873,
+    "components/print/SchedulePrintDocument.tsx": 501,
+    "components/ui/ListManagerModal.tsx": 616,
+    "components/ui/primitives.tsx": 530,
+    "lib/activity/activityForm.ts": 505,
+    "lib/activity/playbooks.ts": 566,
+    "lib/activity/runList.ts": 798,
+    "lib/calendar/recurrence.ts": 1033,
+    "lib/cloud/cloudStore.tsx": 636,
+    "lib/server/inviteCodes.ts": 804
+  }
+}

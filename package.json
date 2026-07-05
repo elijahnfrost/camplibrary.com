@@ -15,6 +15,7 @@
     "lint:design-tokens": "node scripts/check-design-tokens.mjs",
     "lint:css-hygiene": "node scripts/check-css-hygiene.mjs",
     "lint:boundaries": "depcruise app components lib proxy.ts",
+    "lint:file-size": "node scripts/check-file-size.mjs",
     "report:deadcode": "knip",
     "report:deps": "depcheck",
     "report:exports": "ts-prune",

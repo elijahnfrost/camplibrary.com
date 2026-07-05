@@ -220,8 +220,40 @@ per the stop-when-risk-grows rule.
 
 ---
 
+## Phases 3–5 — reorg, boundaries, file size
+
+- **Phase 3 (taxonomy) DONE.** `components/` grouped into activity/library/
+  materials/camps/auth/ui/hooks (+ existing calendar/floating/print); `lib/`
+  into activity/cloud/content/materials (+ existing calendar/print/seed/server).
+  CampApp stays at the components root; auth.ts/types.ts/weather.ts at lib root.
+  ~337 import specifiers rewritten by a style-preserving move-refactor codemod;
+  git tracked every move as a rename. Module map in `docs/ARCHITECTURE.md`.
+- **Phase 4 (decoupling) — boundaries DONE, God-object extraction DEFERRED.**
+  `dependency-cruiser` (`lint:boundaries`) encodes the graph: no-circular,
+  server-only isolation, library↔calendar separation, leaf features
+  (materials/camps/auth) import no other feature. Broke the one runtime cycle
+  (materialCatalog↔materials, via a `materialTag` leaf module).
+- **Phase 5 (file size) — ratchet DONE, splits DEFERRED.** `lint:file-size`
+  grandfathers the 20 files over 500 lines; the set can shrink but never grow,
+  and new files must stay under 500.
+
 ## Deferred items
 
+- **God-object / large-component splits (Phase 4 extraction + Phase 5).** The
+  large `.tsx` surfaces — `CalendarShell` (6.3k), `ActivityRunList` (2.8k),
+  `CampApp` (1.6k), `QuickAdd`, `PrintControls`, `PlaybookEditor`, `Filters`,
+  `DetailSheet`, `ListManagerModal`, `RunSheetBody` — are cohesive feature
+  surfaces whose split means extracting rendering/stateful logic. The only pixel
+  oracle is CI (no local visual on this Mac), and the brief is explicit: "a
+  deferred split with a written reason beats a broken calendar." These are left
+  intact and should be split as **dedicated, CI-validated follow-ups**, one
+  cohesive unit at a time (for `CalendarShell`: the rail, weather-chip injection,
+  drag-create, series-scope dialogs, event-render callbacks). The file-size and
+  boundary gates keep them from growing or re-coupling in the meantime.
+- Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,
+  `shelfLayout.ts`, `playbooks.ts`) are cohesive single-purpose modules; per
+  "no file gets split purely to satisfy the count," they stay as grandfathered
+  exceptions rather than being fragmented.
 - **`public/documents/summertime-thrills-break-sheet{,-bw,-color}.pdf`** — no
   static reference found (app/components/lib grep + import search all empty).
   Left in place because a print/share flow may build the URL as a runtime
