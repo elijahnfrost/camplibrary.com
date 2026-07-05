@@ -54,6 +54,7 @@ import {
   ListManagerModal,
 } from "./ListManagerModal";
 import { CampEditorPopup } from "./CampEditorPopup";
+import { CampsRail } from "./CampsRail";
 import { Modal } from "./Modal";
 import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
 import { Select } from "./floating/Select";
@@ -196,136 +197,6 @@ function StaffPromptModal({
   );
 }
 
-// The desktop sidebar's Camps section — the selector AND the editor entry.
-// Picking a camp switches it inline; a per-row Edit pencil (revealed on hover)
-// opens THAT camp's own popup (CampEditorPopup) for its hours/rename/delete;
-// "Add camp" creates one inline and opens its popup. Global day-structure
-// guidance bands — not per-camp — get their own quiet footer entry. This
-// reverses camps-5/7 ("no per-row pencil, one Manage-camps modal"): the deep
-// editor that was "too rich for a 260px rail" now lives in a focused per-camp
-// popup, so the rail no longer hands off to the all-camps ListManagerModal
-// (that modal stays only for the mobile/tablet settings sheet).
-function CampsRail({
-  camps,
-  activeCampId,
-  onSwitch,
-  onEditCamp,
-  onAddCamp,
-}: {
-  camps: Camp[];
-  activeCampId: string | null;
-  onSwitch: (id: string) => void;
-  /** Opens the per-camp editor popup for this camp. */
-  onEditCamp: (id: string) => void;
-  /** Creates a camp with this name (the host opens its popup on success). */
-  onAddCamp: (name: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [draftName, setDraftName] = useState("");
-
-  const commitAdd = () => {
-    const name = draftName.trim();
-    if (!name) return;
-    onAddCamp(name);
-    setDraftName("");
-    setAdding(false);
-  };
-
-  return (
-    <div className={"sidesection sidesection--fixed camprail" + (open ? " is-open" : "")}>
-      <button
-        type="button"
-        className="sidesection__head camprail__head"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-      >
-        <span className="sidesection__title">
-          <CampIcon.Home className="camprail__headic" />
-          Camps
-        </span>
-        <CampIcon.ChevronRight className="camprail__chev" />
-      </button>
-      {open && (
-        <div className="sidesection__body camprail__body">
-          {camps.length ? (
-            <ul className="camprail__list">
-              {camps.map((camp) => {
-                const active = camp.id === activeCampId;
-                return (
-                  <li key={camp.id} className={"camprail__row" + (active ? " is-active" : "")}>
-                    <button
-                      type="button"
-                      className="camprail__pick"
-                      onClick={() => onSwitch(camp.id)}
-                      aria-pressed={active}
-                    >
-                      {/* camps-6: a stable per-camp identity tint (derived, not
-                          stored — see lib/camps.ts campTint), the same leading-
-                          swatch anatomy Themes/Locations rows use. */}
-                      <span
-                        className="camprail__dot"
-                        style={{ "--camp-tint": campTint(camp.id, camps) } as CSSProperties}
-                        aria-hidden="true"
-                      />
-                      <span className="camprail__name">{camp.name}</span>
-                    </button>
-                    {/* Revealed on row hover (see .camprail__edit) — opens this
-                        camp's own editor popup. */}
-                    <button
-                      type="button"
-                      className="icon-btn camprail__edit"
-                      aria-label={"Edit " + camp.name}
-                      onClick={() => onEditCamp(camp.id)}
-                    >
-                      <CampIcon.Pencil />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="camprail__empty">No camps yet — everything shows on one shared calendar.</p>
-          )}
-
-          {adding ? (
-            <form
-              className="camprail__addform"
-              onSubmit={(e) => {
-                e.preventDefault();
-                commitAdd();
-              }}
-            >
-              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-              <input
-                className="input camprail__addinput"
-                value={draftName}
-                autoFocus
-                placeholder="e.g. Summer Day Camp"
-                aria-label="New camp name"
-                onChange={(e) => setDraftName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setAdding(false);
-                    setDraftName("");
-                  }
-                }}
-              />
-              <button type="submit" className="icon-btn" aria-label="Create camp" disabled={!draftName.trim()}>
-                <CampIcon.Check />
-              </button>
-            </form>
-          ) : (
-            <button type="button" className="camprail__new" onClick={() => setAdding(true)}>
-              <CampIcon.Plus />
-              Add camp
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);

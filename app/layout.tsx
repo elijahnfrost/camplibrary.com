@@ -4,6 +4,9 @@ import { isClerkPublicKeyUsable } from "@/lib/auth";
 import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
 import "./globals.css";
 import "./calendar.css";
+// Loaded LAST so the sidebar/popup layout + dark-green selection rules win by
+// source order over the base control chrome they intentionally override.
+import "./sidebar.css";
 
 // The design's faces are SELF-HOSTED (next/font/local, woff2 in ./fonts) rather
 // than fetched via next/font/google. next/font/google needs a build-time network

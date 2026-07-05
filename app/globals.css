@@ -40,8 +40,13 @@
      --line-soft is decorative hairlines only, never a control's sole edge. */
   --line: #8e8268;
   --line-soft: #d8cfba;
-  /* Deepened to pine — also lifts white-on-green buttons from 4.96 to 6.18 AA. */
-  --accent: #3f6b45;
+  /* The app's general green is the darker pine (owner preference): --accent maps
+     to the deeper --accent-ink so every solid-accent surface — primary buttons,
+     switch on-tracks, seg thumbs, today's circle, focus borders — reads in the
+     one dark green. (Was #3f6b45; the ink is #2c4a32, and white-on-green rises
+     well past AA.) The lighter sage lives on as --accent-light/--accent-tint,
+     used only where a soft brand wash is still wanted OUTSIDE the sidebar. */
+  --accent: var(--accent-ink);
   --accent-ink: #2c4a32;
   /* The brand's two greens are the dark pine (--accent) and this lighter sage —
      both lifted straight from the logo mark (logo-mark.svg: #4f7a52 / #aebf86). */
@@ -3990,9 +3995,11 @@ body {
 .ledger__manage:hover {
   color: var(--ink);
 }
-/* The category checklist (Type filter) reuses the kit picker's shell; it adds a
-   color swatch per row so each category reads by its shelf tint, and pairs the
-   bar's "All / None" quick actions. */
+/* The category checklist (Type filter) opens as a floating dropdown off its
+   `.typepick` trigger (like the Theme/Ages pickers) instead of expanding in
+   place. The menu rows reuse `.typepick__option`, adding a color swatch per row
+   so each category reads by its shelf tint and a trailing check that marks the
+   ones kept; the "All / None" quick actions sit in the menu's header bar. */
 .cat-filter__swatch {
   flex: none;
   width: 12px;
@@ -4003,6 +4010,46 @@ body {
 .cat-filter__acts {
   display: inline-flex;
   gap: var(--s-3);
+}
+/* Narrowed-at-rest signal: ink the closed trigger so a subset reads at a glance
+   (the open trigger already lights via .typepick.is-open). */
+.cat-filter.is-set:not(.is-open) .typepick__trigger {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+/* Widen past the small trigger so the category rows aren't cramped — same move
+   as .themefield__menu. */
+.cat-filter__menu {
+  min-width: 208px;
+}
+.cat-filter__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4) var(--s-3);
+}
+.cat-filter__pick {
+  justify-content: flex-start;
+}
+.cat-filter__picklabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.cat-filter__pickcheck {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--accent-ink);
 }
 /* ---------- activity playbooks ---------- */
 .playbook {

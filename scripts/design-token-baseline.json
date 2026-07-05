@@ -3,7 +3,8 @@
   "generatedFrom": [
     "app/globals.css",
     "app/calendar.css",
-    "app/run/[token]/[activityId]/runsheet.css"
+    "app/run/[token]/[activityId]/runsheet.css",
+    "app/sidebar.css"
   ],
   "note": "Existing off-scale CSS values. The checker fails only for new IDs not listed here.",
   "violations": [
@@ -3398,6 +3399,33 @@
       "selector": ".runsheet__chips li",
       "property": "padding",
       "value": "0.15rem 0.6rem",
+      "context": "screen"
+    },
+    {
+      "id": "app/sidebar.css|.lc-qa__schedule|padding|var(--s-3) var(--qa-gx) var(--s-5)|screen",
+      "file": "app/sidebar.css",
+      "kind": "declaration",
+      "selector": ".lc-qa__schedule",
+      "property": "padding",
+      "value": "var(--s-3) var(--qa-gx) var(--s-5)",
+      "context": "screen"
+    },
+    {
+      "id": "app/sidebar.css|.rl-ed[contenteditable=\"true\"]:focus|box-shadow|inset 0 0 0 1px var(--accent)|screen",
+      "file": "app/sidebar.css",
+      "kind": "declaration",
+      "selector": ".rl-ed[contenteditable=\"true\"]:focus",
+      "property": "box-shadow",
+      "value": "inset 0 0 0 1px var(--accent)",
+      "context": "screen"
+    },
+    {
+      "id": "app/sidebar.css|.rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before|box-shadow|0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)|screen",
+      "file": "app/sidebar.css",
+      "kind": "declaration",
+      "selector": ".rl-block.is-over-before > .rl-block__main::before, .rl-block.is-over-after > .rl-block__main::before",
+      "property": "box-shadow",
+      "value": "0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)",
       "context": "screen"
     }
   ]
