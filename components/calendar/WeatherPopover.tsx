@@ -5,6 +5,7 @@ import {
   conditionLabel,
   formatPrecip,
   formatTempWithUnit,
+  formatUv,
   type DayWeather,
   type HourWeather,
   type WeatherUnits,
@@ -110,6 +111,8 @@ function HourRows({ weather, units }: { weather: HourWeather; units: WeatherUnit
       <Row term="Chance of rain" value={`${Math.round(weather.precipProb)}%`} />
       {weather.precip > 0 && <Row term="Rain" value={formatPrecip(weather.precip, units)} />}
       <Row term="Wind" value={`${Math.round(weather.wind)} ${units.wind}`} />
+      {/* UV rides the daylight hours; overnight it's 0, so skip the noise. */}
+      {weather.uvIndex > 0 && <Row term="UV index" value={formatUv(weather.uvIndex)} />}
     </>
   );
 }
@@ -120,6 +123,7 @@ function DayRows({ weather, units }: { weather: DayWeather; units: WeatherUnits 
       <Row term="High / Low" value={`${formatTempWithUnit(weather.tempMax, units)} / ${formatTempWithUnit(weather.tempMin, units)}`} />
       <Row term="Chance of rain" value={`${Math.round(weather.precipProbMax)}%`} />
       {weather.precipSum > 0 && <Row term="Total rain" value={formatPrecip(weather.precipSum, units)} />}
+      {weather.uvIndexMax > 0 && <Row term="UV index" value={`${formatUv(weather.uvIndexMax)} peak`} />}
     </>
   );
 }

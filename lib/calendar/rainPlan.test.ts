@@ -13,6 +13,7 @@ const day = (over: Partial<DayWeather> = {}): DayWeather => ({
   tempMin: 55,
   precipProbMax: 70,
   precipSum: 0.2,
+  uvIndexMax: 6,
   ...over,
 });
 
