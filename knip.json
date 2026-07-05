@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "scripts/**/*.{ts,mjs}",
+    "tests/**/*.spec.ts"
+  ],
+  "project": ["**/*.{ts,tsx}"],
+  "ignore": ["tools/camp-mcp/**"]
+}
