@@ -32,7 +32,7 @@ export const reservedActivities: Activity[] = [
       "8-12 cones for boundaries",
       "Team identifiers, such as pinnies or bandanas",
     ],
-    materialTags: ["Flags or pinnies", "Cones", "Team identifiers"],
+    materialTags: ["Flags or pinnies", "Cones"],
     steps: [
       "Split the field in half and place a flag deep in each team's territory.",
       "Mark a small jail near each flag and explain the safe zones.",
@@ -87,7 +87,7 @@ export const reservedActivities: Activity[] = [
       "1 soft foam gaga ball or playground ball",
       "Gaga pit or floor tape for an octagon boundary",
     ],
-    materialTags: ["Soft foam playground ball", "Gaga pit or floor tape"],
+    materialTags: ["Playground balls", "Gaga pit or floor tape"],
     steps: [
       "Everyone spreads around the inside of the pit with one hand on the wall.",
       "Drop the ball in the center; the group calls 'Ga'… 'Ga'… 'Go!' on each bounce — only after 'Go' may anyone touch it.",
@@ -131,7 +131,7 @@ export const reservedActivities: Activity[] = [
     rating: 0,
     blurb: "A dash across open ground while the sharks try to tag you.",
     materials: ["8-12 cones, sidewalk chalk, or floor tape for two boundary lines"],
-    materialTags: ["Boundary markers"],
+    materialTags: ["Cones"],
     steps: [
       "Pick one or two 'sharks' to stand in the middle.",
       "'Minnows' line up on one side and run to the other on 'Go'.",
