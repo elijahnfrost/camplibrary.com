@@ -566,8 +566,7 @@ body {
      · .material-filter__count — quiet token-surface skin (per-item kit tally).
    The base lives on .filtertrigger__count so the de-facto-correct pill is the
    canonical one; .material-filter__count just inherits + reskins. */
-.filtertrigger__count,
-.material-filter__count {
+.filtertrigger__count {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -1310,88 +1309,7 @@ body {
    rows (each showing its effective window), holidays/special days, snap, delete.
    Wears the .overlay--manager card but lays out its own flat body (no boxed
    CampDayStructure). ---- */
-.campedit__focusguard {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  outline: none;
-}
-.campedit__titlewrap {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.campedit__titledot {
-  flex: none;
-  width: 11px;
-  height: 11px;
-}
 /* The camp name edits in place as the popup title (no separate Name field). */
-.campedit__titleinput {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 1.5px solid transparent;
-  border-radius: var(--r-sm);
-  background: transparent;
-  padding: var(--s-2) var(--s-4);
-  margin-left: -2px;
-  font-family: var(--hand);
-  font-size: var(--fs-title-sm);
-  color: var(--ink);
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.campedit__titleinput:hover {
-  background: var(--paper-2);
-}
-.campedit__titleinput:focus {
-  outline: none;
-  background: var(--card);
-  border-color: var(--accent-ink);
-}
-.campedit__titlepen {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  color: var(--ink-faint);
-  opacity: 0;
-  transition: opacity var(--t-fast) var(--ease);
-}
-.campedit__titlewrap:hover .campedit__titlepen {
-  opacity: 1;
-}
-.campedit__titleinput:focus ~ .campedit__titlepen {
-  opacity: 0;
-}
-.campedit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: 0 var(--s-7) var(--s-7);
-}
-.campedit__intro {
-  margin: 0;
-  font-size: var(--fs-meta);
-  line-height: 1.5;
-  color: var(--ink-soft);
-}
-.campedit__grouplabel {
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.campedit__hint {
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-  line-height: 1.4;
-}
 .campedit__dash {
   color: var(--ink-faint);
 }
@@ -1408,175 +1326,7 @@ body {
   flex: 0 0 auto;
   width: 122px;
 }
-.campedit__pills--indent {
-  padding: var(--s-1) 0 var(--s-2) calc(3.4ch + var(--s-3));
-}
-.campedit__baserow {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.campedit__baselabels {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
 /* A flat disclosure (chevron + label + summary) — a thin rule, no boxed card. */
-.campedit__disc {
-  border-top: 1.5px dashed var(--line-soft);
-  padding-top: var(--s-3);
-}
-.campedit__dischead {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  width: 100%;
-  padding: var(--s-1) 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.campedit__dischead:hover .campedit__grouplabel {
-  color: var(--ink);
-}
-.campedit__dischead:focus-visible {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: 3px;
-  border-radius: var(--r-sm);
-}
-.campedit__discchev {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--ink-soft);
-  transition: transform var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.campedit__disc.is-open .campedit__discchev {
-  transform: rotate(90deg);
-  animation: none;
-}
-.campedit__dischead:hover .campedit__discchev {
-  color: var(--ink);
-}
-.campedit__discsum {
-  margin-left: auto;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.03em;
-  color: var(--ink-faint);
-}
-.campedit__discbody {
-  padding-top: var(--s-3);
-}
-.campedit__week {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.campedit__day {
-  border-radius: var(--r-sm);
-  padding: var(--s-1) var(--s-2);
-  transition: background-color var(--t-fast) var(--ease);
-}
-.campedit__day:hover {
-  background: var(--paper-2);
-}
-.campedit__dayline {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-height: 34px;
-}
-.campedit__dayname {
-  flex: none;
-  width: 3.4ch;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
-}
-.campedit__day.is-default .campedit__dayname {
-  color: var(--ink-faint);
-}
-.campedit__dayeff {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.campedit__day.is-closed .campedit__dayeff {
-  color: var(--danger);
-}
-.campedit__dayseg {
-  flex: none;
-}
-.campedit__exclist {
-  list-style: none;
-  margin: 0 0 var(--s-3);
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.campedit__exc {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 36px;
-  padding: var(--s-1) var(--s-2);
-  border-radius: var(--r-sm);
-  transition: background-color var(--t-fast) var(--ease);
-}
-.campedit__exc:hover {
-  background: var(--paper-2);
-}
-.campedit__excdate {
-  flex: none;
-  min-width: 8ch;
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  color: var(--ink);
-}
-.campedit__excstate {
-  flex: 1 1 auto;
-  font-size: var(--fs-meta);
-  color: var(--ink-soft);
-}
-.campedit__excstate--closed {
-  color: var(--danger);
-}
-.campedit__excbtn {
-  width: 30px;
-  height: 30px;
-}
-.campedit__excbtn svg {
-  width: 16px;
-  height: 16px;
-}
-.campedit__excbtn--danger:hover {
-  color: var(--danger);
-}
-.campedit__excadd {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
-  flex-wrap: wrap;
-}
-.campedit__excaddbtns {
-  display: inline-flex;
-  gap: var(--s-2);
-}
 .campedit__addbtn {
   border: 1.5px solid var(--line);
   border-radius: var(--r-sm);
@@ -1595,53 +1345,6 @@ body {
 }
 .campedit__addbtn:focus-visible {
   outline: 2px solid var(--accent-ink);
-  outline-offset: 2px;
-}
-.campedit__snap {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  border-top: 1.5px dashed var(--line-soft);
-  padding-top: var(--s-3);
-}
-.campedit__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  border-top: 1.5px dashed var(--line-soft);
-  padding-top: var(--s-4);
-}
-.campedit__del {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  border: 1.5px solid transparent;
-  border-radius: var(--r-sm);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-  padding: var(--s-2) var(--s-4);
-  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-.campedit__del svg {
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.campedit__del:hover {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 9%, transparent);
-}
-.campedit__del:focus-visible {
-  outline: 2px solid var(--danger);
   outline-offset: 2px;
 }
 
@@ -1895,14 +1598,6 @@ body {
    the modal stays calm; open reveals a quiet body. */
 .manager__daystruct {
   padding: 0 var(--s-4) var(--s-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.manager__sections {
-  padding: var(--s-3) var(--s-4) 0;
-  margin-top: var(--s-3);
-  border-top: 1px dashed var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
@@ -2316,61 +2011,7 @@ body {
    The summary IS a ledger row — "AVAILABLE KIT" label left, the picked count
    + chevron as the right-hand control. In the mobile sheet's always-open
    KitGroup it's hidden (the group label does the naming). */
-.material-filter {
-  width: 100%;
-}
-.material-filter__summary {
-  cursor: pointer;
-  list-style: none;
-  border-bottom: 0;
-}
-.material-filter__summary::-webkit-details-marker {
-  display: none;
-}
-.material-filter__state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-3);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  transition: color var(--t-fast) var(--ease);
-}
-.material-filter__summary:hover .material-filter__state {
-  color: var(--ink);
-}
-.material-filter__state svg {
-  flex: none;
-  width: 13px;
-  height: 13px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--ink-faint);
-  /* Instant flip on open/close — the rotation no longer trails the disclosure. */
-}
-.material-filter[open] > .material-filter__summary .material-filter__state svg {
-  transform: rotate(180deg);
-}
 /* "Something is picked" — ink the count so a set kit reads at a glance. */
-.material-filter__summary.is-set .material-filter__state {
-  color: var(--accent-ink);
-}
-.material-filter__panel {
-  margin-top: var(--s-2);
-}
-.material-filter__kit {
-  margin-top: 0;
-}
-.material-filter__kitbar {
-  align-items: center;
-  gap: 9px;
-  margin-bottom: 12px;
-}
 .material-filter__clear {
   margin-left: auto;
   border: 0;
@@ -2389,86 +2030,10 @@ body {
 }
 /* The kit search is the canonical .searchfield; this rule only carries the
    spacing before the kit list that follows it in the filter accordion. */
-.material-filter__search {
-  margin-bottom: var(--s-5);
-}
-.material-filter__list {
-  max-height: min(330px, 48dvh);
-  overflow: auto;
-  padding: 1px 3px 1px 1px;
-  scrollbar-width: thin;
-}
-.material-filter__item {
-  min-height: 46px;
-  padding: var(--s-4) var(--s-5);
-  font-size: 14px;
-}
 /* Quiet skin over the shared count-pill base above: a token surface + the 1.5px
    interactive --line edge so it matches the kit's other controls instead of the
    old off-token paper color-mix / 1px / 999px / 10px literals. Wider min-width
    keeps two-digit tallies centered. */
-.material-filter__count {
-  min-width: 26px;
-  border: 1.5px solid var(--line);
-  background: var(--chrome-well);
-  color: var(--ink-faint);
-  font-family: var(--hand-sc);
-  letter-spacing: 0.04em;
-}
-.material-filter__item.is-have .material-filter__count {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
-  color: var(--accent-ink);
-}
-.material-filter__empty {
-  padding: 12px 4px 4px;
-  font-family: var(--text);
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--ink-faint);
-}
-@media (max-width: 420px) {
-  .material-filter__list {
-    max-height: min(360px, 46dvh);
-  }
-}
-.material-filter__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-  font-family: var(--hand-sc);
-  font-size: 10px;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.material-filter__head button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  color: var(--accent);
-}
-.material-filter__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  max-height: 180px;
-  overflow: auto;
-  padding-right: 2px;
-}
-.material-filter__chip {
-  font-family: var(--text);
-  font-size: 12px;
-  letter-spacing: 0;
-  line-height: 1.2;
-  text-transform: none;
-  text-align: left;
-  white-space: normal;
-  padding: 6px 9px;
-}
 
 /* ---------- mobile filter sheet ----------
    The sheet renders the SAME switch ledger as the desktop rail (one shared
@@ -2513,9 +2078,6 @@ body {
 .filtersheet .lswitch.is-on .lswitch__knob {
   left: 21px;
 }
-.filtersheet .material-filter__state {
-  font-size: var(--fs-label);
-}
 .filtersheet__title {
   margin: 0;
   font-family: var(--script);
@@ -2546,13 +2108,6 @@ body {
 }
 /* The kit row collapses like every other ledger line; opened, its list sits
    flush under the row and scrolls within the sheet. */
-.filtersheet .material-filter__panel {
-  margin-top: var(--s-3);
-  margin-bottom: var(--s-4);
-}
-.filtersheet .material-filter__list {
-  max-height: 38vh;
-}
 
 /* ---------- shelf (overfilled bookcase — see components/shelfLayout.ts) ----
    The library flows left→right and WRAPS onto the shelf below — no per-type
@@ -3317,13 +2872,6 @@ body {
   background: color-mix(in srgb, var(--danger) 10%, var(--card));
   color: var(--danger-ink);
 }
-.admin-page {
-  min-height: 100dvh;
-  padding: 22px 18px 34px;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--hand);
-}
 .admin-page__grid {
   width: min(100%, 1120px);
   margin: 0 auto;
@@ -3519,9 +3067,6 @@ body {
 }
 
 @media (min-width: 860px) {
-  .admin-page {
-    padding: 34px;
-  }
   .admin-tab {
     /* First row on the page until the sidebar appears — keep notch clearance. */
     padding: max(24px, calc(10px + env(safe-area-inset-top))) 32px 34px;
@@ -3818,11 +3363,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 7px;
-}
-.matkit__div {
-  height: 0;
-  border-top: 1.5px dashed var(--line);
-  margin: 4px 2px;
 }
 .matkit__item {
   display: flex;
@@ -4437,27 +3977,6 @@ body {
   border: 1.5px solid var(--line);
   border-radius: 14px;
   background: color-mix(in srgb, var(--paper) 60%, transparent);
-}
-.pbe__top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.pbe__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--text);
-  font-size: 12px;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.pbe__toggle input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
 }
 .pbe__stages {
   display: flex;
@@ -5204,23 +4723,6 @@ body {
     display: flex;
     flex-direction: column;
   }
-  .sidesection__head {
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    /* Tall enough for the optional action button, so the title row measures the
-       same with or without one — the header can't shift between tabs. */
-    min-height: 18px;
-    margin-bottom: 16px;
-  }
-  .sidesection__title {
-    font-family: var(--hand-sc);
-    font-size: 11px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--ink-soft);
-  }
   /* The section body sizes to its own content — the ONE scroll zone is the
      shared .sidenav__scroll ancestor now, so nesting a second overflow-y:auto
      here would just stack a redundant inner scrollbar. Kept flush with the
@@ -5238,14 +4740,6 @@ body {
      Filters rail is. The plain (non-fixed) .sidesection doesn't set this: it's
      always the lone section in its rail, so .sidenav__scroll's padding-top
      alone gives it correct spacing from the nav above. */
-  .sidesection--fixed {
-    flex: none;
-    margin-top: 26px;
-  }
-  .sidesection--fixed > .sidesection__body {
-    flex: none;
-    overflow: visible;
-  }
 
   /* ---- camps rail (Calendar tab, desktop) ----
      The sidebar's ONE entry point into camps: a fixed-height .sidesection,
@@ -5255,228 +4749,19 @@ body {
      .manager__sect-chev) — a disclosure that expands DOWNWARD should always
      point down once open, so this is the affordance every rail disclosure
      should read. */
-  .camprail__head {
-    width: 100%;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  .camprail__headic {
-    width: 12px;
-    height: 12px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-    margin-right: var(--s-2);
-    vertical-align: -1.5px;
-  }
-  .camprail__chev {
-    width: 13px;
-    height: 13px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    color: var(--ink-soft);
-    /* The rotation is INSTANT (the glyph flips the moment the section toggles) —
-       only the hover colour eases. Animating the transform made the chevron lag
-       behind the open/close, which read as unresponsive. */
-    transition: color var(--t-fast) var(--ease);
-  }
-  .camprail.is-open .camprail__chev {
-    transform: rotate(90deg);
-    /* Once open the chevron points DOWN, so the closed-state hover nudge
-       (the global cicon--chev-right translateX animation) no longer applies —
-       its transform would otherwise clobber this rotate and snap the glyph back
-       to facing right on hover. Keep the nudge exclusive to the closed state. */
-    animation: none;
-  }
-  .camprail__head:hover .sidesection__title,
-  .camprail__head:hover .camprail__chev {
-    color: var(--ink);
-  }
-  .camprail:not(.is-open) .camprail__head {
-    margin-bottom: 0;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .camprail__chev {
-      transition: none;
-    }
-  }
-  .camprail__body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-2);
-    margin-inline: 0;
-    padding-inline: 0;
-  }
-  .camprail__list {
-    display: flex;
-    flex-direction: column;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .camprail__row {
-    display: flex;
-    align-items: center;
-    gap: var(--s-2);
-    border-bottom: 1.5px dashed var(--line-soft);
-  }
-  .camprail__row:last-child {
-    border-bottom: 0;
-  }
-  .camprail__pick {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    gap: var(--s-3);
-    min-height: 38px;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    color: var(--ink-faint);
-  }
-  .camprail__pick:hover {
-    color: var(--ink);
-  }
   /* camps-6: filled with the camp's derived identity tint (--camp-tint, set
      inline per row) — the same "a colored dot IS the identity" convention
      Themes/Locations rows use, rather than a blank outline. The active state
      adds a ring around it instead of replacing the fill, so the tint stays
      visible whether or not the row is the active camp. */
-  .camprail__dot {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid color-mix(in srgb, var(--camp-tint, var(--line)) 55%, transparent);
-    background: var(--camp-tint, transparent);
-  }
-  .camprail__row.is-active .camprail__dot {
-    /* token-exempt: a two-layer ring (page-color gap + accent ring) around the identity dot — no --e* elevation token expresses a same-plane focus/active ring (they're all drop-shadows for raised surfaces). */
-    box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--accent-ink);
-  }
-  .camprail__row.is-active .camprail__name {
-    color: var(--ink);
-    font-weight: 600;
-  }
-  .camprail__name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .camprail__empty {
-    margin: 0;
-    padding: var(--s-2) 0 var(--s-3);
-    font-size: var(--fs-meta);
-    color: var(--ink-faint);
-  }
-  .camprail__new {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--s-2);
-    min-height: 34px;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--fs-meta);
-    color: var(--ink-soft);
-    transition: color var(--t-fast) var(--ease);
-  }
-  .camprail__new svg {
-    width: 14px;
-    height: 14px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.7;
-  }
-  .camprail__new:hover {
-    color: var(--ink);
-  }
   /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered
      (fade + grow + slight slide), then does the app's own tool-icon wiggle when
      the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same
      animation vocabulary as the rest of the app; reduced-motion strips the
      transforms + wiggle (fade only). */
-  .camprail__edit {
-    flex: none;
-    width: 30px;
-    height: 30px;
-    opacity: 0;
-    transform: translateX(3px) scale(0.82);
-    transform-origin: center;
-    transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease), color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
-  }
-  .camprail__edit svg {
-    width: 16px;
-    height: 16px;
-  }
-  .camprail__row:hover .camprail__edit,
-  .camprail__edit:focus-visible {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-  .camprail__edit:hover {
-    color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 8%, transparent);
-    border-radius: var(--r-md);
-  }
-  .camprail__edit:hover svg {
-    animation: cicon-tool-wiggle 0.5s var(--ease) both;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .camprail__edit {
-      transform: none;
-      transition: opacity var(--t-med) var(--ease), color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
-    }
-    .camprail__row:hover .camprail__edit,
-    .camprail__edit:focus-visible {
-      transform: none;
-    }
-    .camprail__edit:hover svg {
-      animation: none;
-    }
-  }
   /* Inline "Add camp" — the create field replaces the add button in place. */
-  .camprail__addform {
-    display: flex;
-    align-items: center;
-    gap: var(--s-2);
-  }
-  .camprail__addinput {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
   /* The quiet footer entry — day-structure guidance bands (global, not
      per-camp), set apart by a dashed rule above it. */
-  .camprail__manage {
-    margin-top: var(--s-2);
-    padding-top: var(--s-3);
-    border: 0;
-    border-top: 1.5px dashed var(--line-soft);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-    font-size: var(--fs-meta);
-    color: var(--ink-soft);
-    transition: color var(--t-fast) var(--ease);
-  }
-  .camprail__manage:hover {
-    color: var(--ink);
-  }
 
   /* ---- filter rail body (Library tab) ----
      Selected chips show state in place (no separate active-chips row up top);
@@ -5488,50 +4773,9 @@ body {
     font-size: 10.5px;
     padding: 4px 10px;
   }
-  .sidefilters .material-filter__kitbar {
-    margin-bottom: 10px;
-  }
-  .sidefilters .material-filter__search {
-    min-height: 38px;
-    margin-bottom: 10px;
-    padding-inline: 9px;
-    border-color: var(--line);
-    background: var(--chrome-well);
-  }
-  .sidefilters .material-filter__list {
-    max-height: none;
-    overflow: visible;
-    gap: 2px;
-    padding-right: 0;
-    scrollbar-width: auto;
-  }
-  .sidefilters .material-filter__item {
-    min-height: 41px;
-    padding: 7px 3px;
-    border-color: transparent;
-    border-bottom-color: var(--line-soft);
-    border-radius: 0;
-    background: transparent;
-    font-size: 13.5px;
-  }
-  .sidefilters .material-filter__item:hover {
-    border-color: transparent;
-    border-bottom-color: var(--line);
-    background: color-mix(in srgb, var(--paper-2) 48%, transparent);
-    border-radius: 8px;
-  }
-  .sidefilters .material-filter__item.is-have {
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-  }
   /* In the desktop rail the kit items are borderless (just bottom hairlines), so
      the count drops its fill AND its --line edge to read as a quiet inline tally
      rather than a bordered chip floating on chrome. */
-  .sidefilters .material-filter__count {
-    border-color: transparent;
-    background: transparent;
-  }
 
   /* ---- main column ---- */
   .app__main {
@@ -6406,10 +5650,8 @@ body {
   .pbe__stage,
   .icon-btn,
   .chip,
-  .material-filter__summary,
   .btn--sm,
   .admin-action,
-  .sortbtn,
   .rl-ptype,
   .searchfield__clear {
     position: relative;
@@ -6434,10 +5676,8 @@ body {
      full tap height, but width stays the visual box (+ a hair) so
      neighbouring hit areas never overlap. */
   .chip::before,
-  .material-filter__summary::before,
   .btn--sm::before,
   .admin-action::before,
-  .sortbtn::before,
   .rl-ptype::before,
   .searchfield__clear::before {
     content: "";
@@ -6447,9 +5687,6 @@ body {
     width: calc(100% + var(--s-2));
     height: max(100%, var(--tap));
     transform: translate(-50%, -50%);
-  }
-  .sidefilters .material-filter__item {
-    min-height: var(--tap);
   }
   .chip {
     padding-top: 9px;
@@ -6611,14 +5848,6 @@ body {
   color: var(--tone-edge, var(--star-ink));
   background: color-mix(in srgb, var(--tone-fill, var(--star-gold)) 28%, var(--card));
   border-color: var(--tone-fill, var(--star-gold));
-}
-.rlv-eyebrow {
-  font-family: var(--hand-sc);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-bottom: 4px;
 }
 .rlv-title {
   margin: 0;
@@ -11223,15 +10452,6 @@ button.rl-node--pick:focus-visible {
 }
 
 /* The Kit-lens hint's "Set up your kit →" link — a quiet inline text button. */
-.kitlens__hintlink {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: var(--accent-ink);
-  text-decoration: underline;
-  cursor: pointer;
-}
 
 /* Phones: stacking the used-by jump under the row body isn't worth the
    reflow — just tighten its padding so dot + name + MiniSeg + used-by + more

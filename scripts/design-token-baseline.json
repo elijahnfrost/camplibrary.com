@@ -144,111 +144,12 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.material-filter__kitbar|gap|9px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__kitbar",
-      "property": "gap",
-      "value": "9px",
-      "context": "screen"
-    },
-    {
       "id": "app/globals.css|.material-filter__clear|font-size|10px|screen",
       "file": "app/globals.css",
       "kind": "declaration",
       "selector": ".material-filter__clear",
       "property": "font-size",
       "value": "10px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__list|padding|1px 3px 1px 1px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__list",
-      "property": "padding",
-      "value": "1px 3px 1px 1px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__item|font-size|14px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__item",
-      "property": "font-size",
-      "value": "14px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__empty|padding|12px 4px 4px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__empty",
-      "property": "padding",
-      "value": "12px 4px 4px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__empty|font-size|13px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__empty",
-      "property": "font-size",
-      "value": "13px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__head|gap|12px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__head",
-      "property": "gap",
-      "value": "12px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__head|font-size|10px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__head",
-      "property": "font-size",
-      "value": "10px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__chips|gap|6px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__chips",
-      "property": "gap",
-      "value": "6px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__chips|padding-right|2px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__chips",
-      "property": "padding-right",
-      "value": "2px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__chip|font-size|12px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__chip",
-      "property": "font-size",
-      "value": "12px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.material-filter__chip|padding|6px 9px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".material-filter__chip",
-      "property": "padding",
-      "value": "6px 9px",
       "context": "screen"
     },
     {
@@ -657,15 +558,6 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.admin-page|padding|22px 18px 34px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".admin-page",
-      "property": "padding",
-      "value": "22px 18px 34px",
-      "context": "screen"
-    },
-    {
       "id": "app/globals.css|.admin-page__grid|gap|16px|screen",
       "file": "app/globals.css",
       "kind": "declaration",
@@ -924,15 +816,6 @@
       "selector": "@media",
       "property": "media",
       "value": "(min-width: 860px)",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.admin-page|padding|34px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".admin-page",
-      "property": "padding",
-      "value": "34px",
       "context": "screen"
     },
     {
@@ -1266,33 +1149,6 @@
       "selector": ".pbe",
       "property": "border-radius",
       "value": "14px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.pbe__top|gap|10px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".pbe__top",
-      "property": "gap",
-      "value": "10px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.pbe__toggle|gap|8px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".pbe__toggle",
-      "property": "gap",
-      "value": "8px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.pbe__toggle|font-size|12px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".pbe__toggle",
-      "property": "font-size",
-      "value": "12px",
       "context": "screen"
     },
     {
@@ -1719,19 +1575,10 @@
       "context": "screen"
     },
     {
-      "id": "app/globals.css|.sidesection__title|font-size|11px|screen",
+      "id": "app/globals.css|The sidebar's ONE entry point into camps: a fixed-height .sidesection, collapsed by default, sitting under the calendar rail. Its head reuses the shared .sidesection__head/__title treatment; the chevron is its own right-collapsed/down-open glyph (the same affordance as the camp manager's .manager__sect-chev) — a disclosure that expands DOWNWARD should always point down once open, so this is the affordance every rail disclosure should read. */ /* camps-6: filled with the camp's derived identity tint (--camp-tint, set inline per row) — the same \"a colored dot IS the identity\" convention Themes/Locations rows use, rather than a blank outline. The active state adds a ring around it instead of replacing the fill, so the tint stays visible whether or not the row is the active camp. */ /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered (fade + grow + slight slide), then does the app's own tool-icon wiggle when the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same animation vocabulary as the rest of the app; reduced-motion strips the transforms + wiggle (fade only). */ /* The quiet footer entry — day-structure guidance bands (global, not per-camp), set apart by a dashed rule above it. */ /* ---- filter rail body (Library tab) ---- Selected chips show state in place (no separate active-chips row up top); the head's \"Clear all\" is the only summary control. */ .sidefilters|gap|16px|screen",
       "file": "app/globals.css",
       "kind": "declaration",
-      "selector": ".sidesection__title",
-      "property": "font-size",
-      "value": "11px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters|gap|16px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters",
+      "selector": "The sidebar's ONE entry point into camps: a fixed-height .sidesection, collapsed by default, sitting under the calendar rail. Its head reuses the shared .sidesection__head/__title treatment; the chevron is its own right-collapsed/down-open glyph (the same affordance as the camp manager's .manager__sect-chev) — a disclosure that expands DOWNWARD should always point down once open, so this is the affordance every rail disclosure should read. */ /* camps-6: filled with the camp's derived identity tint (--camp-tint, set inline per row) — the same \"a colored dot IS the identity\" convention Themes/Locations rows use, rather than a blank outline. The active state adds a ring around it instead of replacing the fill, so the tint stays visible whether or not the row is the active camp. */ /* Per-row Edit pencil — hidden at rest, POPS in when the row is hovered (fade + grow + slight slide), then does the app's own tool-icon wiggle when the cursor is on the pencil. Reuses cicon-tool-wiggle so it speaks the same animation vocabulary as the rest of the app; reduced-motion strips the transforms + wiggle (fade only). */ /* The quiet footer entry — day-structure guidance bands (global, not per-camp), set apart by a dashed rule above it. */ /* ---- filter rail body (Library tab) ---- Selected chips show state in place (no separate active-chips row up top); the head's \"Clear all\" is the only summary control. */ .sidefilters",
       "property": "gap",
       "value": "16px",
       "context": "screen"
@@ -1752,51 +1599,6 @@
       "selector": ".sidefilters .chip",
       "property": "padding",
       "value": "4px 10px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters .material-filter__list|gap|2px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters .material-filter__list",
-      "property": "gap",
-      "value": "2px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters .material-filter__item|padding|7px 3px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters .material-filter__item",
-      "property": "padding",
-      "value": "7px 3px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters .material-filter__item|font-size|13.5px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters .material-filter__item",
-      "property": "font-size",
-      "value": "13.5px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters .material-filter__item:hover|border-radius|8px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters .material-filter__item:hover",
-      "property": "border-radius",
-      "value": "8px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.sidefilters .material-filter__item.is-have|border-radius|8px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".sidefilters .material-filter__item.is-have",
-      "property": "border-radius",
-      "value": "8px",
       "context": "screen"
     },
     {
@@ -1995,15 +1797,6 @@
       "selector": ".rlv-back",
       "property": "gap",
       "value": "5px",
-      "context": "screen"
-    },
-    {
-      "id": "app/globals.css|.rlv-eyebrow|font-size|11px|screen",
-      "file": "app/globals.css",
-      "kind": "declaration",
-      "selector": ".rlv-eyebrow",
-      "property": "font-size",
-      "value": "11px",
       "context": "screen"
     },
     {
@@ -2808,39 +2601,12 @@
       "context": "screen"
     },
     {
-      "id": "app/calendar.css|.caltoday__badge|padding|1px var(--s-2)|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".caltoday__badge",
-      "property": "padding",
-      "value": "1px var(--s-2)",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.caltoday__main|gap|1px|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".caltoday__main",
-      "property": "gap",
-      "value": "1px",
-      "context": "screen"
-    },
-    {
       "id": "app/calendar.css|.cal-mini__dowcell|font-size|10px|screen",
       "file": "app/calendar.css",
       "kind": "declaration",
       "selector": ".cal-mini__dowcell",
       "property": "font-size",
       "value": "10px",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.quickadd__head|padding|var(--s-5) var(--qa-gx) var(--s-4)|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".quickadd__head",
-      "property": "padding",
-      "value": "var(--s-5) var(--qa-gx) var(--s-4)",
       "context": "screen"
     },
     {
@@ -2868,15 +2634,6 @@
       "selector": ".quickadd__mode-text",
       "property": "gap",
       "value": "1px",
-      "context": "screen"
-    },
-    {
-      "id": "app/calendar.css|.quickadd__schedule|padding|var(--s-3) var(--qa-gx) var(--s-5)|screen",
-      "file": "app/calendar.css",
-      "kind": "declaration",
-      "selector": ".quickadd__schedule",
-      "property": "padding",
-      "value": "var(--s-3) var(--qa-gx) var(--s-5)",
       "context": "screen"
     },
     {
@@ -2943,10 +2700,10 @@
       "context": "screen"
     },
     {
-      "id": "app/calendar.css|.cal-card__backup, .cal-chip__backup|gap|1px|screen",
+      "id": "app/calendar.css|.cal-card__backup|gap|1px|screen",
       "file": "app/calendar.css",
       "kind": "declaration",
-      "selector": ".cal-card__backup, .cal-chip__backup",
+      "selector": ".cal-card__backup",
       "property": "gap",
       "value": "1px",
       "context": "screen"

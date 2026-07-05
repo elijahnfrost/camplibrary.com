@@ -112,29 +112,6 @@
 }
 /* The view dropdown trigger — sized to match the Today pill / pager so the
    cluster reads as one control row (it carries the old .calhead__hours sizing). */
-.calhead__viewtrigger {
-  height: var(--control-md);
-  padding: 0 var(--s-4);
-  border-radius: var(--r-md);
-  gap: var(--s-2);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-ui);
-  color: var(--ink-soft);
-}
-.calhead__viewtrigger:hover {
-  color: var(--ink);
-}
-.calhead__viewtrigger.is-open {
-  color: var(--ink);
-  background: var(--paper-2);
-}
-.calhead__viewtrigger svg {
-  width: 15px;
-  height: 15px;
-}
-.calhead__viewtrigger-label {
-  font-variant-numeric: tabular-nums;
-}
 /* The prev/next pager is gone — navigation is the sidebar mini-month (click a
    day) plus the strip's own horizontal scroll, so the header has no arrows. */
 /* The header view switch reuses the Library's .viewswitch seg-slide verbatim so
@@ -950,176 +927,16 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    rule it inherits has no inline bleed of its own now — the shared scroll
    ancestor carries the gutter — so this override is now a no-op kept only in
    case a future rule reintroduces inline spacing at the section-body level). */
-.sidenav__calrail .cal-view__body {
-  margin-inline: 0;
-  padding-inline: 0;
-}
 
 /* ---------- rail "Today" card (Now/Next glance) ----------
    The operator's Now/Next read, moved off the retired Home tab to the TOP of the
    calendar rail (above the mini-month). A compact card in the rail vocabulary:
    the shared .sidesection head, then one or two rows carrying the same 3px
    category spine (--cal-tint) the event cards / catalog rows use. */
-.caltoday {
-  flex: none;
-}
-.caltoday__head {
-  margin-bottom: var(--s-3);
-}
-.caltoday__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.caltoday__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-3);
-  width: 100%;
-  text-align: left;
-  padding: var(--s-3) var(--s-4);
-  background: var(--content);
-  border: 1.5px solid var(--line);
-  border-left: 3px solid var(--cal-tint, var(--line));
-  border-radius: var(--r-md);
-}
-.caltoday__row--link {
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-.caltoday__row--link:hover {
-  background: var(--chrome-well);
-  border-color: var(--ink-soft);
-  border-left-color: var(--cal-tint, var(--line));
-}
-.caltoday__row--link:active {
-  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
-}
-.caltoday__row--link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.caltoday__badge {
-  flex: none;
-  margin-top: 1px;
-  padding: 1px var(--s-2);
-  border-radius: var(--r-pill);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.caltoday__badge--now {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
-  border: 1px solid var(--accent-ink);
-}
-.caltoday__badge--next {
-  background: var(--chrome-well);
-  color: var(--ink-soft);
-  border: 1px solid var(--line);
-}
-.caltoday__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.caltoday__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: var(--fs-body);
-  line-height: 1.1;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.caltoday__row--link:hover .caltoday__title {
-  color: var(--accent-ink);
-}
-.caltoday__meta {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  font-family: var(--hand-sc);
-  font-size: var(--fs-micro);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.caltoday__time {
-  color: var(--ink-soft);
-}
-.caltoday__empty {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  margin: 0;
-  font-family: var(--text);
-  font-size: var(--fs-meta);
-  color: var(--ink-faint);
-}
-.caltoday__emptyic {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.6;
-}
 
 /* The "View" header is a toggle (folds the whole settings ledger away to keep the
    rail clean). It still reads as the section head — title left, chevron right. */
-.cal-view__head {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-}
-.cal-view__chev {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  color: var(--ink-soft);
-  /* Rotation is INSTANT — the glyph flips the moment the section toggles, only
-     the hover colour eases. Animating the transform lagged the chevron behind
-     the open/close, which read as unresponsive. */
-  transition: color var(--t-fast) var(--ease);
-}
-.cal-view.is-open .cal-view__chev {
-  /* Right when collapsed, down when open — the one disclosure affordance used
-     by every collapsible (camps rail, manager sections). */
-  transform: rotate(90deg);
-  /* Open = pointing down, so the closed-state chev-right hover nudge (global
-     translateX animation) must not run — it would override this rotate and snap
-     the glyph back to facing right on hover. Nudge stays closed-state only. */
-  animation: none;
-}
-.cal-view__head:hover .sidesection__title,
-.cal-view__head:hover .cal-view__chev {
-  color: var(--ink);
-}
 /* Collapsed: drop the head's trailing margin so the rail closes up tight. */
-.cal-view:not(.is-open) .cal-view__head {
-  margin-bottom: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .cal-view__chev {
-    transition: none;
-  }
-}
 
 /* ---------- view settings ledger (sidebar "View" + mobile sheet) ----------
    The view settings as a switch ledger — the Library filter vocabulary, so
@@ -1447,14 +1264,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   .quickadd {
     --qa-gx: var(--s-6);
   }
-}
-.quickadd__head {
-  flex: none;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding: var(--s-5) var(--qa-gx) var(--s-4);
 }
 .quickadd__when {
   display: flex;
@@ -1911,15 +1720,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-linejoin: round;
 }
 /* Pick-a-time posture: the schedule ledger + commit, pinned under the list. */
-.quickadd__schedule {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-3) var(--qa-gx) var(--s-5);
-  border-top: 1.5px solid var(--line-soft);
-  margin-top: var(--s-3);
-}
 /* The schedule as a switch ledger (see .ledger): every setting is one
    label-left/control-right row with dashed rules between, the calendar
    sidebar's exact vocabulary. The last row sheds its trailing rule. */
@@ -1932,104 +1732,17 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    without needing the section open. Plain-text button dressed as a value, not
    a heavy control — it reads like the same PropRow value slot every other row
    uses. */
-.quickadd__summarybtn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  max-width: 100%;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  font: inherit;
-  color: var(--ink);
-  text-align: left;
-}
-.quickadd__summarybtn:hover .quickadd__summaryval {
-  text-decoration: underline;
-}
-.quickadd__summarydot {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: var(--r-round);
-}
-.quickadd__summaryval {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 /* The Day note summary can be a full sentence — let it wrap onto a couple of
    lines instead of the single-line ellipsis every other summary row uses. */
-.quickadd__summarybtn--note {
-  align-items: flex-start;
-}
-.quickadd__summarybtn--note .quickadd__summaryval {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 /* "More options" — the ONE inline expansion (pattern 5) holding every setting
    not shown by default. Reuses the app's existing Collapsible chevron-header
    idiom (see .manager__sect in globals.css, the ListManagerModal Guidance-
    bands / Dietary-roster sections) rather than inventing a new disclosure. */
-.quickadd__more {
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--paper-2);
-  overflow: hidden;
-}
-.quickadd__more-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--hand);
-  font-size: var(--fs-ui);
-  color: var(--ink);
-  text-align: left;
-}
-.quickadd__more-chev {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: var(--ink-soft);
-  transition: transform 0.15s ease;
-}
-.quickadd__more.is-open .quickadd__more-chev {
-  transform: rotate(90deg);
-}
-.quickadd__more-label {
-  flex: 1 1 auto;
-}
-.quickadd__more-body {
-  padding: 0 var(--s-4) var(--s-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-}
-.quickadd__more-body > .prop-row {
-  padding-left: 0;
-  padding-right: 0;
-}
 /* The date · start · length · color · location · repeat controls are the shared
    PILL dropdowns (see .cselect__trigger + the .ledger__row hug rule in
    globals.css): hug-content, right-aligned, sage-tint when open — the same
    vocabulary as the run-sheet Details and the View/Weather settings. (No
    width/typography override here anymore; the base pill rules own the look.) */
-.quickadd__foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3) var(--s-4);
-}
 /* J5: explicit Save, no simultaneous status line — the primary Save/Add button
    is the one thing that always pins to the trailing edge; every other footer
    action (Duplicate/Pin/Delete/…) wraps freely before it. */
@@ -2363,9 +2076,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   }
   /* The sheet is pinned to the screen bottom — keep the commit buttons clear
      of the home indicator. */
-  .quickadd__schedule {
-    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
-  }
   /* Slot posture: the create-row zone sits at the sheet bottom, so it carries the
      safe-area pad. */
   .quickadd__create {
@@ -2486,8 +2196,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
    A small corner glyph on any card whose placement resolves to a backup plan (an
    umbrella for a rain plan, else a generic swap loop; a count when >1). Shares the
    muted, subtle treatment of the pin/repeat glyphs. */
-.cal-card__backup,
-.cal-chip__backup {
+.cal-card__backup {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -2495,8 +2204,7 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   color: var(--ink-soft);
   opacity: 0.85;
 }
-.cal-card__backup svg,
-.cal-chip__backup svg {
+.cal-card__backup svg {
   width: 12px;
   height: 12px;
   stroke: currentColor;
@@ -2504,10 +2212,6 @@ body:not(.is-cal-copy) .cal-dragfollow.is-group::after {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.cal-chip__backup svg {
-  width: 11px;
-  height: 11px;
 }
 .cal-card__backup-n {
   font-family: var(--hand-sc);

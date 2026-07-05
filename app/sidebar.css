@@ -117,12 +117,7 @@
    brand/nav moment; on C's CONTROLS an icon never moves — hover answers with
    color/fill only. Nav tabs + logo keep their play; everything in the rail
    zones, the popups, the floating layers, and the calendar header goes still. */
-.sidenav__scroll :where(button, a, summary, label, [role="button"]):hover .cicon,
-.sidenav__foot :where(button, a, summary, label, [role="button"]):hover .cicon,
-.calshell__header :where(button, a, summary, label, [role="button"]):hover .cicon,
-.calshell__fab:hover .cicon,
-[class*="overlay"] :where(button, a, summary, label, [role="button"]):hover .cicon,
-.floating-root :where(button, a, summary, label, [role="button"]):hover .cicon {
+.sidenav__scroll :where(button, a, summary, label, [role="button"]):hover .cicon, .sidenav__foot :where(button, a, summary, label, [role="button"]):hover .cicon, .calshell__fab:hover .cicon, [class*="overlay"] :where(button, a, summary, label, [role="button"]):hover .cicon, .floating-root :where(button, a, summary, label, [role="button"]):hover .cicon {
   animation: none;
 }
 /* The zone ledgers drop their per-row dashed rules — inside a disclosure the
@@ -726,12 +721,6 @@
 .sidenav__foot {
   border-top: 1px dashed var(--line-soft);
 }
-.manager__sections {
-  border-top: 1px dashed var(--line-soft);
-}
-.matkit__div {
-  border-top: 1px dashed var(--line-soft);
-}
 /* (1d) Run-sheet inline editables signalled "editable" with dashed underlines
    and dashed add-frames; affordance stays, dashes become solid hairlines. */
 .rlmat__note,
@@ -767,10 +756,6 @@
    accent-mixed border. K1: hover = neutral well (no underline); chosen row =
    tint fill + hairline sage border, and the circle stays a RING (accent-ink)
    holding an accent-ink check — solid fills belong to primary/switch only. */
-.sidefilters .material-filter__item:hover {
-  border-bottom-color: transparent;
-  background: var(--chrome-well);
-}
 .matkit__item {
   border-color: var(--line-soft);
 }
@@ -780,9 +765,6 @@
 }
 .matkit__item.is-have {
   background: var(--card);
-  border-color: var(--accent);
-}
-.sidefilters .material-filter__item.is-have {
   border-color: var(--accent);
 }
 .matkit__item.is-have .matkit__check {
@@ -854,9 +836,6 @@
 }
 /* QuickAdd's create-suggestion row hovered sage; Now badge (A/B rails) too. */
 .quickadd__custom-row:hover {
-  background: var(--chrome-well);
-}
-.caltoday__badge--now {
   background: var(--chrome-well);
 }
 
@@ -968,17 +947,6 @@
    all six rows as heavy dark-green outlines. Selection here is soft: a hairline
    box + neutral well, the dark check inside the ring already saying "on" (solid
    dark green stays reserved for the primary action + switch on-track). */
-.sidefilters .material-filter__item {
-  border-color: var(--line-soft);
-}
-.sidefilters .material-filter__item.is-have {
-  border-color: var(--line);
-  background: var(--chrome-well);
-}
-.sidefilters .material-filter__item:hover {
-  border-color: var(--line);
-  background: var(--chrome-well);
-}
 /* The "All / None" quick actions read as the same quiet muted links as the
    rest of the rail, not the old bright --accent. */
 .material-filter__clear:not(:disabled) {
