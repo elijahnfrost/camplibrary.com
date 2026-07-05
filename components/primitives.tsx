@@ -495,20 +495,6 @@ export function SaveButton({
   );
 }
 
-export function EmptyResults() {
-  return (
-    <div className="empty">
-      <div className="empty__mark">
-        <CampIcon.Search />
-      </div>
-      <div className="empty__title">Nothing on this shelf</div>
-      <div className="empty__sub">
-        No activities match these filters. Loosen a tag or clear the search.
-      </div>
-    </div>
-  );
-}
-
 // A calm, branded loading screen — three earthy bars that rise in a gentle wave
 // (no spinners; the app speaks in pops and fades). Used both while the print
 // preview paginates and while a heavier tab mounts. The wave is decorative and

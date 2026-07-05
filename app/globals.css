@@ -4232,40 +4232,6 @@ body {
   border-top: 1px dashed var(--line-soft);
   padding-top: 10px;
 }
-/* ---------- empty states ---------- */
-.empty {
-  padding: 60px 32px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-.empty__mark {
-  color: var(--line);
-}
-.empty__mark svg {
-  width: 44px;
-  height: 44px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.empty__title {
-  font-family: var(--script);
-  font-weight: 700;
-  font-size: 28px;
-  color: var(--ink-soft);
-  line-height: 0.9;
-}
-.empty__sub {
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--ink-soft);
-  max-width: 250px;
-}
 
 /* ---------- add form ---------- */
 .field {

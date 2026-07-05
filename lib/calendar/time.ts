@@ -81,15 +81,6 @@ export function formatDuration(min: number): string {
   return m ? h + " hr " + m + " min" : h + " hr";
 }
 
-// Ultra-compact clock for tight event chips: "10a", "10:30a", "1:15p".
-export function formatClockCompact(min: number): string {
-  const clamped = Math.max(0, Math.min(MINUTES_PER_DAY, Math.round(min))) % MINUTES_PER_DAY;
-  const h24 = Math.floor(clamped / 60);
-  const m = clamped % 60;
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return h12 + (m ? ":" + String(m).padStart(2, "0") : "") + (h24 < 12 ? "a" : "p");
-}
-
 export function snapMinutes(min: number, snap: number = SNAP_MIN): number {
   return Math.round(min / snap) * snap;
 }
