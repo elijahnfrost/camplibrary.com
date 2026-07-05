@@ -52,7 +52,8 @@ import { SaveButton, ThemeBadge } from "../ui/primitives";
 import { Modal } from "../ui/Modal";
 import { ColorField } from "../floating/ColorField";
 import { FloatingLayer } from "../floating/FloatingLayer";
-import { ActivityRunList, LedgerMenu } from "./ActivityRunList";
+import { ActivityRunList } from "./ActivityRunList";
+import { LedgerMenu } from "./RunSheetControls";
 import { type ThemeKit } from "../library/ThemeField";
 import { DESKTOP_MIN } from "../hooks/useDeviceShape";
 

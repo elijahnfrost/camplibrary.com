@@ -237,19 +237,42 @@ per the stop-when-risk-grows rule.
   grandfathers the 20 files over 500 lines; the set can shrink but never grow,
   and new files must stay under 500.
 
-## Deferred items
+## God-component splits (IN PROGRESS — deferral lifted by request)
 
-- **God-object / large-component splits (Phase 4 extraction + Phase 5).** The
-  large `.tsx` surfaces — `CalendarShell` (6.3k), `ActivityRunList` (2.8k),
-  `CampApp` (1.6k), `QuickAdd`, `PrintControls`, `PlaybookEditor`, `Filters`,
-  `DetailSheet`, `ListManagerModal`, `RunSheetBody` — are cohesive feature
-  surfaces whose split means extracting rendering/stateful logic. The only pixel
-  oracle is CI (no local visual on this Mac), and the brief is explicit: "a
-  deferred split with a written reason beats a broken calendar." These are left
-  intact and should be split as **dedicated, CI-validated follow-ups**, one
-  cohesive unit at a time (for `CalendarShell`: the rail, weather-chip injection,
-  drag-create, series-scope dialogs, event-render callbacks). The file-size and
-  boundary gates keep them from growing or re-coupling in the meantime.
+The large `.tsx` surfaces — `CalendarShell` (6.3k), `ActivityRunList` (2.8k),
+`CampApp` (1.6k), `QuickAdd` — are being split as **dedicated, CI-validated
+commits**, one cohesive unit at a time. The pixel oracle is CI-only (no local
+visual on this Mac), so every commit stays behavior-neutral by construction and
+is proven on CI before the next.
+
+**The safe method — the module-scope guarantee.** Anything declared at column 0
+(a module-level `function`/`const`/`type`) cannot close over a component's state;
+by construction it only sees imports, its own props, and other module-level
+symbols. Moving such code to a sibling file is as byte-identical-safe as the CSS
+slice was: `typecheck` proves the wiring, the unit suite proves logic, CI proves
+pixels. Extractions are done with a verified slice script (prepends `export`
+only to cross-boundary symbols; asserts moved bodies are byte-identical) +
+an ad-hoc `tsc --noUnusedLocals` pass to prune the imports the move stranded.
+
+Log:
+- **`ActivityRunList` 2769 → 1841.** Lifted the whole contiguous non-component
+  region (shared meta + the 9 presentational sub-components: `Editable`, `Pill`,
+  `RunEmbed`, `MaterialChecklist`, `LedgerMenu`, `AgeGroupsMenu`, `GroupSizeMenu`,
+  `DetailFormControls`, `MaterialsEditor`) into `components/activity/RunSheetControls.tsx`
+  (985). `DetailSheet` now imports `LedgerMenu` from there. The 985-line module is
+  a cohesive controls surface, adopted in the file-size baseline; **candidate for
+  a further sub-split** (meta / Editable / detail-form pickers / materials editor)
+  as a follow-up once this is CI-green.
+
+Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
+(pure helpers → `lib/calendar/`; then the tail sub-components `RainPanel`,
+`GatherPopover`, `BulkLocationPicker`, `SkipDaysPicker` → files; then the rail /
+weather-chip injection / drag-create / series-scope dialogs), `CampApp`
+(`StaffPromptModal` + tab/storage helpers), `QuickAdd` (glyphs, `draftFromEvent`).
+Large **pure-logic** files stay put (see below). The file-size and boundary gates
+keep everything from growing or re-coupling in the meantime.
+
+## Deferred items
 - Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,
   `shelfLayout.ts`, `playbooks.ts`) are cohesive single-purpose modules; per
   "no file gets split purely to satisfy the count," they stay as grandfathered
