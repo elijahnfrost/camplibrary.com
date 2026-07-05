@@ -4,12 +4,12 @@ import {
   coverage,
   materialNeedsForActivity,
   materialOptionsForActivities,
-  materialTagId,
   materialTagsFromMaterials,
   requiredMaterialTagIds,
   resolveRefs,
   usesAnyMaterialTag,
 } from "./materials";
+import { materialTagId } from "./materialTag";
 import type { Material } from "./materialCatalog";
 import type { StockState } from "./kitStock";
 

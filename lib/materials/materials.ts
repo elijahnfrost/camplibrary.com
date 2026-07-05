@@ -1,6 +1,7 @@
 import type { Activity, MaterialRef } from "../types";
 import { catalogNameFor, type Material } from "./materialCatalog";
 import { isStocked, type StockState } from "./kitStock";
+import { materialTagId } from "./materialTag";
 
 export interface MaterialOption {
   id: string;
@@ -10,14 +11,6 @@ export interface MaterialOption {
 
 function compact(value: string): string {
   return value.trim().replace(/\s+/g, " ");
-}
-
-export function materialTagId(label: string): string {
-  return compact(label)
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function unique(values: string[]): string[] {

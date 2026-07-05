@@ -22,7 +22,7 @@
 // the client (hydrating localStorage) AND on the server (validating API
 // payloads before Postgres), exactly like every other synced doc.
 
-import { materialTagId } from "./materials";
+import { materialTagId } from "./materialTag";
 
 export interface Material {
   // The frozen slug identity (materialTagId of the birth name). Join key across

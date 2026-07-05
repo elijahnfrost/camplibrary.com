@@ -8,7 +8,8 @@
 import type { Activity, AgeGroupId, CategoryId, MaterialRef, Place, Prep } from "../types";
 import { AGE_GROUPS } from "../content/data";
 import { normalizeHexColor } from "../content/color";
-import { materialNeedsForActivity, materialTagId, resolveRefs } from "../materials/materials";
+import { materialNeedsForActivity, resolveRefs } from "../materials/materials";
+import { materialTagId } from "../materials/materialTag";
 import { type Material } from "../materials/materialCatalog";
 import {
   buildRunDoc,
