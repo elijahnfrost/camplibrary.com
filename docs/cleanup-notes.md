@@ -126,7 +126,30 @@ a means the tool can't see:
 
 ---
 
-## Phase 1 worklist (dead-code candidates, all report-derived)
+## Phase 1 — DONE
+
+All detectors clean: `knip` 0 unused files/exports/types/deps; `depcheck` 0
+unused (sdk+zod allowlisted) / 0 missing; `report:css` 0 dead selectors. Gates
+green at every commit. Commits: dead CSS selectors; 7 scratch PNGs; unused
+file + functions + orphaned CSS; unexport in-module symbols + dead re-exports.
+
+Decisions worth remembering:
+
+- **Kept on purpose (NOT dead):** the `schedule` / `schedulePlans` / `meals.v1`
+  entries in `SCOPED_STORAGE_KEYS` (`lib/storageScope.ts`) are deliberately
+  retained so historical localStorage plans keep following the account scope on
+  disk — the code comment says so, and removing them would change migration
+  behavior. Left untouched.
+- `calendarViewRailOpen` / `calendarWeatherRailOpen` (brief-named) were already
+  gone before this effort — nothing to remove.
+- **Deferred (uncertain):** `public/documents/summertime-thrills-break-sheet*.pdf`
+  have no import/grep reference in app/components/lib, but may be linked via a
+  constructed `/documents/...` public path. Not deleted — needs a runtime check
+  of the print/share download path before it's safe. See Deferred items.
+- One-shot `scripts/remove-dead-css.mjs` (PostCSS rule stripper) was used then
+  deleted. `scripts/report-unused-css.mjs` stays as a report-only detector.
+
+## Phase 1 worklist (historical — dead-code candidates, all report-derived)
 
 Verify each with a fresh detector run + grep before deleting; batch by domain,
 gate after each batch.
@@ -169,5 +192,8 @@ gate after each batch.
 
 ## Deferred items
 
-_(none yet — append here with a reason whenever a split/decouple is left intact
-per the stop-when-risky rule.)_
+- **`public/documents/summertime-thrills-break-sheet{,-bw,-color}.pdf`** — no
+  static reference found (app/components/lib grep + import search all empty).
+  Left in place because a print/share flow may build the URL as a runtime
+  string (`/documents/...`). Before deleting, boot the app and check the
+  run-sheet/print share download path; if nothing serves them, they are dead.
