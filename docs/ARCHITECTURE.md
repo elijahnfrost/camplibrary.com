@@ -11,6 +11,46 @@ A Next.js (App Router) app with three surfaces — **calendar**, **library**, an
 storage with an offline outbox; anonymous users persist to localStorage. Auth is
 Clerk (middleware in `proxy.ts`). The app entry is `components/CampApp.tsx`.
 
+## Surfaces
+
+- **Calendar** (`components/calendar/`) — a FullCalendar day/week/month grid with
+  Google-Calendar behavior (drag to move/resize/create, 15-min snap, recurring
+  series, weather chips). `CalendarShell` is the God component (the deferred
+  split target); `QuickAdd` is the create surface.
+- **Library** (`components/library/`) — Shelf/Deck/Catalog views over the activity
+  catalog with search + filters (`Filters`, `LibraryViews`, `LibraryTab`).
+- **Run sheet** (`components/activity/`) — any activity's instruction document:
+  collapsible steps, attached notes/media/diagrams, read-only-first with a pencil
+  toggle, and a full-screen Present mode.
+- **Print** (`components/print/`) — a Paged.js WYSIWYG document + controls for
+  date-range printing.
+- **Sidebar rail** — shared chrome across surfaces; the layout + selection rules
+  live in `app/sidebar.css` (loaded last so they win).
+
+## State & sync
+
+- **Anonymous** users persist to `localStorage` via `lib/cloud/store.ts` (also the
+  home for UI prefs).
+- **Signed-in** users are cloud-first with offline tolerance (`lib/cloud/cloudStore.tsx`):
+  state hydrates from a localStorage cache, one `GET /api/user-data` pulls server
+  truth, and writes are optimistic — queued in a coalescing outbox
+  (`lib/cloud/cloudOutbox.ts`) that flushes with retry/backoff and survives reloads
+  (last write wins). First sign-in imports existing local data once
+  (`lib/cloud/cloudMigration.ts`); server rows win. Doc shapes are validated by
+  isomorphic validators in `lib/cloud/userDataDocs.ts` (client + API share them).
+- Treat `lib/cloud/` as the **one home** for storage/sync — features read and write
+  through it, never a second store.
+
+## Auth & API boundary
+
+Public visitors browse + plan on-device. Staff-only actions (save, rate, add
+custom activities, edit run lists, change the calendar) are gated by Clerk session
+state; `lib/auth.ts` holds the usability + role checks and `proxy.ts` is the
+middleware. API routes enforce the same boundary server-side (`lib/server/*`),
+which is **server-only** — a client component may import its types but never its
+runtime (enforced by `lint:boundaries`). A new API path must be added to the
+`clerkMiddleware` matcher in `proxy.ts`.
+
 ## `app/` — routes, middleware, styles
 
 - Route tree under `app/**` (pages, layouts, `api/**/route.ts`). `app/layout.tsx`

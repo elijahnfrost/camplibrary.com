@@ -18,7 +18,9 @@ across devices.
 - **FullCalendar 6** (day/week/month time grids, drag & drop, external drag sources),
   themed onto the design system in `app/calendar.css`
 - **next/font** for the three handwriting faces (Caveat, Patrick Hand, Patrick Hand SC)
-- Plain CSS design system in `app/globals.css` — no UI framework, faithful to the design
+- Plain CSS design system split into per-domain stylesheets under `app/` (`tokens`,
+  `base`, `shell`, `components`, `run-sheet`, `print`, …) — no UI framework, faithful
+  to the design. Import order in `app/layout.tsx` is the cascade order.
 - Clerk auth + Neon/Postgres: invite codes, per-user documents, calendar events
 
 ## Getting started
@@ -35,8 +37,14 @@ npm run build              # production build (statically prerenders /)
 npm run start              # serve the production build
 npm run typecheck          # tsc --noEmit
 npm run test               # vitest
-npm run lint:design-tokens # CSS token-scale guardrail
 npm run env:check          # verify required auth/invite env
+
+# Structure gates (all run in CI — see docs/CONVENTIONS.md):
+npm run lint:design-tokens # every CSS value is a token
+npm run lint:css-hygiene   # no new !important / duplicate selector
+npm run lint:boundaries    # dependency-cruiser architectural boundaries
+npm run lint:file-size     # 500-line ratchet
+npm run report:deadcode    # knip: unused files/exports/deps
 ```
 
 Without env vars the app runs in local mode: full browsing, with all data in
@@ -70,16 +78,16 @@ screen stays awake.
 Public visitors can browse the library and plan on-device. Staff-only actions —
 saving, rating, adding custom activities, editing run lists, and changing the
 calendar — are locked behind Clerk session state
-([`components/AuthControls.tsx`](components/AuthControls.tsx)); API routes enforce the
-same boundary with `requireEditorSession`.
+([`components/auth/AuthControls.tsx`](components/auth/AuthControls.tsx)); API routes
+enforce the same boundary with `requireEditorSession`.
 
 Signed-in persistence is cloud-first with offline tolerance
-([`lib/cloudStore.tsx`](lib/cloudStore.tsx)): state hydrates instantly from a
+([`lib/cloud/cloudStore.tsx`](lib/cloud/cloudStore.tsx)): state hydrates instantly from a
 localStorage cache, one bootstrap `GET /api/user-data` pulls server truth, and every
 write is optimistic — queued in a coalescing outbox
-([`lib/cloudOutbox.ts`](lib/cloudOutbox.ts)) that flushes with retry/backoff and
+([`lib/cloud/cloudOutbox.ts`](lib/cloud/cloudOutbox.ts)) that flushes with retry/backoff and
 survives reloads. Last write wins. On first sign-in after the cloud rollout, existing
-localStorage data is imported once ([`lib/cloudMigration.ts`](lib/cloudMigration.ts));
+localStorage data is imported once ([`lib/cloud/cloudMigration.ts`](lib/cloud/cloudMigration.ts));
 rows already on the server win.
 
 Postgres holds three kinds of data (schema ensured in code,
@@ -120,43 +128,17 @@ so scope is explicit, then verify with `list_events`.
 
 ## Project layout
 
+Both `components/` and `lib/` are grouped by domain. The full module map — which
+component and utility lives in which folder — is **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**;
+the rules for adding code without re-coupling are **[`docs/CONVENTIONS.md`](docs/CONVENTIONS.md)**.
+
 ```
-app/
-  layout.tsx           Root layout — fonts, metadata, manifest
-  page.tsx             Renders <CampApp/>
-  admin/               Admin-only invite-code dashboard
-  sign-in/, sign-up/   Clerk auth (invite-code gated sign-up)
-  api/invite-codes/    Invite code admin/reserve/consume routes
-  api/user-data/       Synced per-user documents (bootstrap, put, import)
-  api/calendar-events/ Calendar event range reads + idempotent upserts
-  globals.css          Design system: mobile-first + the large-screen layer
-  calendar.css         FullCalendar themed onto the design tokens
-components/
-  CampApp.tsx          The shell: tabs, auth, overlays
-  LibraryTab.tsx       Library surface (views, search, filters bar, Add)
-  useActivityLibrary.ts Activity-domain state over the cloud store
-  LibraryViews.tsx     Shelf · Deck · Catalog
-  calendar/            CalendarShell, header, event editor/popover, library panel
-  DetailSheet.tsx      Activity viewer (read-only first, pencil to edit)
-  ActivityRunList.tsx  The Run List document (view + inline editor)
-  PresentMode.tsx      Full-screen projector deck (wake-lock, frame builds)
-  DiagramLightbox.tsx  One-frame-at-a-time field diagram viewer
-  PlaybookEditor.tsx   Field diagram editor
-  ActivityBookPrint.tsx Print layout for one activity book
-lib/
-  data.ts              Seed activities + display helpers
-  calendar/            Event model, date/time math, FullCalendar adapter
-  cloudStore.tsx       Synced state: cache-first reads, optimistic writes
-  cloudOutbox.ts       Coalescing offline write queue
-  cloudMigration.ts    One-time localStorage → cloud import
-  userDataDocs.ts      Isomorphic doc validators (client + API)
-  presentSlides.ts     Run List → slide deck mapping
-  runList.ts           Instruction document model
-  playbooks.ts         Field diagram model
-  server/              Clerk session helpers, Postgres stores
-  store.ts             Plain localStorage hook (anon mode + UI prefs)
-public/
-  icon.svg, manifest.webmanifest
+app/          routes (page/layout/route), the per-domain stylesheets, root layout
+components/   activity/ library/ materials/ camps/ auth/ calendar/ print/
+              floating/ ui/ hooks/   (+ CampApp.tsx, the app entry, at the root)
+lib/          activity/ cloud/ content/ materials/ calendar/ print/ server/ seed/
+              (+ auth.ts, types.ts, weather.ts at the root)
+proxy.ts      Clerk middleware (matcher-gated)
 ```
 
 ## Responsive design
