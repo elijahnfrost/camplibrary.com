@@ -77,6 +77,19 @@ export function CampEditorPopup({
   const [newDate, setNewDate] = useState<DateKey>(todayKey());
   const titleRef = useRef<HTMLInputElement | null>(null);
 
+  // The name field runs off a LOCAL draft, not the stored name directly. The
+  // store's renameCamp trims and rejects empties, so binding the input straight
+  // to camp.name meant clearing the field (or typing a space) snapped the old
+  // name right back — pre-existing names felt impossible to change or delete.
+  // Now you can freely clear and retype; we persist only a trimmed, non-empty
+  // value (a camp always keeps a name). Re-seed when a different camp opens.
+  const [nameDraft, setNameDraft] = useState(camp.name);
+  const [seededCampId, setSeededCampId] = useState(camp.id);
+  if (seededCampId !== camp.id) {
+    setSeededCampId(camp.id);
+    setNameDraft(camp.name);
+  }
+
   const overrideCount = Object.keys(camp.weekdayHours ?? {}).length;
   const weekSummary = overrideCount
     ? overrideCount + (overrideCount === 1 ? " day differs" : " days differ")
@@ -99,11 +112,16 @@ export function CampEditorPopup({
           <input
             ref={titleRef}
             className="lc-titleinput"
-            value={camp.name}
+            value={nameDraft}
             aria-label="Camp name"
             maxLength={MAX_CAMP_NAME}
             spellCheck={false}
-            onChange={(e) => onRename(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setNameDraft(next);
+              const trimmed = next.trim();
+              if (trimmed) onRename(trimmed);
+            }}
           />
           {/* A REAL rename affordance — focuses the input (and selects the name
               so typing replaces it), instead of a decorative hover pencil. */}

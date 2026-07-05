@@ -4,19 +4,31 @@
 // custom-title create, the pickTime postures, all-day, location, color,
 // repeat/series, save-to-library, backups, delete/delete-series. The sheet is
 // TWO-BEAT:
-//   Beat one (at rest): the search/title field, the when-line as a compact pill
-//   sentence (date pill · start pill · end pill + faint length · All-day
-//   switch), and the primary action.
+//   Beat one (at rest): the title (the camp editor's own underline + pencil
+//   treatment when editing a one-off, in the header — a search/name field in
+//   the body while creating or changing the linked activity), the when-line as
+//   a compact pill sentence (date pill · start pill · end pill + faint length ·
+//   All-day switch), and the primary action.
 //   Beat two: EVERYTHING else — save-to-library, color, location, repeat, day
 //   note, recover time, backups, and the immediate edit actions — behind ONE
 //   flat "More options" disclosure (the same chevron-row grammar as the camp
-//   editor's collapsed groups). Closed by default while creating; AUTO-OPENS
-//   when editing an event that already carries any of those, so existing values
-//   are never hidden — and the closed row's summary still echoes what's set.
+//   editor's collapsed groups). Defaults CLOSED — every value it hides still
+//   echoes in the closed row's summary, so nothing goes invisible — and
+//   remembers the user's own choice to open it rather than guessing from the
+//   draft's contents.
 // Footer: Delete (danger ink, icon+label) bottom-left while editing, the green
-// primary bottom-right — the reference popup's anatomy.
+// primary bottom-right — the reference popup's anatomy. An editing sheet also
+// answers Delete/Backspace and Cmd/Ctrl+Delete like the calendar grid does,
+// away from any live text field (see isTypingTarget/onSheetKeyDown).
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import {
   MINUTES_PER_DAY,
   SNAP_MIN,
@@ -25,6 +37,7 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
+import { useLocalStorage } from "@/lib/store";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { matchesActivitySearch } from "@/lib/activityFilters";
 import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
@@ -96,6 +109,18 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     note: event.note,
     pinned: event.pinned,
   };
+}
+
+const boolStorage = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
+
+// Delete/Backspace only act as event shortcuts away from any live text editing
+// (an input, a textarea, a select, or a contenteditable) — mirrors the
+// calendar grid's own isTypingTarget gate so the sheet's Delete key doesn't
+// eat a keystroke someone meant for the note field or the title.
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
 export function QuickAdd({
@@ -181,21 +206,11 @@ export function QuickAdd({
   const [color, setColor] = useState<string | undefined>(draft.color);
   const [locations, setLocations] = useState<string[]>(draft.locations ?? []);
   const [changingActivity, setChangingActivity] = useState(false);
-  // The TWO-BEAT hinge. Closed for a fresh create; auto-open while editing an
-  // event that already carries anything the disclosure hides, so an existing
-  // value is never invisible on arrival.
-  const [moreOpen, setMoreOpen] = useState(
-    () =>
-      isEdit &&
-      Boolean(
-        draft.color ||
-          (draft.locations?.length ?? 0) > 0 ||
-          draft.recurrence ||
-          (draft.note ?? "").trim() ||
-          backupAlternates.length > 0 ||
-          hasOwnBackups
-      )
-  );
+  // The TWO-BEAT hinge. Defaults CLOSED — everything it hides still echoes in
+  // the closed row's summary, so nothing goes invisible on arrival. Remembers
+  // the user's OWN choice (persisted across events) instead of guessing an
+  // open state from the draft's contents.
+  const [moreOpen, setMoreOpen] = useLocalStorage<boolean>("quickaddMoreOpen", false, boolStorage);
 
   const sorted = useMemo(
     () => [...activities].sort((a, b) => a.title.localeCompare(b.title)),
@@ -213,6 +228,15 @@ export function QuickAdd({
   );
 
   const listRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // "Change activity" is a deliberate search action — focus the reopened
+  // search field the same way the camp editor's rename button does (a real
+  // click-driven focus, not an autofocus-on-open guess).
+  useEffect(() => {
+    if (changingActivity) searchInputRef.current?.focus();
+  }, [changingActivity]);
 
   // Option steps ride the active camp's snap grid (see the fork source for the
   // full rationale — anchored first option, current-value injection).
@@ -470,8 +494,9 @@ export function QuickAdd({
           {searching && <CampIcon.Search />}
           <input
             id="quickadd-search"
+            ref={searchInputRef}
             className="searchfield__input"
-            data-autofocus
+            data-autofocus={!isEdit || undefined}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
@@ -575,13 +600,76 @@ export function QuickAdd({
     </label>
   ) : null;
 
+  // A one-off custom title, edited in place — no search dropdown involved, so
+  // it earns the camp editor's own title treatment: a live underline field +
+  // a real rename button, sitting in the header exactly like the camp name.
+  const showTitleHeader = pickTime && isEdit && !selectedActivity && !changingActivity;
+  const titleTint = color || (isReminder ? reminderTint(undefined) : categoryTint(undefined));
+
+  // Standard sheet interactions: Delete/Backspace removes this event (routes
+  // through the this/following/all scope dialog for a series member, same as
+  // deleteEvent elsewhere); Cmd/Ctrl+Delete jumps straight to deleting the
+  // whole series. Both stay out of the way of ordinary text editing.
+  function onSheetKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!pickTime || !isEdit) return;
+    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    if (isTypingTarget(event.target)) return;
+    if (event.metaKey || event.ctrlKey) {
+      if (onDeleteSeries) {
+        event.preventDefault();
+        onDeleteSeries();
+      } else if (onDelete) {
+        event.preventDefault();
+        onDelete();
+      }
+      return;
+    }
+    if (onDelete) {
+      event.preventDefault();
+      onDelete();
+    }
+  }
+
   return (
     <FocusSheet
       label={isEdit ? "Edit event" : "Add to calendar"}
       onClose={onClose}
       overlayClass="overlay--card overlay--quickadd lc-sheet lc-sheet--qa"
+      tint={showTitleHeader ? titleTint : undefined}
       title={
-        pickTime ? (
+        showTitleHeader ? (
+          <>
+            <input
+              ref={titleInputRef}
+              className="lc-titleinput"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                save();
+              }}
+              aria-label="Event name"
+              spellCheck={false}
+            />
+            {/* A REAL rename affordance, matching the camp editor's — focuses
+                and selects the name so typing replaces it, instead of the
+                field grabbing focus (and a first keystroke) the moment the
+                sheet opens. */}
+            <button
+              type="button"
+              className="icon-btn lc-titlepen"
+              aria-label="Rename event"
+              title="Rename event"
+              onClick={() => {
+                titleInputRef.current?.focus();
+                titleInputRef.current?.select();
+              }}
+            >
+              <CampIcon.Pencil />
+            </button>
+          </>
+        ) : pickTime ? (
           <span className="lc-label lc-sheet__eyebrow">{isEdit ? "Edit event" : "Add to calendar"}</span>
         ) : (
           <span className="quickadd__when">
@@ -624,8 +712,12 @@ export function QuickAdd({
         ) : undefined
       }
     >
-      <div className="quickadd lc-qa">
+      <div className="quickadd lc-qa" onKeyDown={onSheetKeyDown}>
         <h2 className="sr-only">{isEdit ? "Edit event" : "Add to calendar"}</h2>
+        {/* Focus guard — useDialogFocus prefers a [data-autofocus] target, so an
+            edit opens calm (focus rests here, NOT in a text field); the first
+            Tab still lands on the title input or the first real control. */}
+        {isEdit && <span data-autofocus tabIndex={-1} aria-hidden="true" className="lc-focusguard" />}
         {isEdit && selectedActivity && !changingActivity ? (
           // The library-backed event's read-only title block — navigates to the
           // run sheet via the app's stretched-card convention (fork source).
@@ -663,7 +755,7 @@ export function QuickAdd({
               </button>
             </div>
           </div>
-        ) : (
+        ) : showTitleHeader ? null : (
           searchAndList
         )}
 
@@ -708,8 +800,8 @@ export function QuickAdd({
               )}
             </div>
 
-            {/* MORE OPTIONS — the one honest disclosure. Controlled: the open
-                state auto-derives from the draft's contents (see moreOpen). */}
+            {/* MORE OPTIONS — the one honest disclosure. Controlled: open state
+                is the user's own remembered preference (see moreOpen). */}
             <Disclosure
               className="lc-qa__more lc-rule"
               title="More options"
