@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { isClerkPublicKeyUsable } from "@/lib/auth";
-import { ClerkAuthProvider } from "@/components/ClerkAuthProvider";
+import { ClerkAuthProvider } from "@/components/auth/ClerkAuthProvider";
 // The former globals.css monolith, split into per-domain stylesheets. Import
 // order IS the cascade order and reproduces the original file exactly (tokens →
 // base → shell → components → responsive → animations → run-sheet → motion →

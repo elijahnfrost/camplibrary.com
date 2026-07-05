@@ -7,7 +7,7 @@ import type { Material } from "@/lib/materials/materialCatalog";
 import type { StockState } from "@/lib/materials/kitStock";
 import type { RunDoc } from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
-import { RunSheetBody } from "../RunSheetBody";
+import { RunSheetBody } from "../activity/RunSheetBody";
 
 export function PrintRunSheet({
   activity,

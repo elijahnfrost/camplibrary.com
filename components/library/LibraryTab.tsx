@@ -13,10 +13,10 @@ import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilt
 import { ALL_CATEGORY_IDS, type AgeUnit } from "@/lib/content/data";
 import type { Theme } from "@/lib/content/themes";
 import type { Activity, LibraryView } from "@/lib/types";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 import { ActiveFilters, Filters, type MinutesBounds, type MinutesRange } from "./Filters";
 import { CatalogView, DeckView, ShelfView } from "./LibraryViews";
-import { LoadingVeil, MiniSeg } from "./primitives";
+import { LoadingVeil, MiniSeg } from "../ui/primitives";
 
 export function LibraryTab({
   view,

@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PrintOptions } from "@/lib/print/options";
-import { LoadingVeil } from "../primitives";
+import { LoadingVeil } from "../ui/primitives";
 import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDocument";
 
 // Page geometry + the same break rules the printed sheet uses, handed to Paged.js

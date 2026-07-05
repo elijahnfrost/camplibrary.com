@@ -10,7 +10,7 @@ import {
   type HourWeather,
   type WeatherUnits,
 } from "@/lib/weather";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { WeatherGlyph } from "./WeatherGlyph";
 

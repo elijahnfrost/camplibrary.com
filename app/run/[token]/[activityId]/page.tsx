@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { RunShareButton } from "@/components/RunShareButton";
-import { RunSheetView } from "@/components/RunSheetView";
+import { RunShareButton } from "@/components/activity/RunShareButton";
+import { RunSheetView } from "@/components/activity/RunSheetView";
 import { ACTIVITIES } from "@/lib/content/data";
 import type { Material } from "@/lib/materials/materialCatalog";
 import type { StockState } from "@/lib/materials/kitStock";

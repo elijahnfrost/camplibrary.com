@@ -14,7 +14,7 @@ import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, 
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/content/data";
 import { catalogNameFor } from "@/lib/materials/materialCatalog";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/cloud/store";
-import { AgeUnitProvider } from "./ageUnit";
+import { AgeUnitProvider } from "./ui/ageUnit";
 import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import {
@@ -36,37 +36,37 @@ import { useCloudUserData } from "@/lib/cloud/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/cloud/storageScope";
 import type { RunDoc } from "@/lib/activity/runList";
 import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activity/activityForm";
-import { BrandMark, CampIcon } from "./icons";
+import { BrandMark, CampIcon } from "./ui/icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
-import { ActivityBookPrint } from "./ActivityBookPrint";
-import { AdminInviteCodes } from "./AdminInviteCodes";
-import { usePreviewAuth } from "./AuthControls";
-import { ConfirmHost, requestConfirm } from "./ConfirmDialog";
+import { ActivityBookPrint } from "./activity/ActivityBookPrint";
+import { AdminInviteCodes } from "./auth/AdminInviteCodes";
+import { usePreviewAuth } from "./auth/AuthControls";
+import { ConfirmHost, requestConfirm } from "./ui/ConfirmDialog";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
-import { DetailSheet } from "./DetailSheet";
-import { Filters } from "./Filters";
-import { KitModal } from "./KitModal";
-import { LibraryTab } from "./LibraryTab";
+import { DetailSheet } from "./activity/DetailSheet";
+import { Filters } from "./library/Filters";
+import { KitModal } from "./materials/KitModal";
+import { LibraryTab } from "./library/LibraryTab";
 import {
   CampDayStructure,
   GuidesSection,
   ListManagerModal,
-} from "./ListManagerModal";
-import { CampEditorPopup } from "./CampEditorPopup";
-import { CampsRail } from "./CampsRail";
-import { Modal } from "./Modal";
-import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
+} from "./ui/ListManagerModal";
+import { CampEditorPopup } from "./camps/CampEditorPopup";
+import { CampsRail } from "./camps/CampsRail";
+import { Modal } from "./ui/Modal";
+import { LoadingVeil, MiniSeg, ToggleSwitch } from "./ui/primitives";
 import { Select } from "./floating/Select";
 import { DatePopover } from "./floating/DatePopover";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
-import { InviteSignUp } from "./InviteSignUp";
-import { ProfileControl } from "./ProfileControl";
-import { StaffSignIn } from "./StaffSignIn";
-import { TabBoundary } from "./TabBoundary";
-import { useActivityLibrary } from "./useActivityLibrary";
-import { useCamps } from "./useCamps";
-import { useDeviceShape } from "./useDeviceShape";
+import { InviteSignUp } from "./auth/InviteSignUp";
+import { ProfileControl } from "./auth/ProfileControl";
+import { StaffSignIn } from "./auth/StaffSignIn";
+import { TabBoundary } from "./ui/TabBoundary";
+import { useActivityLibrary } from "./hooks/useActivityLibrary";
+import { useCamps } from "./hooks/useCamps";
+import { useDeviceShape } from "./hooks/useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the

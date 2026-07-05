@@ -105,14 +105,14 @@ import {
 } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { useLocalStorage } from "@/lib/cloud/store";
-import { CampIcon } from "../icons";
-import { Modal } from "../Modal";
+import { CampIcon } from "../ui/icons";
+import { Modal } from "../ui/Modal";
 import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
-import { StockDot } from "../StockDot";
+import { StockDot } from "../materials/StockDot";
 import { ColorPickerBody } from "../floating/ColorField";
 import { LocationPickerList } from "../floating/LocationField";
-import { hasOpenDialog } from "../useDialogFocus";
+import { hasOpenDialog } from "../hooks/useDialogFocus";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";

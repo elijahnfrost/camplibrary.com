@@ -29,7 +29,7 @@ import {
   type RunIcon,
 } from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 
 export type RunSheetVariant = "print" | "web";

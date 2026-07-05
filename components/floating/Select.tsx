@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "./FloatingLayer";
 
 export type SelectOption<V> = { value: V; label: string };

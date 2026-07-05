@@ -4,9 +4,9 @@ import type { CSSProperties, MouseEvent } from "react";
 import type { Activity } from "@/lib/types";
 import type { Theme } from "@/lib/content/themes";
 import { ageLabel, durLabel, effectiveActivityColor, ENERGY } from "@/lib/content/data";
-import { CampIcon } from "./icons";
-import { SaveButton, ThemeBadge } from "./primitives";
-import { useAgeUnit } from "./ageUnit";
+import { CampIcon } from "../ui/icons";
+import { SaveButton, ThemeBadge } from "../ui/primitives";
+import { useAgeUnit } from "../ui/ageUnit";
 
 export function ActivityCell({
   activity,

@@ -4,7 +4,7 @@ import { useRef, useState, type CSSProperties, type FC, type ReactNode } from "r
 import { AGE_GROUPS, bandLong, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/content/data";
 import type { Theme } from "@/lib/content/themes";
 import { CampIcon } from "./icons";
-import { FloatingLayer } from "./floating/FloatingLayer";
+import { FloatingLayer } from "../floating/FloatingLayer";
 
 // ---- The "switch ledger" control family (desktop sidebar rails) ----
 // Every filter dimension is ONE ledger line: small-caps label left, a compact

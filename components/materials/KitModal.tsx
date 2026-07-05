@@ -25,11 +25,11 @@ import { useState } from "react";
 import type { Activity } from "@/lib/types";
 import type { Material } from "@/lib/materials/materialCatalog";
 import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/materials/kitStock";
-import { CampIcon } from "./icons";
-import { Modal } from "./Modal";
+import { CampIcon } from "../ui/icons";
+import { Modal } from "../ui/Modal";
 import { MaterialsTab } from "./MaterialsTab";
-import { Select } from "./floating/Select";
-import { MiniSeg } from "./primitives";
+import { Select } from "../floating/Select";
+import { MiniSeg } from "../ui/primitives";
 
 // The stock lens: MaterialsTab's own 4 stock states plus "Restock", which is
 // not a fifth stored state — it maps to the tab's restockOnly narrowing

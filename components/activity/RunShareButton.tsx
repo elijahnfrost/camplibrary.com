@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 
 // Share affordance for the public, token-gated run-sheet page. The page itself
 // is a server component (see app/run/[token]/[activityId]/page.tsx) — this is

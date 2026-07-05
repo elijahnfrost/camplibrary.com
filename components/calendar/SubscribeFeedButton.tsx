@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
-import { CampIcon } from "../icons";
-import { requestConfirm } from "../ConfirmDialog";
+import { CampIcon } from "../ui/icons";
+import { requestConfirm } from "../ui/ConfirmDialog";
 import { FloatingLayer } from "../floating/FloatingLayer";
 
 // The calendar's "Subscribe" control — ONE live .ics feed per camp. It's the

@@ -17,7 +17,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { StockState } from "@/lib/materials/kitStock";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 
 const OPTIONS: { id: StockState; word: string; Icon: (typeof CampIcon)[keyof typeof CampIcon] }[] = [
   { id: "have", word: "Have", Icon: CampIcon.Check },

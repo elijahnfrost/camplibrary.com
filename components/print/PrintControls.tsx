@@ -31,8 +31,8 @@ import type {
 } from "@/lib/print/options";
 import { normalizeSearchText, searchTokens } from "@/lib/activity/activityFilters";
 import { MAX_PRINT_DAYS, type ScheduleDay } from "@/lib/print/schedule";
-import { CampIcon } from "../icons";
-import { MenuPicker, MiniSeg, ToggleSwitch } from "../primitives";
+import { CampIcon } from "../ui/icons";
+import { MenuPicker, MiniSeg, ToggleSwitch } from "../ui/primitives";
 import { MiniRangeCalendar } from "./MiniRangeCalendar";
 
 type Patch = Partial<PrintOptions>;

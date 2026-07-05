@@ -13,8 +13,8 @@
 
 import { useState, type CSSProperties } from "react";
 import { campTint, type Camp } from "@/lib/content/camps";
-import { CampIcon } from "./icons";
-import { Disclosure } from "./Disclosure";
+import { CampIcon } from "../ui/icons";
+import { Disclosure } from "../ui/Disclosure";
 
 export type CampsRailProps = {
   camps: Camp[];

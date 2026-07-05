@@ -5,10 +5,10 @@ import type { AgeFilter, CatFilter, KitLens, LibrarySort, PlaceFilter, ThemeFilt
 import { AGE_GROUPS, ALL_CATEGORY_IDS, CATEGORIES, bandShort, categoryTint, type AgeUnit } from "@/lib/content/data";
 import type { CategoryId } from "@/lib/types";
 import type { Theme } from "@/lib/content/themes";
-import { CampIcon } from "./icons";
-import { Modal } from "./Modal";
-import { FloatingLayer } from "./floating/FloatingLayer";
-import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "./primitives";
+import { CampIcon } from "../ui/icons";
+import { Modal } from "../ui/Modal";
+import { FloatingLayer } from "../floating/FloatingLayer";
+import { AgePicker, MiniSeg, RangeSlider, ThemePicker, ToggleSwitch } from "../ui/primitives";
 
 /** The inclusive duration window [lo, hi] in minutes the library is filtered to. */
 export type MinutesRange = [number, number];

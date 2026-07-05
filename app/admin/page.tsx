@@ -2,7 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { isAdminEmail, isClerkAuthUsable } from "@/lib/auth";
-import { AuthUnavailable } from "@/components/AuthUnavailable";
+import { AuthUnavailable } from "@/components/auth/AuthUnavailable";
 import { CampApp } from "@/components/CampApp";
 
 export const dynamic = "force-dynamic";

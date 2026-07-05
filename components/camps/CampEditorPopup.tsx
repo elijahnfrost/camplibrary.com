@@ -10,17 +10,17 @@
 // meaning per state); the remove action is danger ink with a tooltip.
 
 import { useRef, useState } from "react";
-import { CampIcon } from "./icons";
-import { Select } from "./floating/Select";
-import { DatePopover } from "./floating/DatePopover";
-import { MiniSeg } from "./primitives";
+import { CampIcon } from "../ui/icons";
+import { Select } from "../floating/Select";
+import { DatePopover } from "../floating/DatePopover";
+import { MiniSeg } from "../ui/primitives";
 import { MAX_CAMP_NAME, type Camp, type CampSnapMin, type Weekday } from "@/lib/content/camps";
 import { GUIDE_LABEL_MAX, type GuideBand } from "@/lib/calendar/guides";
 import { formatClock } from "@/lib/calendar/time";
 import { fromDateKey, todayKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
-import { FocusSheet } from "./FocusSheet";
-import { Disclosure } from "./Disclosure";
+import { FocusSheet } from "../ui/FocusSheet";
+import { Disclosure } from "../ui/Disclosure";
 
 type HourOpts = { value: number; label: string }[];
 

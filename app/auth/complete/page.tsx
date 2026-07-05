@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { AuthUnavailable } from "@/components/AuthUnavailable";
-import { AuthComplete } from "@/components/AuthComplete";
+import { AuthUnavailable } from "@/components/auth/AuthUnavailable";
+import { AuthComplete } from "@/components/auth/AuthComplete";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
 export const metadata: Metadata = {

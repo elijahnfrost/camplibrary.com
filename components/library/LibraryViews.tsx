@@ -10,10 +10,10 @@ import {
   ratingColor,
 } from "@/lib/content/data";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { ActivityCell } from "./ActivityCell";
-import { CampIcon } from "./icons";
-import { useAgeUnit } from "./ageUnit";
-import { SaveButton, ThemeBadge } from "./primitives";
+import { ActivityCell } from "../activity/ActivityCell";
+import { CampIcon } from "../ui/icons";
+import { useAgeUnit } from "../ui/ageUnit";
+import { SaveButton, ThemeBadge } from "../ui/primitives";
 import { BW, RADIUS, SCALE, SHELF_LINE, planShelf, titleFontPx, wrapShelf, type Placed } from "./shelfLayout";
 
 // Measure synchronously before paint on the client; fall back on the server so

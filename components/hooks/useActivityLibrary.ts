@@ -24,7 +24,7 @@ import {
 } from "@/lib/activity/runListResolve";
 import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/content/themes";
 import { addLocation, removeLocation, renameLocation as renameInVocab } from "@/lib/content/locations";
-import { requestConfirm } from "./ConfirmDialog";
+import { requestConfirm } from "../ui/ConfirmDialog";
 import { normalizeHexColor } from "@/lib/content/color";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import type { Activity, LibraryView } from "@/lib/types";

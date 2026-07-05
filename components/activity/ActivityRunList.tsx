@@ -40,13 +40,13 @@ import {
   type FormState,
   type MaterialFormRow,
 } from "@/lib/activity/activityForm";
-import { CampIcon } from "./icons";
-import { ContextMenu } from "./floating/ContextMenu";
-import { StockDot } from "./StockDot";
-import { FloatingLayer } from "./floating/FloatingLayer";
-import { MiniSeg, RatingDots } from "./primitives";
-import { ColorField } from "./floating/ColorField";
-import { ThemeField, type ThemeKit } from "./ThemeField";
+import { CampIcon } from "../ui/icons";
+import { ContextMenu } from "../floating/ContextMenu";
+import { StockDot } from "../materials/StockDot";
+import { FloatingLayer } from "../floating/FloatingLayer";
+import { MiniSeg, RatingDots } from "../ui/primitives";
+import { ColorField } from "../floating/ColorField";
+import { ThemeField, type ThemeKit } from "../library/ThemeField";
 import { ActivityPlaybook } from "./ActivityPlaybook";
 import {
   RUN_CHILD_META,

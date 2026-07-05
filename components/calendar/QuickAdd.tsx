@@ -40,16 +40,16 @@ import { coverage } from "@/lib/materials/materials";
 import type { Material } from "@/lib/materials/materialCatalog";
 import type { StockState } from "@/lib/materials/kitStock";
 import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
-import { CampIcon } from "@/components/icons";
-import { PropRow } from "@/components/PropRow";
-import { ToggleSwitch } from "@/components/primitives";
+import { CampIcon } from "@/components/ui/icons";
+import { PropRow } from "@/components/ui/PropRow";
+import { ToggleSwitch } from "@/components/ui/primitives";
 import { Select } from "@/components/floating/Select";
 import { DatePopover } from "@/components/floating/DatePopover";
 import { ColorField } from "@/components/floating/ColorField";
 import { LocationField } from "@/components/floating/LocationField";
 import { RepeatField } from "@/components/calendar/RepeatField";
-import { FocusSheet } from "../FocusSheet";
-import { Disclosure } from "../Disclosure";
+import { FocusSheet } from "../ui/FocusSheet";
+import { Disclosure } from "../ui/Disclosure";
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event

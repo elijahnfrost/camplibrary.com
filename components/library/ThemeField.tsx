@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import type { Theme } from "@/lib/content/themes";
-import { CampIcon } from "./icons";
-import { FloatingLayer } from "./floating/FloatingLayer";
+import { CampIcon } from "../ui/icons";
+import { FloatingLayer } from "../floating/FloatingLayer";
 
 // The activity editor's theme control: pick the activity's theme, or coin a new
 // one inline while assigning. Renaming/deleting the vocabulary lives in the

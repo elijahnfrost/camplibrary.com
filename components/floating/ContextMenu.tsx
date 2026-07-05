@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { FloatingLayer } from "./FloatingLayer";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 
 export type ContextMenuItem = {
   label: string;

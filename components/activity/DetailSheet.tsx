@@ -46,17 +46,17 @@ import {
   type FormState,
 } from "@/lib/activity/activityForm";
 import { categoryTint } from "@/lib/content/data";
-import { CampIcon } from "./icons";
-import { requestConfirm } from "./ConfirmDialog";
-import { SaveButton, ThemeBadge } from "./primitives";
-import { Modal } from "./Modal";
-import { ColorField } from "./floating/ColorField";
-import { FloatingLayer } from "./floating/FloatingLayer";
+import { CampIcon } from "../ui/icons";
+import { requestConfirm } from "../ui/ConfirmDialog";
+import { SaveButton, ThemeBadge } from "../ui/primitives";
+import { Modal } from "../ui/Modal";
+import { ColorField } from "../floating/ColorField";
+import { FloatingLayer } from "../floating/FloatingLayer";
 import { ActivityRunList, LedgerMenu } from "./ActivityRunList";
-import { type ThemeKit } from "./ThemeField";
-import { DESKTOP_MIN } from "./useDeviceShape";
+import { type ThemeKit } from "../library/ThemeField";
+import { DESKTOP_MIN } from "../hooks/useDeviceShape";
 
-export type { ThemeKit } from "./ThemeField";
+export type { ThemeKit } from "../library/ThemeField";
 
 export function DetailSheet({
   activity: a,

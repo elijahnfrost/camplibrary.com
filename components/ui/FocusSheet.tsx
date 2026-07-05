@@ -8,8 +8,8 @@
 // floating engine owns the Escape contract).
 
 import type { CSSProperties, ReactNode } from "react";
-import { Modal } from "@/components/Modal";
-import { CampIcon } from "@/components/icons";
+import { Modal } from "@/components/ui/Modal";
+import { CampIcon } from "@/components/ui/icons";
 
 export function FocusSheet({
   label,

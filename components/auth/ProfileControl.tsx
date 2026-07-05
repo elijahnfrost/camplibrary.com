@@ -3,8 +3,8 @@
 import { useRef, useState, type RefObject } from "react";
 import type { AuthSession } from "@/lib/auth";
 import type { SyncStatus } from "@/lib/cloud/cloudStore";
-import { CampIcon } from "./icons";
-import { FloatingLayer } from "./floating/FloatingLayer";
+import { CampIcon } from "../ui/icons";
+import { FloatingLayer } from "../floating/FloatingLayer";
 
 // The common "bottom-left profile control" app pattern — replaces the old
 // dedicated Staff tab. One row anchored in the sidebar foot (below the sync

@@ -21,7 +21,7 @@ import {
   type Camp,
 } from "@/lib/content/camps";
 import { useLocalStorage } from "@/lib/cloud/store";
-import { requestConfirm } from "./ConfirmDialog";
+import { requestConfirm } from "../ui/ConfirmDialog";
 
 const activeCampStorage = (value: unknown, fallback: string | null): string | null =>
   typeof value === "string" || value === null ? (value as string | null) : fallback;

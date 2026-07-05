@@ -1,7 +1,7 @@
 "use client";
 
 import type { HTMLAttributes, ReactNode } from "react";
-import { useDialogFocus } from "./useDialogFocus";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 type ModalOverlayProps = HTMLAttributes<HTMLDivElement> & {
   [key: `data-${string}`]: string | undefined;

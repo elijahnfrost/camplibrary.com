@@ -32,9 +32,9 @@ import { coverage, materialOptionsForActivities } from "@/lib/materials/material
 import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
 import type { MaterialSort, MaterialStockFilter, StockState } from "@/lib/materials/kitStock";
 import { normalizeSearchText } from "@/lib/activity/activityFilters";
-import { CampIcon } from "./icons";
-import { requestConfirm } from "./ConfirmDialog";
-import { ContextMenu } from "./floating/ContextMenu";
+import { CampIcon } from "../ui/icons";
+import { requestConfirm } from "../ui/ConfirmDialog";
+import { ContextMenu } from "../floating/ContextMenu";
 import { StockDot } from "./StockDot";
 
 // The top-N most-used materials the opt-in "Start from your most-used kit"

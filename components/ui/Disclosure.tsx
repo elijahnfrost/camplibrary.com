@@ -11,7 +11,7 @@
 // so it owns its state; the rail zones don't care and stay uncontrolled.
 
 import { useState, type ReactNode } from "react";
-import { CampIcon } from "@/components/icons";
+import { CampIcon } from "@/components/ui/icons";
 
 export function Disclosure({
   title,

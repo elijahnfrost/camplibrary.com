@@ -1,7 +1,7 @@
 "use client";
 
-import { CampIcon } from "../icons";
-import { MiniSeg, ToggleSwitch } from "../primitives";
+import { CampIcon } from "../ui/icons";
+import { MiniSeg, ToggleSwitch } from "../ui/primitives";
 import { Select } from "../floating/Select";
 import {
   WEATHER_RANGE_OPTIONS,

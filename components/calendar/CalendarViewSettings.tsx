@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CampIcon } from "../icons";
-import { MiniSeg, ToggleSwitch } from "../primitives";
+import { CampIcon } from "../ui/icons";
+import { MiniSeg, ToggleSwitch } from "../ui/primitives";
 import { Select } from "../floating/Select";
 import { isNDaysView, type ViewKey, type WeekStart } from "@/lib/calendar/views";
 import type { ColorMode } from "@/lib/content/data";
 import { DaysStepper } from "./DaysStepper";
-import { useDeviceShape } from "../useDeviceShape";
+import { useDeviceShape } from "../hooks/useDeviceShape";
 
 // The "Color by" choices, in resolver order. Labels read in the View ledger's
 // quiet voice; the ids are the ColorMode union (lib/data).

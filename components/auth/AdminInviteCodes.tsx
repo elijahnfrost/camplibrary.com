@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CampIcon } from "./icons";
-import { requestConfirm } from "./ConfirmDialog";
+import { CampIcon } from "../ui/icons";
+import { requestConfirm } from "../ui/ConfirmDialog";
 import type { InviteCodeRecord as ServerInviteCodeRecord } from "@/lib/server/inviteCodes";
 
 type InviteStatus = ServerInviteCodeRecord["status"] | "deactivated" | "exhausted";

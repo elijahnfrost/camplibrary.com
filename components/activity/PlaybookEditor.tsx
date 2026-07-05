@@ -23,8 +23,8 @@ import {
   type ReactNode,
 } from "react";
 import { ArrowDefs, ArrowShape, FieldSurface, MarkerShape, ZoneShape } from "./ActivityPlaybook";
-import { CampIcon } from "./icons";
-import { ContextMenu } from "./floating/ContextMenu";
+import { CampIcon } from "../ui/icons";
+import { ContextMenu } from "../floating/ContextMenu";
 import {
   describePlaybookSelection,
   nudgePlaybookSelection,

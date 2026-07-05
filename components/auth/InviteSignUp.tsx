@@ -3,7 +3,7 @@
 import { useSignUp } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 
 type FormState = {
   inviteCode: string;

@@ -3,7 +3,7 @@
 import { useSignIn } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import { CampIcon } from "./icons";
+import { CampIcon } from "../ui/icons";
 
 type FormState = {
   email: string;

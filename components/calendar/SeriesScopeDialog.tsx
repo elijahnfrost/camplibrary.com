@@ -1,7 +1,7 @@
 "use client";
 
 import type { SeriesScope } from "@/lib/calendar/recurrence";
-import { Modal } from "../Modal";
+import { Modal } from "../ui/Modal";
 
 // The Google Calendar scope chooser. The P3 wave made routine gestures commit
 // instantly with toast escalation, so this dialog is no longer the default path —
