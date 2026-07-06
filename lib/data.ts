@@ -195,20 +195,26 @@ export function reminderTint(color?: string): string {
 }
 
 // Where-it-happens → an earthy tint, one per built-in place so the "Color by →
-// Location" mode reads each place at a glance. Kept clearly distinct from one
-// another and on-palette with CATEGORY_TINTS / THEME_PALETTE (greens, clays,
-// slates from the same warm family). Gym deliberately mirrors the pine Game
-// tint — the gym IS the green room. Keys are the SEED place labels (the starter
-// vocabulary); a user-added or legacy free-text place not in the map falls back
-// to the neutral stone.
+// Location" mode reads each place at a glance. Grouped by KIND rather than
+// picked independently: the three indoor/enclosed places (Gym, Classroom,
+// Kitchen) share one cool blue-violet family, the three open-air places
+// (Playground, Fields, Baseball pitch) share one tightened warm earth family,
+// and Pool sits apart from both — it's water, not indoor or open-ground. Within
+// each family every place still gets its own hue so they stay tellable apart at
+// a glance; only the family, not the individual choice, is what's "logical."
+// Keys are the SEED place labels (the starter vocabulary); a user-added or
+// legacy free-text place not in the map falls back to the neutral stone.
 export const LOCATION_TINTS: Record<string, string> = {
-  Gym: "#3f6b45", // pine — the indoor green
+  // Indoor — cool blue-violet family (walls, artificial light).
   Classroom: "#4a6b86", // slate blue — desks & paper
-  Kitchen: "#9a5a4a", // clay — the warm kitchen
+  Gym: "#3f5a78", // navy slate — the big enclosed hall, one shade deeper/cooler
+  Kitchen: "#5c5480", // indigo plum — the same indoor family, violet end
+  // Open-air — warm earth family (sun, grass, dirt), tightened into one cluster.
   Playground: "#c46b3f", // terracotta — the painted blacktop
-  Fields: "#7a8c3f", // olive grass — the wide-open field
-  Pool: "#3a8ea3", // pool teal — the water, distinct from the classroom slate
   "Baseball pitch": "#b08a3c", // dirt amber — the infield
+  Fields: "#94973f", // golden olive — grass in full sun, pulled warmer to sit with the other two
+  // Water — deliberately apart from both families.
+  Pool: "#3a8ea3", // pool teal — the one place that's neither indoor nor open ground
 };
 
 // Resolve a location list to its tint: the FIRST place wins (row-order is the
