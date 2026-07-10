@@ -12,7 +12,7 @@
 // made in the editor (a detail tag, a field note, a recoloured block) actually
 // reaches print and the public link instead of being silently regenerated away.
 
-import type { CSSProperties, ElementType, FC, ReactNode } from "react";
+import type { CSSProperties, ElementType, FC } from "react";
 import { ageSpan, code, durLabel, ENERGY, groupLabel } from "@/lib/content/data";
 import { coverage, materialNeedsForActivity } from "@/lib/materials/materials";
 import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";

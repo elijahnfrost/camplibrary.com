@@ -689,7 +689,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // library-opened). Kept SEPARATE from the display-only eventContext so the sheet
   // can patch that specific placement (per-day material subs) without eventContext
   // ever carrying a live calendar type.
-  const [detailEventId, setDetailEventId] = useState<string | null>(null);
+  const [, setDetailEventId] = useState<string | null>(null);
   // In create mode `detail` is a fresh draft not in the catalog, so it must
   // pass through verbatim; otherwise track the live catalog record by id.
   const detailActivity = detail

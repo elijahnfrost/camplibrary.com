@@ -6,7 +6,6 @@ import {
   type ActivityPlaybookData,
   type PlaybookArrow,
   type PlaybookArrowKind,
-  type PlaybookColorId,
   type PlaybookFlag,
   type PlaybookFrame,
   type PlaybookMarker,

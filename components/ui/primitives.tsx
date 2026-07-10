@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type FC } from "react";
 import { AGE_GROUPS, bandLong, ratingColor, RATING_WORD, type AgeUnit } from "@/lib/content/data";
 import type { Theme } from "@/lib/content/themes";
 import { CampIcon } from "./icons";

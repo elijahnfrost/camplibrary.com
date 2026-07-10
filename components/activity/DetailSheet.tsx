@@ -31,7 +31,7 @@ import type { Theme } from "@/lib/content/themes";
 import type { RunDoc } from "@/lib/activity/runList";
 import type { Material } from "@/lib/materials/materialCatalog";
 import type { StockState } from "@/lib/materials/kitStock";
-import type { AlternateRef, CalendarEvent } from "@/lib/calendar/types";
+import type { AlternateRef } from "@/lib/calendar/types";
 import { normalizeActivityAlternates } from "@/lib/activity/alternates";
 import { ALTERNATES_MAX, ALTERNATE_TITLE_MAX_LENGTH } from "@/lib/calendar/types";
 import {

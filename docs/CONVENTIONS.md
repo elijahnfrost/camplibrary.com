@@ -67,7 +67,11 @@ full map):
 
 Anything unreachable from a route, component tree, test, or documented public API
 is deleted, not commented out (git is the archive). `npm run report:deadcode`
-(knip), `report:deps` (depcheck), and `report:css` must report zero.
+(knip), `report:deps` (depcheck), and `report:css` must report zero. Unused
+imports and locals are caught at the file level too: `tsconfig` sets
+`noUnusedLocals`, so `npm run typecheck` fails on a dead import or unread local
+(prefix an intentionally-unread binding with `_`, or drop the value half of a
+set-only `useState`: `const [, setX] = useState(...)`).
 
 ## The gates (all run in CI)
 

@@ -9,37 +9,11 @@
 // (structural cleanup, no behavior change).
 // ============================================================
 import { useRef, useState } from "react";
-import type {
-  DateSelectArg,
-  DayHeaderContentArg,
-  DatesSetArg,
-  EventClickArg,
-  EventContentArg,
-  EventDropArg,
-  EventInput,
-  EventMountArg,
-} from "@fullcalendar/core";
-import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
-import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph } from "@/lib/calendar/adapter";
-import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/activity/alternates";
 import { type RainPlan } from "@/lib/calendar/rainPlan";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
 import {
-  clampNDays,
-  DEFAULT_WEEK_START,
-  isNDaysView,
-  parseStoredView,
-  parseWeekStart,
-  viewTitle,
-  type StoredViewPref,
-  type ViewKey,
-  type WeekStart,
-} from "@/lib/calendar/views";
-import {
   formatClock,
 } from "@/lib/calendar/time";
-import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/content/camps";
-import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
 import { catalogNameFor, type Material } from "@/lib/materials/materialCatalog";
 import { coverage } from "@/lib/materials/materials";
 import type { StockState } from "@/lib/materials/kitStock";
@@ -47,68 +21,16 @@ import {
   type DayKit,
   type DayKitItem,
 } from "@/lib/calendar/kitConflicts";
-import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/content/data";
 import {
   type AlternateRef,
   type CalendarEvent,
   type DateKey,
 } from "@/lib/calendar/types";
-import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
-import {
-  applyMoveDelta,
-  moveDelta,
-  orderEventIds,
-  rangeSelection,
-} from "@/lib/calendar/selection";
-import {
-  applyCustomStamp,
-  buildSeriesEvents,
-  eventsInSeries,
-  planBulkSeriesRemovals,
-  planOccurrenceEdit,
-  planResetOccurrence,
-  planRestoreOccurrence,
-  planSeriesDelete,
-  planSeriesEdit,
-  planSeriesSkip,
-  planSeriesSkipMany,
-  recurrenceDates,
-  rulesEqual,
-  type RecurrenceRule,
-  type SeriesScope,
-  type SeriesTemplate,
-} from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
 import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { StockDot } from "../materials/StockDot";
 import { LocationPickerList } from "../floating/LocationField";
-import { WeatherPopover, type WeatherPopoverTarget } from "./WeatherPopover";
-import {
-  conditionLabel,
-  forecastCoverage,
-  formatTemp,
-  parseTempUnit,
-  parseWeatherLocation,
-  parseWeatherMode,
-  parseWeatherRange,
-  weatherGlyphSvg,
-  HISTORY_PAST_DAYS,
-  WEATHER_RANGE_DAYS,
-  type TempUnit,
-  type WeatherLocation,
-  type WeatherMode,
-  type WeatherRange,
-} from "@/lib/weather";
-import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
-import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
-
-// The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
-// "day"), so they list consecutive days from wherever you've scrolled and never
-// snap to a week boundary — FullCalendar's firstDay is inert for them. We still
-// hand FC a value while the strip is mounted; Month is the one view whose column
-// order honours the configurable "Start week on" pref (weekStart). The sidebar
-// mini-month is a month grid too, so it reads the same pref.
 
 // A small inline pushpin, shared by the "Pin in place" / "Unpin" menu item and
 // the pinned-event card glyph. CampIcon.Pin is the location MAP-pin (semantically
