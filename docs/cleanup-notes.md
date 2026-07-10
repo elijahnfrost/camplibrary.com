@@ -263,11 +263,18 @@ Log:
   a cohesive controls surface, adopted in the file-size baseline; **candidate for
   a further sub-split** (meta / Editable / detail-form pickers / materials editor)
   as a follow-up once this is CI-green.
+- **`CalendarShell` 6344 → 5814.** Lifted the self-contained tail sub-component
+  block (the pin / edited / kit / backup-umbrella glyphs, `BulkLocationPicker`,
+  `SkipDaysPicker`, `GatherPopover`, `RainPanel` + internals `GatherRow`,
+  `RainBackupPicker`, `rankBackupSuggestions`, `PREP_RANK`) into
+  `components/calendar/CalendarChrome.tsx` (647). Confirmed to reference **zero**
+  of CalendarShell's module-scope symbols first, so the move needed no shared
+  module and could not cycle. The `CardPinGlyph = PinInPlaceIcon` alias moved to
+  the shell (its only caller) to avoid a duplicate export.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(pure helpers → `lib/calendar/`; then the tail sub-components `RainPanel`,
-`GatherPopover`, `BulkLocationPicker`, `SkipDaysPicker` → files; then the rail /
-weather-chip injection / drag-create / series-scope dialogs), `CampApp`
+(pure helpers → `lib/calendar/`; then the rail / weather-chip injection /
+drag-create / series-scope dialogs — the stateful core), `CampApp`
 (`StaffPromptModal` + tab/storage helpers), `QuickAdd` (glyphs, `draftFromEvent`).
 Large **pure-logic** files stay put (see below). The file-size and boundary gates
 keep everything from growing or re-coupling in the meantime.
