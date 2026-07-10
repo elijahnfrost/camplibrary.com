@@ -271,11 +271,21 @@ Log:
   of CalendarShell's module-scope symbols first, so the move needed no shared
   module and could not cycle. The `CardPinGlyph = PinInPlaceIcon` alias moved to
   the shell (its only caller) to avoid a duplicate export.
+- **`CalendarShell` 5814 → 5705.** Lifted the two contiguous pure-helper blocks
+  (view/strip config + `fcType`/`targetDaysFor`; the typing/draft/fingerprint/
+  storage validators) into `lib/calendar/shellHelpers.ts` — pure, side-effect-
+  free, so they live in `lib` and got a **direct unit test** (`shellHelpers.test.ts`,
+  +12 tests covering `stableStringify`, `clampSlotZoom`, `endMinForDraft`, the
+  storage + rain-pref parsers). Component-only state types (`MenuState`…
+  `BulkEditChanges`) stayed in the shell (they reference `EditorDraft`, a
+  component). Also enabled `noUnusedLocals` repo-wide (its own commit) — the gate
+  that keeps dead imports/locals from re-accumulating.
+- **`CampApp` 1626 → 1563.** `StaffPromptModal` (+ `StaffPrompt`) → `components/
+  auth/StaffPromptModal.tsx`; pre-existing dead imports swept.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(pure helpers → `lib/calendar/`; then the rail / weather-chip injection /
-drag-create / series-scope dialogs — the stateful core), `CampApp`
-(`StaffPromptModal` + tab/storage helpers), `QuickAdd` (glyphs, `draftFromEvent`).
+(the rail / weather-chip injection / drag-create / series-scope dialogs — the
+stateful **core**, the hard 80%), `QuickAdd` (glyphs, `draftFromEvent`).
 Large **pure-logic** files stay put (see below). The file-size and boundary gates
 keep everything from growing or re-coupling in the meantime.
 
