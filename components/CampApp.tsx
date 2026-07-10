@@ -5,17 +5,17 @@
 // activity-domain state is in useActivityLibrary and persistence in
 // lib/cloudStore (localStorage for anon, cloud-synced once signed in).
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
-import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
+import { ADMIN_EMAIL, isAdminEmail, staffActionGate } from "@/lib/auth";
 import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activity/activityFilters";
 import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/content/data";
 import { catalogNameFor } from "@/lib/materials/materialCatalog";
 import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/cloud/store";
 import { AgeUnitProvider } from "./ui/ageUnit";
-import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
+import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import {
   campDayWindow,
@@ -30,8 +30,6 @@ import {
 } from "@/lib/content/camps";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
-import { applyCustomStamp } from "@/lib/calendar/recurrence";
-import { healEvent } from "@/lib/calendar/adapter";
 import { useCloudUserData } from "@/lib/cloud/cloudStore";
 import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/cloud/storageScope";
 import type { RunDoc } from "@/lib/activity/runList";
@@ -55,15 +53,11 @@ import {
 } from "./ui/ListManagerModal";
 import { CampEditorPopup } from "./camps/CampEditorPopup";
 import { CampsRail } from "./camps/CampsRail";
-import { Modal } from "./ui/Modal";
-import { LoadingVeil, MiniSeg, ToggleSwitch } from "./ui/primitives";
-import { Select } from "./floating/Select";
-import { DatePopover } from "./floating/DatePopover";
+import { LoadingVeil } from "./ui/primitives";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
-import { InviteSignUp } from "./auth/InviteSignUp";
 import { ProfileControl } from "./auth/ProfileControl";
-import { StaffSignIn } from "./auth/StaffSignIn";
 import { TabBoundary } from "./ui/TabBoundary";
+import { StaffPromptModal, type StaffPrompt } from "./auth/StaffPromptModal";
 import { useActivityLibrary } from "./hooks/useActivityLibrary";
 import { useCamps } from "./hooks/useCamps";
 import { useDeviceShape } from "./hooks/useDeviceShape";
@@ -127,11 +121,6 @@ const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) => {
   return LEGACY_TAB_MIGRATIONS[value] ?? fallback;
 };
 
-type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
-  mode: "sign-in" | "sign-up";
-  returnTo: string;
-};
-
 function currentReturnPath() {
   if (typeof window === "undefined") return "/";
   return window.location.pathname + window.location.search + window.location.hash || "/";
@@ -145,58 +134,6 @@ function cleanAuthRouteUrl() {
   const next = url.pathname + (url.search ? url.search : "") + url.hash;
   window.history.replaceState(null, "", next || "/");
 }
-
-// The ONE auth modal: covers both an interrupted edit action (signed-out,
-// attempting a staff-gated change) and every intentional sign-in / sign-up
-// entry point (the profile popover's "Sign in" row, a ?auth= deep link). It
-// replaced the old dedicated Staff tab, which no longer exists as a surface.
-function StaffPromptModal({
-  prompt,
-  authEnabled,
-  onClose,
-  onRequestSignUp,
-  onRequestSignIn,
-}: {
-  prompt: StaffPrompt;
-  authEnabled: boolean;
-  onClose: () => void;
-  onRequestSignUp: () => void;
-  onRequestSignIn: () => void;
-}) {
-  return (
-    <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
-      {authEnabled ? (
-        prompt.mode === "sign-up" ? (
-          <>
-            <InviteSignUp />
-            <p className="auth-form__hint">
-              Already have an account?{" "}
-              <button type="button" className="auth-form__link" onClick={onRequestSignIn}>
-                Sign in
-              </button>
-            </p>
-          </>
-        ) : (
-          <StaffSignIn
-            returnTo={prompt.returnTo}
-            message={prompt.message}
-            onComplete={onClose}
-            onRequestSignUp={onRequestSignUp}
-          />
-        )
-      ) : (
-        <div className="auth-form auth-form--prompt">
-          <div className="auth-form__section">Staff access</div>
-          <p className="auth-form__copy">{prompt.message}</p>
-          <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
-            Back to browsing
-          </button>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
 
 export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
