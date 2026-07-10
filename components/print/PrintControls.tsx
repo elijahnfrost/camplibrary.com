@@ -16,7 +16,7 @@
 // equal-weight switches.
 
 import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { addDays, fromDateKey, startOfWeek, todayKey, toDateKey } from "@/lib/calendar/dates";
+import { addDays, fromDateKey, todayKey, toDateKey } from "@/lib/calendar/dates";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { formatRangeLabel } from "@/lib/calendar/time";
 import type { Camp } from "@/lib/content/camps";
@@ -84,31 +84,6 @@ function monthBounds(key: DateKey): { start: DateKey; end: DateKey } {
   const start = toDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
   const end = toDateKey(new Date(d.getFullYear(), d.getMonth() + 1, 0));
   return { start, end };
-}
-
-// This week per the CALENDAR's own week-start preference, when reachable — a
-// direct, read-only localStorage peek (the same "camp:" + JSON.parse contract
-// lib/store.ts's useLocalStorage uses) so the Print rail's "This week" preset
-// agrees with whatever the calendar's mini-month/Month grid currently starts
-// on, without importing any calendar component or touching calendar files.
-// Falls back to Mon–Fri (the camp's core week) when localStorage is
-// unavailable (SSR) or the stored value isn't the expected 0/1 weekday index.
-function thisWeekRange(): { start: DateKey; end: DateKey } {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = window.localStorage.getItem("camp:calendarWeekStart");
-      const parsed = raw != null ? (JSON.parse(raw) as unknown) : undefined;
-      const firstDay = parsed === 0 || parsed === 1 ? parsed : undefined;
-      if (firstDay !== undefined) {
-        const start = toDateKey(startOfWeek(fromDateKey(todayKey()), firstDay));
-        return { start, end: addDays(start, 6) };
-      }
-    } catch {
-      // fall through to the Mon–Fri default below
-    }
-  }
-  const mon = weekStart(todayKey());
-  return { start: mon, end: addDays(mon, 4) };
 }
 
 const PRESETS: { id: string; label: string; range: () => { start: DateKey; end: DateKey } }[] = [
@@ -484,74 +459,6 @@ function ContentPicker({
   );
 }
 
-// One-click presets — a shortcut that sets a whole bundle of options at once
-// (same onChange/localStorage persistence path every other control uses), NOT
-// a new mode: every fold still works exactly the same after clicking one. Two
-// bundles cover the two most common "just print the thing" asks: the day's
-// paper run sheets for the counselors on shift, and a light week-at-a-glance
-// agenda for the office wall.
-//
-// print-7: a preset must reset EVERY piece of per-print state a prior session
-// could have left behind — not just the fields it cares about — or "just
-// print the thing" can silently print filtered/empty (a leftover camp filter,
-// excluded days/events, or individually-picked run sheets from a previous
-// print). RESET_FIELDS below is spread into every bundle's patch so a preset
-// can never forget one; `campId: null` is the documented "no filter" default
-// (see PrintOptions.campId).
-const RESET_FIELDS: Patch = {
-  campId: null,
-  excludedDays: [],
-  excludedEventIds: [],
-  runSheetIds: [],
-};
-
-const PRESET_BUNDLES: { id: string; label: string; ariaLabel: string; patch: () => Patch }[] = [
-  {
-    id: "today-runsheets",
-    label: "Today's run sheets",
-    ariaLabel: "Set up today's run sheets: today's date, full run sheets on, minimal schedule detail",
-    patch: () => ({
-      ...RESET_FIELDS,
-      start: todayKey(),
-      end: todayKey(),
-      layout: "agenda",
-      scheduleDetail: "times",
-      appendRunSheets: true,
-    }),
-  },
-  {
-    id: "week-agenda",
-    label: "This week — agenda",
-    ariaLabel: "Set up this week's agenda: this week's dates, agenda layout, run sheets off",
-    patch: () => ({
-      ...RESET_FIELDS,
-      ...thisWeekRange(),
-      layout: "agenda",
-      scheduleDetail: "summary",
-      appendRunSheets: false,
-    }),
-  },
-];
-
-function PresetsRow({ onChange }: { onChange: (patch: Patch) => void }) {
-  return (
-    <div className="prail__presets" role="group" aria-label="Print presets">
-      {PRESET_BUNDLES.map((preset) => (
-        <button
-          key={preset.id}
-          type="button"
-          className="btn btn--ghost btn--sm prail__preset"
-          aria-label={preset.ariaLabel}
-          onClick={() => onChange(preset.patch())}
-        >
-          <CampIcon.Bolt />
-          <span>{preset.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function PrintControls({
   options,
   onChange,
@@ -599,10 +506,6 @@ export function PrintControls({
 
   return (
     <div className="prail">
-      {/* Presets — one-click bundles ABOVE the folds (a shortcut, not a new
-          mode): every fold still works normally after clicking one. */}
-      <PresetsRow onChange={onChange} />
-
       {/* Range — the headerless lead widget (the mini-month's role on the calendar
           rail): quick-range pills, the inline range calendar, then the readout. */}
       <div className="prail__range">

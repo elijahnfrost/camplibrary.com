@@ -608,6 +608,36 @@
   border-radius: var(--r-xs);
   border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
 }
+/* Leading glyph for a document row's download link — an icon, not a color chip. */
+.manager__docicon {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent-ink);
+}
+.manager__docicon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* In the documents manager, the rename/delete buttons stay out of the way and
+   only surface when the row is hovered or holds focus — the download link is the
+   row's primary action. Scoped to `--docs` so the camps/themes/locations
+   managers keep their always-visible controls. Only where a real hover exists;
+   touch devices (hover: none) keep the buttons visible so they stay reachable. */
+@media (hover: hover) {
+  .manager--docs .manager__row .manager__rowbtn {
+    opacity: 0;
+    transition: opacity var(--t-fast) var(--ease);
+  }
+  .manager--docs .manager__row:hover .manager__rowbtn,
+  .manager--docs .manager__row:focus-within .manager__rowbtn {
+    opacity: 1;
+  }
+}
 .manager__rowedit {
   display: flex;
   align-items: center;

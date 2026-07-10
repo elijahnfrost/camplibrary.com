@@ -84,15 +84,36 @@ function searchableArray(values: unknown): string[] {
   return Array.isArray(values) ? values.filter((item): item is string => typeof item === "string") : [];
 }
 
+// Typographic punctuation a "smart quotes"/"smart punctuation" keyboard or
+// editor substitutes for the plain ASCII the seed catalog is written with
+// (e.g. iOS/macOS text input turns a typed ' into a curly '). Folded onto
+// its plain equivalent below so a search for "Kim's Game" still finds it
+// even when the apostrophe that arrives isn't a literal U+0027.
+const SMART_PUNCTUATION: Record<string, string> = {
+  "\u2018": "'", // left single quote
+  "\u2019": "'", // right single quote / apostrophe
+  "\u201a": "'", // single low-9 quote
+  "\u201b": "'", // single high-reversed-9 quote
+  "\u201c": '"', // left double quote
+  "\u201d": '"', // right double quote
+  "\u201e": '"', // double low-9 quote
+  "\u201f": '"', // double high-reversed-9 quote
+  "\u2013": "-", // en dash
+  "\u2014": "-", // em dash
+};
+const SMART_PUNCTUATION_RE = /[\u2018\u2019\u201a\u201b\u201c\u201d\u201e\u201f\u2013\u2014]/g;
+
 // Fold case AND accents so search is predictable however a word is typed:
-// "Café", "cafe", and "café" all collapse to the same form. This matters in
-// two real ways here — the seed catalog carries accented materials
-// ("papier-mâché"), and mobile keyboards quietly (de)capitalize the field, so
-// an accent-/case-sensitive match would silently miss what the user meant.
+// "Cafe" with an accent, "cafe", and all-caps all collapse to the same form.
+// This matters in two real ways here: the seed catalog carries accented
+// materials ("papier-mache" with an accent), and mobile keyboards quietly
+// (de)capitalize the field, so an accent-/case-sensitive match would
+// silently miss what the user meant.
 export function normalizeSearchText(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(SMART_PUNCTUATION_RE, (ch) => SMART_PUNCTUATION[ch])
     .toLowerCase();
 }
 

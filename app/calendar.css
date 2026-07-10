@@ -246,7 +246,7 @@
 }
 .calshell .fc .fc-timegrid-slot-lane.fc-timegrid-slot-minor[data-time$=":30:00"] {
   border-top-style: solid;
-  border-top-color: color-mix(in srgb, var(--line-soft) 72%, transparent);
+  border-top-color: color-mix(in srgb, var(--line-soft) 57%, transparent);
 }
 /* The sticky time gutter floats over the column lanes, whose dotted 15-min lines
    span the full scroll width — including the slice that runs behind the gutter.

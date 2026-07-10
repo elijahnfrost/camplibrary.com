@@ -26,8 +26,10 @@ import { useLocalStorage } from "@/lib/cloud/store";
 import { DEFAULT_PRINT_FORMAT, printFormatStorage, type PrintFormat, type PrintOptions } from "@/lib/print/options";
 import { buildScheduleDays, selectEvents } from "@/lib/print/schedule";
 import { exportFilename } from "@/lib/print/filename";
+import type { CampDocument } from "@/lib/content/campDocuments";
 import { CampIcon } from "../ui/icons";
 import { Modal } from "../ui/Modal";
+import { DocumentsModal } from "./DocumentsModal";
 import { PrintControls } from "./PrintControls";
 import { PagedPreview } from "./PagedPreview";
 import { SchedulePrintDocument, type SchedulePrintData } from "./SchedulePrintDocument";
@@ -59,12 +61,21 @@ const PANE_PAD = 32; // matches the --s-6 inline padding on .print-tab__preview,
 export function PrintTab({
   data,
   activeCampId,
+  documents,
+  onDocumentsChange,
+  canEdit,
   railSlot,
   printHost,
   announce,
 }: {
   data: SchedulePrintData;
   activeCampId: string | null;
+  // The downloadable camp documents (seed PDFs + uploads) and the synced writer
+  // for them. canEdit gates the "Manage documents…" affordance to editors; the
+  // downloads themselves are open to everyone.
+  documents: CampDocument[];
+  onDocumentsChange: (updater: (prev: CampDocument[]) => CampDocument[]) => void;
+  canEdit: boolean;
   // The primary-sidebar slot the schedule controls portal into (the same rail
   // the Library filters / Calendar settings use). Null on mobile, where the
   // controls open in a sheet instead — see `optionsOpen`.
@@ -88,6 +99,8 @@ export function PrintTab({
   // Mobile only: the controls open in a sheet (the sidebar rail is desktop-only,
   // mirroring the Calendar's view-settings sheet).
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // The documents manager (upload / rename / delete), opened from the Documents menu.
+  const [docsManagerOpen, setDocsManagerOpen] = useState(false);
 
   const options: PrintOptions = useMemo(
     () => ({ ...format, start, end, campId, title, runSheetIds, excludedDays, excludedEventIds }),
@@ -255,6 +268,19 @@ export function PrintTab({
           >
             <CampIcon.More />
           </button>
+          {/* Prepared camp documents (schedules, planner, poster, uploads) —
+              opens the documents modal to download, and (editors) upload /
+              rename / delete. A plain button, not a header dropdown, so it
+              matches the app's modal-per-action vocabulary. */}
+          <button
+            type="button"
+            className="btn btn--ghost printhead__btn"
+            onClick={() => setDocsManagerOpen(true)}
+            title="Prepared camp documents"
+          >
+            <CampIcon.Card />
+            <span>Documents</span>
+          </button>
           {/* Never silently disabled: the range may simply be empty, or the
               schedule may still be loading. The header scope shows the reason and
               the buttons stay clickable (an empty range just prints the cover). */}
@@ -305,6 +331,18 @@ export function PrintTab({
             Done
           </button>
         </Modal>
+      )}
+
+      {/* The documents modal — download for everyone; upload / rename / delete
+          for editors. */}
+      {docsManagerOpen && (
+        <DocumentsModal
+          documents={documents}
+          onChange={onDocumentsChange}
+          canEdit={canEdit}
+          announce={announce}
+          onClose={() => setDocsManagerOpen(false)}
+        />
       )}
 
       {/* The actual print artifact: hidden on screen, the only thing that prints

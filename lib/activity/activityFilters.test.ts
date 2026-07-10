@@ -265,6 +265,18 @@ describe("activity filters", () => {
 
     expect(matchesActivityFilters(base, filters({ query: "rainy gym" }))).toBe(true);
   });
+
+  it("finds an apostrophe title when the query's quote is a different (curly) character", () => {
+    // The catalog is written with a plain apostrophe; iOS/macOS text inputs
+    // routinely substitute a curly one ("smart quotes") as the user types.
+    const base = activity({ title: "Kim's Game", altNames: ["What's Missing"] });
+
+    expect(matchesActivityFilters(base, filters({ query: "Kim’s Game" }))).toBe(true);
+    expect(matchesActivityFilters(base, filters({ query: "What’s Missing" }))).toBe(true);
+    // And the reverse: catalog text with a curly quote still matches a plain one.
+    const curlyTitled = activity({ title: "Kim’s Game" });
+    expect(matchesActivityFilters(curlyTitled, filters({ query: "Kim's Game" }))).toBe(true);
+  });
 });
 
 describe("search helpers", () => {

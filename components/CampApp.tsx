@@ -28,6 +28,7 @@ import {
   type CampSnapMin,
   type Weekday,
 } from "@/lib/content/camps";
+import type { CampDocument } from "@/lib/content/campDocuments";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
 import { useCloudUserData } from "@/lib/cloud/cloudStore";
@@ -408,6 +409,16 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // camps mutators in useCamps.ts stay lean; these day-structure edits (a rarely
   // touched authoring surface) live with the manager UI that drives them. Every
   // window is forced through clampOverrideWindow so a payload can't escape bounds.
+  // The downloadable documents doc (Print tab). Gated like every other managed
+  // vocabulary; the writer is a plain updater so the manager can append uploads,
+  // rename, or delete in one synced write.
+  const changeDocuments = useCallback(
+    (updater: (prev: CampDocument[]) => CampDocument[]) => {
+      if (!requireStaff("manage documents")) return;
+      cloud.setDoc("documents", updater);
+    },
+    [cloud, requireStaff]
+  );
   const setCampWeekdayHours = useCallback(
     (id: string, weekday: Weekday, value: "default" | "closed" | { openMin: number; closeMin: number }) => {
       if (!requireStaff("manage camps")) return;
@@ -1158,6 +1169,9 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
             <PrintTab
               data={printData}
               activeCampId={campKit.activeCampId}
+              documents={cloud.docs.documents}
+              onDocumentsChange={changeDocuments}
+              canEdit={isSignedIn}
               railSlot={printRail}
               printHost={printHost}
               announce={setLiveMsg}

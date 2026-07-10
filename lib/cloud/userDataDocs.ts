@@ -20,6 +20,7 @@ import { normalizeHexColor } from "../content/color";
 import { normalizeMaterialCatalog, type Material } from "../materials/materialCatalog";
 import { normalizeKitStock, type StockState } from "../materials/kitStock";
 import { normalizeGuides, type GuideBand } from "../calendar/guides";
+import { DEFAULT_CAMP_DOCUMENTS, normalizeCampDocuments, type CampDocument } from "../content/campDocuments";
 
 export const USER_DOC_KEYS = [
   "favs",
@@ -38,6 +39,7 @@ export const USER_DOC_KEYS = [
   "locationColors",
   "deletedActivityIds",
   "guides",
+  "documents",
 ] as const;
 
 export type UserDocKey = (typeof USER_DOC_KEYS)[number];
@@ -59,6 +61,7 @@ export type DocValueMap = {
   locationColors: Record<string, string>;
   deletedActivityIds: string[];
   guides: GuideBand[];
+  documents: CampDocument[];
 };
 
 // localStorage names predate the doc keys: "runLists.v2" (doc-model bump) and
@@ -83,6 +86,7 @@ export const DOC_LOCAL_KEYS: { [K in UserDocKey]: string } = {
   locationColors: "locationColors",
   deletedActivityIds: "deletedActivityIds",
   guides: "guides.v1",
+  documents: "documents.v1",
 };
 
 const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
@@ -109,6 +113,9 @@ const DOC_DEFAULT_FACTORIES: { [K in UserDocKey]: () => DocValueMap[K] } = {
   locationColors: () => ({}),
   deletedActivityIds: () => [],
   guides: () => [],
+  // A fresh account sees the prepared seed PDFs; once the list is edited the
+  // stored array wins (same "default then stored overrides" contract as camps).
+  documents: () => [...DEFAULT_CAMP_DOCUMENTS],
 };
 
 export function docDefault<K extends UserDocKey>(key: K): DocValueMap[K] {
@@ -220,6 +227,12 @@ const kitStockDoc: StorageValidator<Record<string, StockState>> = (value) =>
 // normalizeGuides always yields a clean array on malformed input.
 const guidesDoc: StorageValidator<GuideBand[]> = (value) => normalizeGuides(value);
 
+// The downloadable camp documents (seed PDFs + uploaded files). The pure
+// validator lives in lib/content/campDocuments.ts (isomorphic); it drops malformed
+// rows and keeps only sources the browser can actually open.
+const documentsDoc: StorageValidator<CampDocument[]> = (value, fallback) =>
+  normalizeCampDocuments(value, fallback);
+
 const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = {
   favs: stringArrayDoc,
   extra: activitiesDoc,
@@ -237,6 +250,7 @@ const DOC_VALIDATORS: { [K in UserDocKey]: StorageValidator<DocValueMap[K]> } = 
   locationColors: locationColorsDoc,
   deletedActivityIds: stringArrayDoc,
   guides: guidesDoc,
+  documents: documentsDoc,
 };
 
 export function normalizeDoc<K extends UserDocKey>(key: K, raw: unknown): DocValueMap[K] {
