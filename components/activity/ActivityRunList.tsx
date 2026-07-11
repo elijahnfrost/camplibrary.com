@@ -74,6 +74,15 @@ import {
   type RunDoc,
   type RunIcon,
 } from "@/lib/activity/runList";
+import {
+  duplicateChild,
+  moveBlock,
+  moveChild,
+  patchBlock,
+  patchChild,
+  removeBlock,
+  removeChild,
+} from "@/lib/activity/runDocOps";
 import type { ActivityPlaybookData } from "@/lib/activity/playbooks";
 import { parseEmbed } from "@/lib/activity/embed";
 import { DiagramLightbox } from "./DiagramLightbox";
@@ -225,17 +234,13 @@ export function ActivityRunList({
   const commit = (next: RunDoc) => onChange?.(next);
 
   // ---- block + child edits (controlled: derive next doc, push up) -----------
-  const patchTop = (id: string, patch: Partial<RunBlock>) =>
-    commit({ blocks: doc.blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
+  // The structural transforms live in lib/activity/runDocOps (pure + unit-tested);
+  // the wrappers here add the component-side effects (undo snapshot, focus, the
+  // open/close of a step) around a single commit.
+  const patchTop = (id: string, patch: Partial<RunBlock>) => commit(patchBlock(doc, id, patch));
 
   const patchKid = (pid: string, kid: string, patch: Partial<RunChild>) =>
-    commit({
-      blocks: doc.blocks.map((b) =>
-        b.id === pid
-          ? { ...b, children: (b.children || []).map((c) => (c.id === kid ? { ...c, ...patch } : c)) }
-          : b
-      ),
-    });
+    commit(patchChild(doc, pid, kid, patch));
 
   // Set the icon/colour override on whatever the picker is open over (a top
   // block or an attached child). Routes through the same patch helpers, so the
@@ -331,7 +336,7 @@ export function ActivityRunList({
     // Removing a step closes its diagram editor if it happened to be open.
     if (fullDiagram?.stepId === id) setFullDiagram(null);
     offerUndo((block?.type === "step" ? "Step" : "Block") + " removed");
-    commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+    commit(removeBlock(doc, id));
   };
 
   // Duplicate a top-level block right below itself, with fresh ids on the block
@@ -349,18 +354,7 @@ export function ActivityRunList({
   };
 
   // Duplicate an attached detail right after itself within the same parent.
-  const dupKid = (pid: string, kid: string) => {
-    commit({
-      blocks: doc.blocks.map((b) => {
-        if (b.id !== pid) return b;
-        const children = b.children || [];
-        const index = children.findIndex((c) => c.id === kid);
-        if (index < 0) return b;
-        const copy: RunChild = cloneRunChild(children[index], runId("k"));
-        return { ...b, children: [...children.slice(0, index + 1), copy, ...children.slice(index + 1)] };
-      }),
-    });
-  };
+  const dupKid = (pid: string, kid: string) => commit(duplicateChild(doc, pid, kid, runId("k")));
 
   // Enter inside a step: split at the caret — text before stays, text after
   // moves into a fresh step that takes focus.
@@ -378,35 +372,20 @@ export function ActivityRunList({
     if (fullDiagram?.stepId === id) setFullDiagram(null);
     const previousStep = [...doc.blocks.slice(0, index)].reverse().find((b) => b.type === "step");
     if (previousStep) pendingFocusRef.current = { id: previousStep.id, caret: "end" };
-    commit({ blocks: doc.blocks.filter((b) => b.id !== id) });
+    commit(removeBlock(doc, id));
   };
 
   // Reorder a top-level block by one slot. Touch/keyboard-friendly counterpart to
   // the HTML5 drag handles (which never fire on touch devices).
   const moveTopBy = (id: string, dir: -1 | 1) => {
-    const idx = doc.blocks.findIndex((b) => b.id === id);
-    const swap = idx + dir;
-    if (idx < 0 || swap < 0 || swap >= doc.blocks.length) return;
-    const blocks = [...doc.blocks];
-    [blocks[idx], blocks[swap]] = [blocks[swap], blocks[idx]];
-    commit({ blocks });
+    const next = moveBlock(doc, id, dir);
+    if (next) commit(next);
   };
 
   // Same for a step's attached details — without this, touch devices have no
   // way to reorder a note/diagram under a step at all.
-  const moveChildBy = (parentId: string, childId: string, dir: -1 | 1) => {
-    commit({
-      blocks: doc.blocks.map((b) => {
-        if (b.id !== parentId) return b;
-        const children = [...(b.children || [])];
-        const idx = children.findIndex((k) => k.id === childId);
-        const swap = idx + dir;
-        if (idx < 0 || swap < 0 || swap >= children.length) return b;
-        [children[idx], children[swap]] = [children[swap], children[idx]];
-        return { ...b, children };
-      }),
-    });
-  };
+  const moveChildBy = (parentId: string, childId: string, dir: -1 | 1) =>
+    commit(moveChild(doc, parentId, childId, dir));
 
   // Tab on a top-level note/safety/variation: tuck it under the nearest step
   // above as a detail (committing its latest text in the same move). No step
@@ -463,11 +442,7 @@ export function ActivityRunList({
   const rmKid = (pid: string, kid: string) => {
     if (fullDiagram?.childId === kid) setFullDiagram(null);
     offerUndo("Detail removed");
-    commit({
-      blocks: doc.blocks.map((b) =>
-        b.id === pid ? { ...b, children: (b.children || []).filter((c) => c.id !== kid) } : b
-      ),
-    });
+    commit(removeChild(doc, pid, kid));
   };
 
   const addKid = (pid: string, type: RunChildType) => {
