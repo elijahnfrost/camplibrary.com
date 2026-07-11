@@ -92,6 +92,27 @@ imports and locals are caught at the file level too: `tsconfig` sets
 (prefix an intentionally-unread binding with `_`, or drop the value half of a
 set-only `useState`: `const [, setX] = useState(...)`).
 
+## Tests
+
+Three layers, each catching what the others can't:
+
+- **Pure logic → `*.test.ts`, colocated.** Vitest runs these in the fast `node`
+  environment (the default). This is where most coverage lives and belongs — see
+  point 6 under *Add a feature without coupling*: push logic into `lib` and test
+  it here.
+- **Component / hook behavior → `*.test.tsx`.** Put `// @vitest-environment
+  happy-dom` at the very top of the file (the node suites stay node — they don't
+  pay for a DOM) and use `@testing-library/react`: `render(<C .../>)` +
+  `container.querySelector`/`screen` for a component, `renderHook(() => useX())` +
+  `act` for a hook. Assert *behavior* (what the user sees / the returned state),
+  never internals. Exemplars: `components/calendar/EventCardContent.test.tsx`
+  (which badges render for which flags) and `components/hooks/useLibraryFilters.test.tsx`
+  (the duration-bounds math). Add `@testing-library/user-event` when you need
+  real click/type interaction.
+- **Appearance → the Playwright visual suite** (below) — the pixel oracle. It
+  catches *how it looks*; the `.test.tsx` layer catches *how it behaves*. A
+  stateful component with no `.test.tsx` has no behavioral net at all.
+
 ## The gates (all run in CI)
 
 ```bash
