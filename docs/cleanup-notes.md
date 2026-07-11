@@ -307,12 +307,26 @@ state without a re-render — same object, same reads.
   and `altDragRef` (read by `onEventDrop` for copy-vs-move). `groupMoveRef` stayed
   internal — it's only *named* in `onEventDrop`'s comments, never read there.
   Moved body verified byte-identical to the original slice.
+- **`CalendarShell` 5498 → 5404.** Second stateful-core lift: the "Hour" weather
+  mode's per-column chip injection (the `useEffect` that paints glyph+temp chips
+  into FC's `.fc-timegrid-col-frame`s and delegates chip clicks) →
+  `components/calendar/useWeatherColumnChips.ts` (`useWeatherColumnChips`). A
+  **leaf side-effect**: it writes no component state, so the hook returns nothing
+  and takes only read-only inputs (`gridRef`, `weatherMode`, `weatherData`,
+  `weatherDataRef`, `gridStart`, `gridEnd`, `activeView`, `openWxRef`). Kept the
+  effect's exact hand-tuned dep array (`weatherData`/`activeView` are dep-only,
+  the refs deliberately absent), so re-run timing is unchanged. One effect → one
+  hook call at the same spot preserves hook order; `weatherGlyphSvg` was stranded
+  in the shell's `@/lib/weather` import and pruned. Body byte-identical.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(the rest of the stateful **core** — weather-chip injection, slot-zoom/width,
-series-scope dialogs, event-render callbacks — the hard 80%), `QuickAdd` (glyphs,
-`draftFromEvent`). Large **pure-logic** files stay put (see below). The file-size
-and boundary gates keep everything from growing or re-coupling in the meantime.
+(the rest of the stateful **core** — slot-zoom/width, the stops/rain/kit column
+injectors, series-scope dialogs, event-render callbacks — the hard 80%; the
+slot-zoom + strip-scroll machinery is deliberately **deferred**: `onGridScroll`/
+`realignTo`/`recomputeDayWidth` interleave with the strip-reanchor state, so no
+narrow interface exists yet), `QuickAdd` (glyphs, `draftFromEvent`). Large
+**pure-logic** files stay put (see below). The file-size and boundary gates keep
+everything from growing or re-coupling in the meantime.
 
 ## Deferred items
 - Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,

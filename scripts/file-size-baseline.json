@@ -10,7 +10,7 @@
     "components/activity/RunSheetBody.tsx": 535,
     "components/activity/RunSheetControls.tsx": 985,
     "components/calendar/CalendarChrome.tsx": 570,
-    "components/calendar/CalendarShell.tsx": 5498,
+    "components/calendar/CalendarShell.tsx": 5404,
     "components/calendar/QuickAdd.tsx": 1004,
     "components/hooks/useActivityLibrary.ts": 597,
     "components/library/Filters.tsx": 714,
