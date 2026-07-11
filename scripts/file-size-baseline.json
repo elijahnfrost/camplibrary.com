@@ -3,7 +3,7 @@
   "limit": 500,
   "note": "Grandfathered files over the line limit. A file may shrink below its entry but never grow past it, and NEW files must stay under the limit.",
   "files": {
-    "components/CampApp.tsx": 1479,
+    "components/CampApp.tsx": 1453,
     "components/activity/ActivityRunList.tsx": 1840,
     "components/activity/DetailSheet.tsx": 692,
     "components/activity/PlaybookEditor.tsx": 833,
