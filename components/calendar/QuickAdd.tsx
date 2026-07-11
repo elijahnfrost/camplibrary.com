@@ -53,6 +53,9 @@ import { coverage } from "@/lib/materials/materials";
 import type { Material } from "@/lib/materials/materialCatalog";
 import type { StockState } from "@/lib/materials/kitStock";
 import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
+// boolStorage + isTypingTarget are the calendar shell's own helpers (QuickAdd
+// mirrors the grid's typing-target gate) — shared, not re-declared per surface.
+import { boolStorage, isTypingTarget } from "@/lib/calendar/shellHelpers";
 import { CampIcon } from "@/components/ui/icons";
 import { PropRow } from "@/components/ui/PropRow";
 import { ToggleSwitch } from "@/components/ui/primitives";
@@ -109,18 +112,6 @@ export function draftFromEvent(event: CalendarEvent): EditorDraft {
     note: event.note,
     pinned: event.pinned,
   };
-}
-
-const boolStorage = (value: unknown, fallback: boolean) => (typeof value === "boolean" ? value : fallback);
-
-// Delete/Backspace only act as event shortcuts away from any live text editing
-// (an input, a textarea, a select, or a contenteditable) — mirrors the
-// calendar grid's own isTypingTarget gate so the sheet's Delete key doesn't
-// eat a keystroke someone meant for the note field or the title.
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
 export function QuickAdd({
