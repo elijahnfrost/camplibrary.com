@@ -4,7 +4,7 @@ import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatClock, formatDuration } from "@/lib/calendar/time";
 import { summarizeRecurrence } from "@/lib/calendar/recurrence";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 
 // The anchored card a STOP marker opens — the events sharing one exact start

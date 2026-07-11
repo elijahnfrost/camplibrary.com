@@ -1,0 +1,174 @@
+/* ============================================================
+ * Camp Library — design language (self-contained)
+ * Warm cream paper · hand-drawn ink borders · Caveat + Patrick Hand
+ * · forest-green accent · stamps, chips, spines.
+ *
+ * Mobile-first: the phone experience is the source of truth (ported
+ * pixel-for-pixel from the Claude Design prototype). The large-screen
+ * layer (>= 768px) is a deliberate redesign — sidebar nav, a contained
+ * "desk" card, fluid grids and centered modals — NOT a stretched phone.
+ * ============================================================ */
+
+:root {
+  /* Kraft ramp rebuilt around VALUE separation: chroma falls as surfaces
+     rise, so cards lift by getting LIGHTER (not yellower). Deep tones now
+     concentrate in four places — ink, accent CTAs, the stage desk, and
+     category tints — instead of washing every surface.
+     card 1.16:1 over paper · paper-2 1.31:1 under card · stage 1.58:1.
+
+     VALUE LADDER (warm frame, light paper) — surfaces reference a ROLE, not a
+     raw tone, so dark/light reads deliberately:
+       stage-bg (desk)  →  chrome/paper (the warm FRAME: sidebar, top/tab bars,
+       calendar header)  →  chrome-well/paper-2 (insets that sit ON chrome)  →
+       content/card (the light PAPER that lifts off the frame: cards, calendar
+       grid, sheets, inputs, popovers, AND raised controls like view switchers).
+       ink · accent · category tints stay reserved for marks, not surfaces. */
+  --card: #fcf9f1; /* lightest: cards, sheets, inputs, controls */
+  --paper: #efe8d8; /* app canvas */
+  --paper-2: #e4dbc6; /* wells, hover fills, insets */
+  --stage-bg: #d3c8ad; /* desktop desk ONLY — the deepest neutral */
+  /* Semantic surface roles (aliases into the ramp above). Flip a surface's
+     role here, not its raw hex. content == card today, so existing
+     var(--card) content surfaces need no change. */
+  --chrome: var(--paper); /* the warm frame: sidebar, top/tab bars, cal header */
+  --chrome-well: var(--paper-2); /* hover/inset fills that sit ON chrome */
+  --content: var(--card); /* the light paper: cards, grid, sheets, inputs, popovers */
+  --ink: #2c2824; /* 12.0:1 paper, 13.9:1 card */
+  --ink-soft: #5d5547; /* 6.0:1 paper, 7.0:1 card — AA everywhere */
+  --ink-faint: #6f6656; /* 4.6:1 paper, 5.4:1 card; card/paper surfaces only */
+  /* Interactive borders 3.10:1 on paper, 3.60:1 on card (WCAG 1.4.11);
+     --line-soft is decorative hairlines only, never a control's sole edge. */
+  --line: #8e8268;
+  --line-soft: #d8cfba;
+  /* The app's general green is the darker pine (owner preference): --accent maps
+     to the deeper --accent-ink so every solid-accent surface — primary buttons,
+     switch on-tracks, seg thumbs, today's circle, focus borders — reads in the
+     one dark green. (Was #3f6b45; the ink is #2c4a32, and white-on-green rises
+     well past AA.) The lighter sage lives on as --accent-light/--accent-tint,
+     used only where a soft brand wash is still wanted OUTSIDE the sidebar. */
+  --accent: var(--accent-ink);
+  --accent-ink: #2c4a32;
+  /* The brand's two greens are the dark pine (--accent) and this lighter sage —
+     both lifted straight from the logo mark (logo-mark.svg: #4f7a52 / #aebf86). */
+  --accent-light: #aebf86;
+  /* Soft accent fill for selected/active surfaces (dropdown highlights, the
+     signed-in auth pill, status badges): the lighter brand sage dropped onto the
+     cream card at low opacity, so the highlight reads as the SAME green family as
+     the logo rather than the old cool lime (#e2ecd4) that clashed. */
+  --accent-tint: color-mix(in srgb, var(--accent-light) 42%, var(--card));
+  --hl: #e7cf6a;
+  /* Warm wood-shadow rather than cool grey; lighter surfaces need less smudge. */
+  --shadow: rgba(56, 44, 28, 0.14);
+  --star-gold: #e0a92e;
+  --star-ink: #835f17;
+  --scrim-bg: rgba(44, 40, 36, 0.34); /* ONE scrim treatment for every overlay */
+
+  /* Earthy support palette — used deliberately, not everywhere. */
+  --wood: #6b4a2f;
+  --wood-soft: #8a6240;
+  --clay: #b3603f;
+  --amber: #d99a3c;
+  --amber-soft: #e7cf6a;
+  --dusk: #4a4660;
+
+  /* Elevation ramp — the UI is flat and border-defined; only true overlays
+     (modals/sheets sitting over a scrim) lift. --e1/--e2 (old hard "sticker"
+     offsets) and --e3 (dropdowns/popovers/toasts/FAB) are now flat so chrome
+     reads as one continuous surface; --e4 stays for scrim-backed overlays. */
+  --e1: none;
+  --e2: none;
+  --e3: none;
+  --e4: 0 18px 48px -12px rgba(56, 44, 28, 0.4);
+
+  /* Quiet humanist companion for body + dense data; handwriting stays on display.
+     next/font (display:swap) already EXPANDS each --font-* var to the real face
+     PLUS its size-adjusted, metric-matched fallback — e.g. --font-hand resolves to
+     `"Patrick Hand", "Patrick Hand Fallback"` where the Fallback is a synthetic
+     @font-face (src:local(Arial) + size-adjust/ascent-override) tuned to the real
+     face's metrics. So pre-swap text lays out at the FINAL metrics and does NOT
+     reflow when the webfont arrives (this is what kills the FOUT/text-shift on
+     re-sort). We must NOT re-append the real family names ("Patrick Hand",
+     "Caveat", …) after the var: if that face happens to be installed locally it
+     renders pre-swap at the WRONG, non-metric-matched metrics and reintroduces the
+     shift. Keep only a generic last-resort so the metric-matched fallback always
+     wins until the webfont swaps. */
+  --text: var(--font-text), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hand: var(--font-hand), cursive;
+  --hand-sc: var(--font-hand-sc), var(--font-hand), cursive;
+  --script: var(--font-script), cursive;
+
+  /* Token-scale guardrail: compact aliases for new CSS only; existing selectors are unchanged. */
+  --s-0: 0;
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 24px;
+  --s-8: 32px;
+
+  --page-x: 18px;
+  --tap: 44px;
+  --control-sm: 34px;
+  --control-md: 40px;
+  /* Library content column: on wide desks the browse views (deck/catalog/shelf)
+     cap at this width and center (margin-inline:auto) so items read centered with
+     consistent room instead of hugging the window edges. T7. */
+  --lib-col-max: 1180px;
+
+  --r-none: 0;
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-pill: 999px;
+  --r-round: 50%;
+
+  --fs-micro: 9px;
+  --fs-meta: 10.5px;
+  --fs-label: 11px;
+  --fs-ui: 13px;
+  --fs-body: 15px;
+  --fs-body-lg: 17px;
+  --fs-title-sm: 21px;
+  --fs-title: 34px;
+  --fs-display: 44px;
+  --fs-book-title: clamp(34px, 5vw, 46px);
+
+  --e0: none;
+
+  --bp-phone: 420px;
+  --bp-wide-phone: 640px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
+  --bp-wide: 1320px;
+
+  /* ---- Interaction tokens ----
+     Canonical state recipes (apply these, don't invent new ones):
+     · Primary selected (mutually-exclusive controls — view switches, segs,
+       nav items): solid accent fill + --on-accent text.
+     · Secondary selected (additive toggles — kit items, saves): 11–28% tint
+       fill + colored border + an explicit indicator (check/fill).
+     · Pressed, flat controls: one-step background darken
+       (color-mix(in srgb, var(--ink) 8%, var(--paper-2))); selected variants
+       darken their own fill (accent → --accent-ink).
+     · Pressed, elevated controls: translate into the offset shadow.
+     · Focus: global accent ring; ink ring on accent/selected fills;
+       inset rings inside overflow-clipped segmented containers. */
+  --on-accent: #fff; /* text/icons on accent or ink fills */
+  --danger: #a45a4f; /* error borders, destructive icons */
+  --danger-ink: #6d332c; /* error text on light surfaces */
+  --t-fast: 120ms; /* hover/pressed color shifts */
+  --t-med: 180ms; /* reveals, fades */
+  --t-slow: 240ms; /* overlays, sheet rise */
+  --ease: cubic-bezier(0.2, 0, 0, 1); /* standard decelerate */
+  --ease-overlay: cubic-bezier(0.16, 1, 0.3, 1); /* overlay entrances ONLY, never hover */
+
+  /* Named calendar indicator values — so the mini-month's in-view band and
+     busy-day dot reference an intent (a soft accent wash, a quiet mark) instead
+     of bare color-mix percentages / raw ink tones scattered in calendar.css. */
+  --indicator-band: color-mix(in srgb, var(--accent) 18%, transparent);
+  --indicator-dot: var(--ink-soft);
+}

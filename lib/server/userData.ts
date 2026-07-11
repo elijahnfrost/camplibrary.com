@@ -5,7 +5,7 @@ import {
   isUserDocKey,
   normalizeDoc,
   type UserDocKey,
-} from "@/lib/userDataDocs";
+} from "@/lib/cloud/userDataDocs";
 
 // Per-user cloud persistence: a (user, key) → jsonb document store mirroring
 // the localStorage keys, plus calendar_events as a real table because events
@@ -40,8 +40,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MINUTES_PER_DAY = 1440;
 
-export const EVENT_TITLE_MAX_LENGTH = 200;
-export const EVENT_ACTIVITY_ID_MAX_LENGTH = 120;
+const EVENT_TITLE_MAX_LENGTH = 200;
+const EVENT_ACTIVITY_ID_MAX_LENGTH = 120;
 
 export const ensureUserDataSchema = cacheUntilFailure(async () => {
   const sql = getSql();

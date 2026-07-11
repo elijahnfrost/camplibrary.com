@@ -8,16 +8,16 @@
 // would be more confusing than helpful), so only the FORMAT half persists.
 
 import type { DateKey } from "@/lib/calendar/types";
-import type { StorageValidator } from "@/lib/store";
+import type { StorageValidator } from "@/lib/cloud/store";
 
 // How color is emitted. "color" uses the earthy category/theme tints (with
 // print-color-adjust: exact so the ink actually lands); "mono" is the classic
 // black-on-white, toner-friendly sheet.
-export type PrintColor = "color" | "mono";
+type PrintColor = "color" | "mono";
 
 // "styled" is the designed paper (script title, fact grids, rules); "plain" is
 // a stripped, text-first layout for quick reference / photocopies / faxing.
-export type PrintStyle = "styled" | "plain";
+type PrintStyle = "styled" | "plain";
 
 // Per-event richness in the schedule grid.
 //   times   — time + title only (a wall schedule)

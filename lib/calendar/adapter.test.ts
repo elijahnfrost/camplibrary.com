@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Activity } from "../types";
-import { CUSTOM_NEUTRAL, LOCATION_TINTS, categoryTint, ratingColor } from "../data";
-import type { Theme } from "../themes";
+import { CUSTOM_NEUTRAL, LOCATION_TINTS, categoryTint, ratingColor } from "../content/data";
+import type { Theme } from "../content/themes";
 import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent } from "./adapter";
 import type { CalendarEvent } from "./types";
 

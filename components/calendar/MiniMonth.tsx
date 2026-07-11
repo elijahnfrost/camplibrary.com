@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { daySpan, startOfWeek, toDateKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 
 // The sidebar mini-month: a Google/Apple-Calendar style overview that sits
 // above the activity rail. It mirrors the main grid — today is circled, the

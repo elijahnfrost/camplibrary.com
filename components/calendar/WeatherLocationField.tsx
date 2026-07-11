@@ -7,7 +7,7 @@ import {
   locationLabel,
   type WeatherLocation,
 } from "@/lib/weather";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 
 // The "Location" row in the calendar's View ledger. The trigger reads the chosen

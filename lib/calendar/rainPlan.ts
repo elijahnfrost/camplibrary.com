@@ -9,14 +9,14 @@
 // forecast already produced (precipProbMax + condition), so a test can pin it.
 
 import type { DayWeather } from "../weather";
-import { resolveAlternates } from "../alternates";
+import { resolveAlternates } from "../activity/alternates";
 import type { Activity } from "../types";
 import type { AlternateRef, CalendarEvent, DateKey } from "./types";
 
 // One at-risk row: the outdoor event and the backup plans it resolves to (the
 // activity default unless the placement overrides). An empty `alternates` means
 // "no backup on file" — the UI offers a "Pick backup…" affordance for it.
-export interface RainRow {
+interface RainRow {
   event: CalendarEvent;
   alternates: AlternateRef[];
 }

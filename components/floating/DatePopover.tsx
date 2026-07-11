@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { fromDateKey, toDateKey, todayKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "./FloatingLayer";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]; // week starts Monday, matching the calendar (firstDay={1})

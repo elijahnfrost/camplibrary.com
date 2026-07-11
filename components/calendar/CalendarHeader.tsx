@@ -1,6 +1,6 @@
 "use client";
 
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { ViewSwitch } from "./ViewSwitch";
 import type { ViewKey } from "@/lib/calendar/views";
 

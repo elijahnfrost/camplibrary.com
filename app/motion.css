@@ -1,0 +1,344 @@
+/* ============================================================
+ * Reduced motion
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- diagram lightbox + shared frame stepper ---------- */
+.lightbox-root {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: grid;
+  place-items: center;
+  padding: var(--s-5);
+}
+.lightbox__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--shadow);
+  cursor: pointer;
+  animation: cl-fade 180ms ease both;
+}
+.lightbox {
+  position: relative;
+  /* The "full screen … projector-friendly" diagram view: fill the screen as a
+     flex column so the diagram scales to the available height and the stepper
+     nav below stays visible (it used to be a 640px card barely bigger than the
+     inline diagram). */
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
+  overflow: hidden;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e4);
+  animation: cl-pop 220ms var(--ease-overlay) both;
+  padding: var(--s-6);
+}
+/* The diagram fills the leftover height; the aspect-ratio SVG field scales to
+   fit it (centered), so caption + prev/next + dots never fall below the fold. */
+.lightbox .framestep {
+  flex: 1;
+  min-height: 0;
+}
+.lightbox .framestep__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox .framestep__stage .playbook-frame {
+  margin: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox .framestep__stage .playbook-field {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  min-height: 0;
+}
+.lightbox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+}
+.lightbox__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.framestep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.framestep__stage .playbook-frame {
+  margin: 0;
+}
+.framestep__stage .playbook-field {
+  width: 100%;
+  height: auto;
+}
+.framestep__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+.framestep__caption {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.framestep__caption strong {
+  font-family: var(--hand);
+  font-size: var(--fs-body-lg);
+  color: var(--ink);
+}
+.framestep__caption p {
+  margin: var(--s-1) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+.framestep__dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-2);
+}
+.framestep__dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--line-soft);
+}
+.framestep__dots span.is-on {
+  background: var(--accent);
+}
+
+/* ---------- full-screen diagram editor ---------- */
+/* Sits one notch above the read-only lightbox (210) so editing always wins the
+   focus/escape stack. Mirrors the lightbox shell, just roomier for the tools. */
+.diagram-edit-root {
+  position: fixed;
+  inset: 0;
+  z-index: 215;
+  display: grid;
+  place-items: center;
+  padding: var(--s-5);
+}
+.diagram-edit__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--shadow);
+  cursor: pointer;
+}
+.diagram-edit {
+  position: relative;
+  width: min(860px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e4);
+  padding: var(--s-6);
+}
+.diagram-edit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+.diagram-edit__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.diagram-edit__body {
+  min-height: 0;
+}
+/* The editor fills the roomy modal: drop its own framing (the modal supplies it)
+   and let the field canvas grow tall so pieces are easy to place. */
+.diagram-edit .pbe {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.diagram-edit .playbook-field--edit {
+  min-height: min(58vh, 540px);
+}
+
+/* ---------- run-list editing ergonomics ---------- */
+.rl-insert {
+  list-style: none;
+  position: relative;
+  height: var(--s-3);
+  margin: 0;
+}
+.rl-insert__btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+  z-index: 2;
+}
+.rl-insert:hover .rl-insert__btn,
+.rl-insert__btn:focus-visible {
+  opacity: 1;
+}
+.rl-insert__btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+@media (hover: none) {
+  .rl-insert {
+    height: var(--s-6);
+  }
+  .rl-insert__btn {
+    opacity: 0.55;
+  }
+}
+.rl .is-readonly .rl-insert {
+  display: none;
+}
+.rl-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-6);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  box-shadow: var(--e3);
+  z-index: 220;
+}
+.rl-toast button {
+  border: 0;
+  background: transparent;
+  color: var(--hl);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+/* ---------- viewer header: event context ---------- */
+.rlv-eventchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  padding: var(--s-2) var(--s-5);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  align-self: flex-start;
+}
+.rlv-eventchip svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+/* The per-placement "day note" callout: the heads-up the staffer wrote on the
+   calendar event, surfaced on the run sheet so the two reconcile. A soft amber
+   card — warmer than the neutral run-sheet body — so it reads as "for today,"
+   clearly apart from the evergreen Field-notes log. */
+.rlv-daynote {
+  align-self: stretch;
+  max-width: 760px;
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1.5px solid color-mix(in srgb, var(--star-gold, #c79a3a) 45%, var(--line));
+  border-left: 3px solid var(--star-gold, #c79a3a);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--star-gold, #c79a3a) 12%, var(--card));
+}
+.rlv-daynote__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rlv-daynote__label svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.rlv-daynote__text {
+  margin: 2px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+/* event-detail-9: a quiet caption disambiguating the per-placement Day note
+   above from the per-activity Field Notes log further down — informational,
+   not a warning, so it stays muted rather than amber/danger-toned. */
+.rlv-fieldnote-hint {
+  align-self: stretch;
+  max-width: 760px;
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rl-insert__btn {
+    transition: none;
+  }
+}

@@ -1,0 +1,2261 @@
+/* ============================================================
+ * Print tab — console, live preview, and the print document.
+ *
+ * The `.print-doc` / `pd-*` rules are authored for BOTH screen (inside the
+ * preview frame) and print, so the preview is a true WYSIWYG of the page.
+ * Font sizes use calc(<n>pt) and box metrics use `in` so the document is sized
+ * in physical print units yet stays lint-clean on screen (the activity-book
+ * print in ActivityBookPrint keeps its own print-only `.print-*` styling).
+ * ============================================================ */
+
+/* ---- Tab shell: console beside a scrolling preview ---- */
+/* The Print tab is a header (.printhead) over the paged preview; the schedule
+   controls live in the PRIMARY sidebar (.prail), not a second console. */
+.print-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---- Header bar: mirrors the calendar header (.calhead) — the title block on
+   the left, the actions (Export PDF / Print) pushed to the right edge. ---- */
+.printhead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding: var(--s-5) var(--page-x);
+}
+/* Match the calendar header's desk horizontal padding so the two tab headers
+   line up (.calhead gets 32px at >=1024; .printhead lacked the override → 14px off). */
+@media (min-width: 1024px) {
+  .printhead {
+    padding: var(--s-5) 32px;
+  }
+}
+.printhead__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.printhead__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink);
+}
+.printhead__scope {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.printhead__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-left: auto;
+  max-width: 100%;
+}
+.printhead__btn {
+  height: var(--control-md);
+  border-radius: var(--r-md);
+}
+/* The two headline actions lift slightly on hover so the buttons feel alive;
+   their icons (Export arrow / Print sheet) animate via the cicon hooks. (The
+   buttons were renamed .print-tab__action -> .printhead__btn in the rail rework.) */
+.printhead__btn:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .printhead__btn:hover:not(:disabled) {
+    transform: none;
+  }
+}
+/* Mobile-only entry to the schedule controls (desktop puts them in the sidebar
+   rail). Hidden from the sidebar breakpoint up — the calendar's pattern. */
+.printhead__options {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-md);
+  height: var(--control-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.printhead__options:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.printhead__options svg {
+  width: 18px;
+  height: 18px;
+}
+@media (min-width: 1024px) {
+  .printhead__options {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .printhead__btn {
+    padding-inline: 12px;
+  }
+}
+
+/* The preview canvas the letter pages sit on. Uses the app canvas (--paper), the
+   SAME surface the Calendar grid and Library sit on — so the Print header and its
+   body read as one unified background (like the calendar header → grid), not a
+   --paper top bar seamed against a darker --stage-bg desk. (--stage-bg is the
+   desktop stage BEHIND the app only; the cream pages still pop via their border +
+   lift, exactly as --card grid cards do on --paper.) */
+.print-tab__preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--paper);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* The desktop sidebar slot the controls portal into (the same primary sidebar
+   the Library filters / Calendar settings share — no second sidebar). It sits
+   INSIDE the shared .sidenav__scroll zone now, which is the rail's ONE scroll
+   container (brand + nav + foot stay pinned outside it) — so this div sizes to
+   its own content instead of also scrolling, avoiding a nested scrollbar.
+   Desktop-only — the sidebar is display:none below 768px, where the controls
+   open in the options sheet. */
+.sidenav__printrail {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Sidebar sync pill + app-level error toast ----
+   Sync state surfaced where edits happen (Calendar/Library), not just the
+   profile popover. The pill is QUIET by default — it only renders when
+   something needs attention (pending writes, offline, refused write) and taps
+   through to the SAME profile popover as the row below it, where the full
+   sync line lives. The toast makes a server-refused write visible; it mirrors
+   .calshell__toast so the two read as one system. */
+.sidenav__sync {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+}
+.sidenav__sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+.sidenav__sync.is-error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.sidenav__sync.is-error .sidenav__sync-dot {
+  background: var(--danger);
+}
+
+/* ---- Profile control (bottom-left account row + popover) ----
+   The common app pattern, replacing the old dedicated Staff tab: one row in
+   the sidebar foot — avatar, display name, chevron — opening a themed popover
+   (FloatingLayer; docks as a bottom sheet under 1024px like every other
+   floating menu — see the touch-shell dropdown rule below). The row itself
+   borrows the sidenav__item quiet hover treatment; the popover body reuses the
+   .typepick__option row recipe so it reads as the same menu family as every
+   other dropdown in the app. */
+.profilerow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  padding: var(--s-3) var(--s-4);
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.profilerow:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.profilerow:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--chrome-well));
+}
+.profilerow[aria-expanded="true"] {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.profilerow__avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-round);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-ui);
+  line-height: 1;
+}
+.profilerow__avatar svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profilerow__name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand-sc);
+  font-size: 12.5px;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilerow__chev {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+}
+
+/* The popover body: reuses .typepick__menu's card surface via its own class
+   (so the touch-shell bottom-dock rule can target it directly), then a small
+   identity head + tag row + sync line above the same .typepick__option rows
+   every other dropdown uses. */
+.profilemenu {
+  position: fixed;
+  width: 260px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.profilemenu__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+}
+.profilemenu__avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-round);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1;
+}
+.profilemenu__avatar svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profilemenu__id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.profilemenu__name {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  line-height: 1.15;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilemenu__email {
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profilemenu__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+}
+.profilemenu__tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.profilemenu__tag--quiet {
+  background: var(--chrome-well);
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+.profilemenu__sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.profilemenu__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-round);
+  background: var(--ink-faint);
+}
+.profilemenu__dot--synced {
+  background: var(--accent);
+}
+.profilemenu__dot--syncing {
+  background: var(--accent-ink);
+}
+.profilemenu__dot--pending {
+  background: var(--amber);
+}
+.profilemenu__dot--offline {
+  background: var(--ink-faint);
+}
+.profilemenu__dot--error {
+  background: var(--danger);
+}
+.profilemenu__div {
+  height: 1px;
+  margin: var(--s-2) var(--s-2);
+  background: var(--line);
+}
+.profilemenu__muted {
+  margin: 0;
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  font-family: var(--text);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+/* The action rows reuse .typepick__option verbatim, which (unlike .cmenu__item)
+   has no icon-sizing rule of its own — every existing consumer only ever put a
+   .typepick__swatch dot in that slot. Scope the CampIcon glyph size here rather
+   than touch the shared .typepick__option recipe every other menu relies on. */
+.profilemenu .typepick__option svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.app-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-6);
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  box-shadow: var(--e3);
+}
+.app-toast button {
+  border: 0;
+  background: transparent;
+  color: var(--hl);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  min-height: var(--s-8);
+}
+.app-toast button:hover,
+.app-toast button:active {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- The sidebar print rail (.prail) ----
+   Rendered into .sidenav__printrail on desktop and the mobile options sheet. It
+   is built from the SAME pieces as the calendar rail so all three rails read as
+   one: a headerless range widget on top (the mini-month's role), then TITLED
+   setting groups (the "View" section's role), each a switch ledger. Most groups
+   are COLLAPSIBLE (a <details> whose summary IS the group header) so a long list
+   of knobs rests as a short stack of section headers — frequently-changed groups
+   lead open, set-once groups fold closed, and controls only appear when they
+   apply. Every group reads as a Library / Calendar sidebar section, and every
+   control is one inline label-left row. */
+.prail {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
+   that sets a whole options bundle at once, not a separate mode). Wraps on a
+   narrow rail rather than overflowing; each button keeps the standard
+   .btn--ghost.btn--sm treatment so it reads as an action, not a toggle. */
+.prail__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+.prail__preset {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* Range — the headerless lead widget (parallels the mini-month leading the
+   calendar rail): quick-range pills, the inline range calendar, then a readout. */
+.prail__range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+/* Quick ranges — ONE full-width segmented control (the app's .seg-slide thumb):
+   the active range glides under a green pill; a custom (calendar-picked) range
+   hides the thumb (.is-custom). Replaces the old 2×2 button grid with one tidy,
+   connected row, the same family as the Layout / Color / Paper segments. The
+   actual `gap` must equal --seg-gap so the thumb geometry lands on each segment. */
+.prail__quickrange {
+  display: flex;
+  width: 100%;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: var(--s-1);
+  gap: var(--s-1);
+  --seg-pad: var(--s-1);
+  --seg-gap: var(--s-1);
+  --seg-radius: var(--r-pill);
+}
+.prail__quickrange > button {
+  /* flex:1 / min-width:0 / z-index come from .seg-slide > button */
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: var(--s-3) var(--s-1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease);
+}
+.prail__quickrange > button:hover {
+  color: var(--ink);
+}
+.prail__quickrange > button.is-on {
+  /* The green lives on the sliding thumb; the active label just recolours. */
+  color: var(--on-accent);
+}
+.prail__quickrange.is-custom::before {
+  opacity: 0;
+}
+/* The range calendar sits flush in the block (it otherwise carries the sidebar
+   mini-month's own 26px top margin). */
+.prail .cal-mini {
+  margin-top: 0;
+}
+/* The selected-range readout — a quiet confirmation line under the calendar. */
+.prail__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.prail__readout-range {
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__readout-count {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Setting groups — the shared section vocabulary (a small-caps title over a
+   switch ledger). A generous top margin (the .sidesection / mini-month 26px
+   rhythm) gives each group its breathing room and a clear break. Most groups are
+   collapsible (see .prail__group--collapsible below); the title treatment is
+   shared whether the header is a static div or a clickable summary. */
+.prail__group {
+  margin-top: 26px;
+}
+.prail__grouphead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 18px;
+  margin-bottom: var(--s-6);
+}
+.prail__grouptitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+/* Microcopy under a group header (e.g. Appendix's "added after the schedule"). */
+.prail__grouphint {
+  margin: 0 0 var(--s-4);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+/* Individual run-sheet picker: a label, the picked chips, then a kit-style search
+   with a small results list to add from. */
+.prail__runsheets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+}
+.prail__rschips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.prail__rsresults {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--s-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.prail__rsresult {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__rsresult:hover {
+  background: var(--paper);
+}
+.prail__rsresult svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  color: var(--ink-faint);
+}
+/* Drop the trailing dashed rule on each group's last ledger control. */
+.prail .ledger > :last-child {
+  border-bottom: 0;
+}
+/* Inline 2-way segmented rows (Layout, Color, Paper): a DEFINITE width so the
+   equal-flex halves are truly equal — an inline-flex .miniseg hugs content, so
+   the wider label outgrows the 50% sliding thumb and reads as clipped. A uniform
+   width also right-aligns the controls into one clean column. */
+.prail .ledger__row .miniseg {
+  width: 160px;
+}
+
+/* Cover title — an INLINE ledger row like every other setting: the label left, a
+   compact text input filling the right (the .input look, but rail-sized — short,
+   so it sits in the row instead of a stacked full-width field). flex:1 overrides
+   .input's width:100%; the inherited 16px font keeps iOS from zooming on focus. */
+.prail .ledger__row .prail__titleinput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-sm);
+  padding: 0 var(--s-4);
+}
+
+/* Section order — a short ordered ledger: a numbered chip, the section name, and
+   the up/down nudges, each row a quiet bordered card the same family as the
+   run-sheet results list. */
+.prail__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.prail__section {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.prail__sectionidx {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.prail__sectionlabel {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__sectionmove {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.prail__sectionmove button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.prail__sectionmove button:hover:not(:disabled) {
+  background: var(--paper);
+  color: var(--ink);
+}
+.prail__sectionmove button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.prail__sectionmove svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Content picker — the days in range, each a checkbox row that reveals its
+   events (also checkboxes). A compact, scannable include list. */
+.prail__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.prail__cday {
+  display: flex;
+  flex-direction: column;
+}
+.prail__crow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  cursor: pointer;
+}
+.prail__crow input {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.prail__crow--day .prail__cname {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.prail__crow--event {
+  padding-left: var(--s-6);
+}
+.prail__cname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+}
+.prail__ccount,
+.prail__ctime {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+.prail__morestate {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-faint);
+  transition: color var(--t-fast) var(--ease);
+}
+.prail__morestate svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* Instant flip on open/close — the rotation no longer trails the disclosure. */
+}
+@keyframes prail-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Collapsible setting groups — the same <details>/<summary> disclosure as
+   "More options", but the summary IS the group header (small-caps title left,
+   chevron right) so a whole section folds away. Lets the rail rest short:
+   frequently-changed groups (Layout, Document sections) lead open; set-once
+   groups (Page setup, Content, Appendix) fold closed. Keyboard-operable for
+   free (native summary), and the chevron rotates to signal state. */
+.prail__group--collapsible {
+  /* A details element — strip its own box; the header carries the rhythm. */
+  display: block;
+}
+.prail__groupsum {
+  cursor: pointer;
+  list-style: none;
+  /* The header row already carries its own min-height + bottom margin. */
+}
+.prail__groupsum::-webkit-details-marker {
+  display: none;
+}
+/* When the header is a clickable summary, pull the chevron's color toward ink
+   on hover so the whole row reads as one affordance. */
+.prail__groupsum:hover .prail__grouptitle,
+.prail__groupsum:hover .prail__morestate {
+  color: var(--ink);
+}
+/* Collapsed: drop the header's bottom margin so a folded group is a tidy line. */
+.prail__group--collapsible:not([open]) > .prail__groupsum {
+  margin-bottom: 0;
+}
+.prail__group--collapsible[open] > .prail__groupsum .prail__morestate svg {
+  transform: rotate(180deg);
+}
+/* The revealed group body fades in like the More-options panel (reduced-motion
+   guarded by the shared rule below). */
+.prail__grouppanel {
+  animation: prail-reveal var(--t-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .prail__grouppanel {
+    animation: none;
+  }
+}
+/* Each group's ledger drops its trailing dashed rule so a fold reads as one
+   tidy unit (the `.prail`-scoped rule below doesn't reach the Library rail). */
+.prail__grouppanel .ledger > :last-child {
+  border-bottom: 0;
+}
+
+/* Library filter groups — the Library rail and mobile sheet reuse the
+   collapsible setting group above (Activity / Sort & display) so their filters
+   fold like the Print rail. The wrapper just stacks the groups; the first sits
+   flush at the top of the rail (the "Filter" heading is gone) or under the sheet
+   title, while the 26px group rhythm separates the rest. */
+.filtergroups {
+  display: flex;
+  flex-direction: column;
+}
+.filtergroups .prail__group:first-child {
+  margin-top: 0;
+}
+/* With the "Filter" section heading gone, "Clear all" stands on its own — a
+   quiet right-aligned action pinned above the scrolling groups, shown only
+   while a filter is active. */
+.sidefilters__clear {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+/* ---- Paged preview (screen only): real letter pages on the well ----
+   PagedPreview keeps a hidden SOURCE (.print-doc) that Paged.js fragments into
+   .pagedjs_page boxes shown in __pages. The page geometry is sized in physical
+   units; zoom-fit (--pv-zoom from a ResizeObserver) shrinks it to the pane on
+   laptops/phones. Warm cream paper (--card) here is SCREEN-ONLY — none of this
+   reaches the printable `.print-root`, which stays white. */
+.paged-preview {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: var(--s-6);
+  /* Reserve height while status="loading" — the source is hidden and no pages
+     have rendered yet, so without a floor the box (and its absolute veil) would
+     collapse to nothing and the loading screen wouldn't be visible. Generalized
+     from the old mobile-only print preview floor so it holds at every width. */
+  min-height: 60vh;
+}
+/* The paginated view (Paged.js-owned). Parked off-screen until the first
+   pagination lands so Paged.js can still measure it (display:none would zero its
+   layout and break pagination). */
+.paged-preview__pages {
+  zoom: var(--pv-zoom, 1);
+}
+.paged-preview:not([data-status="paged"]) .paged-preview__pages {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+}
+.paged-preview .pagedjs_pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-6);
+}
+.paged-preview .pagedjs_page {
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  /* token-exempt: --e4 is a deep modal-scrim shadow whose dark wood halo bleeds against the warm canvas and reads as a black page edge (the "overlap" artifact); a soft lift that hugs the page instead. */
+  box-shadow: 0 1px 3px rgba(56, 44, 28, 0.07), 0 8px 22px -14px rgba(56, 44, 28, 0.22);
+}
+/* Each freshly-built page-set fades in — the "native swap" beat that also masks
+   the non-animatable font swap (designed↔plain). Debounced, so it only plays
+   after the user pauses, never mid-drag. */
+.paged-preview__holder {
+  animation: pd-restyle var(--t-med) var(--ease);
+}
+/* Continuous fallback: the same source shown as one page only if Paged.js ever
+   fails (data-status="fallback"). On first load we park it off-screen behind the
+   loading veil — the unpaginated long page used to flash here before snapping to
+   pages — and once paginated it stays parked. Paged.js still reads it in the DOM
+   either way; this only hides it from view. */
+.paged-preview[data-status="paged"] .paged-preview__source,
+.paged-preview[data-status="loading"] .paged-preview__source {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+}
+.paged-preview__source .print-doc {
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.5in;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  /* token-exempt: matches the soft page lift on .pagedjs_page (see note there). */
+  box-shadow: 0 1px 3px rgba(56, 44, 28, 0.07), 0 8px 22px -14px rgba(56, 44, 28, 0.22);
+  zoom: var(--pv-zoom, 1);
+}
+@keyframes pd-restyle {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paged-preview__holder {
+    animation: none;
+  }
+}
+/* Preview-only empty-range hint (never rendered into the print artifact). */
+.pd-hint {
+  margin: 0.18in 0;
+  padding: 0.12in 0.14in;
+  border: 1pt dashed var(--accent-light);
+  border-radius: var(--pd-radius);
+  background: color-mix(in srgb, var(--accent-light) 12%, var(--card));
+  font-size: var(--pd-fs-body);
+  color: var(--ink-soft);
+}
+
+/* ---- The print scale (PRINT-SCOPED custom props) ----
+   The print document used to scatter calc(<n>pt) font sizes and `in` box metrics
+   inline — a parallel physical-unit scale decoupled from the app's --fs-/--s-/--r-
+   tokens, so print read as a different document. These vars de-duplicate those
+   magic numbers ONCE and make the print scale TRACK the design system: each step
+   echoes an app --fs-/--s-/--r- relationship, re-expressed in print's native pt/in
+   so the page is sized in physical units yet the rhythm matches the live cards.
+
+   --pd-scale is the user-facing font-scale knob (the Print tab's "Text size"
+   control, 0.9–1.15): every type token multiplies through it, so the whole sheet
+   grows/shrinks in lockstep without touching any rule. --pd-pad-scale does the
+   same for the density control, scaling the box paddings/gaps. The cover/title
+   sizes also ride --pd-scale so headings track body text. */
+.print-doc {
+  /* Font scale (echoes --fs-: meta→title). 10.5pt body == the app's --fs-body
+     reference; the rest hold the same ratios as the px ladder, ×--pd-scale. */
+  --pd-scale: 1;
+  --pd-fs-micro: calc(7pt * var(--pd-scale)); /* ↔ --fs-micro: fact/cue eyebrows */
+  --pd-fs-meta: calc(7.5pt * var(--pd-scale)); /* ↔ --fs-meta: badges, inline facts */
+  --pd-fs-label: calc(8pt * var(--pd-scale)); /* ↔ --fs-label: small-caps labels */
+  --pd-fs-kicker: calc(8pt * var(--pd-scale)); /* the --hand-sc kicker / facts caps */
+  --pd-fs-ui: calc(9pt * var(--pd-scale)); /* ↔ --fs-ui: TLDR, secondary lines */
+  --pd-fs-body: calc(10.5pt * var(--pd-scale)); /* ↔ --fs-body: running copy */
+  --pd-fs-lead: calc(11pt * var(--pd-scale)); /* ↔ --fs-body-lg: step/event titles */
+  --pd-fs-head: calc(12pt * var(--pd-scale)); /* event names + fact values */
+  --pd-fs-dayhead: calc(11pt * var(--pd-scale)); /* day-section small-caps head */
+  --pd-fs-runtitle: calc(26pt * var(--pd-scale)); /* ↔ --fs-title: run-sheet title */
+  --pd-fs-covertitle: calc(32pt * var(--pd-scale)); /* ↔ --fs-display: cover title */
+
+  /* Spacing (echoes --s-, in print inches). --pd-pad-scale is the density knob. */
+  --pd-pad-scale: 1;
+  --pd-gap-xs: calc(0.02in * var(--pd-pad-scale)); /* ↔ --s-1 hairline */
+  --pd-gap-sm: calc(0.04in * var(--pd-pad-scale)); /* ↔ --s-2 */
+  --pd-gap: calc(0.06in * var(--pd-pad-scale)); /* ↔ --s-3 default gap */
+  --pd-gap-md: calc(0.08in * var(--pd-pad-scale)); /* ↔ --s-4 */
+  --pd-gap-lg: calc(0.1in * var(--pd-pad-scale)); /* ↔ --s-5/event row gap */
+  --pd-pad-y: calc(0.06in * var(--pd-pad-scale)); /* row vertical padding */
+  --pd-pad-x: calc(0.08in * var(--pd-pad-scale)); /* row horizontal padding */
+  --pd-block-gap: calc(0.12in * var(--pd-pad-scale)); /* ↔ --s-6 between blocks */
+  --pd-section-gap: calc(0.2in * var(--pd-pad-scale)); /* ↔ --s-7 between sections */
+  --pd-indent: calc(0.28in * var(--pd-pad-scale)); /* child block left inset */
+
+  /* Radius (echoes --r-). Print stays crisp, so these are small. */
+  --pd-radius: calc(2pt); /* ↔ --r-xs chips/badges */
+  --pd-spine: 3pt; /* the category tint spine — matches the live 3px card spine */
+
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: var(--pd-fs-body);
+  line-height: 1.34;
+}
+.print-doc--mono {
+  color: #000;
+}
+.pd-kicker {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-kicker);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Cover — pine rule + a sage top strip make it the brand anchor. The accents
+   are toner-light (thin borders + deep-ink text), and mono mode neutralizes
+   them to pure black, so the printed page stays clean either way. */
+.pd-cover {
+  margin-bottom: 0.18in;
+  padding-top: 0.1in;
+  padding-bottom: 0.12in;
+  border-top: 3pt solid var(--accent-light);
+  border-bottom: 1.5pt solid var(--accent);
+}
+.pd-cover__title {
+  margin: 0.02in 0 0;
+  font-family: var(--script);
+  font-size: var(--pd-fs-covertitle);
+  line-height: 0.95;
+  color: var(--accent-ink);
+}
+.pd-cover__sub {
+  margin: 0.06in 0 0;
+  font-size: var(--pd-fs-ui);
+  color: var(--ink-soft);
+}
+.print-doc--mono .pd-cover {
+  border-top-color: #000;
+  border-bottom-color: #000;
+}
+.print-doc--mono .pd-cover__title {
+  color: #000;
+}
+
+/* Materials roll-up */
+.pd-rollup {
+  margin-bottom: 0.2in;
+  padding: 0.1in 0.12in;
+  border: 1pt solid var(--line);
+  border-left: 3pt solid var(--accent-light);
+}
+/* Read the roll-up + facts grid as warm inset wells, the way the live facts/kit
+   cards do. Emitted on screen AND print (color mode only — mono keeps plain
+   bordered tables on white) via print-color-adjust:exact, so the preview is a
+   true WYSIWYG of the printed page rather than a tinted preview that drops to
+   white on paper. */
+.print-doc--color .pd-rollup,
+.print-doc--color .pd-facts--grid {
+  background: color-mix(in srgb, var(--paper-2) 55%, var(--card));
+}
+.print-doc--mono .pd-rollup {
+  border-left-color: #000;
+}
+.print-doc--mono .pd-shopping__item--missing .pd-shopping__status {
+  color: #000;
+}
+.pd-rollup__head {
+  margin: 0 0 0.06in;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.pd-rollup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pd-gap-sm) 0.18in;
+  font-size: var(--pd-fs-ui);
+}
+.pd-rollup__list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.pd-rollup__box {
+  flex: none;
+  width: 0.11in;
+  height: 0.11in;
+  border: 1pt solid currentColor;
+}
+.pd-rollup__count {
+  margin-left: auto;
+  font-size: var(--pd-fs-label);
+  color: var(--ink-faint);
+}
+
+/* Shopping list — the "missing & low only" narrowing of the roll-up. Shares
+   the roll-up's checkbox-row vocabulary (.pd-rollup__box) but lays out as a
+   single column so the status + day chip have room; a "low" row dims to the
+   faint ink so "missing" reads as the more urgent row at a glance. */
+.pd-shopping {
+  margin-top: var(--pd-gap-sm);
+}
+.pd-shopping__head {
+  margin-top: 0;
+}
+.pd-shopping__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pd-gap-sm);
+  font-size: var(--pd-fs-ui);
+}
+.pd-shopping__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+.pd-shopping__label {
+  font-weight: 600;
+}
+.pd-shopping__item--low .pd-shopping__label {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.pd-shopping__status {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-shopping__item--missing .pd-shopping__status {
+  color: var(--accent-ink);
+}
+.pd-shopping__days {
+  margin-left: auto;
+  font-size: var(--pd-fs-label);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+/* Day sections + events */
+.pd-day {
+  margin-top: var(--pd-section-gap);
+}
+.pd-day__head {
+  margin: 0 0 var(--pd-gap-md);
+  padding-top: 0.07in;
+  border-top: 1.5pt solid var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-dayhead);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.print-doc--mono .pd-day__head {
+  border-top-color: #000;
+  color: #000;
+}
+.pd-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--pd-gap-lg);
+}
+/* An event row reads as the calendar's .cal-card translated to paper: a category
+   tint SPINE on the left (--pd-spine == the card's 3px border-left), a --hand-sc
+   time, and a --hand title — the same visual contract, so an activity looks the
+   same in print as on the calendar. */
+.pd-event {
+  display: grid;
+  grid-template-columns: 1.3in minmax(0, 1fr);
+  gap: var(--pd-block-gap);
+  padding: var(--pd-pad-y) 0;
+  border-bottom: 0.75pt solid var(--line);
+}
+.print-doc--color .pd-event {
+  padding-left: var(--pd-pad-x);
+  border-left: var(--pd-spine) solid var(--pd-tint, var(--line));
+}
+/* A whisper of the category tint behind each event so it reads like the
+   calendar's tinted cards. Emitted on screen AND print (print-color-adjust:exact
+   in the print block) so the preview is a true WYSIWYG — the wash no longer
+   drops when the page actually prints. */
+.print-doc--color .pd-event {
+  background: color-mix(in srgb, var(--pd-tint, transparent) 7%, var(--card));
+}
+.pd-event__time {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-ui);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.pd-event__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.pd-event__name {
+  font-family: var(--hand);
+  font-weight: 600;
+  font-size: var(--pd-fs-head);
+  color: var(--ink);
+}
+.pd-event__type,
+.pd-event__theme {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0 0.05in;
+  border: 0.75pt solid var(--line);
+  border-radius: var(--pd-radius);
+}
+.print-doc--color .pd-event__type {
+  color: #fff;
+  background: var(--pd-tint, var(--ink));
+  border-color: var(--pd-tint, var(--ink));
+}
+.print-doc--color .pd-event__theme {
+  color: var(--pd-tint, var(--ink));
+  border-color: var(--pd-tint, var(--ink));
+}
+/* True-mono insurance: neutralize badges even if a tint variable leaks in. */
+.print-doc--mono .pd-event__type {
+  color: #fff;
+  background: #000;
+  border-color: #000;
+}
+.print-doc--mono .pd-event__theme {
+  color: #000;
+  background: transparent;
+  border-color: #000;
+}
+.pd-event__blurb {
+  margin: 0.04in 0 0;
+  font-size: var(--pd-fs-body);
+}
+.pd-facts--inline {
+  list-style: none;
+  margin: 0.05in 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pd-gap-xs) 0;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.pd-facts--inline li:not(:first-child)::before {
+  content: "·";
+  margin: 0 0.07in;
+}
+
+/* TLDR run summary folded under an event */
+.pd-tldr {
+  margin: 0.06in 0 0;
+  padding-left: 0.12in;
+  border-left: 1pt solid var(--line);
+}
+.pd-tldr__steps {
+  margin: 0;
+  padding-left: 0.2in;
+  font-size: var(--pd-fs-ui);
+}
+.pd-tldr__steps li {
+  margin-bottom: var(--pd-gap-xs);
+}
+.pd-tldr__line {
+  margin: 0.04in 0 0;
+  font-size: var(--pd-fs-ui);
+}
+.pd-tldr__line span {
+  margin-right: 0.05in;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-tldr__diagram {
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* Empty states */
+.pd-empty {
+  margin: 0.04in 0 0;
+  font-size: var(--pd-fs-ui);
+  font-style: italic;
+  color: var(--ink-faint);
+}
+.pd-empty--doc {
+  margin-top: 0.3in;
+  text-align: center;
+}
+
+/* Appended full run sheets */
+.pd-runsheets__head {
+  margin: 0.3in 0 0.1in;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-dayhead);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.pd-runsheet {
+  margin-top: 0.24in;
+}
+.pd-runsheet__head {
+  padding-bottom: var(--pd-gap-lg);
+  border-bottom: 1.5pt solid var(--accent);
+}
+.pd-runsheet__title {
+  margin: 0.02in 0 0;
+  font-family: var(--script);
+  font-size: var(--pd-fs-runtitle);
+  line-height: 0.95;
+  color: var(--accent-ink);
+}
+.print-doc--mono .pd-runsheets__head,
+.print-doc--mono .pd-runsheet__title {
+  color: #000;
+}
+.print-doc--mono .pd-runsheet__head {
+  border-bottom-color: #000;
+}
+.pd-runsheet__blurb {
+  margin: 0.06in 0 0;
+  font-size: var(--pd-fs-body);
+}
+/* "Also called …" alias line on the printed run sheet — quiet, under the title. */
+.pd-runsheet__aka {
+  margin: 0.05in 0 0;
+  font-size: var(--pd-fs-label);
+  color: var(--ink-faint);
+}
+.pd-facts--grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 0.12in;
+  border: 1pt solid currentColor;
+}
+.pd-fact {
+  padding: var(--pd-pad-y) var(--pd-pad-x);
+  border-right: 0.7pt solid var(--line);
+  border-bottom: 0.7pt solid var(--line);
+}
+.pd-fact:nth-child(4n) {
+  border-right: 0;
+}
+.pd-fact span {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.pd-fact strong {
+  display: block;
+  margin-top: 0.02in;
+  font-family: var(--hand);
+  font-size: var(--pd-fs-lead);
+  line-height: 1;
+}
+.pd-run-list {
+  display: grid;
+  gap: var(--pd-gap-lg);
+  margin-top: 0.14in;
+}
+.pd-run-heading {
+  margin: 0.1in 0 0.02in;
+  padding-top: 0.07in;
+  border-top: 0.8pt dashed var(--ink-faint);
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-ui);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.pd-step {
+  display: grid;
+  gap: var(--pd-gap);
+  padding: var(--pd-gap-md) 0;
+  border-bottom: 0.7pt solid var(--line);
+}
+.pd-step__main {
+  display: grid;
+  gap: var(--pd-gap-xs);
+}
+.pd-step__cue {
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-micro);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.pd-step__main p {
+  margin: 0;
+  font-size: var(--pd-fs-lead);
+  font-weight: 600;
+}
+.pd-child {
+  margin-left: var(--pd-indent);
+  padding: var(--pd-pad-y) var(--pd-pad-x);
+  border-left: 2pt solid var(--line);
+}
+.pd-child h4 {
+  margin: 0 0 0.03in;
+  display: flex;
+  align-items: center;
+  gap: 0.06in;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pd-child p {
+  margin: 0;
+  font-size: var(--pd-fs-body);
+}
+.pd-child small {
+  display: block;
+  margin-top: 0.03in;
+  overflow-wrap: anywhere;
+  font-size: var(--pd-fs-meta);
+}
+.pd-run-note {
+  padding: var(--pd-pad-y) 0;
+  border-bottom: 0.7pt solid var(--line);
+}
+.pd-run-note h3 {
+  margin: 0 0 0.03in;
+  display: flex;
+  align-items: center;
+  gap: 0.06in;
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pd-run-note p {
+  margin: 0;
+  font-size: var(--pd-fs-body);
+}
+.pd-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pd-gap);
+}
+.pd-chips li {
+  padding: 0.02in 0.06in;
+  border: 0.7pt solid var(--ink-faint);
+  border-radius: var(--pd-radius);
+  font-family: var(--hand-sc);
+  font-size: var(--pd-fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.pd-playbook .playbook__editcue {
+  display: none !important;
+}
+/* CTF / multi-frame diagrams in a run sheet lay out 2-up, and each frame (plus
+   the intro + legend) stays whole when a page breaks — mirrors .print-playbook
+   (ActivityBookPrint) but for the Print tab's pd- sheets, and applied on screen
+   too so the WYSIWYG preview matches the printout. The field is deliberately NOT
+   height-capped here: the old 2.2in clamp cut tall diagrams. Pagination keeps
+   frames intact via break-inside instead of by shrinking them. */
+.pd-playbook .playbook__frames {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.12in;
+}
+.pd-playbook .playbook-frame,
+.pd-playbook .playbook__intro,
+.pd-playbook .playbook__legend {
+  break-inside: avoid;
+}
+
+/* ---- Plain formatting: strip the script/hand decoration to a text-first sheet ---- */
+.print-doc--plain .pd-cover__title,
+.print-doc--plain .pd-runsheet__title {
+  font-family: var(--text);
+  font-weight: 800;
+}
+.print-doc--plain .pd-cover__title {
+  font-size: calc(20pt * var(--pd-scale));
+}
+.print-doc--plain .pd-runsheet__title {
+  font-size: calc(17pt * var(--pd-scale));
+}
+.print-doc--plain .pd-kicker,
+.print-doc--plain .pd-day__head,
+.print-doc--plain .pd-event__time,
+.print-doc--plain .pd-event__type,
+.print-doc--plain .pd-event__theme,
+.print-doc--plain .pd-facts--inline,
+.print-doc--plain .pd-rollup__head,
+.print-doc--plain .pd-shopping__status,
+.print-doc--plain .pd-run-heading,
+.print-doc--plain .pd-runsheets__head,
+.print-doc--plain .pd-fact span,
+.print-doc--plain .pd-fact strong,
+.print-doc--plain .pd-step__cue,
+.print-doc--plain .pd-child h4,
+.print-doc--plain .pd-run-note h3,
+.print-doc--plain .pd-tldr__line span,
+.print-doc--plain .pd-chips li {
+  font-family: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Plain drops the decorative sage strip but keeps the structural pine rules —
+   they read as "designed", not "colored". */
+.print-doc--plain .pd-cover {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* =====================================================================
+   Materials collection — the kit review surface inside the Library tab.
+   Two presentations off one list (Setup while stock is unset, then the
+   normal restock + full list). Shares the run sheet's stock palette (green
+   have / amber low / red out) and now the SAME width/layout contract as the
+   Activities browse views (--lib-col-max, centered) instead of its own
+   narrower capped column (materials-1) — switching the Activities|Materials
+   seg no longer visibly resizes the content column.
+   ===================================================================== */
+.materials-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-5) var(--page-x) var(--s-8);
+}
+@media (min-width: 1024px) {
+  .materials-tab {
+    max-width: var(--lib-col-max);
+    margin-inline: auto;
+    padding: var(--s-5) var(--s-8) var(--s-8);
+  }
+}
+.materials-tab__scope {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Setup banner — the zero-state call to mark inventory. A soft accent card so it
+   reads as guidance, not a wall of red. */
+.materials-setup__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.materials-setup__kicker {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.materials-setup__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.materials-setup__copy {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.materials-setup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+/* Search is the canonical .searchfield (see globals). The materials list uses it
+   verbatim — no per-tab overrides needed. */
+
+.materials-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.materials-section__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.materials-section__ic {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+.materials-section--restock .materials-section__title {
+  color: var(--amber);
+}
+/* Say why it's empty and offer the one-tap way back — the same shape as
+   .library-empty (materials-8/11: this collection used to be a single plain
+   line with no recovery action). */
+.materials-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  margin: var(--s-4) 0;
+  padding: clamp(32px, 8vh, 80px) var(--page-x);
+  text-align: center;
+}
+.materials-empty__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+
+/* The list + rows. Each row is a status dot + name on the left, then the
+   explicit Have/Low/Out MiniSeg, the "used by" jump, and an overflow button —
+   the same label-left/control-right shape as a ledger row. */
+.matlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.matrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+}
+/* ---------- the bloom dot (StockDot.tsx) ----------
+   THE stock control app-wide: rests as one status dot; tapping blooms the
+   three explicit choices in place (inline DOM, never a floating layer). The
+   circle anatomy and state palette are the old .matrow__dot's, so rows read
+   exactly as before — the dot just became the control. */
+.stockdot {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+.stockdot--bloom {
+  gap: var(--s-3);
+}
+.stockdot__dot,
+.stockdot__opt {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--r-round);
+  border: 1.5px solid var(--line);
+  background: var(--chrome-well);
+  color: var(--card);
+  cursor: pointer;
+  position: relative;
+}
+.stockdot__dot:disabled {
+  cursor: default;
+}
+/* An invisible halo widens the touch target to ~42px without growing the
+   quiet 22px face (the dot is the row's ONLY control, so it must be easy). */
+.stockdot__dot::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: var(--r-round);
+}
+.stockdot__dot svg,
+.stockdot__opt svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.stockdot__dot.is-have,
+.stockdot__dot.is-via,
+.stockdot__opt--have {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.stockdot__dot.is-low,
+.stockdot__opt--low {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+}
+.stockdot__dot.is-out,
+.stockdot__opt--out {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+}
+/* Bloomed: the item's OWN state stays full strength, the other two read as
+   offers. Hovering an offer commits it visually before the tap. */
+.stockdot__opt.is-dim {
+  opacity: 0.45;
+}
+.stockdot__opt:hover,
+.stockdot__opt:focus-visible {
+  opacity: 1;
+  transform: scale(1.12);
+}
+.stockdot__opt {
+  /* fill-mode backwards, not both: a lingering final keyframe would override
+     the hover/focus scale and the .is-dim opacity after the pop settles. */
+  animation: stockdot-pop var(--t-fast) var(--ease-overlay) backwards;
+  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.stockdot__opt:nth-child(2) {
+  animation-delay: 0.03s;
+}
+.stockdot__opt:nth-child(3) {
+  animation-delay: 0.06s;
+}
+/* Transform only — an opacity keyframe with fill:both would pin opacity at 1
+   forever and silently defeat .is-dim. */
+@keyframes stockdot-pop {
+  from {
+    transform: scale(0.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stockdot__opt {
+    animation: none;
+    transition: none;
+  }
+  .stockdot__opt:hover,
+  .stockdot__opt:focus-visible {
+    transform: none;
+  }
+}
+.matrow__body {
+  flex: 1;
+  min-width: 0;
+}
+.matrow__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.matrow__tagconsumable {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-round);
+}
+.matrow__rename {
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: var(--card);
+}
+.matrow__rename:focus {
+  outline: none;
+}
+/* Stock states — the dot itself is the StockDot control now (it carries its
+   own palette); the row modifier only tints the row border so the whole row —
+   not just the dot — reads at a glance. */
+.matrow.is-low {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+}
+.matrow.is-out {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+.matrow__used {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--line-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.matrow__used[aria-disabled="true"] {
+  color: var(--ink-faint);
+  cursor: default;
+}
+.matrow__used svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+/* Same compact icon-button vocabulary as .icon-btn, sized down to fit inside
+   the row instead of the tap-target 44px (the row itself already meets --tap
+   height). */
+.matrow__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.matrow__more svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.matrow__more:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+
+/* The Kit-lens hint's "Set up your kit →" link — a quiet inline text button. */
+
+/* Phones: stacking the used-by jump under the row body isn't worth the
+   reflow — just tighten its padding so dot + name + MiniSeg + used-by + more
+   still fit in one row. */
+@media (max-width: 520px) {
+  .matrow__used {
+    padding-left: var(--s-2);
+  }
+}
+
+/* ---- Print-only: page setup, breaks, and color emission ---- */
+@media print {
+  .print-doc--color {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pd-day,
+  .pd-event,
+  .pd-step,
+  .pd-child,
+  .pd-rollup,
+  .pd-facts--grid,
+  .pd-playbook .playbook-frame,
+  .pd-runsheet__head {
+    break-inside: avoid;
+  }
+  .print-doc--paged .pd-day {
+    break-before: page;
+  }
+  .print-doc--paged .pd-day:first-of-type {
+    break-before: auto;
+  }
+  .pd-runsheets {
+    break-before: page;
+  }
+  .pd-runsheet + .pd-runsheet {
+    break-before: page;
+  }
+  .pd-runsheet:has(.pd-playbook) {
+    break-inside: auto;
+  }
+}
+
+/* ---- Touch shell: stack console over preview ---- */
+@media (max-width: 1023px) {
+  /* Tighter header padding; the actions wrap under the title if the phone is
+     narrow. The preview fills the rest of the screen (min-height floors it so
+     the flex column can never collapse it to nothing). */
+  .printhead {
+    padding: var(--s-4) var(--s-5);
+  }
+  .print-tab__preview {
+    min-height: 60vh;
+  }
+}
+
+/* ============================================================
+ * Loading veil — one calm, branded loading screen (no spinners; the app
+ * speaks in pops and fades). Three earthy bars rise in a gentle wave. Used by
+ * the tab transition (app__veil) and the print preview (paged-preview__veil).
+ * ============================================================ */
+.loadveil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-8) var(--s-6);
+  text-align: center;
+  color: var(--ink-soft);
+}
+.loadveil__mark {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  height: 34px;
+}
+.loadveil__bar {
+  width: 9px;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transform-origin: bottom center;
+  animation: loadveil-rise 1s var(--ease) infinite;
+}
+.loadveil__bar:nth-child(2) {
+  background: var(--wood-soft);
+  animation-delay: 0.14s;
+}
+.loadveil__bar:nth-child(3) {
+  background: var(--amber);
+  animation-delay: 0.28s;
+}
+.loadveil__title {
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  line-height: 1;
+  color: var(--ink-soft);
+}
+.loadveil__sub {
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+@keyframes loadveil-rise {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Loading veil: a full-bleed paper cover over the main pane while a heavy surface
+   mounts + settles. Dismissal is now READINESS-driven by the host (CampApp holds
+   it up until CalendarShell.onReady + cloud data load, or a print timer), so the
+   cover stays solid paper while mounted and simply unmounts when ready — the
+   surface's own fade-in (e.g. .calshell cal-enter) is the reveal. No auto-fade
+   here, so a slow mount can never let the veil melt off before the surface is up.
+   It paints over the main pane while a tab change is in flight, so it briefly
+   covers the OUTGOING surface too — accept that over a flash of an empty frame. */
+.loadveil.app__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  justify-content: center;
+  background: var(--paper);
+  pointer-events: none;
+}
+/* Static variant — the dynamic-import `loading:` fallback uses the same solid
+   cover; kept as an explicit class so the chunk-download fallback reads clearly at
+   the call site, and it pins opacity in case any future .app__veil fade returns. */
+.loadveil.app__veil--static {
+  opacity: 1;
+  animation: none;
+}
+
+/* Print-preview veil: covers the canvas while Paged.js lays the first pages out,
+   replacing the old unpaginated-then-snap flash with a clean loading screen. Uses
+   the app canvas (--paper) so it matches .print-tab__preview behind it. */
+.loadveil.paged-preview__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  justify-content: center;
+  background: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadveil__bar {
+    animation: none;
+  }
+}
+
+/* ============================================================
+ * Print tab: the mini range calendar's tap hint (the rest of the date picker —
+ * presets, readout — is styled with the .prail block above).
+ * ============================================================ */
+.cal-mini__hint {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  text-align: center;
+}
+.cal-mini__hint kbd {
+  padding: 0 var(--s-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xs);
+  background: var(--chrome-well);
+  font-family: var(--text);
+  font-size: var(--fs-micro);
+}
+
+/* ============================================================
+ * Print tab: blocked-out "timeline" layout (a Google-Calendar day view).
+ * Authored in physical units (in / pt) like the rest of the print doc, so the
+ * preview is WYSIWYG. Geometry (top/height/left/width %) is set inline from
+ * lib/print/timeline; the grid's pixel height comes from the density row size.
+ * ============================================================ */
+.pd-timeline {
+  display: grid;
+  gap: 0.22in;
+  margin-top: 0.14in;
+}
+.pd-tlday .pd-day__head {
+  margin-bottom: 0.07in;
+}
+.pd-tl__allday {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-bottom: 0.06in;
+}
+.pd-tl__alldaytag {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pd-tl__alldaylist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.pd-tl__alldaychip {
+  padding: 0 0.06in;
+  border: 0.75pt solid var(--line);
+  border-left: 3pt solid var(--pd-tint, var(--line));
+  border-radius: calc(2pt);
+  font-family: var(--hand-sc);
+  font-size: calc(9pt);
+}
+.pd-tl__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.62in minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+.pd-tl__axis {
+  position: relative;
+  min-height: 0;
+}
+.pd-tl__hour {
+  position: absolute;
+  right: 0.08in;
+  transform: translateY(-50%);
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.pd-tl__lanes {
+  position: relative;
+  min-height: 0;
+  border-left: 0.75pt solid var(--line);
+}
+.pd-tl__rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 0.5pt solid var(--line-soft);
+}
+.pd-tl__block {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.03in 0.07in;
+  border: 0.75pt solid var(--line);
+  border-left: 3pt solid var(--pd-tint, var(--line));
+  /* A transparent right edge leaves a clean gutter between side-by-side lanes;
+     padding-box clipping lets the grid show through it. */
+  border-right: 0.05in solid transparent;
+  border-radius: calc(2pt);
+  background: var(--card);
+  background-clip: padding-box;
+}
+.pd-tl__time {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: calc(7.5pt);
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+.pd-tl__name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.04in;
+  font-family: var(--hand);
+  font-weight: 700;
+  font-size: calc(9.5pt);
+  line-height: 1.05;
+}
+.pd-tl__type {
+  display: inline-block;
+  margin-top: 0.02in;
+  font-family: var(--hand-sc);
+  font-size: calc(6.8pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* Theme label (print-5: "Show themes" now works on the timeline too) — same
+   small-caps line as .pd-tl__type, tinted with the theme's own color like the
+   agenda's .pd-event__theme, so a themed week reads the same in both layouts. */
+.pd-tl__theme {
+  display: block;
+  margin-top: 0.01in;
+  font-family: var(--hand-sc);
+  font-size: calc(6.8pt);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.print-doc--color .pd-tl__theme {
+  color: var(--pd-tint, var(--ink-faint));
+}
+.print-doc--mono .pd-tl__theme {
+  color: #000;
+}
+/* Short blocks shed their time/type lines so the title always survives — the
+   drop is decided from geometry in CalendarTimeline (not an @container query, so
+   it works inside the Paged.js-cloned preview). */
+.pd-tl__empty {
+  position: absolute;
+  top: 0.08in;
+  left: 0.1in;
+  margin: 0;
+  font-size: calc(9pt);
+  font-style: italic;
+  color: var(--ink-faint);
+}
+/* Color: tint the spine + (screen only) a whisper of wash, like the calendar. */
+.print-doc--color .pd-tl__block,
+.print-doc--color .pd-tl__alldaychip {
+  border-left-color: var(--pd-tint, var(--line));
+}
+.paged-preview .print-doc--color .pd-tl__block,
+.paged-preview .print-doc--color .pd-tl__alldaychip {
+  background: color-mix(in srgb, var(--pd-tint, transparent) 8%, var(--card));
+}
+/* Mono: hard black so toner stays clean even if a tint leaks in. */
+.print-doc--mono .pd-tl__block,
+.print-doc--mono .pd-tl__alldaychip {
+  border-color: #000;
+}
+.print-doc--mono .pd-tl__rule {
+  border-top-color: var(--line);
+}
+/* Plain: drop the small-caps decoration to a text-first grid. */
+.print-doc--plain .pd-tl__time,
+.print-doc--plain .pd-tl__type,
+.print-doc--plain .pd-tl__theme,
+.print-doc--plain .pd-tl__hour,
+.print-doc--plain .pd-tl__alldaytag {
+  font-family: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Overflow notice (preview only): a day's grid is taller than one page here. */
+.pd-warn {
+  margin: 0.16in 0;
+  padding: 0.1in 0.14in;
+  border: 1pt solid var(--clay);
+  border-left: 3pt solid var(--clay);
+  border-radius: calc(4pt);
+  background: color-mix(in srgb, var(--clay) 10%, var(--card));
+  font-size: calc(10pt);
+  color: var(--ink-soft);
+}
+.pd-warn strong {
+  color: var(--clay);
+}
+
+@media print {
+  .pd-tlday {
+    break-inside: avoid;
+  }
+  .print-doc--paged .pd-tlday {
+    break-before: page;
+  }
+  .print-doc--paged .pd-tlday:first-of-type {
+    break-before: auto;
+  }
+  /* Belt-and-braces: the overflow notice + loading veils are screen-only (a
+     React guard already keeps .pd-warn out of the printed artifact) — make sure
+     they can never reach paper even if that guard is bypassed. */
+  .pd-warn,
+  .loadveil {
+    display: none !important;
+  }
+}

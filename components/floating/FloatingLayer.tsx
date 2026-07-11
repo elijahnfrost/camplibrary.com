@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingPosition, type FloatingAnchor } from "./useFloatingPosition";
-import { DESKTOP_MIN } from "../useDeviceShape";
+import { DESKTOP_MIN } from "../hooks/useDeviceShape";
 
 // The portaled floating engine shared by Select, DatePopover, and ContextMenu.
 // It owns the universal layer behaviour: a transparent scrim that catches the

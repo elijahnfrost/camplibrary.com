@@ -5,7 +5,7 @@ import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { planDayShift, type DayShiftNote } from "@/lib/calendar/dayShift";
 import { SNAP_MIN, formatClock, nowMinutes, snapMinutes } from "@/lib/calendar/time";
 import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import type { FloatingAnchor } from "../floating/useFloatingPosition";
 

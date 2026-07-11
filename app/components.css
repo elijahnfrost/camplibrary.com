@@ -1,0 +1,3544 @@
+/* ============================================================================
+   Themes — a user-definable tag axis, parallel to the fixed category Types.
+   The badge (swatch + label) tags activities in the library, the event popover,
+   and the viewer; the field (.themefield) is the editor control that also
+   creates/renames/deletes the vocabulary inline.
+   ========================================================================= */
+.theme-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  min-width: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.theme-badge__swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-xs);
+  background: var(--theme-tint, var(--accent));
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.theme-badge__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Each placement sits on its own line under the card/viewer text. */
+.cat-row__theme {
+  margin-top: 2px;
+}
+.deck-card__theme {
+  margin-top: var(--s-1);
+}
+.rlv-theme {
+  margin-top: var(--s-3);
+}
+
+/* The editor's theme control: a pill trigger (the sidebar `.typepick` look, so it
+   reads as the same family as the Type/Ages pickers) + a floating menu that
+   selects a theme AND creates/renames/deletes the vocabulary inline. */
+.themefield {
+  position: relative;
+  width: 100%;
+}
+/* The trigger is `.typepick__trigger .themefield__trigger`; typepick carries the
+   pill chrome, so this only nudges the value layout. */
+.themefield__trigger {
+  text-align: left;
+}
+.themefield__value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.themefield__none {
+  color: var(--ink-faint);
+}
+.themefield__swatch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  border-radius: var(--r-xs);
+  background: var(--theme-tint, var(--card));
+  border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.themefield__swatch--none {
+  background: var(--chrome-well);
+}
+.themefield__swatch--new {
+  background: var(--chrome-well);
+}
+.themefield__swatch--new svg {
+  width: 8px;
+  height: 8px;
+  color: var(--ink-soft);
+}
+/* .typepick__menu supplies the surface/sizing; this only widens it slightly
+   for the longer theme-management rows. */
+.themefield__menu {
+  min-width: 208px;
+  max-height: min(340px, 60vh);
+}
+.themefield__pick {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.themefield__picklabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.themefield__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.themefield__row--edit {
+  padding: var(--s-2) var(--s-3);
+  gap: var(--s-2);
+}
+.themefield__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.themefield__rowbtn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.themefield__rowbtn:hover {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.themefield__rowbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.themefield__rowbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.themefield__div {
+  display: block;
+  height: 1px;
+  margin: var(--s-2) 0;
+  background: var(--line);
+}
+.themefield__new {
+  color: var(--ink-soft);
+}
+
+/* The calendar's Subscribe control — the View settings ledger's final row
+   (CalendarViewSettings). The label lives in the shared .ledger__label on the
+   left; this is just the row's control-right affordance, in the same hug-right
+   PILL vocabulary as .cselect__trigger/.typepick__trigger, sized like a
+   ledger-row control rather than a header pill. Opens the subscription popover. */
+.subfeed {
+  display: inline-flex;
+}
+.subfeed__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.subfeed__trigger:hover,
+.subfeed__trigger.is-open {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.subfeed__trigger svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--t-fast) var(--ease);
+}
+.subfeed__trigger.is-open svg {
+  transform: rotate(180deg);
+}
+
+/* ---- Calendar subscription (.ics feed) popover ----------------------------
+   Reuses the shared floating-menu card shell (the same border/shadow/padding/
+   pop-in recipe as .profilemenu), given its own class so it can carry
+   subscribe-specific sizing without touching the other menus that share the
+   recipe. Portaled by FloatingLayer, so it bottom-docks on phones like every
+   other floating menu (Select, ProfileControl, TypePicker). */
+.subfeed__menu {
+  position: fixed;
+  min-width: 288px;
+  max-width: 360px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.subfeed__eyebrow {
+  margin: 0;
+  padding: var(--s-2) var(--s-3) var(--s-1);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.subfeed__intro {
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-2);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.subfeed__urlrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-3);
+}
+.subfeed__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.subfeed__copyhint {
+  margin: 0;
+  padding: var(--s-1) var(--s-3) 0;
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+}
+.subfeed__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding: 0 var(--s-3);
+}
+.subfeed__links .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+  font-size: var(--fs-meta);
+}
+/* The QR code — a scan-friendly light tile regardless of the popover's own
+   surface, so it stays legible if the popover shell is ever themed dark. */
+.subfeed__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-3) 0;
+  border-top: 1px solid var(--line-soft);
+}
+.subfeed__qr-tile {
+  width: 128px;
+  height: 128px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: var(--s-2);
+}
+.subfeed__qr-tile svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.subfeed__qr-caption {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.subfeed__reset {
+  align-self: flex-start;
+  margin: var(--s-3) 0 0 var(--s-3);
+  background: none;
+  border: none;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.subfeed__reset:hover:not(:disabled) {
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+.subfeed__reset:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.subfeed__muted {
+  margin: 0;
+  padding: 0 var(--s-3) var(--s-2);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+
+/* Error state: a designed inline block (message + Try again), not a half-
+   styled banner — the request failed (e.g. the backend has no database in
+   this workspace), so the popover explains that plainly and offers a retry. */
+.subfeed__errstate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3) var(--s-3);
+}
+.subfeed__errmsg {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+  color: var(--danger-ink);
+}
+
+/* ---- List manager modal (Camps, Themes) — a clear create/manage screen ---- */
+.overlay--manager {
+  width: min(440px, 92vw);
+}
+/* Align the title bar's inset with the body padding below so "Camps"/"Themes"
+   and the create form share one left edge, and give the bar room from the close
+   button on the right. */
+.overlay--manager .overlay__bar {
+  padding: 16px var(--s-7) 8px;
+}
+
+/* ---- per-camp editor popup (CampEditorPopup) — the flat editor opened from the
+   desktop Camps rail's Edit pencil: editable title, default hours, per-weekday
+   rows (each showing its effective window), holidays/special days, snap, delete.
+   Wears the .overlay--manager card but lays out its own flat body (no boxed
+   CampDayStructure). ---- */
+/* The camp name edits in place as the popup title (no separate Name field). */
+.campedit__dash {
+  color: var(--ink-faint);
+}
+.campedit__pills {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--s-2);
+  flex-wrap: nowrap;
+}
+/* .cselect is width:100% by default, so pin each Open/Close pill to a fixed
+   width — the pair sits together and both align, Default vs custom rows. */
+.campedit__pills .cselect {
+  flex: 0 0 auto;
+  width: 122px;
+}
+/* A flat disclosure (chevron + label + summary) — a thin rule, no boxed card. */
+.campedit__addbtn {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  padding: var(--s-3) var(--s-5);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.campedit__addbtn:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.campedit__addbtn:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
+/* ---- Kit modal (the availability editor, reached from the Library toolbar's
+   Kit dropdown) — wider than the generic manager card: each material row
+   carries a name, an explicit Have/Low/Out seg, a "Used by N" jump, and an
+   overflow button, which clips hard at the manager's 440px. Height-capped like
+   the generic .overlay--card (see the >=1024px block below); the body scrolls
+   past that (kitmodal__body, mirroring .overlay__body/.manager's own scroll). */
+.overlay--kit {
+  width: min(640px, 92vw);
+}
+.overlay--kit .overlay__bar {
+  padding: var(--s-6) var(--s-7) var(--s-4);
+}
+/* The controls row: search + stock/restock/sort + Add, sitting between the
+   title bar and the scrolling row list. Wraps on narrow widths instead of
+   squeezing every control unreadably thin. */
+/* Two INTENTIONAL rows (not a wrapping soup): find & create (search + Add),
+   then lens & order (the stock seg + the sort dropdown, pushed apart). */
+.kitmodal__controls {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 0 var(--s-7) var(--s-4);
+}
+.kitmodal__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.kitmodal__row--lens {
+  justify-content: space-between;
+}
+/* Same hug-content scoping .ledger__row gives its dropdowns — .cselect is a
+   full-width field by default, which would swallow the row and park the sort
+   trigger flush against the seg instead of at the row's right end. */
+.kitmodal__row--lens > .cselect {
+  flex: 0 0 auto;
+  width: auto;
+}
+/* Pinned to the shared control height (same fix as .toolbar__search /
+   .searchfield--content) so the search, the Add button, and the pills read as
+   one row rather than three heights. */
+.kitmodal__search {
+  flex: 1 1 200px;
+  min-width: 0;
+  min-height: 0;
+  height: var(--control-md);
+}
+/* Add is a plain bordered .btn (NOT primary — setup mode's seed button owns
+   the surface's one green action) sized down to the controls row's height.
+   Compound selector: this rule sits BEFORE the .btn base in the file, so a
+   bare class would lose the height to .btn's own 48px. */
+.btn.kitmodal__add {
+  flex: none;
+  height: var(--control-md);
+  border-radius: var(--r-md);
+}
+/* The row list scrolls under the fixed controls row above it — same recipe as
+   .overlay__body (hidden scrollbar, contained overscroll), just under its own
+   class so KitModal doesn't depend on ListManagerModal's .manager shell. */
+.kitmodal__body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.kitmodal__body::-webkit-scrollbar {
+  display: none;
+}
+/* Inside the modal the materials list no longer needs its own page-level
+   width cap/centering (--lib-col-max) or bottom padding — the modal card
+   already bounds the width and the controls row above already separates it
+   from the title bar. */
+.overlay--kit .materials-tab {
+  padding: 0 var(--s-7) var(--s-6);
+  max-width: none;
+  margin-inline: 0;
+}
+.manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  /* The body had zero horizontal padding, so the intro/input/list ran edge to
+     edge. Pad it (and the bottom) so content breathes inside the card. */
+  padding: 0 var(--s-7) var(--s-7);
+}
+.manager__title {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.manager__intro {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.manager__create {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+/* camps-8: a flex-basis (not just min-width:0) so the input claims real room
+   before the row ever wraps — measured live at 390px width, "Add camp" (icon +
+   label) plus gap took ~125px, leaving the input only 180px and clipping its
+   own placeholder ("e.g. Summer Day Car…"). flex-wrap above lets the button
+   drop to its own line on the narrowest phones instead of squeezing the input
+   below a usable width. */
+.manager__createinput {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.manager__createbtn {
+  flex: none;
+}
+.manager__empty {
+  margin: 0;
+  padding: var(--s-4) 0;
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  text-align: center;
+}
+.manager__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.manager__row {
+  /* A card that stacks a main row (pick + rename/delete) over an optional hours
+     sub-row (camps carry per-camp viewing hours; themes don't). */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+.manager__rowmain {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-2) 0 0;
+}
+.manager__row.is-active {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+/* Per-camp hours editor (Open – Close), sitting under the camp's main row. */
+.manager__rowhours {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  padding: 0 var(--s-4) var(--s-3);
+}
+.manager__hoursfield {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.manager__hourslabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.manager__hoursdash {
+  color: var(--ink-faint);
+}
+.manager__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.manager__pick--static {
+  cursor: default;
+}
+.manager__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.manager__active {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.manager__active svg {
+  width: 13px;
+  height: 13px;
+}
+.manager__swatch {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+}
+/* Leading glyph for a document row's download link — an icon, not a color chip. */
+.manager__docicon {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent-ink);
+}
+.manager__docicon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* In the documents manager, the rename/delete buttons stay out of the way and
+   only surface when the row is hovered or holds focus — the download link is the
+   row's primary action. Scoped to `--docs` so the camps/themes/locations
+   managers keep their always-visible controls. Only where a real hover exists;
+   touch devices (hover: none) keep the buttons visible so they stay reachable. */
+@media (hover: hover) {
+  .manager--docs .manager__row .manager__rowbtn {
+    opacity: 0;
+    transition: opacity var(--t-fast) var(--ease);
+  }
+  .manager--docs .manager__row:hover .manager__rowbtn,
+  .manager--docs .manager__row:focus-within .manager__rowbtn {
+    opacity: 1;
+  }
+}
+.manager__rowedit {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+}
+.manager__editinput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.manager__rowbtn {
+  flex: none;
+  color: var(--ink-faint);
+}
+.manager__rowbtn:hover {
+  color: var(--ink);
+}
+.manager__rowbtn--danger:hover {
+  color: var(--danger);
+}
+
+/* ---------- camp day-structure authoring (the camps manager sections) ----------
+   Per-row weekday hours / dated exceptions / snap, plus the global guidance-bands
+   section in the footer. Every block is a COLLAPSIBLE with a chevron header so
+   the modal stays calm; open reveals a quiet body. */
+.manager__daystruct {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__sect {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.manager__sect-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  text-align: left;
+}
+.manager__sect-chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+.manager__sect.is-open .manager__sect-chev {
+  transform: rotate(90deg);
+  /* Open = pointing down; suppress the closed-state chev-right hover nudge so it
+     can't override this rotate and snap the glyph back to facing right. */
+  animation: none;
+}
+.manager__sect-label {
+  flex: 1 1 auto;
+}
+.manager__sect-summary {
+  flex: none;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.manager__sect-body {
+  padding: 0 var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+/* camps-1 fix: the pair must wrap as ONE atomic unit onto a fresh line when its
+   row is tight (day name + MiniSeg already consume most of the row width) —
+   never split the Open/dash/Close trio across two lines mid-control, which is
+   what visually crashed into the row below it. flex-wrap:wrap HERE (on the
+   pair itself) is what caused that; the row's own wrap (.manager__weekday /
+   .manager__dateexc, both already flex-wrap:wrap) is what should absorb the
+   overflow instead — exactly how GuidesSection's own Select-dash-Select already
+   behaves without this modifier. min-width:0 lets the pair shrink to fit
+   alongside the row's other content before wrapping is ever needed. */
+.manager__hoursfield--inline {
+  flex-wrap: nowrap;
+  flex: none;
+  min-width: 0;
+}
+.manager__weekdays,
+.manager__dates,
+.manager__guides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.manager__weekday,
+.manager__dateexc,
+.manager__guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+}
+/* A read-only (non-staff) guidance-band row — inputs already carry the native
+   disabled/readOnly attribute, but MiniSeg has no disabled prop of its own, so
+   its buttons would otherwise still look and behave clickable. Suppressing
+   pointer-events here matches the app's "non-navigating must not look
+   interactive" rule without touching the shared MiniSeg primitive. */
+.manager__guide.is-readonly .miniseg {
+  pointer-events: none;
+  opacity: 0.75;
+}
+.manager__weekday-name,
+.manager__dateexc-date {
+  flex: none;
+  min-width: 3ch;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+}
+.manager__dateexc-closed {
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+}
+.manager__dateadd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.manager__snaprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+}
+.manager__snaplabel {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.manager__guide-label {
+  flex: 1 1 8ch;
+  min-width: 6ch;
+}
+.manager__guide-days {
+  display: inline-flex;
+  gap: var(--s-1);
+}
+.manager__daytog {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.manager__daytog.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+  color: var(--accent-ink);
+}
+.manager__addbtn {
+  align-self: flex-start;
+}
+
+/* Mini segmented pill (Where, Ages). */
+/* ============================================================================
+   Sliding segmented controls (.seg-slide)
+   Shared mechanism so the active highlight GLIDES between options instead of
+   teleporting (the old per-button background swap). The container carries
+   --seg-n (option count) and --seg-i (active index); a single ::before "thumb"
+   slides to the active segment and is the ONLY thing painted green — each
+   option's own active background is suppressed so just the thumb moves. Segments
+   are forced equal-width (flex: 1) so the thumb math is uniform. Per-control
+   knobs: --seg-pad (container padding) and --seg-gap (inter-segment gap) so the
+   thumb lines up exactly inside each control's frame; --seg-radius rounds it.
+   ============================================================================ */
+.seg-slide {
+  position: relative;
+  --seg-pad: var(--s-1);
+  --seg-gap: 1px;
+  --seg-radius: var(--r-pill);
+}
+.seg-slide > button {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  z-index: 1; /* label rides above the thumb */
+  white-space: nowrap; /* equal-width segments must NOT wrap labels ("1-3"),
+                          or the row grows tall and the thumb ovals out */
+}
+/* The thumb spans exactly one segment and slides by the true segment PITCH.
+   Both width and left are expressed in CONTAINER units (percentages on an
+   absolutely-positioned child resolve against the container), so the geometry is
+   exact and never drifts with index: --seg-w is the segment width, the pitch is
+   --seg-w + gap, and left = pad + i * pitch. (The earlier bug stepped by the
+   thumb's OWN width via translateX 100%, which under-shot by a fraction per
+   segment and pushed the last pill out of the frame.) */
+.seg-slide {
+  --seg-w: calc((100% - 2 * var(--seg-pad) - (var(--seg-n) - 1) * var(--seg-gap)) / var(--seg-n));
+}
+.seg-slide::before {
+  content: "";
+  position: absolute;
+  top: var(--seg-pad);
+  bottom: var(--seg-pad);
+  left: calc(var(--seg-pad) + var(--seg-i) * (var(--seg-w) + var(--seg-gap)));
+  width: var(--seg-w);
+  border-radius: var(--seg-radius);
+  background: var(--accent);
+  transition: left var(--t-med) var(--ease-overlay);
+  z-index: 0;
+  pointer-events: none;
+}
+/* These are radio groups that always carry a value, so --seg-i is always >= 0
+   and the thumb always has a home; no empty state to hide. */
+@media (prefers-reduced-motion: reduce) {
+  .seg-slide::before {
+    transition: none;
+  }
+}
+/* Library filter rail (Where, Kit): size each equal segment to the WIDEST label
+   so a longer option like "+Almost" can't clip. Equal grid columns give the same
+   equal-width segments as flex without the flex-basis:0 undersizing that cut the
+   last label off; the sliding thumb still spans one --seg-w and stays aligned. */
+.sidefilters .miniseg.seg-slide {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.sidefilters .miniseg.seg-slide > button {
+  flex: none;
+}
+
+.miniseg {
+  display: inline-flex;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: var(--s-1);
+  gap: 1px;
+}
+.miniseg button {
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 3px var(--s-4);
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.miniseg button:hover {
+  color: var(--ink);
+}
+.miniseg button.is-on {
+  /* Background lives on the sliding thumb now; just recolour the label. */
+  background: transparent;
+  color: var(--on-accent);
+}
+.miniseg.seg-slide {
+  --seg-gap: 1px;
+  --seg-pad: var(--s-1);
+}
+/* True on/off switch (Starred only). */
+.lswitch {
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--chrome-well);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.lswitch__knob {
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-round);
+  background: var(--card);
+  border: 1px solid var(--line);
+  transition: left var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.lswitch.is-on {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+.lswitch.is-on .lswitch__knob {
+  left: 15.5px;
+  border-color: var(--accent-ink);
+}
+
+/* ---------- duration window: a quiet ledger row ----------
+   "Minutes" reads as one ledger line like every other filter: small-caps label
+   left, the dual-handle slider as the control on the right. The value rides
+   beside the label (the way every other row names its current value) rather than
+   floating as a stray word on the right — "Any" at full span, "lo–hi" once
+   narrowed. Deliberately neutral — line/ink tones, no accent fill. */
+.minrange__readout {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--t-fast) var(--ease);
+}
+.minrange.is-active .minrange__readout {
+  color: var(--ink-soft);
+}
+/* Dual-handle slider: two native range inputs over a shared track. The inputs
+   are pointer-transparent except for their thumbs (so either handle is grabbable
+   even when they meet); the filled segment + thumb positions ride the --lo/--hi
+   percentages on the wrapper. Thumbs are the same paper discs as the toggle
+   knob, the fill a faint ink tone — quiet on purpose. */
+.rangeslider {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 92px;
+  height: 18px;
+}
+.rangeslider__track,
+.rangeslider__fill {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  border-radius: var(--r-pill);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.rangeslider__track {
+  left: 0;
+  right: 0;
+  background: var(--line);
+}
+.rangeslider__fill {
+  left: var(--lo);
+  right: calc(100% - var(--hi));
+  background: var(--ink-faint);
+}
+.rangeslider__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+}
+.rangeslider__input:focus {
+  outline: none;
+}
+.rangeslider__input::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.rangeslider__input::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+.rangeslider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 2.5px;
+  border-radius: var(--r-round);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.rangeslider__input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-round);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.rangeslider__input:hover::-webkit-slider-thumb {
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:hover::-moz-range-thumb {
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:active::-moz-range-thumb {
+  cursor: grabbing;
+  border-color: var(--ink-soft);
+}
+.rangeslider__input:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ink-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rangeslider__input:focus-visible::-moz-range-thumb {
+  border-color: var(--ink-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- kit disclosure: the ledger's last row ----------
+   The summary IS a ledger row — "AVAILABLE KIT" label left, the picked count
+   + chevron as the right-hand control. In the mobile sheet's always-open
+   KitGroup it's hidden (the group label does the naming). */
+/* "Something is picked" — ink the count so a set kit reads at a glance. */
+.material-filter__clear {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.material-filter__clear:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+/* The kit search is the canonical .searchfield; this rule only carries the
+   spacing before the kit list that follows it in the filter accordion. */
+/* Quiet skin over the shared count-pill base above: a token surface + the 1.5px
+   interactive --line edge so it matches the kit's other controls instead of the
+   old off-token paper color-mix / 1px / 999px / 10px literals. Wider min-width
+   keeps two-digit tallies centered. */
+
+/* ---------- mobile filter sheet ----------
+   The sheet renders the SAME switch ledger as the desktop rail (one shared
+   component), so both surfaces read identically. Here the ledger rows just
+   grow to comfortable touch sizes; the structure is untouched. */
+.overlay--filters {
+  max-height: 88dvh;
+}
+.filtersheet {
+  display: flex;
+  flex-direction: column;
+  padding: 4px var(--page-x) 14px;
+}
+/* Taller rows + bigger controls for touch — the rail metrics are pointer-tuned. */
+.filtersheet .ledger__row {
+  min-height: 52px;
+}
+.filtersheet .ledger__label {
+  font-size: var(--fs-label);
+}
+.filtersheet .typepick__trigger {
+  min-height: var(--control-sm);
+  font-size: var(--fs-meta);
+}
+.filtersheet .typepick__option {
+  padding: var(--s-4) var(--s-4);
+  font-size: var(--fs-ui);
+}
+.filtersheet .miniseg button {
+  min-height: 30px;
+  font-size: var(--fs-label);
+  padding: var(--s-2) var(--s-4);
+}
+.filtersheet .lswitch {
+  width: 40px;
+  height: 22px;
+}
+.filtersheet .lswitch__knob {
+  width: 15px;
+  height: 15px;
+}
+.filtersheet .lswitch.is-on .lswitch__knob {
+  left: 21px;
+}
+.filtersheet__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+/* Shared "Clear all" header action — the desktop sidebar section AND the
+   mobile filter sheet both render this, so it lives at base scope. */
+.sidesection__action {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 2px 0;
+}
+.sidesection__action:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+.filtersheet__done {
+  flex: none;
+  margin: 0 var(--page-x) calc(14px + env(safe-area-inset-bottom));
+  justify-content: center;
+}
+/* The kit row collapses like every other ledger line; opened, its list sits
+   flush under the row and scrolls within the sheet. */
+
+/* ---------- shelf (overfilled bookcase — see components/shelfLayout.ts) ----
+   The library flows left→right and WRAPS onto the shelf below — no per-type
+   headers, no horizontal scroll. Each row is a full-width plank sized to its own
+   tallest book; the layout pass measures the column and packs books to fit. */
+.shelfwrap {
+  padding-top: 4px;
+}
+.shelf-rows {
+  margin: 8px 18px 16px; /* the page gutter — vertical rhythm comes from the rows */
+}
+.shelf {
+  position: relative;
+}
+
+/* ---------- shelf books (see components/shelfLayout.ts) ----
+   The rail is a full-width sized canvas; every book is absolutely placed on the
+   shelf line by the layout pass. Off-scale numerics (radius, padding, font-size,
+   and the x/y/size of each book) are inline styles from the component, so this
+   block stays on the design-token scale. */
+.shelf-rail {
+  position: relative; /* full width; height set inline from the row layout */
+  width: 100%;
+}
+.shelf-floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--shelf-line, 4px);
+  background: var(--ink);
+}
+
+/* a book on the shelf — standing, leaning, or laid flat. Size/position/radius/
+   padding come inline; a leaner adds a transform around its planted foot. Books
+   are placed to overlap by one stroke so adjacent borders merge into ONE line. */
+.shelfbook {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  background: var(--card);
+  color: var(--ink);
+  border: var(--bw, 2px) solid var(--ink);
+  cursor: pointer;
+  transition: filter var(--t-fast) var(--ease);
+}
+.shelfbook:hover {
+  filter: brightness(0.95);
+}
+.shelfbook:active {
+  filter: brightness(0.9);
+}
+.shelfbook--lean {
+  z-index: 2;
+}
+.shelfbook--laid {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  z-index: 3;
+}
+/* saved = a gilt-bound book: gold outline + a gold strip along the binding edge */
+.shelfbook--saved {
+  border-color: var(--star-gold);
+}
+.shelfbook__gilt {
+  position: absolute;
+  background: var(--star-gold);
+  pointer-events: none;
+}
+
+.shelfbook__title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--hand);
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  color: inherit;
+}
+.shelfbook__title--laid {
+  writing-mode: horizontal-tb;
+  transform: none;
+  width: 100%;
+  text-align: left;
+  text-overflow: clip;
+}
+
+/* ---------- deck (grid) ---------- */
+.deck {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 18px 6px;
+}
+.deck-card {
+  position: relative;
+  cursor: pointer;
+  border: 1.5px solid var(--ink);
+  border-radius: 9px;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Wall off each card's internal layout so a stable-keyed grid reorder (sort)
+     doesn't relayout the whole deck subtree. */
+  contain: layout;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.deck-card:hover {
+  transform: translateY(-2px);
+}
+.deck-card:active {
+  transform: translate(1px, 1px);
+}
+.plate {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--paper);
+  border-bottom: 1.5px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.plate__grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--ink) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink) 1px, transparent 1px);
+  background-size: 18px 18px;
+  opacity: 0.055;
+}
+.plate__mono {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 56px;
+  color: var(--ink-soft);
+  position: relative;
+  line-height: 1;
+}
+.plate__cat {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.plate__star {
+  position: absolute;
+  top: -3px;
+  right: 14px;
+  z-index: 2;
+  --ribbon-w: 26px;
+}
+.deck-card__body {
+  padding: 9px 11px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.deck-card__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.deck-card__meta {
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  /* --ink-soft to match the stronger .cat-row__meta (was --ink-faint, which
+     dips below AA on the lighter card surfaces at this size). */
+  color: var(--ink-soft);
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+/* Each meta line = a row of [icon][text] facts; wrap if a label runs long so a
+   narrow card never overflows. */
+.deck-card__metaline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+}
+/* One [icon][text] property pair — the "Notion property" treatment. */
+.deck-card__metaitem,
+.cat-row__metaitem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+/* Small muted axis glyph leading each fact. className lands on the <svg> (see
+   .ledger__ic for the same pattern); the deck label sits at 9px so the icon
+   trims to 13px to stay in proportion. */
+.deck-card__metaic,
+.cat-row__metaic {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-faint);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+
+/* ---------- catalog (list) ---------- */
+.catalog {
+  padding: 8px 18px 6px;
+}
+/* Catalog rows are activity blocks too: the same 3px category spine as the
+   calendar rail, the event window's rows, and the placed event card
+   (--cal-tint inline per row) — a script title over ONE quiet small-caps meta
+   line, like a ledger entry. The old code plate + stamp row read as four tags
+   of chrome per row. */
+.cat-row {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  padding: 13px 0 13px var(--s-5);
+  border-left: 3px solid var(--cal-tint, var(--line));
+  border-bottom: 1.5px dashed var(--line-soft);
+  /* Isolate each row's layout: on a stable-keyed re-sort React only reorders
+     nodes, so a row whose contents/size don't change shouldn't force the rest of
+     the list to relayout. `contain: layout` walls that off; paired with the
+     reserved title height below it makes A→Z / by-rating reflow without the
+     chunky per-row buffering. */
+  contain: layout;
+}
+.cat-row:hover .cat-title {
+  color: var(--accent-ink);
+}
+.cat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.cat-title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 23px;
+  line-height: 1.05;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2; /* standard alongside the -webkit- prefix (forward-compat) */
+  overflow: hidden;
+  /* Reserve two lines of title height so a 1-line vs 2-line title never changes
+     the row's height. Without this, re-sorting reshuffles short/long titles and
+     each row's height recomputes mid-flow → the visible "buffer/shift". 2 lines
+     at line-height 1.05 ≈ 2.1em. */
+  min-height: 2.1em;
+}
+.cat-row__meta {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  overflow: hidden;
+}
+
+/* ---------- stamps & meta ---------- */
+.stamp {
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1.3px solid var(--ink-soft);
+  border-radius: 3px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+/* ---------- stretched-button cards (no nested interactives) ----------
+   A card's primary action is one real <button class="stretch"> whose ::after
+   covers the whole (position:relative) container; secondary controls (the star)
+   are sibling real buttons layered above. Eliminates role="button" wrappers and
+   button-inside-button nesting while preserving the full-card hit target. */
+.stretch {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+}
+/* The card's own visible content sits below the overlay; named controls ride above. */
+.deck-card__open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.deck-card > .plate__star {
+  z-index: 2;
+}
+.cat-row > .star {
+  position: relative;
+  z-index: 1;
+}
+.cat-row__open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+}
+/* Focus ring on the whole card when its primary button is keyboard-focused. */
+.deck-card:has(.deck-card__open:focus-visible),
+.cat-row:has(.cat-row__open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.deck-card__open:focus-visible,
+.cat-row__open:focus-visible {
+  outline: none;
+}
+
+/* ---------- bookmark (save) ---------- */
+/* Two looks, one control: a tappable chip in list rows, and a ribbon that
+   hangs over the top edge of cards & heroes. Saved state takes the activity's
+   own ribbon tone (gold / red / blue / plum / teal — see ribbonTone()). */
+.star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  /* A reliable, duration-independent save target on touch: no long-press text
+     selection or callout, no double-tap-zoom delay, and a transparent tap
+     highlight so a slow press can't read as selecting the card underneath. */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.star:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* chip — list rows (catalog, saved, picker) */
+.star--chip {
+  width: 30px;
+  height: 30px;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--ink) 32%, transparent);
+  border-radius: 50%;
+  transition: transform var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.star--chip svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+.star--chip:hover {
+  color: var(--ink);
+  background: var(--card);
+  transform: translateY(-1px);
+}
+.star--chip:active {
+  transform: translateY(1px);
+}
+.star--chip.is-on {
+  color: var(--tone-edge, var(--star-ink));
+  background: color-mix(in srgb, var(--tone-fill, var(--star-gold)) 28%, var(--card));
+  border-color: var(--tone-fill, var(--star-gold));
+}
+.star--chip.is-on svg {
+  fill: var(--tone-fill, var(--star-gold));
+  stroke: var(--tone-edge, var(--star-ink));
+}
+
+/* ribbon — hangs over a top edge (deck plate, detail hero) */
+.star--ribbon {
+  width: var(--ribbon-w, 26px);
+  align-items: flex-start;
+  /* unsaved: a faint paper ghost, inviting a tap */
+  --rb-fill: color-mix(in srgb, var(--card) 60%, transparent);
+  --rb-edge: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.star--ribbon:hover {
+  --rb-edge: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.star--ribbon:active {
+  --rb-fill: color-mix(in srgb, var(--card) 85%, transparent);
+}
+.star--ribbon.is-on {
+  --rb-fill: var(--tone-fill, var(--star-gold));
+  --rb-edge: var(--tone-edge, var(--star-ink));
+}
+.ribbon-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--rb-fill, var(--star-gold));
+  stroke: var(--rb-edge, var(--star-ink));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  transition: fill var(--t-fast) var(--ease), stroke var(--t-fast) var(--ease);
+  transform-origin: 50% 0%; /* hinged at the top edge it hangs from */
+}
+/* Save delight — the ribbon "plants" itself: when a save toggles ON, the ribbon
+   drops down from the top edge with a quick squash-and-settle (it's literally a
+   flag hanging off the card, so it should flag down). The chip gives a softer
+   pop. Keyed on the transient .is-justsaved class (set by SaveButton on toggle),
+   NOT .is-on, so a saved card mounting doesn't replay it. */
+.star--ribbon.is-justsaved .ribbon-svg {
+  animation: ribbon-plant 0.42s var(--ease-overlay) both;
+}
+@keyframes ribbon-plant {
+  0% {
+    transform: translateY(-22%) scaleY(0.78);
+  }
+  55% {
+    transform: translateY(0) scaleY(1.1);
+  }
+  78% {
+    transform: scaleY(0.96);
+  }
+  100% {
+    transform: none;
+  }
+}
+.star--chip.is-justsaved svg {
+  animation: chip-pop 0.34s var(--ease-overlay) both;
+}
+@keyframes chip-pop {
+  0% {
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .star--ribbon.is-justsaved .ribbon-svg,
+  .star--chip.is-justsaved svg {
+    animation: none;
+  }
+}
+
+/* ---------- bottom tab bar (phone) ---------- */
+.tabbar {
+  position: relative;
+  z-index: 24;
+  flex: none;
+  display: flex;
+  justify-content: stretch;
+  align-items: stretch;
+  border-top: 2px solid var(--ink);
+  background: var(--chrome);
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+.tabbar button {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 11px 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  transition: color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.tabbar button svg {
+  width: 23px;
+  height: 23px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tabbar button:hover {
+  color: var(--ink-soft);
+}
+.tabbar button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.tabbar button:focus-visible {
+  outline-offset: -2px;
+}
+.tabbar button.is-active {
+  color: var(--accent);
+}
+.tabbar button span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 22px;
+  cursor: pointer;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  font-family: var(--hand);
+  font-size: 15px;
+  line-height: 1;
+  text-decoration: none; /* .btn renders on <a> too (e.g. back-to-app links) */
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+.btn:hover {
+  background: var(--paper-2);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn--block {
+  width: 100%;
+}
+.btn--primary {
+  background: var(--accent);
+  border-width: 2px;
+  border-color: var(--accent-ink);
+  color: var(--on-accent);
+}
+.btn--primary:hover {
+  background: var(--accent-ink);
+}
+.btn--primary:active {
+  transform: translate(1px, 1px);
+  background: var(--accent-ink);
+}
+.btn--primary:focus-visible {
+  outline-color: var(--ink);
+}
+.btn--quiet,
+.btn--ghost {
+  height: 42px;
+  border-width: 1.5px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.btn--quiet {
+  background: var(--card);
+}
+.btn--ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-soft);
+}
+.btn--quiet:active,
+.btn--ghost:active {
+  transform: none;
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.btn--sm {
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  gap: 6px;
+}
+.btn--sm svg {
+  width: 15px;
+  height: 15px;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn:disabled:active {
+  transform: none;
+}
+.btn--primary:disabled,
+.btn--primary:disabled:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
+  border-color: var(--line);
+  /* --ink-soft (5.8:1 on the disabled fill) instead of --ink-faint, so the
+     disabled "Add to library" label still meets AA. */
+  color: var(--ink-soft);
+  box-shadow: none;
+}
+/* The Print header's two actions (ghost Print + primary Export PDF) disable
+   together when the range is empty — keep their "unavailable" look identical.
+   The ghost gets the SAME muted, full-opacity fill as the primary's disabled
+   state above, instead of falling through to the washed-out 0.4 ghost fade, so
+   the pair greys out consistently. */
+.printhead__btn:disabled,
+.printhead__btn:disabled:hover,
+.printhead__btn[aria-disabled="true"],
+.printhead__btn[aria-disabled="true"]:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--line-soft) 50%, var(--card));
+  border-color: var(--line);
+  color: var(--ink-soft);
+  box-shadow: none;
+}
+
+/* ---------- auth controls ---------- */
+.auth-route {
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 22px;
+  padding: 28px 18px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--hand);
+}
+.auth-route__brand {
+  width: min(100%, 420px);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.auth-route__logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+.auth-route__kicker,
+.auth-form__section,
+.auth-form__subsection,
+.auth-form__divider,
+.auth-route__status {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.auth-route__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: 44px;
+  line-height: 0.95;
+}
+.auth-form {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--card);
+}
+.auth-form__copy,
+.auth-form__hint {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.auth-form__hint {
+  text-align: center;
+}
+.auth-form__subsection {
+  color: var(--ink);
+}
+.auth-form__hint a {
+  color: var(--accent-ink);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.auth-form__link {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.auth-form__link:focus-visible {
+  outline-offset: 3px;
+}
+.auth-form__divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faint);
+}
+.auth-form__divider::before,
+.auth-form__divider::after {
+  content: "";
+  height: 1.5px;
+  flex: 1;
+  background: var(--line);
+}
+.auth-form__error {
+  padding: 10px 12px;
+  border: 1.5px solid var(--danger);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+  color: var(--danger-ink);
+}
+.admin-page__grid {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+.admin-tab {
+  padding: max(18px, calc(10px + env(safe-area-inset-top))) 18px 96px;
+}
+.admin-tab__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(100%, 1120px);
+  margin: 0 auto 16px;
+}
+.admin-tab__title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.admin-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--card);
+}
+.admin-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-panel__kicker,
+.admin-code__label {
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.admin-panel__title {
+  margin: 2px 0 0;
+  font-family: var(--script);
+  font-size: 32px;
+  line-height: 1;
+}
+.admin-code {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1.5px dashed var(--accent-ink);
+  border-radius: 12px;
+  background: var(--accent-tint);
+}
+.admin-code strong {
+  font-family: var(--hand-sc);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--accent-ink);
+}
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+.admin-table__row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.2fr)
+    minmax(120px, 0.8fr)
+    minmax(70px, 0.45fr)
+    minmax(0, 0.75fr)
+    minmax(170px, 0.9fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1.5px solid var(--line-soft);
+}
+.admin-table__row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-table__row--head {
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.admin-status {
+  width: fit-content;
+  padding: 3px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.admin-status--active {
+  border-color: var(--accent-ink);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.admin-status--exhausted {
+  border-color: var(--wood-soft);
+  background: color-mix(in srgb, var(--amber) 16%, var(--card));
+  color: var(--wood);
+}
+.admin-status--deactivated,
+.admin-status--expired {
+  border-color: var(--line);
+  background: var(--paper-2);
+  color: var(--ink-soft);
+}
+.admin-table__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.admin-table__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.admin-table__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+.admin-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-action:hover {
+  background: var(--paper-2);
+}
+.admin-action:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.admin-action svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.admin-action--danger {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  color: var(--danger-ink);
+}
+.admin-action:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.admin-empty {
+  padding: 18px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+}
+
+@media (min-width: 860px) {
+  .admin-tab {
+    /* First row on the page until the sidebar appears — keep notch clearance. */
+    padding: max(24px, calc(10px + env(safe-area-inset-top))) 32px 34px;
+  }
+  .admin-page__grid {
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-table__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .admin-table__row--head {
+    display: none;
+  }
+  .admin-table__row > span {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    overflow: visible;
+    white-space: normal;
+  }
+  .admin-table__row > span::before {
+    content: attr(data-label);
+    flex: 0 0 92px;
+    font-family: var(--hand-sc);
+    font-size: 10px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .admin-table__status {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .admin-table__meta {
+    white-space: normal;
+  }
+  .admin-table__actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- overlays ---------- */
+/* On phones the wrapper vanishes (display:contents) so the sheet rises from
+   the bottom exactly as designed; >=768 it becomes a centering layer. */
+.modal-root {
+  display: contents;
+}
+/* z-ladder: tabbar 24 < fab 26 < scrim 30 / overlay 31 < toast 80
+   < lightbox 210 < diagram-edit 215 < floating-root 220 (portaled Select/
+   DatePopover/ContextMenu/the calendar's .cal-popover family/rl-toast, plus
+   FullCalendar's own .fc-popover forced into this tier — see calendar.css)
+   < skip-link 300 (always reachable, even over an open lightbox/menu). */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--scrim-bg);
+  animation: cl-fade 180ms ease both;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Sheets/modals ride a LIFTED card surface — the same lightened paper the
+     run-sheet viewer uses — not the flat --paper page canvas, so a popup reads as
+     a card floating over the app (and its bordered --card controls still stand
+     out against it). This is the "popups should match the rest of the UI" fix. */
+  background: color-mix(in srgb, var(--card) 72%, var(--paper));
+  animation: cl-rise 260ms var(--ease-overlay) both;
+}
+.overlay--sheet {
+  top: 76px;
+  border-top: 2.5px solid var(--ink);
+  border-radius: 24px 24px 0 0;
+}
+/* Editor cards hug their content from the bottom on phones — a five-field
+   form should never claim the whole screen. */
+.overlay--card {
+  top: auto;
+  height: auto;
+  max-height: 85dvh;
+}
+.modal-root:has(.overlay--auth) {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  align-items: center;
+  justify-content: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  contain: layout paint;
+}
+.overlay--auth {
+  position: relative;
+  inset: auto;
+  width: min(420px, calc(100vw - 36px));
+  height: auto;
+  max-height: calc(100dvh - 36px);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  animation: cl-pop 220ms var(--ease-overlay) both;
+}
+.overlay--auth .overlay__handle {
+  display: none;
+}
+.overlay--auth .auth-form {
+  width: 100%;
+}
+/* ---------- themed confirm (native confirm() replacement) ---------- */
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+}
+.confirm__title {
+  display: block;
+  font-family: var(--hand);
+  font-size: var(--fs-title-sm);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.confirm__copy {
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink-soft);
+}
+.confirm__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+.confirm__btn--danger {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+  color: var(--on-accent);
+}
+.confirm__btn--danger:hover {
+  background: var(--danger-ink);
+}
+.confirm__btn--danger:active {
+  background: var(--danger-ink);
+}
+@keyframes cl-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes cl-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cl-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.overlay__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 8px;
+  gap: 8px;
+}
+.overlay__handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.overlay__body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.overlay__body::-webkit-scrollbar {
+  display: none;
+}
+
+.book-print-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* 36px so the print pill lines up with the .rlv-headbtn / save controls in the
+     viewer header (touch bumps all three to 44px below). */
+  min-height: 36px;
+  padding: 4px 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Touch tier: the compact viewer-header / save chips keep their small footprint
+   on pointer-fine surfaces but reach the 44px tap target on touch devices. */
+@media (hover: none) {
+  .star--chip {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .rlv-headbtn {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .book-print-chip {
+    min-height: var(--tap);
+  }
+}
+/* On pointer-fine screens the header save chip matches the 36px edit/print
+   controls (its 30px catalog-row size stays untouched). On touch it keeps the
+   44px from the tier above. */
+@media (hover: hover) {
+  .rlv-head .star--chip {
+    width: 36px;
+    height: 36px;
+  }
+}
+.book-print-chip:hover {
+  background: var(--card);
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.book-print-chip svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* ---------- materials kit checklist ---------- */
+.matkit {
+  margin-top: 4px;
+}
+.matkit__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-5);
+  margin-bottom: var(--s-5);
+}
+.matkit__status {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.matkit__list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.matkit__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+  text-align: left;
+  min-height: var(--tap);
+  padding: var(--s-4) var(--s-5);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  font-family: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.3;
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+/* The chip RESTS as status now — the bloom dot inside it is the only control
+   (StockDot), so the chip carries no cursor and no hover tint on any surface
+   (interactive run sheet, print, and the public run page all read the same;
+   the old .matkit--static override became the universal truth). */
+.matkit__check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-round);
+  border: 1.6px solid var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  background: transparent;
+}
+.matkit__check svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.matkit__name {
+  flex: 1;
+  min-width: 0;
+}
+.matkit__item.is-have {
+  background: color-mix(in srgb, var(--accent) 11%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+}
+.matkit__item.is-have .matkit__check {
+  background: var(--accent);
+  border-color: var(--accent-ink);
+}
+/* Kit stock 3-state rows: "low" runs an amber accent (running out, plan a
+   refill), "out" a red one (uncovered). "have"/via reuse the green .is-have. */
+.matkit__item.is-low {
+  background: color-mix(in srgb, var(--amber) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+}
+.matkit__item.is-low .matkit__check {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--ink));
+  color: var(--card);
+}
+.matkit__item.is-out {
+  background: color-mix(in srgb, var(--danger) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+.matkit__item.is-out .matkit__check {
+  background: var(--danger);
+  border-color: var(--danger-ink);
+  color: var(--card);
+}
+/* The "↔ via <name>" tag on a substitute-covered row — a quiet meta note. */
+.matkit__via {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+.matkit__via svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The coverage pill in the checklist header: Ready (green, amber when a covered
+   item is running low), "N missing" (amber almost / red can't). */
+.matkit__pill {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line);
+  color: var(--ink-soft);
+}
+.matkit__pill--ready {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent-ink);
+}
+.matkit__pill--ready.matkit__pill--low {
+  background: color-mix(in srgb, var(--amber) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 48%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--almost {
+  background: color-mix(in srgb, var(--amber) 16%, var(--card));
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--line));
+  color: var(--ink);
+}
+.matkit__pill--cant {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--danger-ink);
+}
+/* Per-placement material substitution (run sheet opened FROM an event): a
+   subbed/skipped row reads "<replacement> — instead of <original>"; Swap…/Skip
+   today/Restore all live in the chip's own picker menu now, not separate
+   row buttons. */
+.matkit__rowline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.matkit__rowline .matkit__item {
+  flex: 1;
+  min-width: 60%;
+}
+/* The kit-lens "mark what you have" hint (shown under the Can-run filter row
+   while stock is unset). Non-blocking guidance, not an error — the action it
+   points at is the group's own "Edit stock…" row just below. */
+.kitlens__hint {
+  margin: var(--s-2) 0 0;
+  padding: 0 var(--s-2);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+/* A ledger group's quiet "manage" footer row — the same hand-off voice as the
+   camps rail's "Manage camps…" (controls stay inline, the deep editor is one
+   muted row away). Full-width so the whole line is the target. */
+.ledger__manage {
+  display: block;
+  width: 100%;
+  margin-top: var(--s-2);
+  padding: var(--s-3) var(--s-2) var(--s-1);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  transition: color var(--t-fast) var(--ease);
+}
+.ledger__manage:hover {
+  color: var(--ink);
+}
+/* The category checklist (Type filter) opens as a floating dropdown off its
+   `.typepick` trigger (like the Theme/Ages pickers) instead of expanding in
+   place. The menu rows reuse `.typepick__option`, adding a color swatch per row
+   so each category reads by its shelf tint and a trailing check that marks the
+   ones kept; the "All / None" quick actions sit in the menu's header bar. */
+.cat-filter__swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-round);
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.cat-filter__acts {
+  display: inline-flex;
+  gap: var(--s-3);
+}
+/* Narrowed-at-rest signal: ink the closed trigger so a subset reads at a glance
+   (the open trigger already lights via .typepick.is-open). */
+.cat-filter.is-set:not(.is-open) .typepick__trigger {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+/* Widen past the small trigger so the category rows aren't cramped — same move
+   as .themefield__menu. */
+.cat-filter__menu {
+  min-width: 208px;
+}
+.cat-filter__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4) var(--s-3);
+}
+.cat-filter__pick {
+  justify-content: flex-start;
+}
+.cat-filter__picklabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.cat-filter__pickcheck {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--accent-ink);
+}
+/* ---------- activity playbooks ---------- */
+.playbook {
+  container: playbook / inline-size;
+  margin-top: 18px;
+  overflow: visible;
+}
+.playbook__intro {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 10px;
+}
+.playbook__intro p {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.playbook__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--text);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.playbook__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+}
+.playbook__legend-dot,
+.playbook__legend-square {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+}
+.playbook__legend-dot {
+  border-radius: 50%;
+}
+.playbook__legend-square {
+  border-radius: 2px;
+}
+.playbook__legend-dot--blue {
+  background: #4d7a86;
+}
+.playbook__legend-square--red {
+  background: var(--clay);
+}
+.playbook__legend-flag {
+  width: 10px;
+  height: 10px;
+  border-left: 1.5px solid var(--ink);
+  border-top: 5px solid var(--amber);
+}
+.playbook__frames {
+  display: grid;
+  gap: 18px;
+  padding: 14px 0 0;
+}
+.playbook-frame {
+  min-width: 0;
+}
+.playbook-frame__head {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.playbook-frame__head h4 {
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.playbook-frame__head p {
+  margin: 0;
+  font-family: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+.playbook-field {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  aspect-ratio: 1.08;
+  overflow: visible;
+}
+.playbook-field__grass {
+  fill: transparent;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.playbook-field__half {
+  opacity: 0.2;
+}
+.playbook-field__half--blue {
+  fill: #4d7a86;
+}
+.playbook-field__half--red {
+  fill: var(--clay);
+}
+.playbook-field__mid,
+.playbook-field__zone {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 58%, transparent);
+  stroke-width: 0.65;
+  stroke-dasharray: 2 1.6;
+  vector-effect: non-scaling-stroke;
+}
+.playbook-field__mid {
+  stroke-width: 0.8;
+  stroke-dasharray: 2.4 1.8;
+  stroke-linecap: butt;
+}
+.playbook-field__zone--safe {
+  stroke: color-mix(in srgb, var(--accent-ink) 58%, transparent);
+}
+.playbook-field__zone--jail {
+  stroke: color-mix(in srgb, var(--clay) 74%, var(--ink));
+}
+.playbook-field__zone--area {
+  stroke: color-mix(in srgb, var(--ink) 50%, transparent);
+}
+/* Palette overrides — placed AFTER the kind presets so a chosen color wins. */
+.playbook-field__zone--c-teal {
+  stroke: color-mix(in srgb, #4d7a86 78%, var(--ink));
+}
+.playbook-field__zone--c-clay {
+  stroke: color-mix(in srgb, var(--clay) 80%, var(--ink));
+}
+.playbook-field__zone--c-amber {
+  stroke: color-mix(in srgb, var(--amber) 78%, var(--ink));
+}
+.playbook-field__zone--c-sage {
+  stroke: color-mix(in srgb, var(--accent) 84%, var(--ink));
+}
+.playbook-field__zone--c-dusk {
+  stroke: color-mix(in srgb, var(--dusk) 82%, var(--ink));
+}
+.playbook-field__zone--c-ink {
+  stroke: color-mix(in srgb, var(--ink) 64%, transparent);
+}
+.playbook-field__zlabel {
+  font-family: var(--hand-sc);
+  font-size: 3px;
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  text-transform: uppercase;
+  fill: var(--ink-faint);
+  pointer-events: none;
+}
+.playbook-arrow {
+  fill: none;
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 2 1.25;
+}
+.playbook-arrow--blue {
+  stroke: #315f6e;
+}
+.playbook-arrow--red {
+  stroke: #8b442e;
+}
+.playbook-arrow--neutral {
+  stroke: var(--wood);
+  stroke-dasharray: 1.4 2.4;
+}
+.playbook-arrowhead--blue {
+  fill: #315f6e;
+}
+.playbook-arrowhead--red {
+  fill: #8b442e;
+}
+.playbook-arrowhead--neutral {
+  fill: var(--wood);
+}
+/* Palette-colored arrows (authored via the generic editor). */
+.playbook-arrow--c-teal {
+  stroke: #3a5e69;
+}
+.playbook-arrow--c-clay {
+  stroke: #8b442e;
+}
+.playbook-arrow--c-amber {
+  stroke: #a9741f;
+}
+.playbook-arrow--c-sage {
+  stroke: var(--accent-ink);
+}
+.playbook-arrow--c-dusk {
+  stroke: #3a3650;
+}
+.playbook-arrow--c-ink {
+  stroke: var(--ink);
+}
+.playbook-arrowhead--c-teal {
+  fill: #3a5e69;
+}
+.playbook-arrowhead--c-clay {
+  fill: #8b442e;
+}
+.playbook-arrowhead--c-amber {
+  fill: #a9741f;
+}
+.playbook-arrowhead--c-sage {
+  fill: var(--accent-ink);
+}
+.playbook-arrowhead--c-dusk {
+  fill: #3a3650;
+}
+.playbook-arrowhead--c-ink {
+  fill: var(--ink);
+}
+.playbook-flag path:first-child {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+.playbook-flag path:nth-child(2),
+.playbook-flag circle {
+  stroke: var(--ink);
+  stroke-width: 0.4;
+}
+.playbook-flag--blue path:nth-child(2),
+.playbook-flag--blue circle {
+  fill: #4d7a86;
+}
+.playbook-flag--red path:nth-child(2),
+.playbook-flag--red circle {
+  fill: var(--clay);
+}
+.playbook-player circle,
+.playbook-player rect {
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-player--blue circle,
+.playbook-player--blue rect {
+  fill: #4d7a86;
+}
+.playbook-player--red circle,
+.playbook-player--red rect {
+  fill: var(--clay);
+}
+.playbook-player.is-runner circle,
+.playbook-player.is-runner rect,
+.playbook-player.is-flag circle,
+.playbook-player.is-flag rect {
+  stroke-width: 0.65;
+}
+.playbook-player.is-flag path {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 0.33;
+}
+
+/* ---------- generic markers (event-agnostic pieces) ---------- */
+/* Faint reference grid for courts / station maps / relay courses. */
+.playbook-field__grid path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 20%, transparent);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+/* Each color class hands its fill down through --mk so every shape paints the
+   same way. Palette = the same earthy tokens used across the app. */
+.playbook-marker {
+  --mk: #4d7a86;
+}
+.playbook-marker--teal {
+  --mk: #4d7a86;
+}
+.playbook-marker--clay {
+  --mk: var(--clay);
+}
+.playbook-marker--amber {
+  --mk: var(--amber);
+}
+.playbook-marker--sage {
+  --mk: var(--accent);
+}
+.playbook-marker--dusk {
+  --mk: var(--dusk);
+}
+.playbook-marker--ink {
+  --mk: var(--ink);
+}
+.playbook-marker > circle,
+.playbook-marker > rect,
+.playbook-marker > path {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-marker__flag .playbook-marker__pole {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+.playbook-marker__flag path:not(.playbook-marker__pole),
+.playbook-marker__flag circle {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+}
+.playbook-marker__pin path {
+  fill: var(--mk);
+  stroke: var(--ink);
+  stroke-width: 0.4;
+  filter: drop-shadow(0.4px 0.4px 0 rgba(38, 30, 22, 0.2));
+}
+.playbook-marker__pinhole {
+  fill: var(--paper);
+  stroke: none;
+}
+.playbook-marker__text {
+  fill: var(--mk);
+  font-family: var(--hand-sc);
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+}
+.playbook-marker--amber .playbook-marker__text {
+  fill: #9a6a22;
+}
+.playbook-marker__label {
+  fill: var(--ink-soft);
+  font-family: var(--hand-sc);
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+}
+
+@media (min-width: 560px) {
+  .playbook__intro {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+
+@container playbook (min-width: 720px) {
+  .playbook__frames {
+    gap: 16px;
+  }
+}
+
+/* ---------- playbook editor ---------- */
+.playbook--editable {
+  cursor: default;
+}
+.playbook__editcue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+.playbook__editcue-hint {
+  font-family: var(--text);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.pbe {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+}
+.pbe__stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pbe__stage {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-family: var(--hand);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.pbe__stage:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.pbe__stage:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.pbe__stage.is-active {
+  border-color: var(--accent-ink);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pbe__stage.is-active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pbe__stage.is-active:active {
+  background: var(--accent-ink);
+}
+.pbe__stage.is-active:focus-visible {
+  outline-color: var(--ink);
+}
+.pbe__stage--add {
+  border-style: dashed;
+  font-size: 18px;
+}
+.pbe__meta {
+  display: grid;
+  gap: 8px;
+}
+.pbe__name,
+.pbe__caption {
+  font-size: 14px;
+  padding: 8px 11px;
+}
+.pbe__name {
+  font-family: var(--hand-sc);
+  letter-spacing: 0.04em;
+}
+.pbe__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.pbe__tools .btn {
+  padding: 0 11px;
+}
+/* surface tone + paint pickers (color, shape) */
+.pbe__surface .seg {
+  width: 100%;
+}
+.pbe__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+.pbe__pick-label {
+  min-width: 42px;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.pbe__swatches,
+.pbe__shapes {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.pbe__swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-round);
+  background: var(--sw, var(--ink));
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+.pbe__swatch:hover {
+  transform: scale(1.08);
+}
+.pbe__swatch.is-on {
+  border-color: var(--card);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.pbe__swatch--teal {
+  --sw: #4d7a86;
+}
+.pbe__swatch--clay {
+  --sw: var(--clay);
+}
+.pbe__swatch--amber {
+  --sw: var(--amber);
+}
+.pbe__swatch--sage {
+  --sw: var(--accent);
+}
+.pbe__swatch--dusk {
+  --sw: var(--dusk);
+}
+.pbe__swatch--ink {
+  --sw: var(--ink);
+}
+.pbe__shape {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--fs-ui);
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.pbe__shape:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.pbe__shape.is-on {
+  border-color: var(--accent-ink);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pbe__shapes--inspect {
+  gap: var(--s-2);
+}
+/* Line icons for every editor piece — house style, recolor with their button. */
+.pbe-pieceicon {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pbe__shape .pbe-pieceicon {
+  width: 17px;
+  height: 17px;
+}
+.pbe__stage-wrap {
+  border-radius: 12px;
+  outline: none;
+}
+.pbe__stage-wrap:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.playbook-field--edit {
+  min-height: 300px;
+  aspect-ratio: 1;
+  touch-action: none;
+  /* No accidental text selection or native image-drag while arranging pieces —
+     the canvas is a purpose-built surface, not a document. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+  border-radius: 12px;
+  cursor: default;
+}
+.pbe-hit {
+  fill: transparent;
+  cursor: grab;
+}
+.pbe-hit:active {
+  cursor: grabbing;
+}
+.pbe-hit-line {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 3.4;
+  cursor: pointer;
+}
+.pbe-ring {
+  fill: none;
+  stroke: var(--accent-ink);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.4 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.pbe-handle {
+  fill: var(--paper);
+  stroke: var(--accent-ink);
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  cursor: nwse-resize;
+}
+.pbe__inspect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 0;
+}
+.pbe__inspect-label {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.pbe__inspect .seg {
+  width: auto;
+}
+.pbe__zlabel {
+  width: 110px;
+  font-size: 13px;
+  padding: 6px 9px;
+}
+.pbe__del {
+  margin-left: auto;
+}
+.pbe__hint {
+  font-family: var(--text);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.pbe__stage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 10px;
+}
+
+/* ---------- add form ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.field__label {
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.input,
+.textarea,
+.select {
+  width: 100%;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  font-size: 16px; /* >=16px keeps iOS from zooming the field on focus */
+  padding: 11px 13px;
+  outline: none;
+  transition: border-color 120ms;
+}
+/* Keyboard focus gets the global accent ring (the mouse-focus border-color shift
+   alone was a weak ~1.6:1 cue); :focus-visible re-adds the ring that the base
+   rule's outline:none suppresses. */
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-faint);
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--accent);
+}
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"],
+.select[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.password-input {
+  position: relative;
+  width: 100%;
+}
+.password-input__control {
+  padding-right: 78px;
+}
+.password-input__toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  height: calc(100% - 8px);
+  min-width: 62px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--card) 78%, var(--paper));
+  color: var(--accent-ink);
+  font: 700 13px var(--hand-sc);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.password-input__toggle:hover {
+  background: var(--paper-2);
+}
+.password-input__toggle:active {
+  transform: translateY(1px);
+}
+.textarea {
+  resize: vertical;
+  min-height: 88px;
+  line-height: 1.4;
+}
+.field__error {
+  color: var(--danger-ink);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.seg {
+  display: flex;
+  border: 1.5px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.seg button {
+  flex: 1;
+  /* min-height var(--tap) makes the segment 44px tall (seg total 47px) so it
+     lines up with .input/.select on a shared grid row, and reaches the 44px
+     touch target. Flex-center the label now that height is min-height-driven. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  background: var(--card);
+  border: 0;
+  border-right: 1.5px solid var(--line);
+  cursor: pointer;
+  padding: 4px;
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.seg button:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.seg button:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+/* The container clips overflow, so focus rings sit inset. */
+.seg button:focus-visible {
+  outline-offset: -2px;
+}
+.seg button:last-child {
+  border-right: 0;
+}
+/* Sliding variant: thumb paints the green, buttons go transparent so it shows
+   through. No padding/gap here — segments butt together with border dividers. */
+.seg.seg-slide {
+  --seg-pad: 0px;
+  --seg-gap: 0px;
+  --seg-radius: 0px;
+}
+.seg.seg-slide button {
+  background: transparent;
+}
+.seg.seg-slide button:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.seg button.is-on {
+  background: transparent;
+  color: var(--on-accent);
+}
+.seg button.is-on:hover {
+  background: transparent;
+  color: var(--on-accent);
+}
+.seg button.is-on:active {
+  background: transparent;
+}
+.seg button.is-on:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -3px;
+}
+.seg--sm button {
+  padding: 6px 9px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+/* ---------- misc ---------- */
+.fadein {
+  animation: cl-enter 240ms var(--ease-overlay) both;
+}
+@keyframes cl-enter {
+  from {
+    transform: translateY(7px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+/* .fadein plays on mount / view-switch only (its containers carry no React key
+   keyed off the list, so a re-sort reorders nodes WITHOUT replaying it). Honor
+   reduced-motion: skip the rise/fade entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .fadein {
+    animation: none;
+  }
+}
+/* Mobile: one search field for the library, stacked under the view switch.
+   The toolbar is the page's first row (no page-title bar above it), so it
+   carries the notch clearance and hosts the auth pill beside the switcher.
+   The view switch gets its own row (an explicit min-width guard used to also
+   protect the old Activities|Materials collection seg sharing this row —
+   library-2 — that seg is gone now that Materials opens as the Kit modal from
+   the filter rail, but the explicit-row layout it required is still the right
+   shape for the view switch on its own). Add closes the stack alone. */
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: max(14px, calc(8px + env(safe-area-inset-top))) 18px 2px;
+}
+/* Scoped to the touch-shell tiers (phone + iPad-portrait) ONLY — >=1024px
+   switches .toolbar to flex (see the desktop blocks below) where .viewswitch
+   already has its own working sizing rules; without this guard these
+   higher-specificity grid-placement selectors would outrank and stomp those
+   flex rules' min-width/width instead of just being no-ops. */
+@media (max-width: 1023px) {
+  .toolbar .viewswitch {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+}
+.toolbar__auth {
+  display: flex;
+  align-items: center;
+  /* Beside the view switch on row 1 — grid auto-placement never backtracks
+     to row 1's empty second cell, so place it explicitly. */
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+}
+/* The library toolbar search is the canonical .searchfield; .toolbar__search now
+   only carries the toolbar's LAYOUT (grid placement on mobile, flex sizing on the
+   wider tiers below), not the field's visual recipe. */
+.toolbar__search {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+.toolbar__add {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  height: var(--control-md);
+  border-radius: var(--r-md);
+  justify-self: start;
+  flex: none;
+}

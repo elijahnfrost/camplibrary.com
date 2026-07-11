@@ -11,8 +11,8 @@ import {
 import type { DateKey } from "@/lib/calendar/types";
 import { Select } from "../floating/Select";
 import { DatePopover } from "../floating/DatePopover";
-import { PropRow } from "../PropRow";
-import { CampIcon } from "../icons";
+import { PropRow } from "../ui/PropRow";
+import { CampIcon } from "../ui/icons";
 
 // The recurrence control inside QuickAdd: a preset picker (none / daily / weekday
 // / weekly / monthly / yearly), weekday toggles when weekly, a month/year anchor

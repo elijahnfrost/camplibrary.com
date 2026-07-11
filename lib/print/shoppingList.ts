@@ -9,9 +9,9 @@
 // React, no DOM.
 
 import type { DateKey } from "@/lib/calendar/types";
-import { resolveRefs } from "@/lib/materials";
-import type { Material } from "@/lib/materialCatalog";
-import { isStocked, type StockState } from "@/lib/kitStock";
+import { resolveRefs } from "@/lib/materials/materials";
+import type { Material } from "@/lib/materials/materialCatalog";
+import { isStocked, type StockState } from "@/lib/materials/kitStock";
 import type { Activity } from "@/lib/types";
 import type { ScheduleDay } from "./schedule";
 

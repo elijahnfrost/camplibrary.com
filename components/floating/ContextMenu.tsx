@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { FloatingLayer } from "./FloatingLayer";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 
 export type ContextMenuItem = {
   label: string;
@@ -37,11 +37,6 @@ export function ContextMenu({
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const enabledIndexes = items.map((it, i) => (it.disabled ? -1 : i)).filter((i) => i >= 0);
-
-  const focusItem = (index: number) => {
-    const btn = listRef.current?.querySelectorAll<HTMLButtonElement>('[role^="menuitem"]')[index];
-    btn?.focus({ preventScroll: true });
-  };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End")

@@ -1,5 +1,5 @@
-import { AuthUnavailable } from "@/components/AuthUnavailable";
-import { SsoCallback } from "@/components/SsoCallback";
+import { AuthUnavailable } from "@/components/auth/AuthUnavailable";
+import { SsoCallback } from "@/components/auth/SsoCallback";
 import { getBackendEnvStatus } from "@/lib/server/env";
 
 export default function SsoCallbackPage() {

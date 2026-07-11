@@ -1,0 +1,1993 @@
+/* ============================================================
+ * Planner calendar
+ * ============================================================ */
+@media (hover: none) {
+      /* Touch devices never hover: keep the run-list row tools (move/delete) visible
+     so blocks remain editable and reorderable on a phone. */
+  .rl-rowtools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Coarse-pointer (touch) hit-area enlargement — keep the visual size, expand the
+   tappable box to ~44px so dense controls are reliable with a thumb. */
+@media (pointer: coarse) {
+  .star {
+    position: relative;
+  }
+  .star::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+  }
+  .ratingdots__dot,
+  .rl-iconbtn,
+  .pbe__stage,
+  .icon-btn,
+  .chip,
+  .btn--sm,
+  .admin-action,
+  .rl-ptype,
+  .searchfield__clear {
+    position: relative;
+  }
+  .rl-iconbtn,
+  .pbe__stage {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  .ratingdots__dot::before,
+  .rl-iconbtn::before,
+  .pbe__stage::before,
+  .icon-btn::before {
+    content: "";
+    position: absolute;
+    inset: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* Vertical-only expansion for controls packed tightly side-by-side:
+     full tap height, but width stays the visual box (+ a hair) so
+     neighbouring hit areas never overlap. */
+  .chip::before,
+  .btn--sm::before,
+  .admin-action::before,
+  .rl-ptype::before,
+  .searchfield__clear::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(100% + var(--s-2));
+    height: max(100%, var(--tap));
+    transform: translate(-50%, -50%);
+  }
+  .chip {
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+}
+
+/* Mobile bottom bar. */
+.tabbar button span,
+.tabbar button {
+  white-space: nowrap;
+}
+@media (max-width: 430px) {
+  .tabbar {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  .tabbar button {
+    flex: 1 1 56px;
+    min-height: 52px;
+    font-size: var(--fs-micro);
+    letter-spacing: 0.04em;
+    padding: var(--s-4) 0 var(--s-3);
+    gap: var(--s-2);
+  }
+  .tabbar button svg {
+    width: 21px;
+    height: 21px;
+  }
+}
+@media (max-width: 360px) {
+  .tabbar button {
+    padding-top: 9px;
+    font-size: 9px;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* ============================================================
+ * The Run List — the activity's instruction document.
+ * One editable stack: collapsible numbered steps that own attached detail
+ * (note / safety / video / variation / sub-step), plus materials and field
+ * diagram blocks. No modes — click any line to edit, drag a block to move it.
+ * Earthy, cozy, scannable. Lives in the single-column viewer (.rlv).
+ * ============================================================ */
+
+/* ---------- single-column viewer shell ---------- */
+.rlv-body {
+  background: var(--paper);
+}
+.rlv {
+  --rl-bg: var(--paper);
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px 16px 64px;
+}
+
+/* ---------- viewer header (compact, prototype-style) ---------- */
+.rlv-head {
+  padding-bottom: 18px;
+}
+.rlv-head__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  row-gap: var(--s-4);
+  margin-bottom: 14px;
+}
+.rlv-head__sp {
+  flex: 1 1 auto;
+}
+.rlv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-4) var(--s-2) var(--s-1);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.rlv-back:hover {
+  color: var(--ink);
+}
+.rlv-back svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-headbtn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+.rlv-headbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rlv-headbtn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-headbtn--danger {
+  color: var(--clay);
+  border-color: color-mix(in srgb, var(--clay) 42%, var(--line));
+}
+/* The edit toggle reads as "on" while editing — a filled accent box so the
+   header clearly shows the run sheet is in edit mode. */
+.rlv-headbtn.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.rlv-headbtn.is-on:hover {
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+/* The three header controls — edit, print, save — read as one family: the same
+   paper box, border tone, and 10px radius. (Before, the bookmark was a
+   cooler-edged circle and the print chip a full pill, so they looked like three
+   unrelated materials.) Scoped to the viewer header so catalog/list-row stars
+   keep their circle. */
+.rlv-head .book-print-chip,
+.rlv-head .star--chip {
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink-soft);
+}
+.rlv-head .book-print-chip:hover,
+.rlv-head .star--chip:hover {
+  border-color: var(--ink-soft);
+  background: var(--card);
+  color: var(--ink);
+  transform: none;
+}
+.rlv-head .star--chip.is-on {
+  color: var(--tone-edge, var(--star-ink));
+  background: color-mix(in srgb, var(--tone-fill, var(--star-gold)) 28%, var(--card));
+  border-color: var(--tone-fill, var(--star-gold));
+}
+.rlv-title {
+  margin: 0;
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: clamp(34px, 5vw, 46px);
+  line-height: 1;
+  color: var(--ink);
+}
+.rlv-blurb {
+  max-width: 760px;
+  margin: 10px 0 0;
+  font-family: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+/* "Also called …" — the activity's alternate names, a quiet line under the
+   blurb. Smaller and fainter than the blurb so it reads as metadata, not copy. */
+.rlv-aka {
+  margin: 6px 0 0;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+/* ---------- compact dot rating ---------- */
+.ratingdots {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.ratingdots__dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.ratingdots__dot {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.6px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.ratingdots__dot::after {
+  content: "";
+  position: absolute;
+  inset: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+.ratingdots__dot:hover {
+  transform: scale(1.12);
+}
+.ratingdots__word {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rl {
+  --rl-note: var(--ink-soft);
+  --rl-safety: var(--clay);
+  --rl-video: var(--dusk);
+  --rl-variation: var(--wood-soft);
+  --rl-fieldnote: var(--amber);
+  --rl-substep: var(--accent-ink);
+  --rl-node-size: 34px;
+  --rl-detail-node-size: 30px;
+  --rl-rail-x: calc(var(--rl-node-size) / 2);
+  --rl-rail-line-x: calc(var(--rl-rail-x) - 1px);
+  --rl-block-gap: 22px;
+  --rl-detail-gap: 16px;
+  --rl-subtree-exit-gap: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--hand);
+}
+
+/* ---------- toolbar (only collapse / expand) ---------- */
+.rl-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 4px;
+  padding: 12px 0 6px;
+}
+.rl-toolbar:empty {
+  display: none;
+}
+.rl-tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 11px;
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.rl-tbtn:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+  background: var(--paper-2);
+}
+.rl-tbtn svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- the document spine ---------- */
+.rl-doc {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.rl-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  position: relative;
+}
+.rl-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.rl-rail span {
+  position: absolute;
+  width: 2px;
+  background: var(--line-soft);
+  border-radius: 2px;
+}
+/* A cleared-to-empty run doc (read mode only — edit mode's own "Add a block"
+   button already covers this). Same quiet muted-text vocabulary as the
+   library's "No activities match…" empty state. */
+.rl-empty {
+  margin: var(--s-4) 0 0;
+  color: var(--ink-faint);
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+}
+.rl-block {
+  --rl-next-gap: var(--rl-block-gap);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0 0 var(--rl-block-gap);
+  padding-bottom: 0;
+  position: relative;
+}
+.rl-block__main {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* ---------- nodes (numbered steps + typed glyphs) ---------- */
+/* The step-number circle is accent-filled — the accent focus ring vanishes
+   on it, so it gets an ink ring instead. */
+button.rl-node:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.rl-node {
+  flex: none;
+  width: var(--rl-node-size);
+  height: var(--rl-node-size);
+  border-radius: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 3px solid var(--rl-bg);
+  font-family: var(--hand-sc);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: none;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+button.rl-node {
+  appearance: none;
+  cursor: pointer;
+}
+.rl-node__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.rl-node--type {
+  background: var(--rl-bg);
+  color: var(--accent-ink);
+  border: 1.6px solid var(--line);
+}
+.rl-node--type svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-node--playbook {
+  color: var(--accent-ink);
+}
+.rl-node--note {
+  color: var(--rl-note);
+}
+.rl-node--safety {
+  color: var(--rl-safety);
+}
+.rl-node--video {
+  color: var(--rl-video);
+}
+.rl-node--variation {
+  color: var(--rl-variation);
+}
+.rl-node--fieldnote {
+  color: var(--rl-fieldnote);
+}
+.rl-node--substep {
+  color: var(--rl-substep);
+}
+.rl-node--details {
+  color: var(--accent-ink);
+}
+/* An invisible, node-sized placeholder so an add/insert palette row (which has
+   no real node) lines its content column up with the sibling rows — the flex
+   gap does the spacing, so it stays aligned in any context (viewer + form). */
+.rl-node--spacer {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+/* A text-ish node with a chosen colour: the glyph + ring take the picked tint
+   (an inline --rl-blk). Wins over the per-type colour because it's defined here,
+   after the .rl-node--{type} rules. */
+.rl-node--tinted {
+  color: var(--rl-blk);
+  border-color: color-mix(in srgb, var(--rl-blk) 45%, var(--line));
+}
+/* The same "block wears an icon (+ optional colour)" idea, inline before a
+   print/public run-sheet heading (RunSheetBody's DecoIcon) instead of a full
+   circular rail node — no ring/background, just the glyph at label size. Colour
+   (when set) comes through inline `color` on the wrapping span. */
+.rl-node--mini {
+  display: inline-flex;
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+.rl-node--mini svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The node doubles as the icon/colour picker trigger in edit mode. */
+button.rl-node--pick {
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+button.rl-node--pick:hover {
+  border-color: color-mix(in srgb, var(--rl-blk, var(--accent)) 60%, var(--line));
+}
+button.rl-node--pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- the icon + colour picker (decoNode → FloatingLayer) ---------- */
+/* Hosted in the portaled FloatingLayer (position driven inline), so clear any
+   anchored defaults — same fixed/auto reset the other floating menus use. */
+.rl-stylepop {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 20;
+  min-width: 204px;
+  max-width: 240px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.rl-stylepop__label {
+  margin: 0 0 var(--s-3);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.rl-stylepop__swatches {
+  display: flex;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+}
+.rl-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.rl-swatch:hover {
+  border-color: var(--line);
+}
+.rl-swatch.is-on {
+  border-color: var(--ink);
+}
+.rl-stylepop__icons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--s-2);
+}
+.rl-iconpick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 30px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+.rl-iconpick:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rl-iconpick.is-on {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.rl-iconpick svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- rows (the cards) ---------- */
+/* Flat "Rail" rows: the inked card is gone — text rides the rail directly, the
+   way the chosen draft reads. The border slot stays transparent so hover and the
+   drag drop-edge can still tint it; padding is kept (just lighter) so the diagram
+   / materials / media embeds and the hover row-tools keep their room. */
+.rl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  padding: var(--s-2) 54px var(--s-2) var(--s-3);
+  box-shadow: none;
+  cursor: grab;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+.rl-row:hover {
+  background: color-mix(in srgb, var(--paper-2) 45%, transparent);
+}
+.rl-block[draggable="true"]:active > .rl-block__main > .rl-row {
+  cursor: grabbing;
+}
+/* Read mode (the detail-sheet book) has no row tools and nothing to drag, so the
+   54px right gutter is dead space and the grab cursor is misleading. */
+.rl.is-readonly .rl-row {
+  padding-right: var(--s-3);
+  cursor: default;
+}
+.rl.is-readonly .rl-row:hover {
+  background: transparent;
+}
+.rl-row .rl-ed {
+  cursor: text;
+}
+.rl-body {
+  flex: 1;
+  min-width: 0;
+}
+.rl-time {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin-bottom: 7px;
+}
+.rl-text {
+  font-family: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.rl-block.is-collapsed .rl-node--step {
+  background: var(--card);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.rl-block--step.is-closing .rl-node--step {
+  transform: scale(0.97);
+}
+
+/* ---------- primary blocks: the icon badge carries the colour ----------
+   Every TOP-LEVEL block's node — the circular "bracket" that holds its type
+   icon — is a FILLED colour badge in the block's own colour, matching the step's
+   number circle and the field-note flag. The row TEXT stays completely flat: no
+   fill, no border, just the badge beside it. The colour key --rl-blkc is set per
+   type below (and overridable inline when a text block carries a custom colour).
+   Detail CHILDREN keep their lighter outline node; section headings have none. */
+.rl-block--step { --rl-blkc: var(--accent); }
+.rl-block--note { --rl-blkc: var(--rl-note); }
+.rl-block--safety { --rl-blkc: var(--rl-safety); }
+.rl-block--video { --rl-blkc: var(--rl-video); }
+.rl-block--variation { --rl-blkc: var(--rl-variation); }
+.rl-block--fieldnote { --rl-blkc: var(--rl-fieldnote); }
+.rl-block--details { --rl-blkc: var(--accent-ink); }
+.rl-block--materials { --rl-blkc: var(--accent-ink); }
+.rl-block--playbook { --rl-blkc: var(--accent-ink); }
+.rl-block:not(.rl-block--detail):not(.rl-block--heading):not(.rl-block--add)
+  > .rl-node--type {
+  background: var(--rl-blkc, var(--accent-ink));
+  color: var(--on-accent);
+  border: 3px solid var(--rl-bg);
+}
+
+/* ---------- attached detail children ---------- */
+.rl-block--detail {
+  --rl-next-gap: var(--rl-detail-gap);
+  gap: 16px;
+  margin-top: -2px;
+  margin-bottom: var(--rl-detail-gap);
+  padding-bottom: 0;
+  animation: rl-detail-enter 180ms ease-out both;
+}
+.rl-block--detail + .rl-block--step,
+.rl-block--detail + .rl-block--materials,
+.rl-block--detail + .rl-block--heading {
+  padding-top: var(--rl-subtree-exit-gap);
+}
+.rl-block--detail.is-closing {
+  pointer-events: none;
+  animation: rl-detail-exit 160ms ease-in both;
+}
+.rl-block--detail .rl-node--type {
+  width: var(--rl-detail-node-size);
+  height: var(--rl-detail-node-size);
+  margin-inline: calc((var(--rl-node-size) - var(--rl-detail-node-size)) / 2);
+  background: var(--rl-bg);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 0 0 3px var(--rl-bg);
+}
+.rl-block--detail .rl-node--type svg {
+  width: 14px;
+  height: 14px;
+}
+.rl-block--detail .rl-block__main {
+  margin-left: 0;
+}
+/* Sub-items read lighter on the same rail (flat — the colour lives in the node,
+   not a tinted card). */
+.rl-row--detail {
+  background: transparent;
+  border: 1.5px solid transparent;
+  box-shadow: none;
+  padding: var(--s-2) var(--s-5) var(--s-2) var(--s-3);
+}
+.rl-row--detail .rl-text {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.rl-row--detail .rl-time {
+  color: var(--ink-faint);
+}
+/* Flat like every other block on the rail — the icon node carries the emphasis,
+   not a tinted card (see the "inked card is gone" comment above). */
+.rl-row--details {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.rl-detailtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.rl-detailtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  border: 1.4px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--card) 82%, var(--paper));
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rl-detailtag svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* ---- editable detail tags (edit mode) ---- */
+.rl-detailtag--edit {
+  padding-right: var(--s-2);
+  cursor: text;
+}
+.rl-detailtag__t {
+  min-width: 1ch;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+.rl-detailtag__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.rl-detailtag__x:hover {
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink);
+}
+.rl-detailtag__x svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+.rl-detailtag--add {
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--ink-faint);
+  background: transparent;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.rl-detailtag--add:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink-soft);
+}
+.rl-detailrating {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1.3px dashed var(--line-soft);
+}
+
+/* ---------- inline Details editor (edit/create) ---------------------------
+   The activity's scalar facts edited as structured controls on the run sheet —
+   the SAME switch ledger the sidebar filters use (`.ledger` / `.ledger__row` /
+   `.ledger__label`): small-caps label left, a compact control right, dashed
+   `--line-soft` rules between rows. `.rldetail` only sizes the controls; the
+   ledger classes carry the row chrome so it reads as one property ledger across
+   the app. */
+.rldetail__row {
+  /* The ledger row's stock 38px is pointer-tuned for the narrow rail; the
+     editor sits in a roomier sheet, so give each row a touch more height. */
+  min-height: var(--tap);
+}
+/* The last row drops the dashed rule — the Details card border already closes
+   the ledger off, so a trailing line would read as a stray underline. */
+.rldetail__row:last-child {
+  border-bottom: 0;
+}
+/* Each row's control sits to the right; the compact MiniSegs (Where/Energy/Prep),
+   the pill triggers, and the minutes field all hug their content so the editor
+   ledger reads at the same compact height as the sidebar. */
+.rldetail__row .miniseg {
+  flex: 0 0 auto;
+}
+.rldetail__row .themefield {
+  flex: 0 0 auto;
+  width: auto;
+}
+/* Minutes is a plain number field + unit, right-aligned like the other controls. */
+.rldetail__minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__minin {
+  /* Trim the stock 44px-tall .input padding so the field sits at the same compact
+     height as the row's pills/MiniSegs (the 16px font stays, to avoid iOS focus
+     zoom). */
+  width: 64px;
+  padding: var(--s-1) var(--s-3);
+  text-align: center;
+}
+.rldetail__minunit {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* Invalid Minutes drops to a second line for the visible error message — the
+   same plain-language treatment Group size shows in its popover
+   (.rldetail__grouperr), surfaced inline here since Minutes has no popover. */
+.rldetail__row--minutes.is-invalid {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.rldetail__row--minutes .rldetail__grouperr--minutes {
+  flex: 1 0 100%;
+  margin-top: 0;
+  text-align: right;
+}
+/* Rating sits in the ledger like any other property — push the dots to the
+   right edge so they line up with the controls above. */
+.rldetail__row--rating .ratingdots {
+  justify-content: flex-end;
+}
+.rldetail__pick {
+  position: relative;
+  flex: 0 0 auto;
+  width: auto;
+}
+/* These three menus reuse .typepick__menu for the card/border/sizing look;
+   position is driven inline by the FloatingLayer they're hosted in. */
+.rldetail__menu,
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  min-width: 180px;
+}
+.rldetail__agemenu,
+.rldetail__groupmenu {
+  padding: var(--s-4);
+}
+/* Cap the age popover so the grade/age chips wrap into a tidy block instead of
+   laying out as one wide row. */
+.rldetail__agemenu {
+  max-width: 264px;
+}
+.rldetail__ageunit {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--s-4);
+}
+.rldetail__agechips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+.rldetail__grouprow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rldetail__numin {
+  width: 72px;
+  text-align: center;
+}
+.rldetail__groupdash {
+  color: var(--ink-faint);
+}
+.rldetail__grouperr {
+  display: block;
+  margin-top: var(--s-3);
+  color: var(--danger-ink);
+  font-size: var(--fs-ui);
+}
+.typepick__trigger.is-invalid {
+  border-color: var(--danger);
+}
+/* On a phone a 4-way segment + label won't fit one line — let the control drop
+   below its label and stretch full width. */
+@media (max-width: 640px) {
+  .rldetail__row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    min-height: 0;
+    gap: var(--s-3);
+  }
+  .rldetail__row .miniseg,
+  .rldetail__pick {
+    flex: 1 1 100%;
+  }
+  .rldetail__pick .typepick__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* ---------- inline Materials editor (edit/create) ----------------------------
+   A PROPER editable list: one item per row, each honest about its affordances —
+   a drag grip, an inline-editable name, and move/remove tools that appear on
+   hover (always shown on touch). Reorder via row drag OR the up/down buttons.
+   An "add a material" row sits at the foot. Built on the run-sheet sub-step
+   vocabulary (grip + .rl-iconbtn) so it reads as the same list machinery. */
+.rlmat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rlmat__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.rlmat__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 36px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
+  border: 1.4px solid var(--line);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--card) 82%, var(--paper));
+  position: relative;
+  cursor: grab;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+.rlmat__item:active {
+  cursor: grabbing;
+}
+.rlmat__item.is-dragging {
+  opacity: 0.45;
+}
+/* Drop indicator — a sage bar at the row edge the source will land at. */
+.rlmat__item.is-over-before::before,
+.rlmat__item.is-over-after::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+}
+.rlmat__item.is-over-before::before {
+  top: -4px;
+}
+.rlmat__item.is-over-after::before {
+  bottom: -4px;
+}
+.rlmat__grip {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  cursor: grab;
+}
+.rlmat__grip svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.rlmat__name {
+  flex: 1 1 auto;
+  min-width: 1ch;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  cursor: text;
+}
+/* An optional, subdued qty/note per row (right of the name). Quiet by default so
+   the material name reads first; it firms up on focus like the other fields. */
+.rlmat__note {
+  flex: 0 1 12ch;
+  min-width: 6ch;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: 0 var(--s-1);
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-soft);
+  outline: none;
+}
+.rlmat__note::placeholder {
+  color: var(--ink-faint);
+}
+.rlmat__note:focus {
+  border-bottom-color: var(--line);
+  color: var(--ink);
+}
+/* The per-row tools mirror the run-sheet rowtools: quiet by default, lit on
+   hover/focus (always shown on touch via the run-sheet @media rule). */
+.rlmat__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rlmat__item:hover .rlmat__tools,
+.rlmat__item:focus-within .rlmat__tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rlmat__addrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.rlmat__addmark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+}
+.rlmat__addmark svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlmat__add {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* font-size inherits the .input base (16px) — kept >=16px so iOS doesn't zoom. */
+}
+
+/* The form-bound scaffold blocks reuse the run-sheet block chrome (heading,
+   Details/Materials labels) unchanged; they carry no drag handles because they
+   bind to the form, not the run-doc. */
+
+/* ---------- inline header fields (edit/create) ---------- */
+/* The color swatch in the edit header is a compact trigger (not a full-width
+   field) so it sits inline with the back/duplicate/delete cluster. */
+.rlv--edit .rlv-head__row .ccolor {
+  flex: 0 0 auto;
+  width: auto;
+}
+.rlv--edit .rlv-head__row .ccolor__trigger {
+  width: auto;
+  min-height: 36px;
+}
+.rlv-title--edit,
+.rlv-blurb--edit,
+.rlv-aka--edit {
+  width: 100%;
+  display: block;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dashed transparent;
+  padding: var(--s-1) 0;
+  outline: none;
+}
+.rlv-title--edit {
+  font-size: clamp(var(--fs-title), 5vw, var(--fs-display));
+}
+.rlv-title--edit:focus,
+.rlv-blurb--edit:focus,
+.rlv-aka--edit:focus {
+  border-bottom-color: var(--accent);
+}
+.rlv-title--edit::placeholder,
+.rlv-blurb--edit::placeholder,
+.rlv-aka--edit::placeholder {
+  color: var(--ink-faint);
+}
+.rlv-blurb--edit {
+  margin-top: var(--s-5);
+}
+.rlv-aka--edit {
+  margin-top: var(--s-3);
+}
+/* The edit-mode "Backup plans" section — the activity's default rain/overflow
+   fallbacks, up to three rows (title + reason + delete). Sits between the run-doc
+   editor and the Save button, styled as a quiet grouped block. */
+.rlv-backups {
+  max-width: 880px;
+  margin: var(--s-6) auto 0;
+  padding: var(--s-5) var(--s-6);
+}
+.rlv-backups__head {
+  margin-bottom: var(--s-4);
+}
+.rlv-backups__title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin: 0;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rlv-backups__title svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rlv-backups__hint {
+  margin: var(--s-2) 0 0;
+  font-family: var(--hand);
+  font-size: var(--fs-meta);
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+.rlv-backups__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0 0 var(--s-4);
+  padding: 0;
+}
+/* Each backup plan is now a pair of ledger rows (title, reason) — the same
+   label-left/control-right anatomy as the Details block above (.ledger__row
+   .rldetail__row), so the section reads as one continuous property ledger. */
+.rlv-backups__row {
+  display: flex;
+  flex-direction: column;
+}
+.rlv-backups__titlerow {
+  gap: var(--s-3);
+}
+/* The title field fills the row's remaining width (a free-text name, not a
+   hug-content fact pill like the other ledger controls). */
+.rlv-backups__titlewrap {
+  flex: 1;
+  min-width: 0;
+}
+.rlv-backups__search {
+  width: 100%;
+}
+/* The library-match dropdown reuses the QuickAdd result-list look
+   (.quickadd__list/.quickadd__item) verbatim, hosted in a portaled
+   FloatingLayer so it escapes the Modal's overflow. left/top come inline
+   from FloatingLayer; position: fixed must stay declared here so that
+   inline style actually takes effect. */
+.rlv-backups__results {
+  position: fixed;
+  max-height: 220px;
+  margin-top: 0;
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+}
+.rlv-backups__add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.rlv-backups__add:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+.rlv-backups__add svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.rlv-save {
+  max-width: 880px;
+  margin: var(--s-7) auto 0;
+  padding: 0 var(--s-6);
+}
+
+/* ---------- collapsed summary pills ---------- */
+.rl-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1.4px solid var(--line-soft);
+  animation: rl-summary-enter 170ms ease-out both;
+}
+.rl-pill {
+  font-family: var(--hand-sc);
+  font-size: 8.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  min-height: 24px;
+  border: 1.3px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  background: var(--card);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, currentColor 38%, transparent);
+}
+.rl-pill svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-pill--note {
+  color: var(--rl-note);
+}
+.rl-pill--safety {
+  color: var(--rl-safety);
+}
+.rl-pill--video {
+  color: var(--rl-video);
+}
+.rl-pill--variation {
+  color: var(--rl-variation);
+}
+.rl-pill--fieldnote {
+  color: var(--rl-fieldnote);
+}
+.rl-pill--substep {
+  color: var(--rl-substep);
+}
+
+/* ---------- field notes (the "change this later" log) ----------
+   A self-contained, flagged block kept visually apart from the cozy
+   instructional "Note" by its amber flag glyph (.rl-node--fnhead), not a card
+   fill — flat like every other block on the rail. It holds dated ENTRIES you
+   type straight from the read-only viewer (like the rating dots stay
+   interactive) — no edit mode. Now printed/shared like any other block; see
+   RunSheetBody. */
+/* Field-note rows join the block family like every other row — the amber Flag
+   node carries the identity (a filled badge, like every primary block), so the
+   old left bar is gone (it never matched the rail) and the row text stays flat.
+   The dated ENTRIES ride flat beneath it, exactly like a step's sub-items. */
+/* Field-note text stays a text caret even in the otherwise-static read view. */
+.rl.is-readonly .rl-row--fieldnote .rl-ed {
+  cursor: text;
+}
+/* The dated chip riding next to a label / an entry header. */
+.rl-fndate {
+  display: inline-block;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--amber) 22%, var(--card));
+  color: var(--wood);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* ---- the log as a collapsible parent (the step + sub-steps idiom) ----
+   The block is rendered exactly like a step: a parent row whose node toggles
+   collapse, with the dated entries riding beneath it as detail rows on the same
+   rail. The parent's text field is a composer — Enter (or blur) logs a fresh
+   dated entry below it. */
+/* The parent node — a filled amber Flag that toggles collapse, the field-note
+   counterpart to a step's numbered node. */
+.rl-node--fnhead {
+  background: var(--rl-fieldnote);
+  color: var(--on-accent);
+  border: 3px solid var(--rl-bg);
+}
+.rl-node--fnhead svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Collapsed / closing mirror the step node's treatment. */
+.rl-block--fnlog.is-collapsed .rl-node--fnhead {
+  background: var(--card);
+  color: var(--rl-fieldnote);
+  box-shadow: inset 0 0 0 2px var(--rl-fieldnote);
+}
+.rl-block--fnlog.is-closing .rl-node--fnhead {
+  transform: scale(0.97);
+}
+/* The composer line on the parent row — the always-ready "jot a note" input. */
+.rl-fncompose {
+  cursor: text;
+}
+
+/* ---------- row tools (hover-only, top right) ---------- */
+.rl-rowtools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.rl-iconbtn {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-faint);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rl-iconbtn:hover {
+  background: rgba(44, 40, 36, 0.08);
+  color: var(--ink);
+}
+.rl-iconbtn:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+  color: var(--ink);
+}
+/* Advertises that the whole row drags — sized like its sibling icon buttons. */
+.rl-grip {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  cursor: grab;
+}
+.rl-grip svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+}
+.rl-iconbtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-row:hover .rl-rowtools,
+.rl-row:focus-within .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* In the editor the run sheet IS the editor, so drag must be discoverable at a
+   glance — keep the rowtools (grip first) standing by on every block, the way
+   the old add/edit form always showed them. The icon buttons still lift on
+   hover/focus via the rule above; the grip carries the always-there drag cue.
+   Read mode (`.rl.is-readonly`) keeps them hidden — nothing there drags. */
+.rl:not(.is-readonly) .rl-rowtools {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.rl:not(.is-readonly) .rl-row:hover .rl-iconbtn,
+.rl:not(.is-readonly) .rl-row:focus-within .rl-iconbtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rl-iconbtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.rl-iconbtn:disabled:hover {
+  background: transparent;
+  color: var(--ink-faint);
+}
+.rl-ptype--cancel {
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+
+/* ---------- video child ---------- */
+.rl-vid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rl-vid__url {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--ink-soft);
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--card);
+}
+.rl-vid__cap {
+  display: block;
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.rl-vid__preview {
+  margin-top: var(--s-2);
+}
+
+/* ---------- embedded media: inline player + link card ---------- */
+.rl-embed {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+}
+.rl-embed--player {
+  aspect-ratio: 16 / 9;
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--ink);
+}
+.rl-embed--player iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.rl-embed--card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  text-decoration: none;
+  color: var(--ink-soft);
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.rl-embed--card:hover {
+  border-color: var(--ink-soft);
+  background: var(--paper-2);
+}
+.rl-embed__icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-xs);
+  object-fit: contain;
+  background: var(--paper-2);
+}
+.rl-embed__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.rl-embed__title {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl-embed__domain {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.rl-embed__go {
+  flex: none;
+  display: inline-flex;
+  color: var(--ink-faint);
+}
+.rl-embed__go svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- playbook cross-link block ---------- */
+.rl-row--playbook {
+  align-items: center;
+  gap: 11px;
+}
+.rl-pb__spine {
+  flex: none;
+  width: 30px;
+  height: 40px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px 4px 3px 3px;
+  background: #aebe97;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 3px;
+}
+.rl-pb__spine svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--ink);
+  fill: none;
+  stroke-width: 1.5;
+}
+.rl-pb__title {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--ink);
+}
+.rl-pb__meta {
+  display: block;
+  font-family: var(--hand-sc);
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+/* ---------- heading block ---------- */
+.rl-row--heading {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 44px 4px 0;
+  cursor: grab;
+}
+.rl-block--heading {
+  display: block;
+  padding-top: 24px;
+  padding-left: calc(var(--rl-node-size) + 16px);
+  margin-top: 2px;
+}
+.rl-heading__t {
+  font-family: var(--script);
+  font-weight: 700;
+  font-size: 23px;
+  color: var(--ink);
+}
+
+/* ---------- add controls + palettes ---------- */
+.rl-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rl-palette--flat {
+  margin: 2px 0 4px;
+  padding: 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.rl-palette--top {
+  margin-top: 2px;
+}
+.rl-ptype {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: var(--s-3) var(--s-5);
+  font-family: var(--hand-sc);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+  transition: border-color var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.rl-ptype:hover {
+  border-color: var(--ink);
+  background: var(--paper-2);
+}
+.rl-ptype:active {
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper-2));
+}
+.rl-ptype svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-addwrap {
+  display: block;
+  margin-top: 6px;
+  padding-left: calc(var(--rl-node-size) + 16px);
+}
+.rl-addmain {
+  flex: 1;
+  min-width: 0;
+}
+.rl-addblock {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap); /* a comfortable 44px touch target between rows */
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--ink-faint);
+  font-family: var(--hand-sc);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.rl-addblock:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink-soft);
+}
+.rl-addblock svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+/* ---------- inline editable cells ---------- */
+.rl-ed {
+  outline: none;
+}
+.rl-ed:empty::before {
+  content: attr(data-ph);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.rl-ed[contenteditable="true"] {
+  border-radius: 5px;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.rl-ed[contenteditable="true"]:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.rl-ed[contenteditable="true"]:focus {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ---------- drag affordances ---------- */
+.rl-block.is-dragging .rl-block__main {
+  opacity: 0.4;
+}
+/* While a row drag is live, the editable cells stop being drop targets, so the
+   browser never shows a text caret in a title and an item can't be dropped
+   *into* another's text — the row underneath owns the drop. */
+.rl.is-dnd .rl-ed {
+  pointer-events: none;
+}
+.rl-block.is-over-before > .rl-block__main::before,
+.rl-block.is-over-after > .rl-block__main::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  z-index: 5;
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+/* One spatial position per gap: the before/after lines sit at a single, uniform
+   inset (half the standard block gap) regardless of block type, so "after the
+   upper row" and "before the lower row" land on the same line instead of two
+   slightly different spots. */
+.rl-block.is-over-before > .rl-block__main::before {
+  top: calc(var(--rl-block-gap) / -2);
+}
+.rl-block.is-over-after > .rl-block__main::before {
+  bottom: calc(var(--rl-block-gap) / -2);
+}
+
+/* ---------- diagram + materials detail children ---------- */
+.rl-node--materials {
+  color: var(--accent-ink);
+}
+.rl-node--diagram {
+  color: var(--wood);
+}
+.rl-pill--diagram {
+  color: var(--wood);
+}
+.rl-pill--materials {
+  color: var(--accent-ink);
+}
+/* These details hold a wider payload (a checklist or an SVG field), so the
+   body runs the full width of the detail row. */
+.rl-row--materials,
+.rl-row--diagram {
+  align-items: stretch;
+}
+/* Flat like every other block on the rail — the checklist itself (.matkit) is
+   already visually distinct row-by-row, so it doesn't need a card behind it. */
+.rl-block--materials > .rl-block__main > .rl-row--materials {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.rl-row--materials .matkit {
+  margin-top: 6px;
+}
+/* A diagram sub-item reads like the video sub-item: a clean embedded field, no
+   legend/summary chrome. It edits in place like text — tap the field to start,
+   click anywhere outside to finish. No edit/done buttons. */
+.rl-diagram {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2px;
+}
+.rl-diagram--open {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin: 2px 0 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: background 120ms ease;
+}
+.rl-diagram--open:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.rl-diagram--open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rl-diagram .playbook,
+.rl-diagram .playbook--compact {
+  margin-top: 0;
+  width: 100%;
+}
+/* Stages lay out as a uniform grid: every field renders at the same size no
+   matter how the count divides. A lone stage fills its row; two or three share
+   it; a fourth wraps to a fresh row at the SAME width as the rest instead of
+   ballooning to fill the gap. `--pb-cols` (set inline from the frame count,
+   capped at 3) fixes the column basis so the track size is identical on every
+   row, and auto-fill drops columns as the container narrows. */
+.rl-diagram .playbook--compact .playbook__frames {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(180px, (100% - (var(--pb-cols, 3) - 1) * 14px) / var(--pb-cols, 3)), 1fr)
+  );
+  gap: 16px 14px;
+  padding: 0;
+  align-items: start;
+}
+.rl-diagram .playbook--compact .playbook-frame__head {
+  margin-bottom: 6px;
+}
+.rl-diagram .playbook--compact .playbook-frame__head h4 {
+  font-size: 11px;
+}
+/* The per-stage caption duplicates the step text — drop it in the grid. */
+.rl-diagram .playbook--compact .playbook-frame__head p {
+  display: none;
+}
+.rl-diagram .playbook-field {
+  min-height: 0;
+}
+/* The "tap to open full screen / edit" cue floats over the preview, surfacing on
+   hover or keyboard focus so the embedded diagram stays clean at rest. */
+.rl-diagram__cue {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--line);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+  pointer-events: none;
+}
+.rl-diagram__cue svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rl-diagram--open:hover .rl-diagram__cue,
+.rl-diagram--open:focus-visible .rl-diagram__cue {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rl-diagram__cue {
+    opacity: 0.92;
+  }
+}
+/* Match the media sub-item's contained width. */
+.rl-row--detail .rl-vid {
+  max-width: 600px;
+}
+
+@keyframes rl-detail-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rl-detail-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+@keyframes rl-summary-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* On the wide two-page spread the leaf is comfortably roomy. */
+@media (min-width: 768px) {
+  .rl {
+    --rl-node-size: 36px;
+    --rl-detail-node-size: 32px;
+    --rl-block-gap: 24px;
+    --rl-detail-gap: 18px;
+    --rl-subtree-exit-gap: 14px;
+  }
+  .rl-block,
+  .rl-addwrap {
+    gap: 16px;
+  }
+  .rl-node {
+    font-size: 17px;
+  }
+}

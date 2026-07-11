@@ -4,8 +4,8 @@
 // steps, any safety calls, and the kit — without the diagrams, media links, or
 // nested detail the full run sheet carries.
 
-import { materialNeedsForActivity } from "@/lib/materials";
-import type { RunDoc } from "@/lib/runList";
+import { materialNeedsForActivity } from "@/lib/materials/materials";
+import type { RunDoc } from "@/lib/activity/runList";
 import type { Activity } from "@/lib/types";
 
 export interface RunSummary {

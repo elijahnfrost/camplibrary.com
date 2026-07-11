@@ -16,15 +16,15 @@
 
 import type { Activity } from "../types";
 import type { CalendarEvent } from "./types";
-import { type Material } from "../materialCatalog";
-import { isStocked, type StockState } from "../kitStock";
-import { resolveRefs } from "../materials";
+import { type Material } from "../materials/materialCatalog";
+import { isStocked, type StockState } from "../materials/kitStock";
+import { resolveRefs } from "../materials/materials";
 
 // The coverage status of ONE needed material on the day, reusing the run sheet's
 // per-need language: on hand ("have"), thin ("low"), depleted ("out"), covered by
 // a stand-in ("substituted", with the substitute's id in viaId), or nowhere to be
 // found ("missing" — no own stock and no substitute either).
-export type KitItemStatus = "have" | "low" | "out" | "missing" | "substituted";
+type KitItemStatus = "have" | "low" | "out" | "missing" | "substituted";
 
 // One row in the day's gather list: a distinct material the day needs, its
 // coverage status, and the events that call for it (ordered, deduped).

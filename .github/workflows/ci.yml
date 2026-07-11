@@ -39,6 +39,18 @@ jobs:
       - name: Lint (design tokens)
         run: npm run lint:design-tokens
 
+      - name: Lint (CSS hygiene — no new !important / duplicate selector)
+        run: npm run lint:css-hygiene
+
+      - name: Lint (architectural boundaries)
+        run: npm run lint:boundaries
+
+      - name: Lint (file size ratchet)
+        run: npm run lint:file-size
+
+      - name: Dead code (knip — unused files, exports, deps)
+        run: npx knip
+
       - name: Test
         run: npm test
 

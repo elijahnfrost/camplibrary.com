@@ -1,16 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CampIcon } from "../icons";
-import { Modal } from "../Modal";
-import { requestConfirm } from "../ConfirmDialog";
+import { CampIcon } from "../ui/icons";
+import { Modal } from "../ui/Modal";
+import { requestConfirm } from "../ui/ConfirmDialog";
 import {
   campDocumentUrl,
   createDocumentId,
   MAX_DOCUMENT_BYTES,
   MAX_DOCUMENTS_TOTAL_BYTES,
   type CampDocument,
-} from "@/lib/campDocuments";
+} from "@/lib/content/campDocuments";
 
 // Manage the downloadable camp documents — upload new files, rename, reorder,
 // download, and delete — on the SAME surface as the camps/themes/locations

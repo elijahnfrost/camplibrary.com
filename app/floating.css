@@ -1,0 +1,607 @@
+/* ============================================================
+ * POLISH LAYER — tablet layout, touch editing, projector scale,
+ * and the new small components from the deep-clean pass.
+ * ============================================================ */
+
+/* ---- desk library toolbar: one tidy row (touch shell uses the search row) ---- */
+@media (min-width: 1024px) {
+  .toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s-3);
+    /* Still the first row on the page until the sidebar appears at 1024px,
+       so it keeps carrying the notch clearance. */
+    padding: max(var(--s-5), calc(8px + env(safe-area-inset-top))) var(--s-7) var(--s-3);
+  }
+  .viewswitch {
+    flex: 1 1 280px;
+    max-width: 360px;
+    margin: 0;
+  }
+  .toolbar__search {
+    flex: 1 1 240px;
+    max-width: 420px;
+    margin-left: auto;
+  }
+  .toolbar__add {
+    flex: none;
+  }
+  .filtertrigger {
+    padding-inline: var(--s-7);
+  }
+}
+/* desktop re-assertions (the sidebar rail replaces the bar there). Gated to
+   the app's next named breakpoint (1320px), NOT 1024px — at 1024–1319px
+   (tablet-tier desktop) the view switch + search + Add genuinely don't fit on
+   one nowrap row (confirmed live: the Add button and part of the search field
+   render past the viewport edge with no scroll affordance — library-1). The
+   1024px block above already lets the toolbar wrap there; this only re-asserts
+   a single row once there's actually room for one. */
+@media (min-width: 1320px) {
+  .toolbar {
+    flex-wrap: nowrap;
+    padding: var(--s-5) var(--s-8) var(--s-5);
+  }
+}
+
+/* ---- touch editing: honest, non-overlapping row tools below the text ---- */
+@media (hover: none) {
+  .rl .rl-row {
+    flex-wrap: wrap;
+  }
+  .rl .rl-rowtools {
+    position: static;
+    width: 100%;
+    justify-content: flex-end;
+    gap: var(--s-3);
+    margin-top: var(--s-1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* On touch there's no hover to reveal the icon buttons — keep them shown
+     (overrides the pointer-mode "buttons fade in on hover" rule). */
+  .rl:not(.is-readonly) .rl-rowtools .rl-iconbtn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .rl .rl-iconbtn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+  .rl .rl-iconbtn::before {
+    display: none;
+  }
+  .rl.is-readonly .rl-rowtools {
+    display: none;
+  }
+  /* Materials list rows: tools always shown on touch, same as the run rows. */
+  .rl .rlmat__tools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ---- run-list video detail: clean caption + link (no fake player) ---- */
+.rl-vid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.rl-vid__url {
+  font-family: var(--text);
+  font-size: var(--fs-ui);
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+/* ---- library empty states that say why ---- */
+.library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: clamp(48px, 12vh, 120px) var(--page-x);
+  text-align: center;
+}
+.library-empty__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-3);
+}
+.library-empty__title {
+  margin: 0;
+  font-family: var(--script);
+  font-size: var(--fs-title-sm);
+  color: var(--ink);
+}
+.library-empty__hint {
+  margin: 0;
+  font-family: var(--hand);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+
+/* ============================================================
+ * Floating controls — custom dropdowns + right-click menus
+ * One portaled layer engine (FloatingLayer) backs the Select, the
+ * DatePopover, the right-click ContextMenu, and (as of the calendar overlay
+ * containment pass) every calendar anchored card — WeatherPopover, StopPopover,
+ * ShiftBar, GatherPopover, RainPanel (.cal-popover family in calendar.css). All
+ * wear the same card surface + ink border the rest of the app uses (the
+ * .typepick menu recipe), so a dropdown, a context menu, and a calendar popover
+ * all read as the same family. They portal to <body>, so they sit ABOVE every
+ * overlay (z-index 220 > toast 80 > overlays 30/31) and escape modal overflow
+ * clipping. Only the skip-link (300) and FullCalendar's native "+N more"
+ * popover (forced into this same 220 tier — see calendar.css) share this top
+ * of the stack.
+ * ============================================================ */
+.floating-root {
+  position: fixed;
+  inset: 0;
+  /* Top of the stack (bar the skip-link, 300): the portaled menus (custom
+     Select, DatePopover, the right-click ContextMenu, every calendar anchored
+     card) must clear the diagram-edit modal (215) and the lightbox (210), or a
+     piece menu opened inside the diagram editor renders BEHIND the modal. */
+  z-index: 220;
+}
+.floating__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* ---- the right-click context menu ---- */
+.cmenu {
+  position: fixed;
+  min-width: 184px;
+  max-width: 280px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-2);
+  /* A long menu (many conditional rows — recurring/pinned/meal/backup items all
+     stack on one event) scrolls inside the card instead of running off-viewport;
+     matches the .typepick__menu / .cselect__menu clamp precedent. */
+  max-height: min(440px, 60vh);
+  overflow: hidden;
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+@keyframes cmenu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cmenu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: inherit;
+  overflow-y: auto;
+  outline: none;
+}
+.cmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  padding: var(--s-3) var(--s-4);
+  cursor: pointer;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: left;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.cmenu__item:hover,
+.cmenu__item:focus-visible {
+  background: var(--chrome-well);
+  color: var(--ink);
+  outline: none;
+}
+.cmenu__item:disabled,
+.cmenu__item[aria-disabled="true"] {
+  color: var(--ink-faint);
+  opacity: 0.55;
+  cursor: default;
+}
+.cmenu__item:disabled:hover,
+.cmenu__item[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--ink-faint);
+}
+.cmenu__item--danger {
+  color: var(--danger-ink);
+}
+.cmenu__item--danger:hover,
+.cmenu__item--danger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, var(--card));
+  color: var(--danger-ink);
+}
+.cmenu__icon {
+  flex: none;
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+}
+.cmenu__icon svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cmenu__label {
+  flex: 1;
+  min-width: 0;
+}
+.cmenu__sep {
+  height: 0;
+  margin: var(--s-2) var(--s-2);
+  border-top: 1.5px solid var(--line-soft);
+}
+/* A menuitemradio's current choice (e.g. the Have/Low/Out picker) — a small
+   trailing check so the selection reads without relying on the label's own
+   color, which a colorblind or grayscale render would lose. */
+.cmenu__item.is-selected {
+  color: var(--ink);
+  font-weight: 600;
+}
+.cmenu__sel {
+  flex: none;
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+  color: var(--accent);
+}
+.cmenu__sel svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- custom <select> (Select.tsx) ---- */
+.cselect {
+  position: relative;
+  width: 100%;
+}
+/* In a ledger row (label left / control right) the dropdown wrappers hug their
+   content and sit right — the pill silhouette, not a full-width field — so the
+   calendar editor, the run-sheet Details, and the View/Weather settings all read
+   as one property ledger. A long value (a date, a multi-location summary) caps
+   and ellipsizes instead of crowding the label. Covers every dropdown family:
+   .cselect (Select/Location), .cdate (DatePopover), .ccolor (ColorField). */
+.ledger__row > .cselect,
+.ledger__row > .cdate,
+.ledger__row > .ccolor {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 64%;
+}
+/* The trigger wears the PILL silhouette shared with .typepick__trigger (the
+   run-sheet / sidebar dropdown look) — so every dropdown in the app (Select,
+   DatePopover, ColorField, LocationField all render this class) reads as one
+   control vocabulary, not a mix of pills and input-style rectangles. It still
+   inherits .select's surface/border; these rules override the rectangle bits. */
+.cselect__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: auto;
+  /* Sizing is content-driven — NO min-height — so it lands at the EXACT same
+     height as .typepick__trigger (the Library/sidebar pills): same padding, font,
+     chevron. Every pill in the app is then one size. */
+  padding: var(--s-1) var(--s-5);
+  border-radius: var(--r-pill);
+  font-family: var(--hand-sc);
+  font-size: var(--fs-label);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+.cselect__trigger:hover {
+  background: var(--chrome-well);
+  border-color: var(--ink-soft);
+}
+.cselect__trigger .cselect__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Nothing chosen yet — the value reads as a muted placeholder ("Add location"),
+   matching the .input::placeholder weight used by the other compact controls. */
+.cselect__trigger .cselect__value.is-empty {
+  color: var(--ink-faint);
+}
+.cselect__trigger svg {
+  flex: none;
+  /* Match .typepick__trigger's 13px chevron so the pill height is identical. */
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-faint);
+  transition: transform var(--t-fast) var(--ease);
+}
+/* Open state mirrors .typepick: the sage tint fill IS the connector to the
+   floating menu (the border stays put, like every other control). */
+.cselect__trigger.is-open {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  border-color: var(--line);
+}
+.cselect__trigger.is-open svg {
+  color: var(--accent-ink);
+  transform: rotate(180deg);
+}
+/* .typepick__menu supplies the surface/sizing/scroll; Select nests its own
+   .cselect__list as the scroll+focus container instead, so hand that scroll
+   back to the inner list here (an outer + inner scrollbar would double up). */
+.cselect__menu {
+  overflow: hidden;
+}
+.cselect__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: inherit;
+  overflow-y: auto;
+  outline: none;
+}
+.cselect__option {
+  justify-content: space-between;
+  font-size: var(--fs-label);
+}
+/* The chosen row carries the same sage tint as a .typepick selected option, so
+   Select/Location menus and the run-sheet pill menus read identically (the
+   checkmark stays as the extra "this is the current value" confirmation). */
+.cselect__option.is-on {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+.cselect__option.is-active:not(.is-on) {
+  background: var(--chrome-well);
+  color: var(--ink);
+}
+.cselect__option .cselect__optlabel {
+  flex: 1;
+  min-width: 0;
+}
+.cselect__option svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- custom date picker (DatePopover.tsx) ---- */
+.cdate {
+  position: relative;
+  width: 100%;
+}
+.cdate__pop {
+  position: fixed;
+  width: 268px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+
+/* ---------- per-item color picker (ColorField) ---------- */
+.ccolor__trigger .ccolor__swatch {
+  flex: none;
+  /* Keep the swatch within the text cap-height so the color pill is the SAME
+     height as every other pill (a 16px swatch nudged it 1px taller). */
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+}
+/* The compact swatch-only trigger (ColorSwatchField) used in tight rows like the
+   Locations manager — the colored square IS the button, opening the same popover. */
+.ccolor--swatch {
+  display: inline-flex;
+  flex: none;
+}
+.ccolor__swatchbtn {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  padding: 0;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease);
+}
+.ccolor__swatchbtn:hover {
+  transform: scale(1.08);
+}
+.ccolor__swatchbtn:focus-visible,
+.ccolor__swatchbtn.is-open {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ccolor__pop {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 224px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e3);
+  padding: var(--s-4);
+  animation: cmenu-pop var(--t-fast) var(--ease-overlay) both;
+}
+.ccolor__swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--s-2);
+}
+.ccolor__chip {
+  aspect-ratio: 1;
+  border-radius: var(--r-xs);
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  padding: 0;
+  cursor: pointer;
+}
+.ccolor__chip.is-on {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.ccolor__picker.react-colorful {
+  width: 100%;
+  height: 132px;
+}
+.ccolor__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.ccolor__hash {
+  color: var(--ink-faint);
+}
+.ccolor__hex {
+  flex: 1;
+  min-width: 0;
+}
+.ccolor__reset {
+  flex: none;
+}
+
+.cdate__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+.cdate__nav {
+  width: var(--control-sm);
+  height: var(--control-sm);
+}
+.cdate__month {
+  font-family: var(--hand-sc);
+  font-size: var(--fs-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.cdate__weekdays,
+.cdate__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cdate__weekday {
+  text-align: center;
+  font-family: var(--hand-sc);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding-bottom: var(--s-2);
+}
+.cdate__blank {
+  aspect-ratio: 1;
+}
+.cdate__day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 1.5px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--hand);
+  font-size: var(--fs-ui);
+  color: var(--ink);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.cdate__day:hover {
+  background: var(--chrome-well);
+}
+.cdate__day.is-today {
+  border-color: var(--line);
+}
+.cdate__day.is-on {
+  background: var(--accent-tint);
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+
+/* ---- touch shell: dropdowns + date grid bottom-dock like the event popover ---- */
+@media (max-width: 1023px) {
+  .cmenu,
+  .cselect__menu,
+  .cdate__pop,
+  .typepick__menu,
+  .profilemenu,
+  .subfeed__menu {
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto !important;
+    max-width: none;
+    border-bottom: 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
+    animation: cl-rise 220ms var(--ease-overlay) both;
+  }
+  .cselect__menu,
+  .typepick__menu,
+  .profilemenu,
+  .subfeed__menu {
+    max-height: 60vh;
+  }
+  .cselect__list {
+    max-height: calc(60vh - var(--s-6));
+  }
+  /* On phones the scrim dims like every other sheet, and is tappable to close. */
+  .floating__scrim {
+    background: var(--scrim-bg);
+    animation: cl-fade 180ms ease both;
+  }
+}

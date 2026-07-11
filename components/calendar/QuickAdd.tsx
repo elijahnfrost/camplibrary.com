@@ -37,10 +37,10 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
-import { useLocalStorage } from "@/lib/store";
+import { useLocalStorage } from "@/lib/cloud/store";
 import { formatEventDateLabel } from "@/lib/calendar/dates";
-import { matchesActivitySearch } from "@/lib/activityFilters";
-import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/data";
+import { matchesActivitySearch } from "@/lib/activity/activityFilters";
+import { categoryTint, durLabel, effectiveActivityColor, reminderTint } from "@/lib/content/data";
 import {
   formatLocations,
   type AlternateRef,
@@ -49,20 +49,20 @@ import {
 } from "@/lib/calendar/types";
 import { summarizeRecurrence, type RecurrenceRule } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
-import { coverage } from "@/lib/materials";
-import type { Material } from "@/lib/materialCatalog";
-import type { StockState } from "@/lib/kitStock";
+import { coverage } from "@/lib/materials/materials";
+import type { Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import { conflictsForEvent, dayKit } from "@/lib/calendar/kitConflicts";
-import { CampIcon } from "@/components/icons";
-import { PropRow } from "@/components/PropRow";
-import { ToggleSwitch } from "@/components/primitives";
+import { CampIcon } from "@/components/ui/icons";
+import { PropRow } from "@/components/ui/PropRow";
+import { ToggleSwitch } from "@/components/ui/primitives";
 import { Select } from "@/components/floating/Select";
 import { DatePopover } from "@/components/floating/DatePopover";
 import { ColorField } from "@/components/floating/ColorField";
 import { LocationField } from "@/components/floating/LocationField";
 import { RepeatField } from "@/components/calendar/RepeatField";
-import { FocusSheet } from "../FocusSheet";
-import { Disclosure } from "../Disclosure";
+import { FocusSheet } from "../ui/FocusSheet";
+import { Disclosure } from "../ui/Disclosure";
 
 export type EditorDraft = {
   id?: string; // present when editing an existing event

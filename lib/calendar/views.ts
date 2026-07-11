@@ -3,7 +3,7 @@
 // date math — no FullCalendar, no DOM — so the range/title/storage logic is unit
 // testable on its own (mirrors lib/calendar/dates.ts).
 
-export type FixedViewId = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
+type FixedViewId = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 
 /** The configurable N-day window (Notion's "Number of days"). */
 export type NDaysView = { type: "ndays"; n: number };

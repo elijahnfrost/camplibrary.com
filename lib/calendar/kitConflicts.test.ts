@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Activity } from "../types";
-import type { Material } from "../materialCatalog";
-import type { StockState } from "../kitStock";
+import type { Material } from "../materials/materialCatalog";
+import type { StockState } from "../materials/kitStock";
 import type { CalendarEvent } from "./types";
 import { conflictsForEvent, dayKit } from "./kitConflicts";
 

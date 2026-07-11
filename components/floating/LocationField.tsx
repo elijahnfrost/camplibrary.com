@@ -14,7 +14,7 @@
 // bulk context menu (CalendarShell) — one picker, two entry points.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { FloatingLayer } from "./FloatingLayer";
 
 // The roving, multi-toggle list of places. Shared by the trigger-based field and

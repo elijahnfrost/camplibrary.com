@@ -18,9 +18,9 @@ import {
   upsertCalendarEvent,
   type StoredCalendarEvent,
 } from "@/lib/server/userData";
-import { mergeActivityCatalog, upsertActivityRecord } from "@/lib/activityCatalog";
-import { normalizeHexColor } from "@/lib/color";
-import { ACTIVITIES, AGE_GROUPS, CATEGORIES, effectiveActivityColor } from "@/lib/data";
+import { mergeActivityCatalog, upsertActivityRecord } from "@/lib/activity/activityCatalog";
+import { normalizeHexColor } from "@/lib/content/color";
+import { ACTIVITIES, AGE_GROUPS, CATEGORIES, effectiveActivityColor } from "@/lib/content/data";
 import type { Activity, AgeGroupId, CategoryId, Place } from "@/lib/types";
 import {
   normalizePlaybook,
@@ -32,17 +32,17 @@ import {
   type PlaybookMarkerShape,
   type PlaybookZone,
   type PlaybookZoneKind,
-} from "@/lib/playbooks";
-import { normalizeRunDoc, type RunDoc } from "@/lib/runList";
-import { type Camp } from "@/lib/camps";
-import { clampOpenClose, createCampId, DEFAULT_OPEN_MIN, DEFAULT_CLOSE_MIN, MAX_CAMP_NAME } from "@/lib/camps";
-import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/themes";
+} from "@/lib/activity/playbooks";
+import { normalizeRunDoc, type RunDoc } from "@/lib/activity/runList";
+import { type Camp } from "@/lib/content/camps";
+import { clampOpenClose, createCampId, DEFAULT_OPEN_MIN, DEFAULT_CLOSE_MIN, MAX_CAMP_NAME } from "@/lib/content/camps";
+import { createThemeId, MAX_THEME_LABEL, nextPaletteTint, type Theme } from "@/lib/content/themes";
 import {
   isUserDocKey,
   USER_DOC_KEYS,
   type DocValueMap,
   type UserDocKey,
-} from "@/lib/userDataDocs";
+} from "@/lib/cloud/userDataDocs";
 import { DEFAULT_DURATION_MIN, snapDurationMin, snapMinutes, MINUTES_PER_DAY } from "@/lib/calendar/time";
 import {
   buildSeriesEvents,

@@ -1,6 +1,6 @@
 "use client";
 
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { clampNDays, NDAYS_MAX, NDAYS_MIN } from "@/lib/calendar/views";
 
 // The "Days" control for the multi-day (Week) strip: a compact − n + stepper

@@ -18,7 +18,7 @@ import type {
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph } from "@/lib/calendar/adapter";
-import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/alternates";
+import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/activity/alternates";
 import { rainPlanForDay, type RainPlan } from "@/lib/calendar/rainPlan";
 import {
   addDays,
@@ -30,7 +30,6 @@ import {
   todayKey,
 } from "@/lib/calendar/dates";
 import {
-  clampNDays,
   DEFAULT_WEEK_START,
   isNDaysView,
   parseStoredView,
@@ -55,29 +54,24 @@ import {
   snapMinutes,
   type DayWindow,
 } from "@/lib/calendar/time";
-import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/camps";
+import { campSnapMin, resolveDayWindow, type Camp } from "@/lib/content/camps";
 import { guideBandsForRange, type GuideBand } from "@/lib/calendar/guides";
 import type { ThemeResolver } from "@/lib/calendar/adapter";
-import { catalogNameFor, type Material } from "@/lib/materialCatalog";
-import { coverage } from "@/lib/materials";
-import type { StockState } from "@/lib/kitStock";
+import { type Material } from "@/lib/materials/materialCatalog";
+import type { StockState } from "@/lib/materials/kitStock";
 import {
   conflictsForEvent,
   dayKit,
   type DayKit,
-  type DayKitItem,
-  type KitConflict,
 } from "@/lib/calendar/kitConflicts";
-import { categoryTint, eventTint, isColorMode, type ColorMode } from "@/lib/data";
+import { categoryTint, eventTint, type ColorMode } from "@/lib/content/data";
 import {
-  isDateKey,
-  normalizeCalendarEvent,
   type AlternateRef,
   type CalendarEvent,
   type DateKey,
 } from "@/lib/calendar/types";
 import { isTightGapBetweenEvents } from "@/lib/calendar/reminderPlacement";
-import { groupStops, stopEventIds, type CalendarStop } from "@/lib/calendar/stops";
+import { groupStops, stopEventIds } from "@/lib/calendar/stops";
 import { yToMinutes } from "@/lib/calendar/dragTime";
 import {
   applyMoveDelta,
@@ -104,15 +98,13 @@ import {
   type SeriesTemplate,
 } from "@/lib/calendar/recurrence";
 import type { Activity } from "@/lib/types";
-import { useLocalStorage } from "@/lib/store";
-import { CampIcon } from "../icons";
-import { Modal } from "../Modal";
+import { useLocalStorage } from "@/lib/cloud/store";
+import { CampIcon } from "../ui/icons";
+import { Modal } from "../ui/Modal";
 import { ContextMenu } from "../floating/ContextMenu";
 import { FloatingLayer } from "../floating/FloatingLayer";
-import { StockDot } from "../StockDot";
 import { ColorPickerBody } from "../floating/ColorField";
-import { LocationPickerList } from "../floating/LocationField";
-import { hasOpenDialog } from "../useDialogFocus";
+import { hasOpenDialog } from "../hooks/useDialogFocus";
 import { CalendarHeader } from "./CalendarHeader";
 import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
@@ -128,7 +120,6 @@ import {
   parseWeatherLocation,
   parseWeatherMode,
   parseWeatherRange,
-  weatherGlyphSvg,
   HISTORY_PAST_DAYS,
   WEATHER_RANGE_DAYS,
   type TempUnit,
@@ -140,6 +131,9 @@ import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
 import { CalendarRail } from "./CalendarRail";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
 import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
+import { useDragAffordance } from "./useDragAffordance";
+import { useWeatherColumnChips } from "./useWeatherColumnChips";
+import { useStopMarkers } from "./useStopMarkers";
 
 // The timed Day/Week/N-day views are a rolling, day-aligned strip (dateAlignment
 // "day"), so they list consecutive days from wherever you've scrolled and never
@@ -147,59 +141,42 @@ import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
 // hand FC a value while the strip is mounted; Month is the one view whose column
 // order honours the configurable "Start week on" pref (weekStart). The sidebar
 // mini-month is a month grid too, so it reads the same pref.
-const STRIP_FIRST_DAY = 1;
+import {
+  BackupUmbrellaGlyph,
+  BulkLocationPicker,
+  EditedTickGlyph,
+  GatherPopover,
+  KitGlyph,
+  PinInPlaceIcon,
+  RainPanel,
+  SkipDaysPicker,
+} from "./CalendarChrome";
+import {
+  STRIP_FIRST_DAY,
+  STRIP_DAYS,
+  REANCHOR_MARGIN,
+  REANCHOR_SHIFT,
+  MIN_DAY_WIDTH,
+  SLOT_ZOOM_MAX,
+  SLOT_ZOOM_FLOOR,
+  CALENDAR_VIEWS,
+  fcType,
+  targetDaysFor,
+  isTypingTarget,
+  endMinForDraft,
+  rowFingerprint,
+  boolStorage,
+  slotZoomStorage,
+  colorModeStorage,
+  type RainThreshold,
+  parseRainThreshold,
+  RAIN_THRESHOLD_OPTIONS,
+  parseDismissedRainDays,
+} from "@/lib/calendar/shellHelpers";
+// The card variant is the same glyph — a distinct name at the call site keeps the
+// two uses legible (a menu item's icon vs a card affordance).
+const CardPinGlyph = PinInPlaceIcon;
 
-// The timed views (Day / Week / Number-of-days) are ONE continuous, day-aligned
-// strip you scroll horizontally — fixed-width day columns, native momentum, and
-// CSS scroll-snap that loosely aligns to the nearest day so a day is never left
-// half cut off at the edge (the free equivalent of the premium scrollgrid's
-// dayMinWidth). Day/Week/N just set the ZOOM: how many days are sized to fit the
-// viewport (1 / 7 / N) — which then determines the day width. We render a wide
-// strip (STRIP_DAYS) and re-anchor it as you scroll near either end so the scroll
-// feels endless. Month stays its own grid.
-const STRIP_DAYS = 35;
-// Re-anchor when the visible window comes within this many days of a strip edge,
-// recentering the strip by this much so there's always runway to keep scrolling.
-const REANCHOR_MARGIN = 4;
-const REANCHOR_SHIFT = 14;
-// A day column never narrows past this (so a 9-day zoom on a phone stays legible
-// and simply overflows / scrolls instead of crushing the columns).
-const MIN_DAY_WIDTH = 84;
-
-// Pinch-to-zoom for the timed grid's HOUR HEIGHT (the vertical analogue of the
-// Day/Week/N horizontal day-width zoom). A trackpad/touch pinch — or ctrl+wheel —
-// scales the base 15-min slot height via the --cal-slot-zoom CSS var (see
-// calendar.css). 1 = default; above 1 stretches each hour taller for fine detail.
-// SLOT_ZOOM_MAX caps the zoom-IN; the zoom-OUT minimum is DYNAMIC (computeMinZoom)
-// — you can never shrink the day past the point where it fills the viewport, so the
-// grid is always hard-blocked top-and-bottom with no blank space below the last
-// hour. SLOT_ZOOM_FLOOR is only an absolute sanity bound for the stored value.
-const SLOT_ZOOM_MAX = 3;
-const SLOT_ZOOM_FLOOR = 0.2;
-const clampSlotZoom = (zoom: number) =>
-  Math.min(SLOT_ZOOM_MAX, Math.max(SLOT_ZOOM_FLOOR, zoom));
-
-const CALENDAR_VIEWS = {
-  timeGridStrip: {
-    type: "timeGrid",
-    duration: { days: STRIP_DAYS },
-    dateAlignment: "day",
-    dateIncrement: { days: 1 },
-  },
-};
-
-// The FullCalendar view-type string for a ViewKey: every timed view is the one
-// scrollable strip; only Month is its own grid.
-function fcType(view: ViewKey): string {
-  return view === "dayGridMonth" ? "dayGridMonth" : "timeGridStrip";
-}
-
-// How many days the chosen view sizes to fit the viewport (the zoom level).
-function targetDaysFor(view: ViewKey): number {
-  if (isNDaysView(view)) return clampNDays(view.n);
-  if (view === "timeGridDay") return 1;
-  return 7; // Week (Month doesn't use the strip)
-}
 
 // The right-click context menu opens over EITHER one event (the single-event
 // menu) or a whole multi-selection (the bulk menu) — chosen by onGridContextMenu
@@ -250,81 +227,6 @@ export type BulkEditChanges = {
   minShift?: number;
 };
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
-}
-
-// The end minute for a draft: 0 for all-day; EQUAL to start for a 0-min reminder
-// (length 0, which renders as a dot marker, never a block); otherwise start + the
-// snapped length, clamped to the end of the day.
-function endMinForDraft(startMin: number, durationMin: number, allDay: boolean): number {
-  if (allDay) return 0;
-  if (durationMin <= 0) return startMin;
-  return Math.min(MINUTES_PER_DAY, startMin + snapDurationMin(durationMin));
-}
-
-// A key-order-independent JSON serializer (recurses into nested objects, keeps
-// array order). Used for the escalation staleness fingerprint below.
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).sort();
-  return "{" + keys.map((k) => JSON.stringify(k) + ":" + stableStringify(obj[k])).join(",") + "}";
-}
-
-// A CANONICAL fingerprint of a stored row for the escalation staleness check:
-// stableStringify of every field except `updatedAt` (the last-write-wins clock,
-// which a re-commit always bumps). BOTH sides are re-normalized first, because the
-// `expected` rows are the raw plan output while the live rows were rebuilt by
-// normalizeCalendarEvent on commit (which may drop empty/absent fields and reorder
-// keys) — passing both through the same normalizer makes the comparison apples-to-
-// apples, so a value the this-commit wrote reads as unchanged and escalation stays
-// enabled. A row that fails to normalize (shouldn't happen for a stored row)
-// fingerprints as its raw self.
-function rowFingerprint(event: CalendarEvent): string {
-  const normalized = normalizeCalendarEvent(event) ?? event;
-  const { updatedAt: _updatedAt, ...rest } = normalized;
-  return stableStringify(rest);
-}
-
-const boolStorage = (value: unknown, fallback: boolean) =>
-  typeof value === "boolean" ? value : fallback;
-
-const slotZoomStorage = (value: unknown, fallback: number) =>
-  typeof value === "number" && Number.isFinite(value) ? clampSlotZoom(value) : fallback;
-
-// Validate the stored "Color by" mode against the known ids (mirrors
-// parseWeekStart/boolStorage) so a stale/garbage value falls back to "custom".
-const colorModeStorage = (value: unknown, fallback: ColorMode) =>
-  isColorMode(value) ? value : fallback;
-
-// The Rain-alert threshold (percent). 0 = off; 30/50/70 arm the rain-review lens
-// when the day's precip probability meets it. A closed whitelist so a garbage
-// stored value falls back cleanly (mirrors the other weather-pref validators).
-export type RainThreshold = 0 | 30 | 50 | 70;
-const RAIN_THRESHOLDS: readonly RainThreshold[] = [0, 30, 50, 70];
-const parseRainThreshold = (value: unknown, fallback: RainThreshold): RainThreshold =>
-  typeof value === "number" && (RAIN_THRESHOLDS as readonly number[]).includes(value)
-    ? (value as RainThreshold)
-    : fallback;
-const RAIN_THRESHOLD_OPTIONS: { value: string; label: string }[] = [
-  { value: "0", label: "Off" },
-  { value: "30", label: "30%" },
-  { value: "50", label: "50%" },
-  { value: "70", label: "70%" },
-];
-
-// Validate the dismissed-Rain-Review list: keep only well-formed DateKeys that are
-// still today-or-later (a stale past date is pruned so the list can't grow across a
-// season). Deterministic per read; mirrors the other localStorage validators.
-const parseDismissedRainDays = (value: unknown, fallback: DateKey[]): DateKey[] => {
-  if (!Array.isArray(value)) return fallback;
-  const today = todayKey();
-  return [...new Set(value.filter((v): v is DateKey => isDateKey(v) && v >= today))];
-};
 
 export function CalendarShell({
   events,
@@ -3090,224 +2992,15 @@ export function CalendarShell({
   }, [announce, events]);
 
   // ---- Drag affordance (three-part move preview) --------------------------
-  // The move gesture shows three things at once, like Notion/Apple Calendar:
-  //   1. ORIGINAL — stays in its slot, dimmed + darkened (where it was). FC
-  //      hides the dragged source via inline visibility:hidden on its harness;
-  //      calendar.css forces it back visible and dims it.
-  //   2. SUPERPOSITION — a full-opacity copy of the card that follows the cursor
-  //      FREELY (un-snapped), keeping the grab offset, showing the live time. FC
-  //      only gives us a *snapped* mirror, so we render this follower ourselves
-  //      and feed it the mirror's live innerHTML each frame.
-  //   3. SNAP BOX — FullCalendar's own .fc-event-mirror, which snaps to the grid
-  //      slot the drop will land in; calendar.css styles it as a dotted no-fill
-  //      outline at full opacity.
-  // (The earlier position:fixed column-offset is gone — .calshell no longer
-  // retains a transform after its entrance animation.)
-  const followRef = useRef<HTMLDivElement | null>(null);
-  const dragRafRef = useRef<number | null>(null);
-  const grabOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 12, dy: 12 });
-  const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragCleanupRef = useRef<(() => void) | null>(null);
-  // The harness of the event currently being moved — tagged so ONLY it dims,
-  // not the whole calendar.
-  const sourceHarnessRef = useRef<HTMLElement | null>(null);
-  // Whether Option/Alt is held during the current move — a copy-drag (drop a
-  // duplicate, leave the original in place) rather than a move. Tracked live so
-  // pressing/releasing Option mid-drag flips the affordance; the drop reads the
-  // final state.
-  const altDragRef = useRef(false);
-  // The ids being GROUP-moved together (the live selection at drag start, when
-  // the grabbed event was part of a multi-selection). Empty for a single-event
-  // move. Read at drop time so the whole group shifts by the grabbed event's
-  // delta in one undoable commit. The harnesses of every member are also dimmed
-  // for the duration of the drag (tracked so they can be un-dimmed on stop).
-  const groupMoveRef = useRef<string[]>([]);
-  const groupHarnessesRef = useRef<HTMLElement[]>([]);
-
-  // Reflect copy-drag mode: the body class drives the visual cue (the carried
-  // card gets a "+" copy badge, the original shows un-dimmed because it stays,
-  // and the cursor becomes the copy cursor), and onEventDrop reads altDragRef.
-  const setCopyMode = useCallback((on: boolean) => {
-    if (altDragRef.current === on) return;
-    altDragRef.current = on;
-    document.body.classList.toggle("is-cal-copy", on);
-  }, []);
-
-  const traceFollower = useCallback(() => {
-    dragRafRef.current = window.requestAnimationFrame(traceFollower);
-    const follow = followRef.current;
-    if (!follow) return;
-    const mirror = document.querySelector<HTMLElement>(".fc-event-mirror");
-    if (!mirror) return; // hold last frame through FC's mirror rebuilds
-    const r = mirror.getBoundingClientRect();
-    if (r.width < 1) return;
-    // Mirror the live card (title + the time text FC updates as it snaps) and
-    // the event's tint, so the follower reads as the same card with the new time.
-    if (follow.innerHTML !== mirror.innerHTML) follow.innerHTML = mirror.innerHTML;
-    const tint = mirror.style.getPropertyValue("--cal-tint");
-    if (tint) follow.style.setProperty("--cal-tint", tint);
-    // Carry the activity/custom spine over too: a custom event's hatched spine
-    // must ride along on the carried card, not flatten to the solid spine the
-    // bare .cal-dragfollow ships. The mirror carries the same .cal-event--custom
-    // class the event cards do; sync it each frame so a mirror rebuild can't drop
-    // it. (CSS gives the matching follower the hatch — calendar.css.)
-    follow.classList.toggle("cal-event--custom", mirror.classList.contains("cal-event--custom"));
-    follow.style.width = r.width + "px";
-    follow.style.height = r.height + "px";
-    // Free follow: top-left tracks the cursor minus where it was grabbed —
-    // but clamp the card HORIZONTALLY to the calendar grid so it can never spill
-    // onto the sidebar. Without this, grabbing the right half of a card in the
-    // leftmost day column pushes the card's left edge out under the cursor and
-    // over the rail, leaving the preview "stuck" on the sidebar's edge. Vertical
-    // stays free so the card still reads as lifting/lowering with the cursor.
-    let followLeft = pointerRef.current.x - grabOffsetRef.current.dx;
-    const grid = gridRef.current;
-    if (grid) {
-      const g = grid.getBoundingClientRect();
-      followLeft = Math.max(g.left, Math.min(followLeft, g.right - r.width));
-    }
-    follow.style.left = followLeft + "px";
-    follow.style.top = pointerRef.current.y - grabOffsetRef.current.dy + "px";
-    follow.style.opacity = "1";
-    // A group move dresses the follower with two restrained cues (calendar.css):
-    // a "stacked cards" hint behind it and a count PILL pinned to the top-right
-    // corner (a CSS ::after off data-group-count), clear of the title/time. The
-    // count rides the attribute so it survives the per-frame innerHTML swap above
-    // (a child node wouldn't). Cleared for a single-event move. The count is the
-    // size of the selection captured at drag start (groupMoveRef) — the same set
-    // the drop moves; we keep the visuals on the ref so they don't churn React.
-    const groupCount = groupMoveRef.current.length;
-    if (groupCount > 1) {
-      follow.setAttribute("data-group-count", String(groupCount));
-      follow.classList.add("is-group");
-    } else {
-      follow.removeAttribute("data-group-count");
-      follow.classList.remove("is-group");
-    }
-  }, []);
-
-  const addPointerSafetyNet = useCallback(
-    (onEnd: () => void, trackCopy = false) => {
-      const onMove = (e: PointerEvent) => {
-        pointerRef.current = { x: e.clientX, y: e.clientY };
-        if (trackCopy) setCopyMode(e.altKey);
-      };
-      // Option can be pressed/released without moving the pointer, so watch the
-      // key directly too (the event's altKey reflects the post-change state).
-      const onAltKey = (e: KeyboardEvent) => setCopyMode(e.altKey);
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onEnd);
-      window.addEventListener("pointercancel", onEnd);
-      window.addEventListener("blur", onEnd);
-      if (trackCopy) {
-        window.addEventListener("keydown", onAltKey);
-        window.addEventListener("keyup", onAltKey);
-      }
-      dragCleanupRef.current = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onEnd);
-        window.removeEventListener("pointercancel", onEnd);
-        window.removeEventListener("blur", onEnd);
-        window.removeEventListener("keydown", onAltKey);
-        window.removeEventListener("keyup", onAltKey);
-      };
-    },
-    [setCopyMode]
-  );
-
-  const stopDragAffordance = useCallback(() => {
-    document.body.classList.remove("is-cal-dragging");
-    document.body.classList.remove("is-cal-resizing");
-    document.body.classList.remove("is-cal-copy");
-    altDragRef.current = false;
-    if (dragRafRef.current != null) {
-      window.cancelAnimationFrame(dragRafRef.current);
-      dragRafRef.current = null;
-    }
-    if (followRef.current) {
-      followRef.current.style.opacity = "0";
-      followRef.current.innerHTML = "";
-      // Reset the spine style so the next drag (which may grab an activity) never
-      // briefly inherits the previous custom card's hatch.
-      followRef.current.classList.remove("cal-event--custom");
-      followRef.current.classList.remove("is-group");
-      followRef.current.removeAttribute("data-group-count");
-    }
-    sourceHarnessRef.current?.classList.remove("is-drag-source");
-    sourceHarnessRef.current = null;
-    // Un-dim every group-move origin and forget the group (so the next single
-    // drag isn't mistaken for a group move).
-    for (const el of groupHarnessesRef.current) el.classList.remove("is-drag-source");
-    groupHarnessesRef.current = [];
-    groupMoveRef.current = [];
-    dragCleanupRef.current?.();
-    dragCleanupRef.current = null;
-  }, []);
-
-  // MOVE: the three-part preview (dim the dragged event, free-follow card, snap
-  // box). Only fires on eventDragStart, never on resize.
-  const startMoveAffordance = useCallback(
-    (arg: { el: HTMLElement; jsEvent: MouseEvent }) => {
-      document.body.classList.add("is-cal-dragging");
-      const cx = arg.jsEvent.clientX;
-      const cy = arg.jsEvent.clientY;
-      pointerRef.current = { x: cx, y: cy };
-      const srcRect = arg.el.getBoundingClientRect();
-      grabOffsetRef.current = { dx: cx - srcRect.left, dy: cy - srcRect.top };
-      // Tag ONLY this event's harness so the dim is scoped to it.
-      const harness = arg.el.closest<HTMLElement>(
-        ".fc-timegrid-event-harness, .fc-daygrid-event-harness"
-      );
-      if (harness) {
-        harness.classList.add("is-drag-source");
-        sourceHarnessRef.current = harness;
-      }
-      // GROUP MOVE: if the grabbed event is part of a multi-selection (size > 1),
-      // the whole selection moves together. Dim every selected origin's harness
-      // (not just the grabbed one) so it reads as "all of these are lifting", and
-      // record the ids so the drop shifts them all by one delta. A grab of an
-      // unselected event (or a 1-item selection) stays a single-event move.
-      const grabbedId = arg.el.closest<HTMLElement>("[data-event-id]")?.dataset.eventId ?? "";
-      const sel = selectionRef.current;
-      if (grabbedId && sel.has(grabbedId) && sel.size > 1) {
-        groupMoveRef.current = [...sel];
-        const grid = gridRef.current;
-        if (grid) {
-          for (const node of grid.querySelectorAll<HTMLElement>("[data-event-id]")) {
-            if (!sel.has(node.dataset.eventId ?? "")) continue;
-            const h = node.closest<HTMLElement>(
-              ".fc-timegrid-event-harness, .fc-daygrid-event-harness"
-            );
-            if (h && !groupHarnessesRef.current.includes(h)) {
-              h.classList.add("is-drag-source");
-              groupHarnessesRef.current.push(h);
-            }
-          }
-        }
-      } else {
-        groupMoveRef.current = [];
-      }
-      if (followRef.current) followRef.current.style.opacity = "0";
-      if (dragRafRef.current == null) traceFollower();
-      addPointerSafetyNet(stopDragAffordance, true);
-      // Seed copy mode from the modifier already held when the drag began.
-      setCopyMode(arg.jsEvent.altKey);
-    },
-    [addPointerSafetyNet, setCopyMode, stopDragAffordance, traceFollower]
-  );
-
-  // RESIZE: edits the event in place (just stretches an edge), so NO follower
-  // card and NO source dim — only the grabbing cursor + the safety net. The
-  // earlier regression (resize spawned a superposed card) was from routing
-  // resize through the move affordance.
-  const startResizeAffordance = useCallback(() => {
-    document.body.classList.add("is-cal-resizing");
-    addPointerSafetyNet(stopDragAffordance);
-  }, [addPointerSafetyNet, stopDragAffordance]);
-
-  // Belt-and-braces: never leave the body class / rAF dangling if the component
-  // unmounts mid-drag.
-  useEffect(() => () => stopDragAffordance(), [stopDragAffordance]);
+  // The ghost-card follower + move/resize body-class affordances live in
+  // useDragAffordance (closes over the grid element and the live selection).
+  const {
+    followRef,
+    startMoveAffordance,
+    startResizeAffordance,
+    stopDragAffordance,
+    altDragRef,
+  } = useDragAffordance({ gridRef, selectionRef });
 
   const onEventDrop = useCallback(
     (info: EventDropArg) => {
@@ -4343,246 +4036,33 @@ export function CalendarShell({
     if (sheet || scopePrompt || shiftBar || stopPopover) setSkipPicker(null);
   }, [sheet, scopePrompt, shiftBar, stopPopover]);
 
-  // "Hour" weather mode: paint a small chip (glyph + temp) into the top-right of
-  // each hour block. The chips live INSIDE FullCalendar's own day columns
-  // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
-  // so they ride the horizontal scroll AND the vertical hour-zoom for free, with
-  // no per-frame geometry sync (unlike the now-line). We only (re)build a column's
-  // chips when its date or the forecast version changes; an unchanged column is
-  // skipped, which keeps the MutationObserver from thrashing (a no-op sync writes
-  // no DOM, so it can't re-trigger itself). FC may wipe the overlay when it
-  // re-renders a column, so every pass re-asserts it (the now-line does the same).
-  //   Clicks are caught in the CAPTURE phase on the grid and stopped there, so a
-  // chip tap never reaches FC's date-click/drag-select underneath.
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const active = weatherMode === "hour";
-    const span = gridEnd - gridStart; // minutes across the drawn day
+  // "Hour" weather mode: the per-hour column chips (glyph + temp) painted into
+  // FC's day columns live in useWeatherColumnChips (a leaf DOM side-effect).
+  useWeatherColumnChips({
+    gridRef,
+    weatherMode,
+    weatherData,
+    weatherDataRef,
+    gridStart,
+    gridEnd,
+    activeView,
+    openWxRef,
+  });
 
-    const clearChips = () => grid.querySelectorAll(".cal-wx-col").forEach((n) => n.remove());
-
-    const sync = () => {
-      const data = weatherDataRef.current;
-      if (!active || !data || span <= 0) {
-        clearChips();
-        return;
-      }
-      grid.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]").forEach((col) => {
-        const dateKey = col.getAttribute("data-date");
-        const frame = col.querySelector<HTMLElement>(".fc-timegrid-col-frame");
-        if (!dateKey || !frame) return;
-        const key = dateKey + "|" + data.version;
-        const existing = frame.querySelector<HTMLElement>(":scope > .cal-wx-col");
-        if (existing && existing.dataset.wxKey === key) return; // already current
-        existing?.remove();
-        const overlay = document.createElement("div");
-        overlay.className = "cal-wx-col";
-        overlay.setAttribute("aria-hidden", "true");
-        overlay.dataset.wxKey = key;
-        for (let m = gridStart; m < gridEnd; m += 60) {
-          const hour = m / 60;
-          const w = data.hourly.get(dateKey + "@" + hour);
-          if (!w) continue;
-          const chip = document.createElement("button");
-          chip.type = "button";
-          chip.className = "cal-wx-chip";
-          chip.dataset.wxDate = dateKey;
-          chip.dataset.wxHour = String(hour);
-          chip.dataset.wxCond = w.condition;
-          chip.style.top = ((m - gridStart) / span) * 100 + "%";
-          chip.setAttribute(
-            "aria-label",
-            conditionLabel(w.condition, w.isDay) + " " + formatTemp(w.temp) + ". View detail"
-          );
-          chip.innerHTML =
-            weatherGlyphSvg(w.condition, w.isDay) +
-            '<span class="cal-wx-chip__temp">' +
-            formatTemp(w.temp) +
-            "</span>";
-          overlay.appendChild(chip);
-        }
-        // Keep the keyed (possibly empty) overlay so out-of-forecast days aren't
-        // rebuilt every pass — an empty overlay is inert (pointer-events: none).
-        frame.appendChild(overlay);
-      });
-    };
-
-    // A chip click/press is handled here and stopped before FC sees it.
-    const onCapture = (e: Event) => {
-      const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".cal-wx-chip") : null;
-      if (!target) return;
-      e.stopPropagation();
-      if (e.type !== "click") return;
-      const data = weatherDataRef.current;
-      const dateKey = target.dataset.wxDate;
-      const hour = Number(target.dataset.wxHour);
-      const w = data && dateKey ? data.hourly.get(dateKey + "@" + hour) : undefined;
-      if (w && dateKey) {
-        openWxRef.current({ kind: "hour", date: dateKey, hour, weather: w }, target.getBoundingClientRect());
-      }
-    };
-
-    let frame = 0;
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(sync);
-    };
-
-    schedule();
-    grid.addEventListener("click", onCapture, true);
-    grid.addEventListener("pointerdown", onCapture, true);
-    grid.addEventListener("mousedown", onCapture, true);
-    // FC re-renders columns on event/date changes; re-assert the chips after.
-    const mo = new MutationObserver(schedule);
-    mo.observe(grid, { childList: true, subtree: true });
-    const ro = new ResizeObserver(schedule);
-    ro.observe(grid);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      grid.removeEventListener("click", onCapture, true);
-      grid.removeEventListener("pointerdown", onCapture, true);
-      grid.removeEventListener("mousedown", onCapture, true);
-      mo.disconnect();
-      ro.disconnect();
-      clearChips();
-    };
-  }, [weatherMode, weatherData, gridStart, gridEnd, activeView]);
-
-  // Stop markers: every reminder "stop" (the 0-min reminders sharing one exact
-  // start time) is painted into FullCalendar's own day columns
-  // (.fc-timegrid-col-frame), positioned by a top percentage of the day window —
-  // the exact mechanism the weather hour chips use, so stops ride the horizontal
-  // scroll AND the vertical hour-zoom for free and never enter FC's block-overlap
-  // layout. A stop renders as a quiet hairline + count dot at the column's right
-  // edge; real events stay native FC cards (never merged). A column is only
-  // rebuilt when that day's stops change (keyed), so the MutationObserver can't
-  // thrash. Clicks are caught in the CAPTURE phase and stopped before FC sees them.
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const span = gridEnd - gridStart;
-
-    const clearMarks = () => grid.querySelectorAll(".cal-stop-col").forEach((n) => n.remove());
-
-    // Group the stops by day once per pass.
-    const byDay = new Map<string, CalendarStop[]>();
-    for (const stop of stops) {
-      const list = byDay.get(stop.date);
-      if (list) list.push(stop);
-      else byDay.set(stop.date, [stop]);
-    }
-
-    const sync = () => {
-      if (span <= 0) {
-        clearMarks();
-        return;
-      }
-      grid.querySelectorAll<HTMLElement>(".fc-timegrid-col[data-date]").forEach((col) => {
-        const dateKey = col.getAttribute("data-date");
-        const frame = col.querySelector<HTMLElement>(".fc-timegrid-col-frame");
-        if (!dateKey || !frame) return;
-        const dayStops = (byDay.get(dateKey) ?? []).slice().sort((a, b) => a.startMin - b.startMin);
-        const existing = frame.querySelector<HTMLElement>(":scope > .cal-stop-col");
-        // Delimiter-safe signature (JSON escapes the free-text title/note) that
-        // also folds in the RESOLVED dot color, so a "Color by" switch or an
-        // activity recolor reliably busts the keyed early-return below.
-        const key = JSON.stringify(
-          dayStops.map((s) => [
-            s.startMin,
-            s.events.map((e) => [e.id, e.title, e.note ?? "", stopDotColor(e)]),
-          ])
-        );
-        if (existing && existing.dataset.stopKey === key) return; // already current
-        existing?.remove();
-        if (!dayStops.length) return; // nothing to draw — leave the column clean
-
-        const overlay = document.createElement("div");
-        overlay.className = "cal-stop-col";
-        overlay.dataset.stopKey = key;
-        for (const stop of dayStops) {
-          if (stop.startMin < gridStart || stop.startMin > gridEnd) continue; // out of drawn window
-          const count = stop.events.length;
-          const titles = stop.events.map((e) => e.title || "Reminder").join(", ");
-          const marker = document.createElement("button");
-          marker.type = "button";
-          marker.dataset.stopIds = stop.events.map((e) => e.id).join(",");
-          marker.style.top = ((stop.startMin - gridStart) / span) * 100 + "%";
-
-          // Reminder stop → a quiet hairline across the column with the count
-          // dot anchored at the FAR RIGHT (in the lane events leave clear). A
-          // lone reminder is a small plain dot; several show a number.
-          marker.className = "cal-stop cal-stop--line";
-          // The hairline + dot wear the reminder's OWN event color (same
-          // coloring as any block), not a special reminder tint.
-          marker.style.setProperty("--rem-tint", stopDotColor(stop.events[0]));
-          marker.setAttribute(
-            "aria-label",
-            (count > 1 ? count + " reminders" : "Reminder") + " at " + formatClock(stop.startMin) + ": " + titles
-          );
-          marker.title = titles + " · " + formatClock(stop.startMin);
-          const hair = document.createElement("span");
-          hair.className = "cal-stop__hair";
-          hair.setAttribute("aria-hidden", "true");
-          const die = document.createElement("span");
-          die.className = count > 1 ? "cal-stop__count" : "cal-stop__count cal-stop__count--solo";
-          if (count > 1) die.textContent = String(count);
-          marker.append(hair, die);
-          overlay.appendChild(marker);
-        }
-        frame.appendChild(overlay);
-      });
-    };
-
-    // A marker press/click is handled here and stopped before FC sees it. A lone
-    // reminder's dot also starts a custom drag-to-move on pointerdown; if a drag
-    // happened, its trailing click is swallowed so it doesn't also open the editor.
-    const onCapture = (e: Event) => {
-      const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".cal-stop") : null;
-      if (!target) return;
-      e.stopPropagation();
-      if (e.type === "pointerdown") {
-        remDraggedRef.current = false; // a fresh press; the drag re-sets this if it moves
-        const ids = (target.dataset.stopIds ?? "").split(",").filter(Boolean);
-        if (ids.length === 1) beginReminderDragRef.current(target, e as PointerEvent);
-        return;
-      }
-      if (e.type !== "click") return;
-      if (remDraggedRef.current) {
-        remDraggedRef.current = false; // a drag just ended — swallow its click
-        return;
-      }
-      const ids = (target.dataset.stopIds ?? "").split(",").filter(Boolean);
-      if (ids.length) openStopRef.current(ids, target.getBoundingClientRect());
-    };
-
-    let frame = 0;
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(sync);
-    };
-
-    schedule();
-    grid.addEventListener("click", onCapture, true);
-    grid.addEventListener("pointerdown", onCapture, true);
-    grid.addEventListener("mousedown", onCapture, true);
-    const mo = new MutationObserver(schedule);
-    mo.observe(grid, { childList: true, subtree: true });
-    const ro = new ResizeObserver(schedule);
-    ro.observe(grid);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      grid.removeEventListener("click", onCapture, true);
-      grid.removeEventListener("pointerdown", onCapture, true);
-      grid.removeEventListener("mousedown", onCapture, true);
-      mo.disconnect();
-      ro.disconnect();
-      clearMarks();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stops, gridStart, gridEnd, activeView, stopDotColor]);
+  // Stop markers: the reminder-stop hairlines + count dots painted into FC's
+  // day columns live in useStopMarkers (a leaf DOM side-effect, twin of the
+  // weather chips).
+  useStopMarkers({
+    gridRef,
+    stops,
+    gridStart,
+    gridEnd,
+    activeView,
+    stopDotColor,
+    remDraggedRef,
+    beginReminderDragRef,
+    openStopRef,
+  });
 
   // "Day" weather adds a glyph + high/low under each column's date, growing the
   // header. The all-day row pins below the header via --cal-headh (set in
@@ -5801,544 +5281,5 @@ export function CalendarShell({
           );
         })()}
     </div>
-  );
-}
-
-// A small inline pushpin, shared by the "Pin in place" / "Unpin" menu item and
-// the pinned-event card glyph. CampIcon.Pin is the location MAP-pin (semantically
-// wrong for holding an event in place), and icons.tsx is owned elsewhere, so the
-// pushpin is inlined here on the shared 24×24 stroke grid the icon set uses
-// (currentColor via CSS).
-function PinInPlaceIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5z" />
-      <path d="M12 17v3" />
-    </svg>
-  );
-}
-// The card variant is the same glyph — a distinct name at the call site keeps the
-// two uses legible (a menu item's icon vs a card affordance).
-const CardPinGlyph = PinInPlaceIcon;
-
-// A tiny "edited" tick — a small pencil — worn by a "this"-customized series
-// member's card beside the repeat loop. Inlined on the icon set's 24×24 stroke
-// grid (icons.tsx is owned elsewhere), tone from the card's own color.
-function EditedTickGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M14 6l4 4L9 19l-4 1 1-4 8-9z" />
-    </svg>
-  );
-}
-
-// The Gather chip's glyph — a small supply crate/basket standing for the day's
-// kit. Inlined on the icon set's 24×24 grid (icons.tsx is owned elsewhere), the
-// same convention the pin glyph uses. Tone comes from the chip's own color, so
-// this is a plain currentColor outline.
-function KitGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M4 9h16l-1.2 9.5a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9L4 9z" />
-      <path d="M8.5 9 12 4.5 15.5 9" />
-      <path d="M9.5 12.5v3.5M14.5 12.5v3.5" />
-    </svg>
-  );
-}
-
-// The backup-plan glyph on a rain-reason placement — a small umbrella, on the
-// CampIcon 24×24 line grid (icons.tsx is owned elsewhere, so it's inlined here).
-function BackupUmbrellaGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
-      <path d="M12 3v2M4 12a8 8 0 0 1 16 0z" />
-      <path d="M12 12v6a2.2 2.2 0 0 1-4.4 0" />
-    </svg>
-  );
-}
-
-// The bulk Location… picker body: owns a working set so the toggled rows stay
-// checked while the menu is open (the popover doesn't unmount between toggles),
-// and re-applies the whole set across the selection on each toggle — a REPLACE,
-// matching the merged multi-location model. Starts empty (a bulk apply has no
-// single "current" value across a heterogeneous set; the first pick is the
-// authoritative new set).
-function BulkLocationPicker({
-  options,
-  onApply,
-  onManage,
-}: {
-  options: readonly string[];
-  onApply: (locations: string[]) => void;
-  onManage: () => void;
-}) {
-  const [working, setWorking] = useState<string[]>([]);
-  return (
-    <LocationPickerList
-      value={working}
-      options={options}
-      onChange={(locations) => {
-        setWorking(locations);
-        onApply(locations);
-      }}
-      onManage={onManage}
-    />
-  );
-}
-
-// The "Skip days…" picker body: the series' upcoming occurrence dates as toggle
-// chips, a live summary line ("adds N skips, computed now"), and a Skip button.
-// Owns its own working set so toggles stay checked while the card is open; commits
-// once on Skip. The dates come from the concrete rows (computed by the caller), so
-// this is display-only over a known list.
-function SkipDaysPicker({
-  dates,
-  onSkip,
-  onClose,
-}: {
-  dates: DateKey[];
-  onSkip: (dates: DateKey[]) => void;
-  onClose: () => void;
-}) {
-  const [chosen, setChosen] = useState<ReadonlySet<DateKey>>(() => new Set());
-  const toggle = (date: DateKey) =>
-    setChosen((prev) => {
-      const next = new Set(prev);
-      if (next.has(date)) next.delete(date);
-      else next.add(date);
-      return next;
-    });
-  const count = chosen.size;
-  return (
-    <div className="cal-skipdays__body">
-      <h3 className="cal-skipdays__title">Skip days</h3>
-      <div className="cal-skipdays__chips" role="group" aria-label="Upcoming occurrences">
-        {dates.map((date) => {
-          const on = chosen.has(date);
-          return (
-            <button
-              key={date}
-              type="button"
-              className={"cal-skipdays__chip" + (on ? " is-on" : "")}
-              aria-pressed={on}
-              onClick={() => toggle(date)}
-            >
-              {formatEventDateLabel(date)}
-            </button>
-          );
-        })}
-      </div>
-      <p className="cal-skipdays__summary" role="status">
-        {count ? "Adds " + count + (count === 1 ? " skip" : " skips") + ", computed now" : "Pick days to skip"}
-      </p>
-      <div className="cal-skipdays__foot">
-        <button type="button" className="btn btn--ghost" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={!count}
-          onClick={() => onSkip([...chosen])}
-        >
-          Skip {count || ""}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// The Gather popover — the day's kit at a glance. Hard conflicts pin on top (two
-// overlapping blocks fighting over one item, each with a "We have several" action
-// that marks the material `plenty`); then the gather list, one row per needed
-// material with its coverage glyph and, for staff, an inline Have/Low/Out seg —
-// the explicit picker, not a cycling tap (this popover IS a FloatingLayer, so it
-// can't nest a ContextMenu the way the run-sheet's chip menu does; see
-// FloatingLayer.tsx's no-nested-layers note). Rides the shared .cal-popover
-// floating surface (rect-anchored on desktop, bottom-docked on phones,
-// scroll-closes) like the weather + stop cards.
-function GatherPopover({
-  date,
-  day,
-  anchor,
-  stock,
-  catalog,
-  events,
-  canEdit,
-  onSetStock,
-  onMarkPlenty,
-  onClose,
-}: {
-  date: DateKey;
-  day: DayKit;
-  anchor: DOMRect;
-  stock: Record<string, StockState>;
-  catalog?: Material[];
-  events: Record<string, CalendarEvent>;
-  /** Staff session — read-only sessions see the list inert (no seg / no action). */
-  canEdit: boolean;
-  onSetStock?: (id: string, state: StockState) => void;
-  onMarkPlenty?: (id: string, label: string) => void;
-  onClose: () => void;
-}) {
-  // A short "10:00 Parachute Games" label for an event in a conflict, in the
-  // blocks' own order (dayKit already sorts eventIds chronologically).
-  const eventLabel = (id: string): string => {
-    const event = events[id];
-    if (!event) return "a block";
-    return formatClock(event.startMin) + " " + (event.title || "block");
-  };
-
-  return (
-    <FloatingLayer
-      anchor={{ kind: "rect", rect: anchor }}
-      onClose={onClose}
-      className="cal-popover cal-gather"
-      role="dialog"
-      ariaLabel={"Gather — " + formatEventDateLabel(date)}
-    >
-      <div className="cal-popover__head">
-        <div className="cal-popover__heading">
-          <h3 className="cal-popover__title">Gather</h3>
-          <p className="cal-popover__when">{formatEventDateLabel(date)}</p>
-        </div>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-          <CampIcon.Close />
-        </button>
-      </div>
-
-      {day.hardConflicts.length > 0 && (
-        <ul className="cal-gather__conflicts">
-          {day.hardConflicts.map((conflict) => (
-            <li key={conflict.id} className="cal-gather__conflict">
-              <div className="cal-gather__conflict-body">
-                <span className="cal-gather__conflict-title">
-                  {conflict.label} — needed by {conflict.eventIds.length} overlapping blocks
-                </span>
-                <span className="cal-gather__conflict-blocks">
-                  {conflict.eventIds.map(eventLabel).join(" · ")}
-                </span>
-              </div>
-              {canEdit && onMarkPlenty && (
-                <button
-                  type="button"
-                  className="btn btn--quiet btn--sm cal-gather__plenty"
-                  onClick={() => onMarkPlenty(conflict.id, conflict.label)}
-                >
-                  We have several
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <ul className="cal-gather__list">
-        {day.items.map((item) => (
-          <GatherRow
-            key={item.id}
-            item={item}
-            catalog={catalog}
-            canEdit={canEdit}
-            current={stock[item.id]}
-            onSetStock={onSetStock ? (state) => onSetStock(item.id, state) : undefined}
-          />
-        ))}
-      </ul>
-    </FloatingLayer>
-  );
-}
-
-// PREP rank: fewer materials / lower prep first (a rainy-day fallback should be
-// quick to swap in). None < Low < Medium < High.
-const PREP_RANK: Record<string, number> = { None: 0, Low: 1, Medium: 2, High: 3 };
-
-// Rank library activities as rain backups for an at-risk block. The pool is
-// everything the camp CAN run indoors (place Inside or Both) minus the block's own
-// activity; the order is: has-been-used-before (appears anywhere in `events`),
-// then coverage-ready (kit on hand via the stock/catalog lens), then low-prep,
-// then same-type as the outdoor block (the fresh-account fallback — no history, no
-// stock — still surfaces a like-for-like swap first), then title. Pure + capped so
-// the picker stays a short, sensible list.
-function rankBackupSuggestions(
-  outdoor: Activity | undefined,
-  activities: Activity[],
-  events: Record<string, CalendarEvent>,
-  stock: Record<string, StockState>,
-  catalog: Material[] | undefined,
-  limit = 8
-): Activity[] {
-  const used = new Set<string>();
-  for (const event of Object.values(events)) {
-    if (event.activityId) used.add(event.activityId);
-  }
-  const stockKnown = Object.keys(stock).length > 0;
-  const pool = activities.filter(
-    (a) => (a.place === "Inside" || a.place === "Both") && a.id !== outdoor?.id
-  );
-  const scored = pool.map((a) => {
-    const ready = stockKnown ? coverage(a, stock, catalog).state === "ready" : false;
-    return {
-      activity: a,
-      usedBefore: used.has(a.id),
-      ready,
-      prep: PREP_RANK[a.prep] ?? 1,
-      sameType: outdoor ? a.type === outdoor.type : false,
-    };
-  });
-  scored.sort(
-    (x, y) =>
-      Number(y.usedBefore) - Number(x.usedBefore) ||
-      Number(y.ready) - Number(x.ready) ||
-      x.prep - y.prep ||
-      Number(y.sameType) - Number(x.sameType) ||
-      x.activity.title.localeCompare(y.activity.title)
-  );
-  return scored.slice(0, limit).map((s) => s.activity);
-}
-
-// One gather-list row. For staff the leading glyph IS the bloom dot (StockDot,
-// the one stock control app-wide): the row rests as status; tapping the dot
-// blooms the explicit Have/Low/Out choices in place. Inline DOM, so it nests
-// happily inside this FloatingLayer popover. A read-only session (or no writer
-// wired) keeps the plain typographic glyph row.
-function GatherRow({
-  item,
-  catalog,
-  canEdit,
-  current,
-  onSetStock,
-}: {
-  item: DayKitItem;
-  catalog?: Material[];
-  canEdit: boolean;
-  current: StockState | undefined;
-  onSetStock?: (state: StockState) => void;
-}) {
-  const glyph =
-    item.status === "have"
-      ? "✓"
-      : item.status === "substituted"
-        ? "↔"
-        : item.status === "low"
-          ? "◑"
-          : item.status === "out"
-            ? "✕"
-            : "•"; // missing
-  const statusText =
-    item.status === "have"
-      ? "on hand"
-      : item.status === "substituted"
-        ? "via " + (item.viaId ? catalogNameFor(catalog, item.viaId) : "substitute")
-        : item.status === "low"
-          ? "low"
-          : item.status === "out"
-            ? "out"
-            : "missing";
-  const interactive = canEdit && Boolean(onSetStock);
-  if (!interactive) {
-    return (
-      <li className="cal-gather__row cal-gather__row--static">
-        <span className={"cal-gather__glyph cal-gather__glyph--" + item.status} aria-hidden="true">
-          {glyph}
-        </span>
-        <span className="cal-gather__name">{item.label}</span>
-        <span className="cal-gather__status">{statusText}</span>
-      </li>
-    );
-  }
-  // The dot's resting face mirrors the row's day-status (via reads as covered);
-  // the bloom highlights the item's OWN recorded state, so fixing a "missing"
-  // row is one tap on the dot + one on a choice.
-  const display =
-    item.status === "substituted" ? ("via" as const) : item.status === "missing" ? current : item.status;
-  return (
-    <li className="cal-gather__row">
-      <StockDot
-        name={item.label}
-        display={display}
-        current={current}
-        onSet={(state) => onSetStock?.(state)}
-      />
-      <span className="cal-gather__name">{item.label}</span>
-      <span className="cal-gather__status">{statusText}</span>
-    </li>
-  );
-}
-
-// The Rain Review panel (click a day-header's rain lens) — the day's at-risk
-// outdoor blocks and their backup plans in one place, anchored at the chip like
-// the Gather / weather cards. A row with a backup shows a [Swap] button; a row
-// with none shows [Pick backup…], which opens a ranked library picker. The footer
-// carries the batch "Switch all N", a "Shift day…" handoff, and "Dismiss for
-// today". Never auto-mutates; every action is staff-gated upstream.
-function RainPanel({
-  date,
-  plan,
-  anchor,
-  byId,
-  onPromote,
-  onPickBackup,
-  onSwitchAll,
-  onShiftDay,
-  onDismiss,
-  onClose,
-  activities,
-  events,
-  stock,
-  catalog,
-}: {
-  date: DateKey;
-  plan: RainPlan;
-  anchor: DOMRect;
-  byId: Record<string, Activity>;
-  onPromote: (event: CalendarEvent, index: number) => void;
-  onPickBackup: (event: CalendarEvent, alt: AlternateRef) => void;
-  onSwitchAll: () => void;
-  onShiftDay: (anchorRect: DOMRect) => void;
-  onDismiss: () => void;
-  onClose: () => void;
-  activities: Activity[];
-  events: Record<string, CalendarEvent>;
-  stock: Record<string, StockState>;
-  catalog?: Material[];
-}) {
-  const footRef = useRef<HTMLDivElement | null>(null);
-  // The row whose "Pick backup…" picker is open (an event id), plus the ranked
-  // library suggestions — computed lazily when a picker opens.
-  const [picking, setPicking] = useState<string | null>(null);
-
-  const switchableCount = plan.rows.filter((r) => r.alternates.length).length;
-
-  return (
-    <FloatingLayer
-      anchor={{ kind: "rect", rect: anchor }}
-      onClose={onClose}
-      className="cal-popover cal-rain"
-      role="dialog"
-      ariaLabel={"Rain review — " + formatEventDateLabel(date)}
-    >
-      <div className="cal-popover__head">
-        <div className="cal-popover__heading">
-          <h3 className="cal-popover__title">
-            <BackupUmbrellaGlyph className="cal-rain__title-glyph" />
-            {Math.round(plan.probMax)}% rain
-          </h3>
-          <p className="cal-popover__when">
-            {formatEventDateLabel(date)} · {plan.rows.length} outdoor block
-            {plan.rows.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-          <CampIcon.Close />
-        </button>
-      </div>
-
-      <ul className="cal-rain__list">
-        {plan.rows.map((row) => {
-          const hasBackup = row.alternates.length > 0;
-          const first = row.alternates[0];
-          return (
-            <li key={row.event.id} className="cal-rain__row">
-              <div className="cal-rain__body">
-                <span className="cal-rain__when">{formatClock(row.event.startMin)}</span>
-                <span className="cal-rain__title">{row.event.title || "block"}</span>
-                {hasBackup && (
-                  <span className="cal-rain__arrow" aria-hidden="true">
-                    →
-                  </span>
-                )}
-                {hasBackup && <span className="cal-rain__alt">{first.title}</span>}
-              </div>
-              {hasBackup ? (
-                <button
-                  type="button"
-                  className="btn btn--quiet btn--sm cal-rain__swap"
-                  onClick={() => onPromote(row.event, 0)}
-                >
-                  Swap
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--quiet btn--sm cal-rain__pick"
-                  onClick={() => setPicking((id) => (id === row.event.id ? null : row.event.id))}
-                  aria-expanded={picking === row.event.id}
-                >
-                  Pick backup…
-                </button>
-              )}
-              {picking === row.event.id && !hasBackup && (
-                <RainBackupPicker
-                  suggestions={rankBackupSuggestions(
-                    row.event.activityId ? byId[row.event.activityId] : undefined,
-                    activities,
-                    events,
-                    stock,
-                    catalog
-                  )}
-                  onPick={(activity) => {
-                    onPickBackup(row.event, { title: activity.title, activityId: activity.id, reason: "rain" });
-                    setPicking(null);
-                  }}
-                />
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="cal-rain__foot" ref={footRef}>
-        {switchableCount > 0 && (
-          <button type="button" className="btn btn--primary btn--sm cal-rain__all" onClick={onSwitchAll}>
-            Switch all {switchableCount}
-          </button>
-        )}
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm cal-rain__shift"
-          onClick={() => {
-            const rect = footRef.current?.getBoundingClientRect() ?? anchor;
-            onShiftDay(rect);
-          }}
-        >
-          <CampIcon.Clock />
-          Shift day…
-        </button>
-        <button type="button" className="btn btn--ghost btn--sm cal-rain__dismiss" onClick={onDismiss}>
-          Dismiss for today
-        </button>
-      </div>
-    </FloatingLayer>
-  );
-}
-
-// The ranked library picker under a "Pick backup…" row — the top indoor-runnable
-// candidates for an outdoor block, ordered by rankBackupSuggestions. Tapping one
-// writes it as the block's rain backup (the parent then offers Swap).
-function RainBackupPicker({
-  suggestions,
-  onPick,
-}: {
-  suggestions: Activity[];
-  onPick: (activity: Activity) => void;
-}) {
-  if (!suggestions.length) {
-    return <p className="cal-rain__empty">No indoor activities in the library yet.</p>;
-  }
-  return (
-    <ul className="cal-rain__picker">
-      {suggestions.map((a) => (
-        <li key={a.id}>
-          <button type="button" className="cal-rain__pickopt" onClick={() => onPick(a)}>
-            <span className="cal-rain__pickname">{a.title}</span>
-            <span className="cal-rain__pickmeta">
-              {a.type}
-              {a.place === "Both" ? " · in/out" : ""}
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
   );
 }

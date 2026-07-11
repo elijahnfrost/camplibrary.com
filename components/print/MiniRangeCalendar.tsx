@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, daySpan, fromDateKey, startOfWeek, toDateKey } from "@/lib/calendar/dates";
 import type { DateKey } from "@/lib/calendar/types";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 
 export interface DateRange {
   start: DateKey;

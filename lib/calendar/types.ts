@@ -4,7 +4,7 @@
 // and maps cleanly onto the Postgres date + integer columns. FullCalendar
 // Date objects are converted at the component boundary (lib/calendar/adapter).
 
-import { normalizeHexColor } from "../color";
+import { normalizeHexColor } from "../content/color";
 import { normalizeRecurrence, type RecurrenceRule } from "./recurrence";
 
 export type DateKey = string;

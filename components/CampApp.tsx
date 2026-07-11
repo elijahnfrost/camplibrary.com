@@ -5,69 +5,58 @@
 // activity-domain state is in useActivityLibrary and persistence in
 // lib/cloudStore (localStorage for anon, cloud-synced once signed in).
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Activity, LibraryView, TabId } from "@/lib/types";
 import { usePrintIntent } from "@/lib/print/usePrintIntent";
-import { ADMIN_EMAIL, isAdminEmail, staffActionGate, type StaffActionGate } from "@/lib/auth";
-import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activityFilters";
-import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/data";
-import { catalogNameFor } from "@/lib/materialCatalog";
-import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/store";
-import { AgeUnitProvider } from "./ageUnit";
-import { formatEventDateLabel, todayKey } from "@/lib/calendar/dates";
+import { ADMIN_EMAIL, isAdminEmail, staffActionGate } from "@/lib/auth";
+import { matchesActivityFilters, sortActivities, isLibrarySort, type AgeFilter, type CatFilter, type KitLens, type LibrarySort, type PlaceFilter, type ThemeFilter } from "@/lib/activity/activityFilters";
+import { ALL_CATEGORY_IDS, locationColor, type AgeUnit } from "@/lib/content/data";
+import { catalogNameFor } from "@/lib/materials/materialCatalog";
+import { readStored, useLocalStorage, writeStored, type StorageValidator } from "@/lib/cloud/store";
+import { AgeUnitProvider } from "./ui/ageUnit";
+import { formatEventDateLabel } from "@/lib/calendar/dates";
 import { formatClock, formatRangeLabel } from "@/lib/calendar/time";
 import {
   campDayWindow,
   campTint,
-  clampOverrideWindow,
   hourOptionMinutes,
   OVERRIDE_EARLIEST_OPEN_MIN,
   OVERRIDE_LATEST_CLOSE_MIN,
-  type Camp,
-  type CampSnapMin,
-  type Weekday,
-} from "@/lib/camps";
-import type { CampDocument } from "@/lib/campDocuments";
-import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
-import type { CalendarEvent, DateKey } from "@/lib/calendar/types";
-import { applyCustomStamp } from "@/lib/calendar/recurrence";
-import { healEvent } from "@/lib/calendar/adapter";
-import { useCloudUserData } from "@/lib/cloudStore";
-import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/storageScope";
-import type { RunDoc } from "@/lib/runList";
-import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activityForm";
-import { BrandMark, CampIcon } from "./icons";
+} from "@/lib/content/camps";
+import type { CalendarEvent } from "@/lib/calendar/types";
+import { useCloudUserData } from "@/lib/cloud/cloudStore";
+import { migrateAnonScopeKeys, migrateLegacyStorageKeys } from "@/lib/cloud/storageScope";
+import type { RunDoc } from "@/lib/activity/runList";
+import { activityFromForm, BLANK_FORM, newActivityId, quickActivity } from "@/lib/activity/activityForm";
+import { BrandMark, CampIcon } from "./ui/icons";
 import { ContextMenu } from "./floating/ContextMenu";
 import { useContextMenu } from "./floating/useContextMenu";
-import { ActivityBookPrint } from "./ActivityBookPrint";
-import { AdminInviteCodes } from "./AdminInviteCodes";
-import { usePreviewAuth } from "./AuthControls";
-import { ConfirmHost, requestConfirm } from "./ConfirmDialog";
+import { ActivityBookPrint } from "./activity/ActivityBookPrint";
+import { AdminInviteCodes } from "./auth/AdminInviteCodes";
+import { usePreviewAuth } from "./auth/AuthControls";
+import { ConfirmHost, requestConfirm } from "./ui/ConfirmDialog";
 import { SubscribeFeedButton } from "./calendar/SubscribeFeedButton";
-import { DetailSheet } from "./DetailSheet";
-import { Filters } from "./Filters";
-import { KitModal } from "./KitModal";
-import { LibraryTab } from "./LibraryTab";
+import { DetailSheet } from "./activity/DetailSheet";
+import { Filters } from "./library/Filters";
+import { KitModal } from "./materials/KitModal";
+import { LibraryTab } from "./library/LibraryTab";
 import {
   CampDayStructure,
   GuidesSection,
   ListManagerModal,
-} from "./ListManagerModal";
-import { CampEditorPopup } from "./CampEditorPopup";
-import { CampsRail } from "./CampsRail";
-import { Modal } from "./Modal";
-import { LoadingVeil, MiniSeg, ToggleSwitch } from "./primitives";
-import { Select } from "./floating/Select";
-import { DatePopover } from "./floating/DatePopover";
+} from "./ui/ListManagerModal";
+import { CampEditorPopup } from "./camps/CampEditorPopup";
+import { CampsRail } from "./camps/CampsRail";
+import { LoadingVeil } from "./ui/primitives";
 import type { SchedulePrintData } from "./print/SchedulePrintDocument";
-import { InviteSignUp } from "./InviteSignUp";
-import { ProfileControl } from "./ProfileControl";
-import { StaffSignIn } from "./StaffSignIn";
-import { TabBoundary } from "./TabBoundary";
-import { useActivityLibrary } from "./useActivityLibrary";
-import { useCamps } from "./useCamps";
-import { useDeviceShape } from "./useDeviceShape";
+import { ProfileControl } from "./auth/ProfileControl";
+import { TabBoundary } from "./ui/TabBoundary";
+import { StaffPromptModal, type StaffPrompt } from "./auth/StaffPromptModal";
+import { useActivityLibrary } from "./hooks/useActivityLibrary";
+import { useCampMutations } from "./useCampMutations";
+import { useCamps } from "./hooks/useCamps";
+import { useDeviceShape } from "./hooks/useDeviceShape";
 
 // Code-split the two heavy surfaces (FullCalendar + its plugins; Paged.js) out of
 // the first hydration bundle — they load on first visit to their tab, behind the
@@ -128,11 +117,6 @@ const parseStoredTab: StorageValidator<TabId | null> = (value, fallback) => {
   return LEGACY_TAB_MIGRATIONS[value] ?? fallback;
 };
 
-type StaffPrompt = Extract<StaffActionGate, { allowed: false }> & {
-  mode: "sign-in" | "sign-up";
-  returnTo: string;
-};
-
 function currentReturnPath() {
   if (typeof window === "undefined") return "/";
   return window.location.pathname + window.location.search + window.location.hash || "/";
@@ -146,58 +130,6 @@ function cleanAuthRouteUrl() {
   const next = url.pathname + (url.search ? url.search : "") + url.hash;
   window.history.replaceState(null, "", next || "/");
 }
-
-// The ONE auth modal: covers both an interrupted edit action (signed-out,
-// attempting a staff-gated change) and every intentional sign-in / sign-up
-// entry point (the profile popover's "Sign in" row, a ?auth= deep link). It
-// replaced the old dedicated Staff tab, which no longer exists as a surface.
-function StaffPromptModal({
-  prompt,
-  authEnabled,
-  onClose,
-  onRequestSignUp,
-  onRequestSignIn,
-}: {
-  prompt: StaffPrompt;
-  authEnabled: boolean;
-  onClose: () => void;
-  onRequestSignUp: () => void;
-  onRequestSignIn: () => void;
-}) {
-  return (
-    <Modal label="Staff sign-in" onClose={onClose} overlayProps={{ className: "overlay--auth" }}>
-      {authEnabled ? (
-        prompt.mode === "sign-up" ? (
-          <>
-            <InviteSignUp />
-            <p className="auth-form__hint">
-              Already have an account?{" "}
-              <button type="button" className="auth-form__link" onClick={onRequestSignIn}>
-                Sign in
-              </button>
-            </p>
-          </>
-        ) : (
-          <StaffSignIn
-            returnTo={prompt.returnTo}
-            message={prompt.message}
-            onComplete={onClose}
-            onRequestSignUp={onRequestSignUp}
-          />
-        )
-      ) : (
-        <div className="auth-form auth-form--prompt">
-          <div className="auth-form__section">Staff access</div>
-          <p className="auth-form__copy">{prompt.message}</p>
-          <button type="button" className="btn btn--ghost btn--block" onClick={onClose}>
-            Back to browsing
-          </button>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
 
 export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}) {
   const [tab, setTabRaw] = useState<TabId>(initialTab);
@@ -467,112 +399,18 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
     return out;
   }, []);
 
-  // ---- Per-camp day-structure mutators (weekday hours / dated exceptions / snap)
-  // and the guides doc. All write straight through cloud.setDoc — the
-  // camps mutators in useCamps.ts stay lean; these day-structure edits (a rarely
-  // touched authoring surface) live with the manager UI that drives them. Every
-  // window is forced through clampOverrideWindow so a payload can't escape bounds.
-  // The downloadable documents doc (Print tab). Gated like every other managed
-  // vocabulary; the writer is a plain updater so the manager can append uploads,
-  // rename, or delete in one synced write.
-  const changeDocuments = useCallback(
-    (updater: (prev: CampDocument[]) => CampDocument[]) => {
-      if (!requireStaff("manage documents")) return;
-      cloud.setDoc("documents", updater);
-    },
-    [cloud, requireStaff]
-  );
-  const setCampWeekdayHours = useCallback(
-    (id: string, weekday: Weekday, value: "default" | "closed" | { openMin: number; closeMin: number }) => {
-      if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => {
-          if (c.id !== id) return c;
-          const weekdayHours = { ...(c.weekdayHours ?? {}) };
-          if (value === "default") delete weekdayHours[weekday];
-          else if (value === "closed") weekdayHours[weekday] = null;
-          else weekdayHours[weekday] = clampOverrideWindow(value.openMin, value.closeMin);
-          const next: Camp = { ...c };
-          if (Object.keys(weekdayHours).length) next.weekdayHours = weekdayHours;
-          else delete next.weekdayHours;
-          return next;
-        })
-      );
-    },
-    [cloud, requireStaff]
-  );
-  const setCampDateHours = useCallback(
-    (id: string, date: DateKey, value: "closed" | { openMin: number; closeMin: number } | null) => {
-      if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => {
-          if (c.id !== id) return c;
-          const dateHours = { ...(c.dateHours ?? {}) };
-          if (value === null) delete dateHours[date];
-          else if (value === "closed") dateHours[date] = null;
-          else dateHours[date] = clampOverrideWindow(value.openMin, value.closeMin);
-          const next: Camp = { ...c };
-          if (Object.keys(dateHours).length) next.dateHours = dateHours;
-          else delete next.dateHours;
-          return next;
-        })
-      );
-    },
-    [cloud, requireStaff]
-  );
-  const setCampSnap = useCallback(
-    (id: string, snapMin: CampSnapMin) => {
-      if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) => prev.map((c) => (c.id === id ? { ...c, snapMin } : c)));
-    },
-    [cloud, requireStaff]
-  );
-
-  // Per-camp guidance-band mutators. Guidance bands are PER-CAMP now — each camp
-  // shapes its day differently. A camp that hasn't set its own inherits the
-  // legacy shared `guides` doc as a display baseline; the first edit here FORKS
-  // that baseline into the camp (c.guides ?? cloud.docs.guides), after which the
-  // camp's bands diverge freely and never touch the shared doc again.
-  const addCampGuide = useCallback(
-    (campId: string) => {
-      if (!requireStaff("manage camps")) return;
-      const band: GuideBand = {
-        id: createGuideId(),
-        label: "New band",
-        startMin: 9 * 60,
-        endMin: 10 * 60,
-        weekdays: [1, 2, 3, 4, 5],
-      };
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => (c.id === campId ? { ...c, guides: [...(c.guides ?? cloud.docs.guides), band] } : c))
-      );
-    },
-    [cloud, requireStaff]
-  );
-  const updateCampGuide = useCallback(
-    (campId: string, id: string, patch: Partial<GuideBand>) => {
-      if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) =>
-          c.id === campId
-            ? { ...c, guides: (c.guides ?? cloud.docs.guides).map((b) => (b.id === id ? { ...b, ...patch } : b)) }
-            : c
-        )
-      );
-    },
-    [cloud, requireStaff]
-  );
-  const deleteCampGuide = useCallback(
-    (campId: string, id: string) => {
-      if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) =>
-          c.id === campId ? { ...c, guides: (c.guides ?? cloud.docs.guides).filter((b) => b.id !== id) } : c
-        )
-      );
-    },
-    [cloud, requireStaff]
-  );
+  // Per-camp day-structure mutators (weekday hours / dated exceptions / snap),
+  // the guides doc, and the documents doc — all straight-through, staff-gated
+  // cloud.setDoc writes; see useCampMutations.
+  const {
+    changeDocuments,
+    setCampWeekdayHours,
+    setCampDateHours,
+    setCampSnap,
+    addCampGuide,
+    updateCampGuide,
+    deleteCampGuide,
+  } = useCampMutations({ cloud, requireStaff });
 
   // The camp manager (add / switch / rename / delete) — reached from the
   // sidebar's "Camps" section (desktop) or the calendar settings sheet
@@ -763,7 +601,7 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
   // library-opened). Kept SEPARATE from the display-only eventContext so the sheet
   // can patch that specific placement (per-day material subs) without eventContext
   // ever carrying a live calendar type.
-  const [detailEventId, setDetailEventId] = useState<string | null>(null);
+  const [, setDetailEventId] = useState<string | null>(null);
   // In create mode `detail` is a fresh draft not in the catalog, so it must
   // pass through verbatim; otherwise track the live catalog record by id.
   const detailActivity = detail

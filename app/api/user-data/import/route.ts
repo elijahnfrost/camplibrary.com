@@ -3,7 +3,7 @@ import { requireEditorSession } from "@/lib/server/auth";
 import { getBackendEnvStatus } from "@/lib/server/env";
 import { parseJsonObject, readTextBodyWithLimit } from "@/lib/server/requestBody";
 import { importUserDocs } from "@/lib/server/userData";
-import type { UserDocKey } from "@/lib/userDataDocs";
+import type { UserDocKey } from "@/lib/cloud/userDataDocs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

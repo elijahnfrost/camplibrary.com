@@ -17,12 +17,12 @@ import { CalendarViewSettings } from "./CalendarViewSettings";
 import { WeatherSettings } from "./WeatherSettings";
 import { WeatherLocationField } from "./WeatherLocationField";
 import type { WeatherStatus } from "./useWeatherForecast";
-import { MiniSeg, ToggleSwitch } from "../primitives";
+import { MiniSeg, ToggleSwitch } from "../ui/primitives";
 import { Select } from "../floating/Select";
-import { CampIcon } from "../icons";
+import { CampIcon } from "../ui/icons";
 import { WEATHER_RANGE_OPTIONS, type TempUnit, type WeatherMode } from "@/lib/weather";
-import type { ColorMode } from "@/lib/data";
-import { Disclosure } from "../Disclosure";
+import type { ColorMode } from "@/lib/content/data";
+import { Disclosure } from "../ui/Disclosure";
 
 export type CalRailProps = {
   month: ComponentProps<typeof MiniMonth>;

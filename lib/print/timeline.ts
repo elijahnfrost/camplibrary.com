@@ -31,8 +31,8 @@ export const TIMELINE_ROW_IN: Record<DocDensity, number> = {
 };
 
 // Fixed vertical costs of a day, added to the grid height for the fit check.
-export const TIMELINE_DAY_HEADER_IN = 0.46; // day heading + a little air
-export const TIMELINE_ALLDAY_IN = 0.42; // the all-day strip, when a day has one
+const TIMELINE_DAY_HEADER_IN = 0.46; // day heading + a little air
+const TIMELINE_ALLDAY_IN = 0.42; // the all-day strip, when a day has one
 
 // How much of a letter page (11in tall, 0.45in margins → 10.1in printable) a
 // single day's timeline may occupy before it can no longer fit on one page.
@@ -171,7 +171,7 @@ export function timelineGridHeightIn(win: DayWindow, density: DocDensity): numbe
   return hours * TIMELINE_ROW_IN[density];
 }
 
-export function timelineDayHeightIn(win: DayWindow, density: DocDensity, hasAllDay: boolean): number {
+function timelineDayHeightIn(win: DayWindow, density: DocDensity, hasAllDay: boolean): number {
   return TIMELINE_DAY_HEADER_IN + (hasAllDay ? TIMELINE_ALLDAY_IN : 0) + timelineGridHeightIn(win, density);
 }
 
