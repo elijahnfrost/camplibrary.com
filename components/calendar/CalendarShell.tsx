@@ -16,7 +16,7 @@ import type {
   EventMountArg,
 } from "@fullcalendar/core";
 import type { DateClickArg, EventReceiveArg, EventResizeDoneArg } from "@fullcalendar/interaction";
-import { fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph } from "@/lib/calendar/adapter";
+import { calEventProps, fromFcDates, healEvent, splitDayLegLabels, toFcEvent, type AlternatesGlyph, type BgEventExtendedProps } from "@/lib/calendar/adapter";
 import { hasRainAlternate, planPromote, resolveAlternates } from "@/lib/activity/alternates";
 import { rainPlanForDay, type RainPlan } from "@/lib/calendar/rainPlan";
 import {
@@ -958,7 +958,7 @@ export function CalendarShell({
           display: "background",
           classNames: ["cal-band"],
           title: band.label,
-          extendedProps: { bgKind: "band" },
+          extendedProps: { bgKind: "band" } satisfies BgEventExtendedProps,
         });
       }
     }
@@ -978,7 +978,7 @@ export function CalendarShell({
             end: new Date(dayStart.getTime() + toMin * 60_000),
             display: "background",
             classNames: ["cal-closed"],
-            extendedProps: { bgKind: "closed" },
+            extendedProps: { bgKind: "closed" } satisfies BgEventExtendedProps,
           });
         };
         if (win === null) {
@@ -3139,7 +3139,7 @@ export function CalendarShell({
 
   const onEventReceive = useCallback(
     (info: EventReceiveArg) => {
-      const activityId = String(info.event.extendedProps.activityId ?? "");
+      const activityId = String(calEventProps(info).activityId ?? "");
       const activity = byId[activityId];
       const start = info.event.start;
       // Our store is the source of truth — drop FC's temporary event either way.
@@ -3198,11 +3198,11 @@ export function CalendarShell({
     // selection resolvers would otherwise dead-end on their id and swallow a
     // click). Their pointer-events are off in CSS so a click lands on the grid.
     if (info.event.display === "background") return;
-    const tint = info.event.extendedProps.tint;
+    const tint = calEventProps(info).tint;
     if (typeof tint === "string") info.el.style.setProperty("--cal-tint", tint);
     // The theme tint rides a second channel so the badge dot can carry the
     // theme color without disturbing the category spine (--cal-tint).
-    const themeTint = info.event.extendedProps.themeTint;
+    const themeTint = calEventProps(info).themeTint;
     if (typeof themeTint === "string") info.el.style.setProperty("--theme-tint", themeTint);
     // Stamp the id so the delegated contextmenu listener can resolve the event
     // from FullCalendar's (non-React) event DOM.

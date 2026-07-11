@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { EventContentArg } from "@fullcalendar/core";
-import type { AlternatesGlyph } from "@/lib/calendar/adapter";
+import { calEventProps, eventBgKind } from "@/lib/calendar/adapter";
 import { CampIcon } from "../ui/icons";
 import { BackupUmbrellaGlyph, EditedTickGlyph, PinInPlaceIcon } from "./CalendarChrome";
 
@@ -19,7 +19,7 @@ export function renderEventContent(arg: EventContentArg): ReactNode {
     // A band shows a small, quiet inline label riding on the wash; the closed
     // shade is a plain wash with no content. Both are non-interactive; a click
     // passes through to dateClick (FC excepts .fc-bg-event from its block list).
-    const bgKind = arg.event.extendedProps.bgKind;
+    const bgKind = eventBgKind(arg);
     if (bgKind === "band") {
       return arg.event.title ? (
         <div className="cal-band__inner" title={arg.event.title}>
@@ -28,12 +28,13 @@ export function renderEventContent(arg: EventContentArg): ReactNode {
       ) : null;
     }
     if (bgKind === "closed") return null;
+    const props = calEventProps(arg);
 
     // A secondary theme dot, drawn only when the event's activity carries a
     // theme. The category color stays the spine (--cal-tint); theme is an
     // accent dot, never a replacement, and is labelled so it never reads as
     // color-alone. Skipped on dense month chips, which already carry a tick.
-    const themeLabel = arg.event.extendedProps.themeLabel;
+    const themeLabel = props.themeLabel;
     const dot =
       typeof themeLabel === "string" && themeLabel ? (
         <span className="cal-card__theme" title={"Theme: " + themeLabel} aria-label={"Theme: " + themeLabel} />
@@ -41,26 +42,26 @@ export function renderEventContent(arg: EventContentArg): ReactNode {
     // A small loop glyph marks a recurring event — the traditional calendar
     // affordance. Only rendered when the event repeats, so non-repeating cards
     // (and the visual baselines) are untouched.
-    const repeats = arg.event.extendedProps.repeats === true;
+    const repeats = props.repeats === true;
     // A pinned event (held in place when a day-shift moves the rest of the day)
     // carries a small pin glyph beside the recurrence loop. Threaded through the
     // adapter's extendedProps like `repeats`, so it repaints on every data change.
-    const pinned = arg.event.extendedProps.pinned === true;
+    const pinned = props.pinned === true;
     // A "this"-customized series member carries a small "edited" tick beside the
     // repeat loop — the visible mark of a per-occurrence exception (rule 5).
-    const customized = arg.event.extendedProps.customized === true;
+    const customized = props.customized === true;
     // A split-day leg ("1/2 · 2/2") — one leg of a same-day linked pair (rule 8).
-    const legLabelRaw = arg.event.extendedProps.legLabel;
+    const legLabelRaw = props.legLabel;
     const legLabel = typeof legLabelRaw === "string" && legLabelRaw ? legLabelRaw : null;
-    const tint = arg.event.extendedProps.tint;
-    const themeTint = arg.event.extendedProps.themeTint;
-    const isCustom = arg.event.extendedProps.kind === "custom";
+    const tint = props.tint;
+    const themeTint = props.themeTint;
+    const isCustom = props.kind === "custom";
     // camps-2/J2: a small neutral "shared" badge on any event that shows under
     // EVERY camp (no campId of its own) while a specific camp is active — so
     // switching camps reads as "most of the calendar predates camps" rather
     // than "the switcher does nothing." Quiet by design (a plain glyph, no
     // color), distinct from the backup badge which carries real signal.
-    const shared = arg.event.extendedProps.shared === true;
+    const shared = props.shared === true;
     const sharedBadge = shared ? (
       <span
         className="cal-card__shared"
@@ -72,12 +73,12 @@ export function renderEventContent(arg: EventContentArg): ReactNode {
     ) : null;
     // Where the block happens (gym, field…), shown under the time on taller
     // cards. The card is a size container, so a short block simply clips it.
-    const locationText = arg.event.extendedProps.location;
+    const locationText = props.location;
     const location = typeof locationText === "string" && locationText ? locationText : null;
     // A backup-plan badge: a small corner glyph when this placement resolves to
     // any alternate (event override ?? activity default) — an umbrella when any is
     // a rain plan, else a generic swap; the count rides when more than one.
-    const altGlyphRaw = arg.event.extendedProps.alternatesGlyph as AlternatesGlyph | undefined;
+    const altGlyphRaw = props.alternatesGlyph;
     const altBadge = altGlyphRaw ? (
       <span
         className="cal-card__backup"

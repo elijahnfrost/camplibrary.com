@@ -35,6 +35,25 @@ full map):
    `lib/auth.ts` + Clerk, **server data** through `lib/server/` (never imported by
    a client component's runtime — types only).
 4. Run `npm run lint:boundaries` — it must stay green.
+5. **Type every cross-boundary data bag at its single source**, so writer and
+   readers can't silently drift. A loose `Record`/`extendedProps`/`any` handed
+   across a seam is where "I added a field and forgot to wire the other side"
+   bugs live. Declare one exported interface next to the writer, verify the
+   writer with `satisfies` (zero runtime cost, no widening), and give readers a
+   typed accessor. Exemplar: the calendar event contract in
+   `lib/calendar/adapter.ts` — `CalEventExtendedProps` + `calEventProps()` /
+   `eventBgKind()`. To add a card affordance you add ONE field there; the adapter
+   is then compile-forced to produce it and the renderer reads it typed.
+6. **Keep decision/transform logic in `lib` (pure + unit-tested); keep the
+   component a thin wrapper.** The only behavioral safety net that runs locally is
+   the unit suite, and it can only test pure functions — a stateful component is
+   covered only by the CI *pixel* oracle, which sees appearance, not behavior. So
+   a state mutation belongs in a `(input) => output` function in `lib` with a
+   colocated test; the component wrapper just supplies the side effects (commit /
+   focus / undo / open-close) around it. Exemplar: `lib/activity/runDocOps.ts`
+   (pure `RunDoc` edits, tested) vs. the ActivityRunList wrappers that add the
+   undo snapshot and caret focus. This is why `lib/` is the healthy, low-fragility
+   layer — grow it, and the components shrink toward wiring.
 
 ## CSS
 
