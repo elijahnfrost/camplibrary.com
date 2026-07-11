@@ -363,15 +363,41 @@ state without a re-render — same object, same reads.
   reset jumps read. `MINUTES_STEP` stays internal (only the bounds math uses it);
   `sort`/`ageUnit` device-prefs stay in CampApp (used app-wide, not just filters).
   Five now-unused filter-type imports pruned. Body byte-identical.
+- **`CalendarShell` 5286 → 5140 (PR #114).** `renderEventContent` (FC's
+  `eventContent` generator — the month chip + timed card, theme dot, badges, and
+  the `paint()` tint/spine ref) → `components/calendar/EventCardContent.tsx`. It
+  was a `useCallback` with an **empty dep array** — a genuinely PURE function of
+  `arg` (per-event `extendedProps`) + module-level glyphs, so this is the
+  *module-scope guarantee* again, not a stateful lift: moved verbatim to a plain
+  exported function, the FC prop + memo dep still reference `renderEventContent`
+  by name unchanged. Moved the `CardPinGlyph = PinInPlaceIcon` alias with it;
+  pruned now-unused `EditedTickGlyph` + `EventContentArg` from the shell. Body
+  byte-identical. Notably the pixel oracle DOES validate this (it's render output,
+  unlike editing behavior) — the reason event-render is safer to extract than the
+  editing cores.
+- **`QuickAdd` 1004 → 995 (PR #114).** Dedup: deleted the local `boolStorage` +
+  `isTypingTarget` (byte-identical copies of `lib/calendar/shellHelpers`' own) and
+  imported them instead — deletion over re-declaration.
+
+**`ActivityRunList` (1839) — the run-doc editor core — DEFERRED (documented).**
+Careful read shows no safe narrow seam: the ~30 mutators interleave doc edits with
+the picker UI state (`runStyle`/`setRunStyle`), the undo banner
+(`undoState`/`setUndoState`), focus/timer refs, `editable`, AND JSX render helpers
+(`decoNode`/`renderChild`) — a ~25-symbol interface. Worse, the pixel oracle can't
+validate the drag-reorder / step split-merge / undo *editing* behavior a mistake
+would break. The safe way is a test-backed extraction of the genuinely-pure
+`(doc, …args) => RunDoc` transforms to `lib` WITH unit tests — a larger deliberate
+effort (changes ~30 call sites; not byte-identical), worth its own focused pass.
+Do NOT attempt the mutators-into-hook lift behavior-blind.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(the rest of the stateful **core** — slot-zoom/width, the rain/kit column
-injectors, series-scope dialogs, event-render callbacks — the hard 80%; the
-slot-zoom + strip-scroll machinery is deliberately **deferred**: `onGridScroll`/
-`realignTo`/`recomputeDayWidth` interleave with the strip-reanchor state, so no
-narrow interface exists yet), `QuickAdd` (glyphs, `draftFromEvent`). Large
-**pure-logic** files stay put (see below). The file-size and boundary gates keep
-everything from growing or re-coupling in the meantime.
+(the rest of the stateful **core** — slot-zoom/width, `renderDayHeader` (couples
+weather/rain/kit), series-scope dialogs — the hard 80%; the slot-zoom +
+strip-scroll machinery is deliberately **deferred**: `onGridScroll`/`realignTo`/
+`recomputeDayWidth` interleave with the strip-reanchor state, so no narrow
+interface exists yet). Large **pure-logic** files stay put (see below). The
+file-size and boundary gates keep everything from growing or re-coupling in the
+meantime.
 
 ## Deferred items
 - Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,
