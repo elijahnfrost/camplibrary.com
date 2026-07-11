@@ -82,12 +82,9 @@ import {
   ADD_BLOCKS,
   ATTACH_BLOCKS,
   DETAIL_ANIM_MS,
-  DetailFormControls,
   dropPosition,
   Editable,
   formatStamp,
-  MaterialChecklist,
-  MaterialsEditor,
   Pill,
   RUN_ICON_CMP,
   RUN_ICON_LABEL,
@@ -97,6 +94,8 @@ import {
   topRailKey,
   type RailSegment,
 } from "./RunSheetControls";
+import { DetailFormControls } from "./RunSheetDetailForm";
+import { MaterialChecklist, MaterialsEditor } from "./RunSheetMaterials";
 
 export function ActivityRunList({
   doc,

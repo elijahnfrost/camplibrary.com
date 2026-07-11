@@ -53,7 +53,7 @@ import { Modal } from "../ui/Modal";
 import { ColorField } from "../floating/ColorField";
 import { FloatingLayer } from "../floating/FloatingLayer";
 import { ActivityRunList } from "./ActivityRunList";
-import { LedgerMenu } from "./RunSheetControls";
+import { LedgerMenu } from "./RunSheetDetailForm";
 import { type ThemeKit } from "../library/ThemeField";
 import { DESKTOP_MIN } from "../hooks/useDeviceShape";
 

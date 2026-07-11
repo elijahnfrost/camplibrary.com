@@ -260,9 +260,8 @@ Log:
   `RunEmbed`, `MaterialChecklist`, `LedgerMenu`, `AgeGroupsMenu`, `GroupSizeMenu`,
   `DetailFormControls`, `MaterialsEditor`) into `components/activity/RunSheetControls.tsx`
   (985). `DetailSheet` now imports `LedgerMenu` from there. The 985-line module is
-  a cohesive controls surface, adopted in the file-size baseline; **candidate for
-  a further sub-split** (meta / Editable / detail-form pickers / materials editor)
-  as a follow-up once this is CI-green.
+  a cohesive controls surface, adopted in the file-size baseline; later
+  sub-split (see below).
 - **`CalendarShell` 6344 → 5814.** Lifted the self-contained tail sub-component
   block (the pin / edited / kit / backup-umbrella glyphs, `BulkLocationPicker`,
   `SkipDaysPicker`, `GatherPopover`, `RainPanel` + internals `GatherRow`,
@@ -328,8 +327,21 @@ state without a re-render — same object, same reads.
   the reminder-drag effect still owns). Exact dep array + its inline
   `eslint-disable react-hooks/exhaustive-deps` preserved; `CalendarStop` type
   pruned from the shell's stops import. Body byte-identical. *(The sibling
-  Day-weather header, rain-chip, and kit-chip injectors are the same shape and are
-  the obvious next twins.)*
+  Day-weather header, rain-chip, and kit-chip indicators are NOT separate leaf
+  effects — they render inside `renderDayHeader`/`renderEventContent`, coupled
+  core, so no more clean twins remain.)*
+- **`RunSheetControls` 985 → 3 files (291 / 389 / 320), all &lt;500.** Cohesive
+  module-scope 3-way split (all symbols are column-0, so byte-identical-safe):
+  the shell keeps the meta + generic presentational bits (`DETAIL_ANIM_MS`, icon
+  maps, block palettes, rail/stamp helpers, `Editable`/`Pill`/`RunEmbed`); the
+  **detail-form pickers** (`DetailFormProps`, `LedgerMenu`, `AgeGroupsMenu`,
+  `GroupSizeMenu`, `DetailFormControls`) → `RunSheetDetailForm.tsx`; the
+  **materials** pair (`MaterialChecklist`, `MaterialsEditor`) →
+  `RunSheetMaterials.tsx`. Clean DAG — form/materials never reference each other,
+  both import only `Editable` + meta back from the shell. Two consumers repointed
+  (`DetailSheet`→`LedgerMenu`, `ActivityRunList`→the moved sets); per-file imports
+  pruned to what each uses. All three moved bodies verified byte-identical; drops
+  `RunSheetControls` out of the file-size baseline (22 → 21 over 500).
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
 (the rest of the stateful **core** — slot-zoom/width, the rain/kit column

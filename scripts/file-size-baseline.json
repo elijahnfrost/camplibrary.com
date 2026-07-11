@@ -4,11 +4,10 @@
   "note": "Grandfathered files over the line limit. A file may shrink below its entry but never grow past it, and NEW files must stay under the limit.",
   "files": {
     "components/CampApp.tsx": 1578,
-    "components/activity/ActivityRunList.tsx": 1841,
+    "components/activity/ActivityRunList.tsx": 1840,
     "components/activity/DetailSheet.tsx": 692,
     "components/activity/PlaybookEditor.tsx": 833,
     "components/activity/RunSheetBody.tsx": 535,
-    "components/activity/RunSheetControls.tsx": 985,
     "components/calendar/CalendarChrome.tsx": 570,
     "components/calendar/CalendarShell.tsx": 5286,
     "components/calendar/QuickAdd.tsx": 1004,
