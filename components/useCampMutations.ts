@@ -1,5 +1,13 @@
 import { useCallback } from "react";
-import { clampOverrideWindow, type Camp, type CampSnapMin, type Weekday } from "@/lib/content/camps";
+import { type CampSnapMin, type Weekday } from "@/lib/content/camps";
+import {
+  addGuide,
+  removeGuide,
+  setDateHours,
+  setSnap,
+  setWeekdayHours,
+  updateGuide,
+} from "@/lib/content/campEdits";
 import type { CampDocument } from "@/lib/content/campDocuments";
 import { createGuideId, type GuideBand } from "@/lib/calendar/guides";
 import type { DateKey } from "@/lib/calendar/types";
@@ -35,45 +43,21 @@ export function useCampMutations({
   const setCampWeekdayHours = useCallback(
     (id: string, weekday: Weekday, value: "default" | "closed" | { openMin: number; closeMin: number }) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => {
-          if (c.id !== id) return c;
-          const weekdayHours = { ...(c.weekdayHours ?? {}) };
-          if (value === "default") delete weekdayHours[weekday];
-          else if (value === "closed") weekdayHours[weekday] = null;
-          else weekdayHours[weekday] = clampOverrideWindow(value.openMin, value.closeMin);
-          const next: Camp = { ...c };
-          if (Object.keys(weekdayHours).length) next.weekdayHours = weekdayHours;
-          else delete next.weekdayHours;
-          return next;
-        })
-      );
+      cloud.setDoc("camps", (prev) => setWeekdayHours(prev, id, weekday, value));
     },
     [cloud, requireStaff]
   );
   const setCampDateHours = useCallback(
     (id: string, date: DateKey, value: "closed" | { openMin: number; closeMin: number } | null) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => {
-          if (c.id !== id) return c;
-          const dateHours = { ...(c.dateHours ?? {}) };
-          if (value === null) delete dateHours[date];
-          else if (value === "closed") dateHours[date] = null;
-          else dateHours[date] = clampOverrideWindow(value.openMin, value.closeMin);
-          const next: Camp = { ...c };
-          if (Object.keys(dateHours).length) next.dateHours = dateHours;
-          else delete next.dateHours;
-          return next;
-        })
-      );
+      cloud.setDoc("camps", (prev) => setDateHours(prev, id, date, value));
     },
     [cloud, requireStaff]
   );
   const setCampSnap = useCallback(
     (id: string, snapMin: CampSnapMin) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) => prev.map((c) => (c.id === id ? { ...c, snapMin } : c)));
+      cloud.setDoc("camps", (prev) => setSnap(prev, id, snapMin));
     },
     [cloud, requireStaff]
   );
@@ -93,33 +77,21 @@ export function useCampMutations({
         endMin: 10 * 60,
         weekdays: [1, 2, 3, 4, 5],
       };
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) => (c.id === campId ? { ...c, guides: [...(c.guides ?? cloud.docs.guides), band] } : c))
-      );
+      cloud.setDoc("camps", (prev) => addGuide(prev, campId, band, cloud.docs.guides));
     },
     [cloud, requireStaff]
   );
   const updateCampGuide = useCallback(
     (campId: string, id: string, patch: Partial<GuideBand>) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) =>
-          c.id === campId
-            ? { ...c, guides: (c.guides ?? cloud.docs.guides).map((b) => (b.id === id ? { ...b, ...patch } : b)) }
-            : c
-        )
-      );
+      cloud.setDoc("camps", (prev) => updateGuide(prev, campId, id, patch, cloud.docs.guides));
     },
     [cloud, requireStaff]
   );
   const deleteCampGuide = useCallback(
     (campId: string, id: string) => {
       if (!requireStaff("manage camps")) return;
-      cloud.setDoc("camps", (prev) =>
-        prev.map((c) =>
-          c.id === campId ? { ...c, guides: (c.guides ?? cloud.docs.guides).filter((b) => b.id !== id) } : c
-        )
-      );
+      cloud.setDoc("camps", (prev) => removeGuide(prev, campId, id, cloud.docs.guides));
     },
     [cloud, requireStaff]
   );
