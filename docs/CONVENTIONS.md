@@ -35,6 +35,15 @@ full map):
    `lib/auth.ts` + Clerk, **server data** through `lib/server/` (never imported by
    a client component's runtime — types only).
 4. Run `npm run lint:boundaries` — it must stay green.
+5. **Type every cross-boundary data bag at its single source**, so writer and
+   readers can't silently drift. A loose `Record`/`extendedProps`/`any` handed
+   across a seam is where "I added a field and forgot to wire the other side"
+   bugs live. Declare one exported interface next to the writer, verify the
+   writer with `satisfies` (zero runtime cost, no widening), and give readers a
+   typed accessor. Exemplar: the calendar event contract in
+   `lib/calendar/adapter.ts` — `CalEventExtendedProps` + `calEventProps()` /
+   `eventBgKind()`. To add a card affordance you add ONE field there; the adapter
+   is then compile-forced to produce it and the renderer reads it typed.
 
 ## CSS
 
