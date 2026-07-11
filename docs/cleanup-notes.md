@@ -353,6 +353,16 @@ state without a re-render — same object, same reads.
   hook call preserves hook order; five now-stranded type/util imports pruned
   (`clampOverrideWindow`, `Camp`, `CampSnapMin`, `Weekday`, `CampDocument`,
   `createGuideId`/`GuideBand`, `DateKey`). Body byte-identical.
+- **`CampApp` 1479 → 1453 (post-#107, follow-up PR).** Contiguous-hook-block lift:
+  the whole library filter-bar state (`cats`/`place`/`age`/`theme`/`starredOnly`/
+  `kitLens`/`materialId`/`query` + the duration-slider `minutesBounds`/
+  `minutesRange`/`minutesValue`/`minutesActive`/`handleMinutes`) →
+  `components/hooks/useLibraryFilters.ts` (`useLibraryFilters(lib)`). One input
+  (`lib`, typed `ReturnType<typeof useActivityLibrary>`, for the duration bounds);
+  returns the values + setters the sidenav rail, the `filtered` memo, and the
+  reset jumps read. `MINUTES_STEP` stays internal (only the bounds math uses it);
+  `sort`/`ageUnit` device-prefs stay in CampApp (used app-wide, not just filters).
+  Five now-unused filter-type imports pruned. Body byte-identical.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
 (the rest of the stateful **core** — slot-zoom/width, the rain/kit column
