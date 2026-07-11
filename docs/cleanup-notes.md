@@ -318,9 +318,21 @@ state without a re-render — same object, same reads.
   the refs deliberately absent), so re-run timing is unchanged. One effect → one
   hook call at the same spot preserves hook order; `weatherGlyphSvg` was stranded
   in the shell's `@/lib/weather` import and pruned. Body byte-identical.
+- **`CalendarShell` 5404 → 5286.** Third stateful-core lift, twin of the last: the
+  reminder-**stop marker** injection (the `useEffect` painting the hairline+count-
+  dot markers into FC's day columns and delegating marker press/click to the drag
+  + open refs) → `components/calendar/useStopMarkers.ts` (`useStopMarkers`).
+  Another leaf side-effect — returns nothing; read-only inputs `gridRef`, `stops`,
+  `gridStart`, `gridEnd`, `activeView`, `stopDotColor`, and the three refs it
+  delegates through (`remDraggedRef`, `beginReminderDragRef`, `openStopRef`, which
+  the reminder-drag effect still owns). Exact dep array + its inline
+  `eslint-disable react-hooks/exhaustive-deps` preserved; `CalendarStop` type
+  pruned from the shell's stops import. Body byte-identical. *(The sibling
+  Day-weather header, rain-chip, and kit-chip injectors are the same shape and are
+  the obvious next twins.)*
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(the rest of the stateful **core** — slot-zoom/width, the stops/rain/kit column
+(the rest of the stateful **core** — slot-zoom/width, the rain/kit column
 injectors, series-scope dialogs, event-render callbacks — the hard 80%; the
 slot-zoom + strip-scroll machinery is deliberately **deferred**: `onGridScroll`/
 `realignTo`/`recomputeDayWidth` interleave with the strip-reanchor state, so no
