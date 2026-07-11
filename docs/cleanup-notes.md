@@ -342,6 +342,17 @@ state without a re-render — same object, same reads.
   (`DetailSheet`→`LedgerMenu`, `ActivityRunList`→the moved sets); per-file imports
   pruned to what each uses. All three moved bodies verified byte-identical; drops
   `RunSheetControls` out of the file-size baseline (22 → 21 over 500).
+- **`CampApp` 1578 → 1479.** Contiguous-useCallback-block lift: the 7 per-camp
+  day-structure + documents mutators (`changeDocuments`, `setCampWeekdayHours`,
+  `setCampDateHours`, `setCampSnap`, `addCampGuide`, `updateCampGuide`,
+  `deleteCampGuide`) → `components/useCampMutations.ts` (`useCampMutations`). Every
+  one is a staff-gated straight-through `cloud.setDoc` write closing over ONLY
+  `cloud` + `requireStaff` (identical `[cloud, requireStaff]` deps), so the hook
+  takes exactly those two and returns the 7. `cloud` typed as
+  `ReturnType<typeof useCloudUserData>` (no new type surface). One block → one
+  hook call preserves hook order; five now-stranded type/util imports pruned
+  (`clampOverrideWindow`, `Camp`, `CampSnapMin`, `Weekday`, `CampDocument`,
+  `createGuideId`/`GuideBand`, `DateKey`). Body byte-identical.
 
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
 (the rest of the stateful **core** — slot-zoom/width, the rain/kit column
