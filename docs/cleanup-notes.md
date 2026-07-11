@@ -283,11 +283,36 @@ Log:
 - **`CampApp` 1626 → 1563.** `StaffPromptModal` (+ `StaffPrompt`) → `components/
   auth/StaffPromptModal.tsx`; pre-existing dead imports swept.
 
+**Stateful-core method (the hard 80%).** Column-0 moves are exhausted; the core
+is one ~5.5k-line component function whose clusters close over state, so the
+module-scope guarantee no longer applies verbatim. The safe analogue: find a
+**contiguous block of sibling hooks** (no foreign hook interleaved, so relative
+hook order is preserved when the block becomes one hook call at the same spot),
+confirm its *only* external closures are a short list of refs/values, lift it to
+a `useX` hook that takes those as params and returns exactly the symbols the rest
+of the component still reads. Verified the same way: `tsc` proves the interface,
+the unit suite proves logic, a byte-diff of the moved body vs the original slice
+proves the executable code is unchanged, and CI proves pixels. A returned **ref**
+(stable identity) is how a consumer outside the hook keeps reading live drag/DOM
+state without a re-render — same object, same reads.
+
+- **`CalendarShell` 5706 → 5498.** First stateful-core lift: the drag-affordance
+  cluster (the ghost-card "dragfollow" follower + move/resize body-class cues) →
+  `components/calendar/useDragAffordance.ts` (`useDragAffordance`, 243). The block
+  (9 refs + `setCopyMode`/`traceFollower`/`addPointerSafetyNet`/`stopDragAffordance`/
+  `startMoveAffordance`/`startResizeAffordance` + the unmount-cleanup effect) was
+  contiguous with no foreign hook between, and closed over only `gridRef` +
+  `selectionRef` (both passed in as params). Returns `followRef` (JSX),
+  `startMoveAffordance`/`startResizeAffordance`/`stopDragAffordance` (FC handlers),
+  and `altDragRef` (read by `onEventDrop` for copy-vs-move). `groupMoveRef` stayed
+  internal — it's only *named* in `onEventDrop`'s comments, never read there.
+  Moved body verified byte-identical to the original slice.
+
 Remaining god-component targets, each its own CI-validated commit: `CalendarShell`
-(the rail / weather-chip injection / drag-create / series-scope dialogs — the
-stateful **core**, the hard 80%), `QuickAdd` (glyphs, `draftFromEvent`).
-Large **pure-logic** files stay put (see below). The file-size and boundary gates
-keep everything from growing or re-coupling in the meantime.
+(the rest of the stateful **core** — weather-chip injection, slot-zoom/width,
+series-scope dialogs, event-render callbacks — the hard 80%), `QuickAdd` (glyphs,
+`draftFromEvent`). Large **pure-logic** files stay put (see below). The file-size
+and boundary gates keep everything from growing or re-coupling in the meantime.
 
 ## Deferred items
 - Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,
