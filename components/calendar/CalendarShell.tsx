@@ -126,7 +126,8 @@ import {
   type WeatherMode,
   type WeatherRange,
 } from "@/lib/weather";
-import { QuickAdd, draftFromEvent, type EditorDraft } from "./QuickAdd";
+import { QuickAdd } from "./QuickAdd";
+import { draftFromEvent, eventFromDraft, type EditorDraft } from "@/lib/calendar/editorDraft";
 import { CalendarRail } from "./CalendarRail";
 import { SeriesScopeDialog } from "./SeriesScopeDialog";
 import { ShiftBar, type ShiftBarTarget } from "./ShiftBar";
@@ -1492,44 +1493,13 @@ export function CalendarShell({
       if (!requireStaff("plan the calendar")) return;
       const existing = draft.id ? events[draft.id] : undefined;
       const activity = draft.activityId ? byId[draft.activityId] : undefined;
-      const startMin = draft.allDay ? 0 : draft.startMin;
-      const endMin = endMinForDraft(draft.startMin, draft.durationMin, draft.allDay);
-      const isReminder = !draft.allDay && endMin === startMin; // 0-min marker
-      // The editor save is a PATCH over the stored row, not a rebuild: spread the
-      // existing event first so fields the editor doesn't own (campId, pinned,
-      // future payload fields) survive the save — mirroring applyBulkEdit, which
-      // patches rows in place. Rebuilding from the draft silently un-scoped
-      // camp events on every edit.
-      const event: CalendarEvent = {
-        ...existing,
+      // Build the patched row (spread-existing + set-or-delete editor optionals)
+      // in a pure, unit-tested lib fn; id/now are minted here to keep it pure.
+      const event = eventFromDraft(draft, existing, activity, {
         id: draft.id ?? crypto.randomUUID(),
-        date: draft.date,
-        startMin,
-        endMin,
-        // Trust the draft's activityId: a just-created library activity links
-        // here before byId catches up on the next render. A dangling ref still
-        // self-heals to "custom" at render time (healEvent + normalizers).
-        kind: draft.activityId ? "activity" : "custom",
-        title: activity?.title ?? draft.title ?? "Untitled",
-        updatedAt: Date.now(),
-      };
-      // Editor-owned optionals: the draft's value wins, INCLUDING a clear —
-      // deleting here (after the spread) is what makes clearing stick on edits.
-      if (draft.activityId) event.activityId = draft.activityId;
-      else delete event.activityId;
-      if (draft.allDay) event.allDay = true;
-      else delete event.allDay;
-      if (draft.color) event.color = draft.color;
-      else delete event.color;
-      if (draft.locations?.length) event.locations = draft.locations;
-      else delete event.locations;
-      if (draft.note) event.note = draft.note;
-      else delete event.note;
-      // Pin rides the draft (carried off the edited row): the draft's value wins,
-      // including a clear. A plain edit carries it through unchanged (draftFromEvent
-      // seeds it off the event).
-      if (draft.pinned) event.pinned = true;
-      else delete event.pinned;
+        now: Date.now(),
+      });
+      const isReminder = !event.allDay && event.endMin === event.startMin; // 0-min marker
 
       // Editing an event that ALREADY belongs to a series. Rule UNTOUCHED → an
       // instant "this" commit (a per-occurrence exception via commitThisEdit,
@@ -1581,7 +1551,7 @@ export function CalendarShell({
           toastState.action = {
             label: "Save to library",
             onClick: () => {
-              const created = onCreateActivity(event.title, isReminder ? 0 : endMin - startMin);
+              const created = onCreateActivity(event.title, isReminder ? 0 : event.endMin - event.startMin);
               if (!created) return; // staff gate blocked it
               upsertEvent({
                 ...event,
