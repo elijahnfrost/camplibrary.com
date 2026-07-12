@@ -66,53 +66,7 @@ import { LocationField } from "@/components/floating/LocationField";
 import { RepeatField } from "@/components/calendar/RepeatField";
 import { FocusSheet } from "../ui/FocusSheet";
 import { Disclosure } from "../ui/Disclosure";
-
-export type EditorDraft = {
-  id?: string; // present when editing an existing event
-  date: DateKey;
-  startMin: number;
-  durationMin: number;
-  allDay: boolean;
-  activityId?: string;
-  title: string;
-  /** The user dragged out a specific span — treat the length as deliberate and
-   *  never overwrite it with an activity's recommended duration. */
-  explicitDuration?: boolean;
-  /** A repeat rule, when the event recurs. CalendarShell turns it into the
-   *  materialized series on save (and asks the scope on edits). */
-  recurrence?: RecurrenceRule;
-  /** Per-placement color override (validated hex); absent = inherit the
-   *  activity's / category's color. */
-  color?: string;
-  /** Where this placement happens (gym, classroom…); empty = unstated. */
-  locations?: string[];
-  /** A short free-text note carried by the event (the nudge for a 0-min reminder,
-   *  or a detail line on a real block). */
-  note?: string;
-  /** Whether this placement is pinned (held in place on a day-shift). The editor
-   *  doesn't SET this (Pin is an immediate footer action), but it rides through
-   *  so a save doesn't silently un-pin. */
-  pinned?: boolean;
-};
-
-export function draftFromEvent(event: CalendarEvent): EditorDraft {
-  return {
-    id: event.id,
-    date: event.date,
-    // A 0-min event keeps its 0 length (a reminder); otherwise the real span.
-    durationMin: event.allDay ? 30 : event.endMin - event.startMin,
-    startMin: event.startMin,
-    allDay: Boolean(event.allDay),
-    activityId: event.activityId,
-    title: event.title,
-    explicitDuration: true,
-    recurrence: event.recurrence,
-    color: event.color,
-    locations: event.locations,
-    note: event.note,
-    pinned: event.pinned,
-  };
-}
+import { type EditorDraft } from "@/lib/calendar/editorDraft";
 
 export function QuickAdd({
   draft,
