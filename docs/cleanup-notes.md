@@ -399,6 +399,36 @@ interface exists yet). Large **pure-logic** files stay put (see below). The
 file-size and boundary gates keep everything from growing or re-coupling in the
 meantime.
 
+## Phase 8 — Fragility hardening & the behavioral test net (DONE)
+
+The god-component splitting reduced surface area but not the real fragility. A
+fresh diagnosis found the actual gap: `lib/` was well-tested and boundary-enforced,
+but **`components/` had ZERO behavioral tests** — the whole stateful UI was
+covered only by the CI *pixel* oracle (appearance, not behavior). So a change to
+component behavior had no net. The fix, in three moves (all merged, PRs #115–#123):
+
+1. **Type cross-boundary data bags at their source.** The calendar event
+   `extendedProps` was a loose `any` written by the adapter and read by two
+   components with no compile check they agreed. Now `CalEventExtendedProps` /
+   `BgEventExtendedProps` in `lib/calendar/adapter.ts`, writer verified with
+   `satisfies`, readers use `calEventProps()` / `eventBgKind()`. Rule → CONVENTIONS §pt 5.
+2. **Move decision/transform logic into pure, unit-tested `lib`; components stay
+   thin wrappers.** `lib/activity/runDocOps.ts` (run-sheet block/child edits),
+   `lib/content/campEdits.ts` (camp day-structure + guide-fork rule), plus the
+   editor draft↔event conversions — each with a colocated test; the components
+   supply only the side effects (commit / undo / focus). Rule → CONVENTIONS §pt 6.
+3. **A component behavioral harness + coverage of every mountable surface.**
+   `happy-dom` + `@testing-library/react`; node stays the default env, DOM tests
+   opt in with `// @vitest-environment happy-dom`. Behavioral tests now drive real
+   interactions (click → component → `onChange`/`onSave`) on the run-sheet editor,
+   the QuickAdd create/edit sheet, Filters, MaterialChecklist, and DetailSheet.
+   `CalendarShell` is deferred (FullCalendar DOM-measurement is intractable in
+   happy-dom) — its logic is covered via extracted pure fns + `renderEventContent`.
+
+Tests 657 → 719 over the phase. How-to for all three lives in `docs/CONVENTIONS.md`
+(§ Add a feature without coupling pts 5–6; § Tests). Also swept the last dead CSS
+(`.prail__preset{,s}` in `app/print.css`).
+
 ## Deferred items
 - Large **pure-logic** files (`recurrence.ts` 1032, `runList.ts`, `inviteCodes.ts`,
   `shelfLayout.ts`, `playbooks.ts`) are cohesive single-purpose modules; per

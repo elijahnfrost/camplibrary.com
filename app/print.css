@@ -458,21 +458,6 @@
   flex-direction: column;
 }
 
-/* Presets — one quiet row of ghost buttons ABOVE the range/folds (a shortcut
-   that sets a whole options bundle at once, not a separate mode). Wraps on a
-   narrow rail rather than overflowing; each button keeps the standard
-   .btn--ghost.btn--sm treatment so it reads as an action, not a toggle. */
-.prail__presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
-  margin-bottom: var(--s-6);
-}
-.prail__preset {
-  flex: 1 1 auto;
-  justify-content: center;
-}
-
 /* Range — the headerless lead widget (parallels the mini-month leading the
    calendar rail): quick-range pills, the inline range calendar, then a readout. */
 .prail__range {
