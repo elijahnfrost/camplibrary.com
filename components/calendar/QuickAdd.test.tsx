@@ -56,6 +56,15 @@ describe("QuickAdd — primary action reflects the mode", () => {
     mount(createDraft({ durationMin: 0 }));
     expect(screen.getByRole("button", { name: /Add reminder/ })).toBeTruthy();
   });
+
+  it("typing a name then confirming 'Add' saves a calendar-only custom draft", () => {
+    const on = mount(createDraft());
+    fireEvent.change(screen.getByLabelText("Event name"), { target: { value: "Story time" } });
+    fireEvent.click(screen.getByRole("button", { name: /Story time/ }));
+    expect(on.onSave).toHaveBeenCalledTimes(1);
+    expect(on.onSave.mock.calls[0][0].title).toBe("Story time");
+    expect(on.onSave.mock.calls[0][0].activityId).toBeUndefined();
+  });
 });
 
 describe("QuickAdd — editing an existing custom event", () => {

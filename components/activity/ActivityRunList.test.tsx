@@ -43,6 +43,16 @@ describe("ActivityRunList (edit mode) — block ops wire to runDocOps", () => {
     fireEvent.click(screen.getAllByLabelText("Remove block")[0]);
     expect(committedIds(onChange)).toEqual(["s2"]);
   });
+
+  it("'Insert a block here' → 'Note' inserts a note block at that position", () => {
+    const onChange = vi.fn();
+    render(<ActivityRunList doc={makeDoc()} editable onChange={onChange} {...base} />);
+    fireEvent.click(screen.getAllByLabelText("Insert a block here")[0]); // the gap before the first block
+    fireEvent.click(screen.getByRole("button", { name: "Note" }));
+    const committed = onChange.mock.calls[0][0].blocks;
+    expect(committed[0].type).toBe("note");
+    expect(committed.slice(1).map((b: { id: string }) => b.id)).toEqual(["s1", "s2"]);
+  });
 });
 
 describe("ActivityRunList (edit mode) — detail ops wire to runDocOps", () => {
