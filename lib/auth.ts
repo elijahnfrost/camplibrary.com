@@ -28,7 +28,11 @@ export const ANONYMOUS_SESSION: AuthSession = {
   authenticatedAt: null,
 };
 
-export const ADMIN_EMAIL = "contact@elijahfrost.com";
+// The site admin's email — the single account allowed to generate/manage staff
+// invite codes. Read from the environment (NEXT_PUBLIC_ so the client can gate
+// its admin UI, not just the server) and normalized to lowercase for comparison.
+// Unset ⇒ empty ⇒ nobody is admin (fail-closed); set it in Vercel + .env.local.
+export const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "").trim().toLowerCase();
 
 // Localhost development convenience: when the app is served from the local
 // machine, every visitor is treated as a fully-privileged staff member without
@@ -130,7 +134,9 @@ export function isClerkAuthUsable(): boolean {
 }
 
 export function isAdminEmail(email: string | null | undefined): boolean {
-  return email?.trim().toLowerCase() === ADMIN_EMAIL;
+  // Fail closed: with no ADMIN_EMAIL configured, no one is admin (never let an
+  // empty/whitespace email match an empty ADMIN_EMAIL).
+  return Boolean(ADMIN_EMAIL) && email?.trim().toLowerCase() === ADMIN_EMAIL;
 }
 
 function canEditLibrary(session: AuthSession): boolean {
