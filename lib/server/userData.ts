@@ -311,6 +311,32 @@ export async function listCalendarEvents(
   return rows.map((row) => mapCalendarEventRow(row as Record<string, unknown>));
 }
 
+// A cheap change-signature for a user's whole dataset, used by the client's
+// live-refresh poll to decide whether to pull the full snapshot. Combining
+// row COUNT with MAX(updated_at) catches every mutation: an insert or update
+// bumps the max (updated_at defaults to / is set to now()), and a delete drops
+// the count. Casting the timestamps to text keeps microsecond precision so two
+// updates in the same millisecond still differ. Two tiny aggregate reads —
+// far lighter than shipping the full docs+events payload each poll.
+export async function getUserDataVersion(clerkUserId: string): Promise<string> {
+  await ensureUserDataSchema();
+  const sql = getSql();
+  const rows = await sql`
+    SELECT
+      (SELECT count(*) FROM calendar_events WHERE clerk_user_id = ${clerkUserId}) AS event_count,
+      (SELECT max(updated_at)::text FROM calendar_events WHERE clerk_user_id = ${clerkUserId}) AS event_max,
+      (SELECT count(*) FROM user_documents WHERE clerk_user_id = ${clerkUserId}) AS doc_count,
+      (SELECT max(updated_at)::text FROM user_documents WHERE clerk_user_id = ${clerkUserId}) AS doc_max
+  `;
+  const row = rows[0] ?? {};
+  return [
+    String(row.event_count ?? 0),
+    String(row.event_max ?? ""),
+    String(row.doc_count ?? 0),
+    String(row.doc_max ?? ""),
+  ].join("|");
+}
+
 export async function upsertCalendarEvent(
   clerkUserId: string,
   raw: unknown
