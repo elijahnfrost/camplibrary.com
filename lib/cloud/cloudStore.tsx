@@ -14,7 +14,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { normalizeCalendarEvent, normalizeCalendarEventList, type CalendarEvent } from "../calendar/types";
 import { MIGRATION_MARKER_KEY, collectLocalDocsForImport } from "./cloudMigration";
 import { coalesce, nextRetryDelayMs, parseOutbox, serializeOutbox, type OutboxOp } from "./cloudOutbox";
+import { mergeServerDocs, mergeServerEvents } from "./serverSync";
 import { scopedStorageKey } from "./storageScope";
+import { useLiveSync } from "./useLiveSync";
 import {
   DOC_LOCAL_KEYS,
   USER_DOC_KEYS,
@@ -142,6 +144,10 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   const authBlockedRef = useRef(false);
   const undoStackRef = useRef<EventPatch[]>([]);
   const redoStackRef = useRef<EventPatch[]>([]);
+  // Live-refresh bookkeeping (see useLiveSync): last-applied version + a counter
+  // bumped on each local mutation so a refresh can tell an edit raced its fetch.
+  const lastVersionRef = useRef<string | null>(null);
+  const writeGenRef = useRef(0);
 
   scopeRef.current = scope;
   userIdRef.current = userId;
@@ -335,12 +341,14 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     }
     if (scopeRef.current !== currentScope) return; // signed out mid-flight
 
-    let body: { docs?: Record<string, unknown>; events?: unknown } = {};
+    let body: { docs?: Record<string, unknown>; events?: unknown; version?: unknown } = {};
     try {
       body = (await response.json()) as typeof body;
     } catch {
       body = {};
     }
+    // Seed the live-refresh cursor from this snapshot (see useLiveSync).
+    if (typeof body.version === "string") lastVersionRef.current = body.version;
 
     // One-time migration: upload local data; existing server rows win.
     let importedKeys: UserDocKey[] = [];
@@ -368,38 +376,19 @@ export function useCloudUserData(userId: string | null): CloudUserData {
 
     // Server docs replace local state — except keys with pending local edits
     // (outbox) and keys whose local value was just imported as canonical.
-    const dirtyDocKeys = new Set(
-      outboxRef.current.filter((op): op is Extract<OutboxOp, { kind: "doc" }> => op.kind === "doc").map((op) => op.key)
-    );
+    const skipDocKeys = new Set<UserDocKey>(importedKeys);
+    for (const op of outboxRef.current) if (op.kind === "doc") skipDocKeys.add(op.key);
     const serverDocs = body.docs && typeof body.docs === "object" ? body.docs : {};
-    const nextDocs = { ...docsRef.current };
-    for (const key of USER_DOC_KEYS) {
-      if (dirtyDocKeys.has(key) || importedKeys.includes(key)) continue;
-      if (key in serverDocs) {
-        (nextDocs as Record<string, unknown>)[key] = normalizeDoc(key, (serverDocs as Record<string, unknown>)[key]);
-      }
-      persistDoc(key, (nextDocs as Record<string, unknown>)[key]);
-    }
+    const nextDocs = mergeServerDocs(docsRef.current, serverDocs, skipDocKeys);
     docsRef.current = nextDocs;
     setDocsState(nextDocs);
+    for (const key of USER_DOC_KEYS) if (!skipDocKeys.has(key)) persistDoc(key, nextDocs[key]);
 
     // Server events replace local state — except ids with pending ops.
     const pendingEventIds = new Set(
-      outboxRef.current
-        .filter((op): op is Exclude<OutboxOp, { kind: "doc" }> => op.kind !== "doc")
-        .map((op) => op.id)
+      outboxRef.current.flatMap((op) => (op.kind === "doc" ? [] : [op.id]))
     );
-    const nextEvents: Record<string, CalendarEvent> = {};
-    if (Array.isArray(body.events)) {
-      for (const raw of body.events) {
-        const event = normalizeCalendarEvent(raw);
-        if (event && !pendingEventIds.has(event.id)) nextEvents[event.id] = event;
-      }
-    }
-    for (const id of pendingEventIds) {
-      const local = eventsRef.current[id];
-      if (local) nextEvents[id] = local;
-    }
+    const nextEvents = mergeServerEvents(eventsRef.current, body.events, pendingEventIds);
     // First sign-in only (marker was absent → pendingImport set): adopt local
     // events the server doesn't have yet — e.g. events created while signed-out
     // and carried in from the anon scope. Each is kept locally AND queued for
@@ -509,6 +498,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
       const previous = docsRef.current[key];
       const value = typeof next === "function" ? (next as (p: DocValueMap[K]) => DocValueMap[K])(previous) : next;
       if (value === previous) return;
+      writeGenRef.current += 1; // mark a local edit so a racing refresh can't regress it
       docsRef.current = { ...docsRef.current, [key]: value };
       setDocsState(docsRef.current);
       persistDoc(key, value);
@@ -537,6 +527,7 @@ export function useCloudUserData(userId: string | null): CloudUserData {
   // Anon users still get the local mutation (enqueueMany no-ops without a user).
   const applyEventMap = useCallback(
     (map: PatchMap) => {
+      writeGenRef.current += 1; // mark a local edit so a racing refresh can't regress it
       const next = { ...eventsRef.current };
       const ops: OutboxOp[] = [];
       for (const [id, value] of Object.entries(map)) {
@@ -615,6 +606,15 @@ export function useCloudUserData(userId: string | null): CloudUserData {
     [commitEvents]
   );
   const removeEvents = useCallback((ids: string[]) => commitEvents([], ids), [commitEvents]);
+
+  // Live refresh: a focused, signed-in tab pulls server-side changes (another
+  // device, or an agent writing straight to the database) without a manual
+  // reload, through the same optimistic refs/setters so a pending edit is safe.
+  useLiveSync({
+    userId, scopeRef, userIdRef, bootstrappedRef, authBlockedRef, outboxRef,
+    eventsRef, docsRef, writeGenRef, lastVersionRef,
+    setEvents: setEventsState, setDocs: setDocsState, persistEvents, persistDoc, setStatus,
+  });
 
   return {
     status,

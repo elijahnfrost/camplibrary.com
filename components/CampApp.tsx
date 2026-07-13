@@ -917,20 +917,30 @@ export function CampApp({ initialTab = "calendar" }: { initialTab?: TabId } = {}
                     : "Offline — will sync"}
               </button>
             )}
-            <ProfileControl
-              session={auth.session}
-              authEnabled={auth.enabled}
-              syncStatus={cloud.status}
-              pendingCount={cloud.pendingCount}
-              syncError={cloud.syncError}
-              isAdmin={isAdmin}
-              onOpenInvites={() => setTab("admin")}
-              onSignIn={openSignInPrompt}
-              onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
-              onSignOut={() => auth.signOut("/")}
-              open={profileMenuOpen}
-              onOpenChange={setProfileMenuOpen}
-            />
+            {/* The sidebar is only CSS-hidden below the desk breakpoint — its own
+                trigger button stays mounted (and its getBoundingClientRect() stays
+                truthy) even while invisible. Left ungated, it shared profileMenuOpen
+                with the mobile tabbar's ProfileControl below and mounted a SECOND
+                FloatingLayer on top of the first: their outside-pointerdown-close
+                listeners then raced, closing the shared state the instant a tap
+                landed inside either popover's content (the "can't tap Sign in on
+                mobile" bug). Only ever mount one instance at a time. */}
+            {isDesktop && (
+              <ProfileControl
+                session={auth.session}
+                authEnabled={auth.enabled}
+                syncStatus={cloud.status}
+                pendingCount={cloud.pendingCount}
+                syncError={cloud.syncError}
+                isAdmin={isAdmin}
+                onOpenInvites={() => setTab("admin")}
+                onSignIn={openSignInPrompt}
+                onSwitchAccount={() => auth.signOut("/?auth=sign-in")}
+                onSignOut={() => auth.signOut("/")}
+                open={profileMenuOpen}
+                onOpenChange={setProfileMenuOpen}
+              />
+            )}
           </div>
         </nav>
 
